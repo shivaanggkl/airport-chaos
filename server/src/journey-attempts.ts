@@ -139,7 +139,7 @@ export class JourneyAttemptStore {
       this.database.exec('ALTER TABLE journey_attempts ADD COLUMN definition_revision INTEGER NOT NULL DEFAULT 0');
     // Completed M1 records remain intact; an in-flight legacy course cannot resume on new geometry.
     this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
-      WHERE mission_id=? AND definition_revision=0 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas01.id);
+      WHERE mission_id=? AND definition_revision<? AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas01.id,journeyDallas01.courseRevision);
     // Retain historical clears/receipts, but never resume a speed-race as combat.
     this.database.prepare(`UPDATE journey_attempts SET status = 'FAILED', finished_at = ?, failure_reason = 'MISSION_UPDATED'
       WHERE mission_id = ? AND definition_revision = 0 AND status IN ('READY','APPROACH','RACING')`)
@@ -160,6 +160,10 @@ export class JourneyAttemptStore {
     this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED' WHERE mission_id=? AND definition_revision<2 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas21.id);
     this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED' WHERE mission_id=? AND definition_revision<2 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas22.id);
     this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED' WHERE mission_id=? AND definition_revision<2 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas23.id);
+    // Changed transport courses cannot resume on legacy geometry; completed records stay intact.
+    this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
+      WHERE mission_id IN (?,?) AND definition_revision<1 AND status IN ('READY','APPROACH','RACING')`)
+      .run(Date.now(),journeyDallas07.id,journeyDallas08.id);
     // Preserve historical clears, but never resume territory progress as a boss battle.
     this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
       WHERE mission_id=? AND definition_revision=0 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas18.id);
@@ -189,6 +193,12 @@ export class JourneyAttemptStore {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', failure_reason = 'MISSION_UPDATED' WHERE mission_id = ? AND status IN ('READY','APPROACH','RACING')")
         .run(journeyDallas03.id);
     }
+    // Previous M2/M3 courses cannot resume against the new gate geometry.
+    for (const mission of [journeyDallas02, journeyDallas03]) {
+      this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
+      WHERE mission_id=? AND definition_revision<? AND status IN ('READY','APPROACH','RACING')`)
+        .run(Date.now(), mission.id, mission.courseRevision);
+    }
     // -1 separates historical Claim the Skies records from the new race.
     if (!columns.some(column => column.name === 'slalom_gate_index')) {
       this.database.exec('ALTER TABLE journey_attempts ADD COLUMN slalom_gate_index INTEGER NOT NULL DEFAULT -1 CHECK(slalom_gate_index BETWEEN -1 AND 10)');
@@ -201,11 +211,21 @@ export class JourneyAttemptStore {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', failure_reason = 'MISSION_UPDATED' WHERE mission_id = ? AND status IN ('READY','APPROACH','RACING')")
         .run(journeyDallas05.id);
     }
+    // Preserve prior clears, but never resume an active attempt on old M4/M5 geometry.
+    for (const mission of [journeyDallas04, journeyDallas05]) {
+      this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
+      WHERE mission_id=? AND definition_revision<? AND status IN ('READY','APPROACH','RACING')`)
+        .run(Date.now(), mission.id, mission.courseRevision);
+    }
     if (!columns.some(column => column.name === 'golden_championship_gate_index')) {
       this.database.exec('ALTER TABLE journey_attempts ADD COLUMN golden_championship_gate_index INTEGER NOT NULL DEFAULT -1 CHECK(golden_championship_gate_index BETWEEN -1 AND 10)');
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', failure_reason = 'MISSION_UPDATED' WHERE mission_id = ? AND status IN ('READY','APPROACH','RACING')")
         .run(journeyDallas06.id);
     }
+    // Retain previous championship clears while retiring in-flight old-course attempts.
+    this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
+      WHERE mission_id=? AND definition_revision<? AND status IN ('READY','APPROACH','RACING')`)
+      .run(Date.now(), journeyDallas06.id, journeyDallas06.courseRevision);
     if (!columns.some(column => column.name === 'landing_grade')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN landing_grade TEXT');
     if (!columns.some(column => column.name === 'prepare_until')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN prepare_until INTEGER');
     if (!columns.some(column => column.name === 'repair_collected_at')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN repair_collected_at INTEGER');
@@ -316,43 +336,43 @@ export class JourneyAttemptStore {
   /** Preserve historical records while comparing only the current Rookie Rush course. */
   rookieRushBestTime(pilotId: string): number | undefined {
     const row = this.database.prepare(`SELECT MIN(finish_time_ms) AS best FROM journey_attempts
-      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND rookie_gate_index = 10 AND definition_revision = 1`)
-      .get(pilotId, journeyDallas01.id) as { best: number | null };
+      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND rookie_gate_index = 10 AND definition_revision = ?`)
+      .get(pilotId, journeyDallas01.id, journeyDallas01.courseRevision) as { best: number | null };
     return row.best ?? undefined;
   }
 
   lakeRacerBestTime(pilotId: string): number | undefined {
     const row = this.database.prepare(`SELECT MIN(finish_time_ms) AS best FROM journey_attempts
-      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND lake_gate_index = 10`)
-      .get(pilotId, journeyDallas02.id) as { best: number | null };
+      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND lake_gate_index = 10 AND definition_revision = ?`)
+      .get(pilotId, journeyDallas02.id, journeyDallas02.courseRevision) as { best: number | null };
     return row.best ?? undefined;
   }
 
   goldenAscentBestTime(pilotId: string): number | undefined {
     const row = this.database.prepare(`SELECT MIN(finish_time_ms) AS best FROM journey_attempts
-      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND ascent_gate_index = 10`)
-      .get(pilotId, journeyDallas03.id) as { best: number | null };
+      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND ascent_gate_index = 10 AND definition_revision = ?`)
+      .get(pilotId, journeyDallas03.id, journeyDallas03.courseRevision) as { best: number | null };
     return row.best ?? undefined;
   }
 
   downtownSlalomBestTime(pilotId: string): number | undefined {
     const row = this.database.prepare(`SELECT MIN(finish_time_ms) AS best FROM journey_attempts
-      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND slalom_gate_index = 10`)
-      .get(pilotId, journeyDallas04.id) as { best: number | null };
+      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND slalom_gate_index = 10 AND definition_revision = ?`)
+      .get(pilotId, journeyDallas04.id, journeyDallas04.courseRevision) as { best: number | null };
     return row.best ?? undefined;
   }
 
   needleRushBestTime(pilotId: string): number | undefined {
     const row = this.database.prepare(`SELECT MIN(finish_time_ms) AS best FROM journey_attempts
-      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND needle_gate_index = 10`)
-      .get(pilotId, journeyDallas05.id) as { best: number | null };
+      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND needle_gate_index = 10 AND definition_revision = ?`)
+      .get(pilotId, journeyDallas05.id, journeyDallas05.courseRevision) as { best: number | null };
     return row.best ?? undefined;
   }
 
   goldenChampionshipBestTime(pilotId: string): number | undefined {
     const row = this.database.prepare(`SELECT MIN(finish_time_ms) AS best FROM journey_attempts
-      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND golden_championship_gate_index = 10`)
-      .get(pilotId, journeyDallas06.id) as { best: number | null };
+      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND golden_championship_gate_index = 10 AND definition_revision = ?`)
+      .get(pilotId, journeyDallas06.id, journeyDallas06.courseRevision) as { best: number | null };
     return row.best ?? undefined;
   }
 
@@ -387,8 +407,11 @@ export class JourneyAttemptStore {
           missionId === journeyDallas04.id ? 0 : -1,
           missionId === journeyDallas05.id ? 0 : -1,
           missionId === journeyDallas06.id ? 0 : -1);
-      if (missionId === journeyDallas01.id) this.database.prepare('UPDATE journey_attempts SET definition_revision=1 WHERE attempt_id=?').run(attemptId);
-      if (missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id || missionId === journeyDallas16.id || missionId === journeyDallas17.id || missionId === journeyDallas18.id || (missionId===journeyDallas19.id||missionId===journeyDallas25.id)||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id) this.database.prepare('UPDATE journey_attempts SET definition_revision = ? WHERE attempt_id = ?').run(missionId===journeyDallas19.id?3:(missionId===journeyDallas25.id||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id)?2:1,attemptId);
+      if (missionId === journeyDallas02.id || missionId === journeyDallas03.id) this.database.prepare('UPDATE journey_attempts SET definition_revision=? WHERE attempt_id=?').run(missionId === journeyDallas02.id ? journeyDallas02.courseRevision : journeyDallas03.courseRevision,attemptId);
+      if (missionId === journeyDallas04.id || missionId === journeyDallas05.id) this.database.prepare('UPDATE journey_attempts SET definition_revision=? WHERE attempt_id=?').run(missionId === journeyDallas04.id ? journeyDallas04.courseRevision : journeyDallas05.courseRevision,attemptId);
+      if (missionId === journeyDallas06.id) this.database.prepare('UPDATE journey_attempts SET definition_revision=? WHERE attempt_id=?').run(journeyDallas06.courseRevision,attemptId);
+      if (missionId === journeyDallas01.id) this.database.prepare('UPDATE journey_attempts SET definition_revision=? WHERE attempt_id=?').run(journeyDallas01.courseRevision,attemptId);
+      if (missionId === journeyDallas07.id || missionId === journeyDallas08.id || missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id || missionId === journeyDallas16.id || missionId === journeyDallas17.id || missionId === journeyDallas18.id || (missionId===journeyDallas19.id||missionId===journeyDallas25.id)||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id) this.database.prepare('UPDATE journey_attempts SET definition_revision = ? WHERE attempt_id = ?').run(missionId===journeyDallas19.id?3:(missionId===journeyDallas25.id||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id)?2:1,attemptId);
       if (missionId === journeyDallas11.id || missionId === journeyDallas12.id) {
         const mission = missionId === journeyDallas12.id ? journeyDallas12 : journeyDallas11;
         this.database.prepare('UPDATE journey_attempts SET monster_health = ?, fortress_left_health = ?, fortress_right_health = ?, final_phase = ? WHERE attempt_id = ?')
@@ -584,9 +607,9 @@ export class JourneyAttemptStore {
           (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`)
           .run(pilotId, current.missionId, attemptId, now, finishTimeMs).changes === 1;
         if (!first) this.database.prepare(`UPDATE journey_completions SET clear_count = clear_count + 1,
-          best_time_ms = CASE WHEN mission_id = ? AND COALESCE((SELECT definition_revision FROM journey_attempts
-            WHERE attempt_id = journey_completions.first_attempt_id),0) = 0 THEN best_time_ms ELSE MIN(best_time_ms, ?) END
-          WHERE pilot_id = ? AND mission_id = ?`).run(journeyDallas01.id, finishTimeMs, pilotId, current.missionId);
+          best_time_ms = CASE WHEN mission_id IN (?, ?, ?, ?, ?, ?) AND COALESCE((SELECT definition_revision FROM journey_attempts
+            WHERE attempt_id = journey_completions.first_attempt_id),0) < ? THEN best_time_ms ELSE MIN(best_time_ms, ?) END
+          WHERE pilot_id = ? AND mission_id = ?`).run(journeyDallas01.id, journeyDallas02.id, journeyDallas03.id, journeyDallas04.id, journeyDallas05.id, journeyDallas06.id, 'courseRevision' in mission ? mission.courseRevision : 1, finishTimeMs, pilotId, current.missionId);
         if (first) {
           const before = wallet.balances(pilotId)?.credits ?? 0;
           const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: mission.firstClearCredits,

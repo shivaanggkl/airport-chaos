@@ -1,20 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { journeyDallas01, journeyDallas02, journeyGateCrossing } from '../../shared/journey-mission.mjs';
+import { DALLAS_WORLD_SCALE as S } from '../../shared/dallas-world-scale.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 
-const lake = { x: 5_200, z: -8_500 };
+const lake = { x: 5_200*S, z: -8_500*S };
 
 test('Lake Racer is a separate East Dallas course near White Rock Lake', () => {
   assert.equal(journeyDallas02.gates.length, 10);
-  assert.equal(journeyDallas02.timeLimitMs, 150_000);
+  assert.equal(journeyDallas02.timeLimitMs, 180_000);
   assert.equal(journeyDallas02.firstClearCredits, 350);
   assert.notDeepEqual(journeyDallas02.gates, journeyDallas01.gates);
-  assert.ok(journeyDallas02.gates.some(gate => Math.hypot(gate.x - lake.x, gate.z - lake.z) < 4_000));
+  assert.ok(journeyDallas02.gates.some(gate => Math.hypot(gate.x - lake.x, gate.z - lake.z) < 4_000*S));
   const points = [journeyDallas02.airborneSpawn, ...journeyDallas02.gates];
   for (let i = 1; i < points.length; i += 1) {
-    assert.ok(Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z) < 13_000, `leg ${i}`);
-    assert.ok(Math.abs(points[i].x) <= 23_000 && Math.abs(points[i].z) <= 23_000, `world margin at gate ${i}`);
+    assert.ok(Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z) <= (i===1?Math.hypot(journeyDallas01.gates[0].x-journeyDallas01.airborneSpawn.x,journeyDallas01.gates[0].z-journeyDallas01.airborneSpawn.z)+1e-6:13_000), `leg ${i}`);
+    assert.ok(Math.abs(points[i].x) <= 23_000*S && Math.abs(points[i].z) <= 23_000*S, `world margin at gate ${i}`);
   }
   const spawn = authorizedJourneyAirborneSpawn({ missionId: journeyDallas02.id, status: 'APPROACH' }, journeyDallas02, () => 180);
   assert.equal(spawn.position.y, 180 + journeyDallas02.airborneSpawn.altitude);

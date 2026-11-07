@@ -519,22 +519,23 @@ test('historical Hunter Showdown clears retain unlocks but never pay Lake Racer 
 });
 
 test('Golden Ascent is a ten-gate rising course with valid swept openings', () => {
-  assert.equal(journeyDallas03.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
+  assert.equal(journeyDallas03.timeLimitMs, 180_000);
   assert.equal(journeyDallas03.firstClearCredits, 450);
   assert.equal(journeyDallas03.gates.length, 10);
-  assert.ok(journeyDallas03.gates[5]!.altitude > journeyDallas03.airborneSpawn.altitude + 350 * DALLAS_WORLD_SCALE);
-  assert.ok(journeyDallas03.gates.at(-1)!.altitude < journeyDallas03.gates[5]!.altitude);
+  assert.ok(journeyDallas03.gates[4]!.altitude > journeyDallas03.airborneSpawn.altitude + 350 * DALLAS_WORLD_SCALE);
+  assert.ok(journeyDallas03.gates.at(-1)!.altitude < journeyDallas03.gates[4]!.altitude);
   assert.ok(Math.max(...journeyDallas03.gates.map(gate => gate.altitude)) < 1_200 * DALLAS_WORLD_SCALE);
   const route = [journeyDallas03.airborneSpawn, ...journeyDallas03.gates];
   let distance = 0;
   for (let index = 1; index < route.length; index += 1) {
     const previous = route[index - 1]!, next = route[index]!;
     const leg = Math.hypot(next.x - previous.x, next.z - previous.z);
-    assert.ok(leg <= 13_000 * DALLAS_WORLD_SCALE, `gate ${index} remains within readable spacing`);
+    if(index===1)assert.ok(Math.abs(leg-Math.hypot(journeyDallas01.gates[0].x-journeyDallas01.airborneSpawn.x,journeyDallas01.gates[0].z-journeyDallas01.airborneSpawn.z))<1e-6,'opening matches M1');
+    else assert.ok(leg <= 9_000, `gate ${index} remains within readable spacing`);
     assert.ok(Math.abs(next.x) <= 23_000 * DALLAS_WORLD_SCALE && Math.abs(next.z) <= 23_000 * DALLAS_WORLD_SCALE, `gate ${index} stays inside playable Dallas`);
     distance += leg;
   }
-  assert.ok(distance >= 40_000 * DALLAS_WORLD_SCALE && distance <= 50_000 * DALLAS_WORLD_SCALE);
+  assert.ok(distance >= 151_000 && distance <= 153_000);
   for (let index = 0; index < journeyDallas03.gates.length; index += 1) {
     const gate = journeyDallas03.gates[index]!;
     const before = journeyDallas03.gates[Math.max(0, index - 1)]!;
@@ -548,8 +549,8 @@ test('Golden Ascent is a ten-gate rising course with valid swept openings', () =
     const miss = { x: from.x - nz * gate.radius * 2, y: from.y, z: from.z + nx * gate.radius * 2 };
     const missTo = { x: to.x - nz * gate.radius * 2, y: to.y, z: to.z + nx * gate.radius * 2 };
     assert.equal(journeyGateCrossing(miss, missTo, index, 180, journeyDallas03), false);
-    if (index > 0 && index <= 5) assert.ok(gate.altitude > journeyDallas03.gates[index - 1]!.altitude);
-    if (index > 5) assert.ok(gate.altitude < journeyDallas03.gates[index - 1]!.altitude);
+    if (index > 0 && index <= 4) assert.ok(gate.altitude > journeyDallas03.gates[index - 1]!.altitude);
+    if (index >= 5) assert.ok(gate.altitude < journeyDallas03.gates[index - 1]!.altitude);
   }
 });
 
@@ -659,9 +660,9 @@ test('historical White Rock Skimmer completion keeps rewards and unlocks without
 
 test('Needle Rush has ten progressively smaller golden openings and bidirectional crossings', () => {
   assert.equal(journeyDallas05.name, 'NEEDLE RUSH');
-  assert.equal(journeyDallas05.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
+  assert.equal(journeyDallas05.timeLimitMs, 180_000);
   assert.ok(journeyDallas05.airborneSpawn);
-  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [300, 290, 275, 260, 250, 240, 230, 220, 215, 320].map(radius => radius * DALLAS_WORLD_SCALE));
+  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [300, 290, 275, 260, 250, 245, 240, 235, 230, 225].map(radius => radius * DALLAS_WORLD_SCALE));
   for (let index = 0; index < 10; index += 1) {
     const gate = journeyDallas05.gates[index]!;
     const previous = journeyDallas05.gates[Math.max(0, index - 1)]!;
@@ -803,7 +804,7 @@ test('historical four-gate Mission 5 clears retain progress and Credits without 
 test('Golden Championship has ten gates and a safe course entry', () => {
   assert.equal(journeyDallas06.name, 'GOLDEN CHAMPIONSHIP');
   assert.equal(journeyDallas06.gates.length, 10);
-  assert.equal(journeyDallas06.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
+  assert.equal(journeyDallas06.timeLimitMs, 180_000);
   assert.equal(journeyDallas06.firstClearCredits, 750);
   assert.ok(journeyDallas06.airborneSpawn.altitude > 700 * DALLAS_WORLD_SCALE);
   for (let index = 0; index < journeyDallas06.gates.length; index += 1) {
@@ -921,7 +922,7 @@ test('historical championship clears preserve rewards while new race records sta
 
 test('Downtown Slalom gates accept sequential crossings through either face of the solid ring', () => {
   assert.equal(journeyDallas04.gates.length, 10);
-  assert.equal(journeyDallas04.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
+  assert.equal(journeyDallas04.timeLimitMs, 180_000);
   assert.equal(journeyDallas04.firstClearCredits, 500);
   for (let index = 0; index < 10; index += 1) {
     const gate = journeyDallas04.gates[index]!;

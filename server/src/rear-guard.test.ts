@@ -5,26 +5,26 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { journeyDallas07, journeyDallas08, journeyDallas12 } from '../../shared/journey-mission.mjs';
-import { transportCourse, transportPose, transportRouteLength } from '../../shared/giant-incoming.mjs';
+import { transportCourse, transportPose, transportRouteLength, transportRouteForMission } from '../../shared/giant-incoming.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { createRearGuardFireState, finalInterceptEscortsCleared, rearGuardShooter, rearGuardShotResolved, rearGuardTakeoff } from './rear-guard-fire.js';
 
-test('Rear Guard uses the existing transport corridor and a true five-minute escape', () => {
+test('Rear Guard uses the compact transport corridor and a true six-and-a-half-minute escape', () => {
   assert.equal(journeyDallas08.name, 'GIANT PLANE & TWO ESCORTS');
   assert.equal(journeyDallas08.startAirportId, journeyDallas07.startAirportId);
-  assert.equal(journeyDallas08.timeLimitMs, 300_000);
+  assert.equal(journeyDallas08.timeLimitMs, 390_000);
   assert.equal(journeyDallas08.bossHealth, 2_000);
   assert.equal(journeyDallas08.escortCount, 2);
   assert.equal(journeyDallas08.escortHealth, 1_000);
   assert.deepEqual(journeyDallas08.escortAircraft, ['trainer', 'trainer']);
   assert.deepEqual(journeyDallas08.escortLiveries, ['bluejay-skybolt', 'bluejay-aurora']);
   assert.deepEqual({ x: transportPose(0).x, z: transportPose(0).z }, transportCourse.start);
-  const end = transportPose(journeyDallas08.timeLimitMs, 900, journeyDallas08.timeLimitMs);
+  const end = transportPose(journeyDallas08.timeLimitMs, 900, journeyDallas08.timeLimitMs,journeyDallas08.id);
   assert.ok(Math.abs(end.x - transportCourse.end.x) < 0.001);
   assert.ok(Math.abs(end.z - transportCourse.end.z) < 0.001);
-  assert.ok(transportRouteLength / 300 < aircraftFlightEnvelope.trainer.maxSpeed * 0.5);
+  assert.ok(transportRouteForMission(journeyDallas08.id).length / 390 < aircraftFlightEnvelope.trainer.maxSpeed * 0.5);
 });
 
 test('escort bursts wait for takeoff, alternate, space shots, and never speed up after a kill', () => {
@@ -114,7 +114,7 @@ test('Mission 8 unlock, two assigned escorts, transport defeat, timeout and firs
     assert.equal(store.approach('pilot', first.attemptId)?.status, 'APPROACH');
     assert.ok(missionFocusForAttempt(store.get('pilot', first.attemptId)));
     assert.equal(store.hitTransport('pilot', first.attemptId, 1_500, 25), undefined);
-    assert.equal(store.startGiantIncoming('pilot', first.attemptId, 2_000)?.deadlineAt, 302_000);
+    assert.equal(store.startGiantIncoming('pilot', first.attemptId, 2_000)?.deadlineAt, 392_000);
     assert.equal(store.assignRearGuardEscort('other', first.attemptId, 'escort-1', 1), undefined);
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'escort-1', 1)?.targetId, 'escort-1');
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'replacement', 1), undefined);
@@ -138,7 +138,7 @@ test('Mission 8 unlock, two assigned escorts, transport defeat, timeout and firs
     store.assignRearGuardEscort('pilot',replay.attemptId,'replay-escort-2',2);
     store.recordRearGuardKill('pilot',replay.attemptId,'replay-escort-1',21_100);
     store.recordRearGuardKill('pilot',replay.attemptId,'replay-escort-2',21_100);
-    assert.equal(store.hitTransport('pilot', replay.attemptId, 321_000, 2_000), undefined);
+    assert.equal(store.hitTransport('pilot', replay.attemptId, 411_000, 2_000), undefined);
     for (let index = 0; index < 80; index += 1) result = store.hitTransport('pilot', replay.attemptId, 22_000 + index * 100, 25);
     assert.equal(result?.status, 'COMPLETED');
     assert.equal(result?.firstClearCredits, 0);

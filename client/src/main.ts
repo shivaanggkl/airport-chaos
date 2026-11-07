@@ -1,3 +1,5 @@
+import { AircraftVictory } from './aircraft-victory';
+import { MissionOneAircraftPreview } from './mission-one-aircraft-preview';
 import {M24_INTRO,m24IntroText} from './m24-intro';
 import {m23IntroText} from './m23-intro';
 import {m22IntroText} from './m22-intro';
@@ -253,7 +255,7 @@ let runwayJourneyIntroAwaiting = false;
 let cinematicDirector: CinematicDirector;
 let missionClearStartedAt: number | null = null;
 let missionClearAttemptId: string | null = null;
-const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || skyDuelUi?.blocksFlightInput() === true || airAssaultUi?.blocked() === true || flightDialogOpen();
+const launchCinematicBlocksInput = (): boolean => aircraftVictory?.pending === true || flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || skyDuelUi?.blocksFlightInput() === true || airAssaultUi?.blocked() === true || flightDialogOpen();
 const journeyPreflightActive = (): boolean => journeyMode &&
   (flightLaunchState === 'pending' || flightLaunchState === 'active' ||
     missionStartCountdownPending || missionStartCountdownStartedAt !== null);
@@ -288,7 +290,7 @@ const METERS_PER_SECOND_TO_KNOTS = KNOTS_PER_METER_PER_SECOND * WORLD_METERS_PER
 const METERS_PER_SECOND_TO_MPH = MPH_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
 const MIN_REWARDED_FLIGHT_DISTANCE = 40;
 let isDallas = cityId === 'dallas';
-let worldTimeOfDay: CityTimeOfDay = airAssaultMode ? 'day' : skyDuelMode ? 'evening' : resolveCityTimePreset(activeCity, new URLSearchParams(window.location.search).get('time'));
+let worldTimeOfDay: CityTimeOfDay = resolveCityTimePreset(activeCity, airAssaultMode ? 'day' : skyDuelMode ? 'evening' : new URLSearchParams(window.location.search).get('time'));
 let portalDallasTimeOfDay:CityTimeOfDay=isDallas?worldTimeOfDay:'day';
 let timeVisuals = createTimeVisuals(isDallas);
 let visualConfig = timeVisuals[worldTimeOfDay];
@@ -2297,6 +2299,39 @@ let transportView:GiantIncomingView|undefined;
 let transportViewAttemptId="";
 let pendingTransportResultId:string|null=null;
 let transportCollisionAttemptId: string | null = null;
+let aircraftVictory: AircraftVictory | null = null;
+const aircraftVictoryCandidates: AircraftVictory[] = [];
+let aircraftVictoryReplay: { root: THREE.Group; pilot: THREE.Group; enemy: THREE.Group; tracer: THREE.Group; muzzle: THREE.Vector3; playerWasVisible: boolean } | null = null;
+function clearAircraftVictoryReplay(): void {
+  if (!aircraftVictoryReplay) return;
+  scene.remove(aircraftVictoryReplay.root);
+  disposeAirplaneMaterials(aircraftVictoryReplay.pilot);
+  disposeAirplaneMaterials(aircraftVictoryReplay.enemy);
+  airplane.visible = aircraftVictoryReplay.playerWasVisible;
+  aircraftVictoryReplay = null;
+}
+function prepareAircraftVictoryReplay(ending: AircraftVictory, original?: THREE.Group): void {
+  if (!ending.hasReplay || aircraftVictoryReplay) return;
+  const root = new THREE.Group();
+  const pilot = createAirplane(aircraftType);
+  applyEquippedLivery(pilot, aircraftType, serverProfile.cosmetics.equipped);
+  pilot.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),ending.shotDirection);
+  const muzzle = new THREE.Vector3().copy(aircraftPresentationMuzzleSockets[aircraftType].position).applyQuaternion(pilot.quaternion);
+  pilot.position.copy(ending.shotOrigin).sub(muzzle);
+  const enemy = createAirplane(ending.mission.enemyAircraft);
+  applyEquippedLivery(enemy,ending.mission.enemyAircraft,{[`livery:${ending.mission.enemyAircraft}`]:ending.mission.enemyLivery});
+  if (original?.userData.airframeRoot) (enemy.userData.airframeRoot as THREE.Group).scale.copy(original.userData.airframeRoot.scale);
+  enemy.position.copy(ending.enemyPosition); enemy.rotation.copy(ending.enemyRotation);
+  const tracer = createProjectileMesh();
+  // The replay's tracked point is the bullet tip; its glow trails behind contact.
+  tracer.children[0]!.position.z = 11.5;
+  tracer.children[1]!.position.z = 9;
+  tracer.position.copy(ending.shotOrigin);
+  tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),ending.shotDirection);
+  root.add(pilot,enemy,tracer);root.visible=false;scene.add(root);
+  aircraftVictoryReplay={root,pilot,enemy,tracer,muzzle,playerWasVisible:airplane.visible};
+  airplane.visible=false;
+}
 let crashSequence: CrashSequence | null = null;
 let crashPresentationStarted = false;
 let crashPlayerWasVisible = true;
@@ -2305,6 +2340,10 @@ const transportCrashFlash = document.createElement('div');
 transportCrashFlash.className = 'transport-crash-flash';
 flightGameRoot.append(transportCrashFlash);
 function resetCrashPresentation(): void {
+  clearAircraftVictoryReplay();
+  aircraftVictory = null;
+  aircraftVictoryCandidates.length = 0;
+  flightGameRoot.classList.remove('aircraft-victory-active');
   crashSequence = null;
   crashTrainingResetPending = false;
   transportCrashFlash.style.opacity = '0';
@@ -2959,7 +2998,7 @@ function updateJourneyHud(): void {
     const mission = championshipMission ? journeyDallas06 : precisionMission ? journeyDallas05 : downtownMission ? journeyDallas04 : ascentMission ? journeyDallas03 : lakeMission ? journeyDallas02 : journeyDallas01;
     const gateCount = mission.gates.length;
     const distanceMeters = target ? distance * WORLD_METERS_PER_UNIT : 0;
-    if (journeyHudObjective) journeyHudObjective.textContent = dfwMission ? journeyDallas01.objective : 'Fly Through 10 Golden Gates Before Time Run Out.';
+    if (journeyHudObjective) journeyHudObjective.textContent = dfwMission ? journeyDallas01.objective : lakeMission ? journeyDallas02.objective : ascentMission ? journeyDallas03.objective : downtownMission ? journeyDallas04.objective : precisionMission ? journeyDallas05.objective : journeyDallas06.objective;
     if (journeyHudProgress) journeyHudProgress.textContent = `GATE ${Math.min(gateIndex + 1, gateCount)} / ${gateCount}`;
     if (journeyHudTarget && !downtownMission) journeyHudTarget.textContent = `GATE ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
     if (journeyHudTimer) journeyHudTimer.hidden = true;
@@ -2994,6 +3033,15 @@ function journeyResultMetric(label: string, value: string): HTMLElement {
 function showJourneyResult(attempt: JourneyAttemptState): void {
   if (attempt.status !== 'COMPLETED' && attempt.status !== 'FAILED' && attempt.status !== 'ABANDONED') return;
   if (attempt.status === 'FAILED' && attempt.attemptId === crashSequence?.attemptId) return;
+  if ((attempt.missionId === journeyDallas13.id || attempt.missionId === journeyDallas14.id || attempt.missionId === journeyDallas15.id || attempt.missionId === journeyDallas16.id) && attempt.status === 'COMPLETED' &&
+    aircraftVictory?.attemptId === attempt.attemptId && !aircraftVictory.complete) {
+    aircraftVictory.confirmSuccess();
+    clearHeldActions(); mobileInput.reset(); boostActive = false; runStarted = false;
+    cinematicDirector.clearPresentation();
+    journeyResultElement.classList.add('hidden');
+    flightGameRoot.classList.add('aircraft-victory-active');
+    return;
+  }
   if((attempt.missionId===journeyDallas07.id || attempt.missionId===journeyDallas08.id || attempt.missionId===journeyDallas09.id || attempt.missionId===journeyDallas10.id || attempt.missionId===journeyDallas11.id) && attempt.status==='COMPLETED' && transportView && !transportView.defeatComplete){
     const view=transportView;view.finish('defeat');
     if(pendingTransportResultId===attempt.attemptId)return;
@@ -3203,6 +3251,31 @@ function beginMissionClear(attempt: JourneyAttemptState): void {
   missionClearElement.classList.remove('is-exiting');
   missionClearElement.classList.add('hidden');
   flightGameRoot.classList.add('mission-clear-active');
+}
+
+function updateAircraftVictory(delta: number): void {
+  const ending = aircraftVictory;
+  if (!ending?.pending) return;
+  const frame = ending.update(delta);
+  if (aircraftVictoryReplay) {
+    aircraftVictoryReplay.root.visible = ending.replaying;
+    aircraftVictoryReplay.tracer.position.copy(ending.bulletPosition);
+    aircraftVictoryReplay.pilot.position.copy(ending.pilotMuzzlePosition).sub(aircraftVictoryReplay.muzzle);
+    aircraftVictoryReplay.enemy.position.copy(ending.enemyPosition);
+  }
+  if (frame.blast) {
+    clearAircraftVictoryReplay();
+    createDestructionEffect(ending.impactPosition, ending.mission.enemyAircraft, 3);
+    playDestructionSound();
+    audioManager.playDestroyConfirm();
+  }
+  transportCrashFlash.style.opacity = String(frame.flash);
+  if (frame.complete) {
+    transportCrashFlash.style.opacity = '0';
+    flightGameRoot.classList.remove('aircraft-victory-active');
+    clearAircraftVictoryReplay();
+    if (journeyAttempt?.attemptId === ending.attemptId && journeyAttempt.status === 'COMPLETED') showJourneyResult(journeyAttempt);
+  }
 }
 
 function updateMissionClear(delta: number): void {
@@ -4363,6 +4436,8 @@ const flightLaunchCurrentTarget = new THREE.Vector3();
 const flightLaunchSkipPosition = new THREE.Vector3();
 const flightLaunchSkipTarget = new THREE.Vector3();
 let missionOneIntroPath: MissionOneIntroPath | undefined;
+const missionOneAircraftPreview = new MissionOneAircraftPreview();
+let missionOnePreviewChaseFov = CAMERA_CHASE_FOV;
 let missionTwoIntroPath: MissionTwoIntroPath | undefined;
 let missionThreeIntroPath: MissionThreeIntroPath | undefined;
 let missionFourIntroPath: MissionFourIntroPath | undefined;
@@ -4559,13 +4634,13 @@ function beginFlightLaunchCinematic(): void {
     flightLaunchTitle.classList.add('is-runway-gates');
     flightLaunchTitle.innerHTML = missionCombatIntroPath
       ? missionCombatIntroPath.missionNumber === 19 ? journeyAttempt?.missionId===journeyDallas19.id?'<span>FINAL MONSTER BATTLE · DEFEAT THE MONSTER</span>':journeyAttempt?.missionId===journeyDallas25.id?'<span>DR. BOSS · DEFEAT THE MONSTER</span>':'<span>ASHEN WARLORD · DESTROY THE BOSS</span>'
-        : missionCombatIntroPath.missionNumber === 8 ? '<span>SURPRISE ATTACK · WATCH YOUR BACK</span>'
-        : missionCombatIntroPath.missionNumber === 9 ? '<span>HOT PURSUIT · STOP THE ESCAPING MAMMOTH</span>'
-        : missionCombatIntroPath.missionNumber === 10 ? '<span>DOUBLE THREAT · SHOOT DOWN BOTH ENEMIES</span>'
+        : missionCombatIntroPath.missionNumber === 8 ? '<span>Find And Shoot Down BLUEJAY Plane Before Time Runs Out.</span>'
+        : missionCombatIntroPath.missionNumber === 9 ? '<span>Find And Shoot Down MAMMOTH Plane Before Time Runs Out.</span>'
+        : missionCombatIntroPath.missionNumber === 10 ? '<span>Find And Shoot Down Both Enemy Planes Before Time Runs Out.</span>'
           : missionCombatIntroPath.missionNumber === 11 ? '<span>IRON HUNTER · ARMORED MAMMOTH</span>'
           : missionCombatIntroPath.missionNumber === 12 ? '<span>FINAL SHOWDOWN · LEGENDARY FIREHAWK</span>'
-          : '<span>FIRST CONTACT · SHOOT DOWN NIGHTOWL</span>'
-      : journeyAttempt?.missionId === journeyDallas01.id ? `<span>${journeyDallas01.objective}</span>` : '<span>Fly through 10 Golden Gates before Time runs out.</span>';
+          : '<span>Find And Shoot Down NIGHTOWL Plane Before Time Runs Out.</span>'
+      : journeyAttempt?.missionId === journeyDallas01.id ? `<span>${journeyDallas01.objective}</span>` : journeyAttempt?.missionId === journeyDallas02.id ? `<span>${journeyDallas02.objective}</span>` : journeyAttempt?.missionId === journeyDallas03.id ? `<span>${journeyDallas03.objective}</span>` : journeyAttempt?.missionId === journeyDallas04.id ? `<span>${journeyDallas04.objective}</span>` : journeyAttempt?.missionId === journeyDallas05.id ? `<span>${journeyDallas05.objective}</span>` : journeyAttempt?.missionId === journeyDallas06.id ? `<span>${journeyDallas06.objective}</span>` : '<span>Fly through 10 Golden Gates before Time runs out.</span>';
     flightLaunchTitle.classList.toggle('is-monster-arrival',Boolean(missionCombatIntroPath?.arrivalIntro||missionCombatIntroPath?.strikingIntro||missionCombatIntroPath?.huntingIntro));
     if(missionCombatIntroPath?.arrivalIntro)flightLaunchTitle.textContent=m19IntroText(0);
     if(missionCombatIntroPath?.strikingIntro)flightLaunchTitle.textContent=m20IntroText(0);
@@ -4675,6 +4750,7 @@ function requestFlightLaunchSkip(): void {
 
 function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THREE.Vector3, chaseFov: number): boolean {
   if (flightLaunchState !== 'active') return false;
+  if (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath) missionOnePreviewChaseFov = chaseFov;
   const now = performance.now();
   const runwayGateIntroPath = missionOneIntroPath ?? missionTwoIntroPath ?? missionThreeIntroPath ?? missionFourIntroPath ?? missionFiveIntroPath ?? missionSixIntroPath ?? missionCombatIntroPath;
   if (runwayGateIntroPath) {
@@ -9460,6 +9536,13 @@ function refreshCameraFraming(): void {
 }
 
 function updateCamera(delta: number): void {
+  if (aircraftVictory?.hasCamera) {
+    camera.fov = CAMERA_CHASE_FOV;
+    camera.updateProjectionMatrix();
+    aircraftVictory.updateCamera(camera);
+    skyDome.position.copy(camera.position);
+    return;
+  }
   const airplaneTransformValid =
     Number.isFinite(airplane.position.x) &&
     Number.isFinite(airplane.position.y) &&
@@ -10106,7 +10189,8 @@ function animate(): void {
   if (journeyPaused || trainingPaused) return;
   updateMissionStartCountdown();
   updateMissionClear(delta);
-  mobileInput.syncFlightState(throttle, boostMeter, boostActive);
+  updateAircraftVictory(delta);
+  mobileInput.syncFlightState(throttle, boostMeter, boostActive, heldActions.has('throttleUp') || heldActions.has('throttleDown'));
   // Local inspection routes move only the renderer/streamer. They do not send
   // transforms, trigger gameplay rewards, or alter production flight physics.
   if (visualQaInspectionActive && visualQaRouteSpeed) airplane.position.addScaledVector(forward, visualQaRouteSpeed * delta);
@@ -10139,6 +10223,7 @@ function animate(): void {
   updateDestructionEffects(delta);
   const streamingPosition = missionCombatIntroPath && (flightLaunchState === 'active'||flightLaunchState==='pending'&&(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro))
     ? (missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro)&&flightLaunchSkipStartedAt!==undefined?airplane.position:missionCombatIntroPath.streamingPosition(flightLaunchState==='pending'?0:Math.max(0,performance.now()-flightLaunchStartedAt-m19StoryOffsetMs))
+    : aircraftVictory?.hasCamera ? aircraftVictory.replaying ? aircraftVictory.bulletPosition : aircraftVictory.impactPosition
     : monsterView?.timeoutCinematicActive ? monsterView.timeoutStreamingPosition
     : (transportView?.defeatActive || transportView?.arrivalActive) ? transportView.position : airplane.position;
   if (!portalInTransit && cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(streamingPosition, velocity);
@@ -10232,7 +10317,13 @@ function animate(): void {
     stabilityQaTiming.updateTotalMs += updateMs;
     stabilityQaTiming.updateMaxMs = Math.max(stabilityQaTiming.updateMaxMs, updateMs);
   }
-  if (!renderSkyDuelRunwayIntro()) renderer.render(scene, camera);
+  if ((missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath) && flightLaunchState === 'active') {
+    // Keep the selected aircraft readable during all six Golden Gates tours, without advancing
+    // its authoritative spawn, gate progress, or countdown position.
+    missionOneAircraftPreview.begin(airplane, camera, chaseCameraPosition, chaseLookTarget, missionOnePreviewChaseFov);
+    try { renderer.render(scene, camera); }
+    finally { missionOneAircraftPreview.end(); }
+  } else if (!renderSkyDuelRunwayIntro()) renderer.render(scene, camera);
   if (stabilityQaTiming) {
     const renderMs = performance.now() - qaRenderStartedAt;
     stabilityQaTiming.renderTotalMs += renderMs;
@@ -11386,6 +11477,31 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     const previousHealth = journeyAttempt?.targetHealth;
     if (previousAttempt?.attemptId !== message.attempt.attemptId || ['FAILED','COMPLETED','ABANDONED'].includes(message.attempt.status)) { clearProjectileVisuals(); clearCombatTarget(); }
     journeyAttempt = message.attempt;
+    if ((message.attempt.missionId !== journeyDallas13.id && message.attempt.missionId !== journeyDallas14.id && message.attempt.missionId !== journeyDallas15.id && message.attempt.missionId !== journeyDallas16.id) || ['FAILED','ABANDONED'].includes(message.attempt.status) ||
+      aircraftVictory && aircraftVictory.attemptId !== message.attempt.attemptId) {
+      clearAircraftVictoryReplay();
+      aircraftVictory = null;
+      aircraftVictoryCandidates.length = 0;
+      flightGameRoot.classList.remove('aircraft-victory-active');
+      transportCrashFlash.style.opacity = '0';
+    }
+    if ((message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas14.id || message.attempt.missionId === journeyDallas15.id || message.attempt.missionId === journeyDallas16.id) && message.attempt.targetId && localPlayerId &&
+      !['FAILED','ABANDONED'].includes(message.attempt.status) && !aircraftVictory) {
+      const mission = message.attempt.missionId === journeyDallas16.id ? {enemyAircraft: journeyDallas16.enemies[0]!.aircraft, enemyLivery: journeyDallas16.enemies[0]!.livery}
+        : message.attempt.missionId === journeyDallas15.id ? journeyDallas15 : message.attempt.missionId === journeyDallas14.id ? journeyDallas14 : journeyDallas13;
+      aircraftVictory = new AircraftVictory(message.attempt.attemptId, message.attempt.targetId, localPlayerId, mission);
+      aircraftVictoryCandidates.push(aircraftVictory);
+      if (message.attempt.missionId === journeyDallas16.id && message.attempt.secondaryTargetId) {
+        const enemy = journeyDallas16.enemies[1]!;
+        aircraftVictoryCandidates.push(new AircraftVictory(message.attempt.attemptId, message.attempt.secondaryTargetId, localPlayerId,
+          {enemyAircraft: enemy.aircraft, enemyLivery: enemy.livery}));
+      }
+    }
+    if (message.attempt.missionId === journeyDallas16.id && message.attempt.status === 'COMPLETED') {
+      const finalTarget = previousAttempt?.crossfireKills === 1 ? message.attempt.secondaryTargetId : previousAttempt?.crossfireKills === 2 ? message.attempt.targetId : aircraftVictory?.targetId;
+      aircraftVictory = aircraftVictoryCandidates.find(ending => ending.targetId === finalTarget) ?? aircraftVictory;
+    }
+
     if (previousAttempt?.missionId !== message.attempt.missionId) {
       const missionNumber = journeyMissionSlot(message.attempt.missionId);
       setLocalTimePreset(missionTimePreset(missionNumber));
@@ -11433,7 +11549,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
           if(transportView!==view||journeyAttempt?.attemptId!==message.attempt.attemptId)return;
           if(journeyAttempt.status==='APPROACH'){
             clearHeldActions();boostActive=false;audioManager.playTone(440,.5,'triangle',.08,220,0,'impacts');
-            const arrival=view.beginArrival(arrivalEscorts, message.attempt.missionId === journeyDallas12.id ? 'ARMORED GIANT PLANE & TWO ESCORTS' : message.attempt.missionId === journeyDallas11.id ? 'ARMORED GIANT PLANE' : message.attempt.missionId === journeyDallas10.id ? 'GIANT PLANE & FOUR ESCORTS' : message.attempt.missionId === journeyDallas09.id ? 'GIANT PLANE & THREE ESCORTS' : message.attempt.missionId === journeyDallas08.id ? 'GIANT PLANE & TWO ESCORTS' : undefined);
+            const arrival=view.beginArrival(arrivalEscorts, message.attempt.missionId === journeyDallas12.id ? 'ARMORED GIANT PLANE & TWO ESCORTS' : message.attempt.missionId === journeyDallas11.id ? 'ARMORED GIANT PLANE' : message.attempt.missionId === journeyDallas10.id ? 'GIANT PLANE & FOUR ESCORTS' : message.attempt.missionId === journeyDallas09.id ? 'GIANT PLANE & THREE ESCORTS' : message.attempt.missionId === journeyDallas08.id ? 'GIANT PLANE & TWO ESCORTS' : undefined, message.attempt.missionId, message.attempt.missionId === journeyDallas07.id ? journeyDallas07.timeLimitMs : message.attempt.missionId === journeyDallas08.id ? journeyDallas08.timeLimitMs : undefined);
             missionIntroSkip.setAttribute('aria-label', `Skip Mission ${message.attempt.missionId===journeyDallas12.id ? '12' : message.attempt.missionId===journeyDallas11.id ? '11' : message.attempt.missionId===journeyDallas10.id ? '10' : message.attempt.missionId===journeyDallas09.id ? '9' : message.attempt.missionId===journeyDallas08.id ? '8' : '7'} intro`);
             missionIntroSkip.hidden=false;
             await arrival;
@@ -12063,10 +12179,12 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     aircraftGarage.showActionResult(message.reason ?? (message.ok ? 'FIREHAWK TEST FLIGHT STARTED' : 'TEST FLIGHT UNAVAILABLE'));
     if (message.ok) aircraftGarage.close();
   } else if (message.type === 'projectileSpawn') {
+    for (const ending of aircraftVictoryCandidates) ending.recordProjectile(message);
     addProjectile(message);
   } else if (message.type === 'projectileStates') {
     updateClientProjectiles(message);
   } else if (message.type === 'assistedShot') {
+    for (const ending of aircraftVictoryCandidates) ending.recordAssistedShot(message);
     addAssistedShot(message);
     if (combatQaElement && message.ownerId === localPlayerId) combatQaDetail = `shot: assisted → ${message.targetId.slice(0, 8)} · HIT`;
   } else if (message.type === 'lockState') {
@@ -12173,6 +12291,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     if(message.monsterImpact&&(journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id)&&message.monsterImpact.attemptId===journeyAttempt.attemptId)
       monsterView?.showBulletImpact(message.monsterImpact);
   } else if (message.type === 'damage') {
+    for (const ending of aircraftVictoryCandidates) ending.recordFatalHit(message);
     const assistedVisual = message.shooterId === localPlayerId && message.playerId !== localPlayerId
       ? pendingLocalAssistedHit(message.playerId)
       : undefined;
@@ -12248,15 +12367,22 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       ? airplane
       : remotePlayers.get(message.playerId)?.plane;
     const destroyedType = message.aircraftType ?? (message.playerId === localPlayerId ? aircraftType : remotePlayers.get(message.playerId)?.aircraftType);
+    const finalCrossfireTarget = journeyAttempt?.missionId === journeyDallas16.id &&
+      (message.playerId === journeyAttempt.targetId ? Boolean((journeyAttempt.crossfireKills ?? 0) & 2) : message.playerId === journeyAttempt.secondaryTargetId && Boolean((journeyAttempt.crossfireKills ?? 0) & 1));
+    if (finalCrossfireTarget) aircraftVictory = aircraftVictoryCandidates.find(ending => ending.targetId === message.playerId) ?? aircraftVictory;
+    const aircraftVictoryDestruction = (journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallas15.id || finalCrossfireTarget) &&
+      aircraftVictory?.confirmDestruction(message, destroyedPlane?.rotation.y ?? 0, destroyedPlane?.rotation, remotePlayers.get(message.playerId)?.velocity) === true;
+    if (aircraftVictoryDestruction && aircraftVictory) prepareAircraftVictoryReplay(aircraftVictory, destroyedPlane);
+
     if (destroyedType) {
       const sourcePosition = message.position && [message.position.x, message.position.y, message.position.z].every(Number.isFinite)
         ? message.position
         : destroyedPlane?.position;
       if (sourcePosition) {
         destructionPosition.set(sourcePosition.x, sourcePosition.y, sourcePosition.z);
-        if (message.playerId !== localPlayerId || !crashSequence)
+        if (!aircraftVictoryDestruction && (message.playerId !== localPlayerId || !crashSequence))
           createDestructionEffect(destructionPosition, destroyedType);
-        if (message.playerId !== localPlayerId && destructionPosition.distanceTo(airplane.position) < 2_500) playDestructionSound();
+        if (!aircraftVictoryDestruction && message.playerId !== localPlayerId && destructionPosition.distanceTo(airplane.position) < 2_500) playDestructionSound();
       }
     }
     if (message.playerId === localPlayerId) {
@@ -12290,7 +12416,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       if (!(journeyMode && journeyAttempt?.status === 'COMPLETED' && journeyAttempt.targetId === message.playerId)) {
         hapticsManager.emit('destruction', message.playerId);
       }
-      audioManager.playDestroyConfirm();
+      if (!aircraftVictoryDestruction) audioManager.playDestroyConfirm();
       if(airAssaultMode)showCombatMessage('ENEMY DESTROYED',true);
       if (!skyDuelMode && !airAssaultMode) {
         flightRecap.kills += 1;

@@ -42,7 +42,11 @@ test('M7 retains identity, runway, exact distance and a catchable six-hit oppone
   assert.equal(journeyMissionSlot(journeyDallas07.id), 13);
   assert.equal(mission.startAirportId, 'dfw');
   const dfw = cityAirports.dallas.find(a => a.id === 'dfw');
-  assert.ok(Math.abs(Math.hypot(mission.enemySpawn.x - dfw.x, mission.enemySpawn.z - dfw.z) - 20_000 * DALLAS_WORLD_SCALE) < 1e-6);
+  const runwayZ=dfw.z+Math.min(dfw.runwayLength*.32,dfw.runwayLength*.5-120);
+  const separation=Math.hypot(mission.enemySpawn.x-dfw.x,mission.enemySpawn.z-runwayZ);
+  assert(separation>=18_000&&separation<=24_000);
+  assert(mission.enemySpawn.z<dfw.z);
+  assert.equal(mission.timeLimitMs,180_000);
   assert.deepEqual(boundJourneyHunterPoint(mission.enemySpawn), mission.enemySpawn);
   assert.equal(mission.enemyHealth / projectileDamageForAircraft('trainer'), 6);
   assert.ok(mission.cruiseSpeed < aircraftFlightEnvelope.trainer.maxSpeed * .7);
@@ -69,7 +73,7 @@ test('one server-owned Nightowl, duplicate prevention, horizontal aggression bou
   ctx.ensureFirstContact('owner', pilot, active, 1400); assert.equal(engaged, 1);
 });
 
-test('server-confirmed twelve-minute clock, target ownership, deadline, first clear and replay protection', () => {
+test('server-confirmed three-minute clock, target ownership, deadline, first clear and replay protection', () => {
   const f = fixture();
   try {
     const a = f.store.launch('pilot', 'trainer', 1000, mission.id);

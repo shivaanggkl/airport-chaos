@@ -1,3 +1,4 @@
+import {journeyDallas19,journeyDallas20,journeyDallas21,journeyDallas22,journeyDallas25} from '../../shared/journey-mission.mjs';
 import {maxHealthForAircraft} from '../../shared/aircraft-health.mjs';
 import {finalShowdownFireReady,recordFinalShowdownShot} from './final-showdown.js';
 import {hunterObservedPosition,hunterBallisticSolution} from './hunter-flight.js';
@@ -30,7 +31,7 @@ const ast = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true
 function runtime(names, context) {
   const code = ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.includes(node.name?.text))
     .map(node => node.getText(ast)).join('\n');
-  const sandbox = vm.createContext({maxHealthForAircraft,journeyDallas18:mission,journeyDallas17,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas23,recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
+  const sandbox = vm.createContext({journeyDallas19,journeyDallas20,journeyDallas21,journeyDallas22,journeyDallas25,maxHealthForAircraft,journeyDallas18:mission,journeyDallas17,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas23,recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
   vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, sandbox);
   return sandbox;
 }
@@ -48,7 +49,7 @@ test('one server-owned Firehawk, duplicate prevention, horizontal aggression bou
   const active = { missionId: mission.id, attemptId: 'attempt', status: 'APPROACH', targetId: null };
   const players = new Map(); let created = 0, engaged = 0;
   const ctx = runtime(['ensureFirstContact'], { journeyDallas13, journeyDallas18: mission,journeyDallas17, ambushCanFire, players,
-    createBot: (_city, _defense, spawn) => { created++; assert.equal(spawn.firstContact, true); players.set('enemy', { bot: { journeyFirstContact: true, journeyFinalShowdown: true, journeyAttemptId: 'attempt', journeyTargetPlayerId: 'owner' }, lifeState: 'alive', health: 300, position: { x: 10_001, y: 900, z: 0 } }); return 'enemy'; },
+    createBot: (_city, _defense, spawn) => { created++; assert.equal(spawn.firstContact, true); players.set('enemy', { bot: { journeyFirstContact: true, journeyFinalShowdown: true, journeyAttemptId: 'attempt', journeyTargetPlayerId: 'owner' }, lifeState: 'alive', health: 300, position: { x: mission.aggressionDistance+1, y: 900, z: 0 } }); return 'enemy'; },
     journeyStore: { assignFirstContact: (_pilot, _attempt, id) => { active.targetId = id; return active; } },
     removeBot: () => assert.fail('unexpected removal'), sendJourneyState: () => {}, failPlayerJourney: () => assert.fail('unexpected failure'),
     provokeJourneyHunter: () => { engaged++; players.get('enemy').bot.journeyProvoked = true; },
@@ -57,13 +58,13 @@ test('one server-owned Firehawk, duplicate prevention, horizontal aggression bou
   ctx.ensureFirstContact('owner', pilot, active, 1100);
   assert.equal(created, 1); assert.equal(engaged, 0);
   active.status = 'RACING'; ctx.ensureFirstContact('owner', pilot, active, 1200); assert.equal(engaged, 0);
-  players.get('enemy').position.x = 10_000;
+  players.get('enemy').position.x = mission.aggressionDistance;
   ctx.ensureFirstContact('owner', pilot, active, 1300); assert.equal(engaged, 1);
   players.get('enemy').position.x = 15_000;
   ctx.ensureFirstContact('owner', pilot, active, 1460); assert.equal(engaged, 1);
 });
 
-test('takeoff-only seven-minute clock, target ownership, deadline, first clear and replay protection', () => {
+test('GO-owned six-minute clock, target ownership, deadline, first clear and replay protection', () => {
   const f = fixture();
   try {
     const a = f.store.launch('pilot', 'trainer', 1000, mission.id);
@@ -76,10 +77,10 @@ test('takeoff-only seven-minute clock, target ownership, deadline, first clear a
     assert.equal(f.store.acceptGate('pilot', a.attemptId, 0, 1300), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 1300), undefined);
     const started = f.store.startFirstContact('pilot', a.attemptId, 2000);
-    assert.equal(started.deadlineAt, 422_000);
+    assert.equal(started.deadlineAt, 362_000);
     assert.equal(f.store.startFirstContact('pilot', a.attemptId, 3000), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'wrong', 3000), undefined);
-    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 422_000), undefined);
+    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 362_000), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 241_999).firstClearCredits, 2400);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 241_999), undefined);
     const replay = f.store.launch('pilot', 'trainer', 300_000, mission.id);
@@ -144,7 +145,7 @@ test('twelve accepted Bluejay combat hits destroy only the owned target and comp
   } finally { f.db.close(); rmSync(f.directory, { recursive: true, force: true }); }
 });
 
-test('actual Firehawk factory and flight integrator keep the airborne patrol inside its safe 2.5-kilometre area', () => {
+test('actual Firehawk factory and flight integrator keep the airborne patrol inside its safe scaled 7.5-kilometre area', () => {
   const players = new Map(), sent = [];
   const ctx = runtime(['createBot', 'botStateMessage', 'transportEscortHealth', 'transportEscortCosmetics', 'advanceBotFlight', 'moveTowardBot', 'isHunterCombatPhase', 'botMinimumTurnRadius', 'smoothHunter', 'hunterClearance'], {
     advanceHunterFlight, createOpponent,
@@ -160,7 +161,7 @@ test('actual Firehawk factory and flight integrator keep the airborne patrol ins
   const id = ctx.createBot('dallas', undefined, { attemptId: 'attempt', targetPlayerId: 'owner', target: {}, firstContact: true, finalShowdown: true });
   const enemy = players.get(id), spawn = { ...enemy.position };
   assert.equal(enemy.bot.opponent.profile,enemyAiLevels.LEGENDARY); assert.equal(enemy.bot.opponent.definition.personality,'aggressive'); assert.equal(enemy.bot.finalShowdownBurst.shots,0); assert.equal(enemy.bot.finalShowdownBurst.nextShotAt,0); assert.equal(enemy.aircraftType, 'fighter'); assert.equal(enemy.health, 300);
-  assert.equal(enemy.position.y, 1020); assert.equal(Math.hypot(enemy.velocity.x, enemy.velocity.z), 600);
+  assert.equal(enemy.position.y, 120 + mission.enemyAltitude); assert.equal(Math.hypot(enemy.velocity.x, enemy.velocity.z), 600);
   assert.equal(sent[0].equippedCosmetics['livery:fighter'], mission.enemyLivery);
   let maxRadius = 0, minSpeed = Infinity;
   for (let tick = 0; tick < 600; tick++) {
@@ -174,7 +175,7 @@ test('actual Firehawk factory and flight integrator keep the airborne patrol ins
     minSpeed = Math.min(minSpeed, Math.hypot(enemy.velocity.x, enemy.velocity.z));
     assert.ok(enemy.position.y >= 1000);
   }
-  assert.ok(maxRadius <= 3_200, `patrol wandered ${maxRadius}m`);
+  assert.ok(maxRadius <= mission.patrolRadius + 700, `patrol wandered ${maxRadius}m`);
   assert.ok(minSpeed > 300, `patrol stopped: ${minSpeed}m/s`);
 });
 
@@ -185,11 +186,11 @@ test('M12 keeps identity, DFW runway, safe spawn, canonical LEGENDARY and origin
   assert.equal(journeyMissionSlot(mission.id),12);
   assert.equal(mission.name,'FINAL SHOWDOWN');assert.equal(mission.startAirportId,'dfw');
   const distance=Math.hypot(mission.enemySpawn.x-dfw.x,mission.enemySpawn.z-dfw.z);
-  assert.ok(Math.abs(distance-18000)<1);assert.equal(mission.enemyAltitude,900);
+  assert.ok(distance>=16000&&distance<=24000);assert.equal(mission.enemyAltitude,2700);
   const enemy=createOpponent({aircraft:mission.enemyAircraft,livery:mission.enemyLivery,level:'LEGENDARY',personality:'aggressive',behavior:'patrol',cityId:'dallas',position:{...mission.enemySpawn,y:1000},rotation:{x:0,y:0,z:0},speed:mission.cruiseSpeed,health:mission.enemyHealth});
   assert.equal(enemy.profile,enemyAiLevels.LEGENDARY);assert.equal(mission.enemyHealth,300);
   assert.equal(projectileDamageForAircraft('trainer')*12,mission.enemyHealth);
-  assert.equal(mission.firstClearCredits,2400);assert.equal(mission.timeLimitMs,420000);
+  assert.equal(mission.firstClearCredits,2400);assert.equal(mission.timeLimitMs,360000);
   for(const obsolete of ['territoryId','captureMs','defenseMs','defenseRadius','hunterDelayMs'])assert.equal(obsolete in mission,false);
   assert.doesNotMatch(source,/updateSiegeCapture|updateSiegeDefense|assignSiegeHunter/);
 });

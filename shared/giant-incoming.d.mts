@@ -26,7 +26,8 @@ export const transportTuning: Readonly<{
 export const transportRouteLength: number;
 export const transportFootprintRadius: number;
 export const transportCourse: Readonly<{ start: {x:number;z:number}; whiteRock: {x:number;z:number}; end: {x:number;z:number}; exitX:number }>;
-export function transportPose(elapsedMs: number, altitude?: number, durationMs?: number): TransportPose;
+export function transportRouteForMission(missionId?: string): typeof transportCourse & Readonly<{length:number}>;
+export function transportPose(elapsedMs: number, altitude?: number, durationMs?: number, missionId?: string): TransportPose;
 export function transportSpawn(groundHeight?: number): {
     position: TransportPoint;
     heading: number;

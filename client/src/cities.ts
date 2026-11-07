@@ -64,7 +64,7 @@ export const cities: readonly CityDefinition[] = [
     spawn: { airportId: 'dfw' },
     spawnBrandPlacement: { forwardDistance: 3000 * DALLAS_WORLD_SCALE, clearanceAgl: 50 * DALLAS_WORLD_SCALE, width: 420 * DALLAS_WORLD_SCALE, height: 144 * DALLAS_WORLD_SCALE, campaignId: 'airport-chaos' },
     bounds: { minX: -25_000 * DALLAS_WORLD_SCALE, maxX: 25_000 * DALLAS_WORLD_SCALE, minZ: -25_000 * DALLAS_WORLD_SCALE, maxZ: 25_000 * DALLAS_WORLD_SCALE },
-    timePresets: ['day', 'dusk', 'evening'],
+    timePresets: ['evening'],
     loadWorld: async () => (await import('./dallas-scaled-world')).scaledDallasWorld,
   },
 ];
@@ -75,7 +75,7 @@ export function getCity(cityId: string | null): CityDefinition | undefined {
 
 export function resolveCityTimePreset(city: CityDefinition, value: unknown): CityTimeOfDay {
   return typeof value === 'string' && city.timePresets.includes(value as CityTimeOfDay)
-    ? value as CityTimeOfDay : 'day';
+    ? value as CityTimeOfDay : city.timePresets[0] ?? 'day';
 }
 
 export function activeCityFromUrl(): CityDefinition | undefined {

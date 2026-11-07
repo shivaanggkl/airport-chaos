@@ -3,37 +3,43 @@ export const journeyPauseLimitMs: 120000;
 export const journeyDallas01: Readonly<{
   id: 'journey-dallas-01'; cityId: 'dallas'; name: 'ROOKIE RUSH'; chapter: 'GOLDEN GATES';
   objective: 'Fly through 10 Golden Gates before time runs out.';
+  courseRevision: 4;
   timeLimitMs: 180000; firstClearCredits: 250;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas02: Readonly<{
   id: 'journey-dallas-02'; cityId: 'dallas'; name: 'LAKE RACER'; chapter: 'GOLDEN GATES';
-  firstClearCredits: 350; timeLimitMs: 150000;
+  objective: 'Fly through 10 Golden Gates before time runs out.'; courseRevision: 2;
+  firstClearCredits: 350; timeLimitMs: 180000;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas03: Readonly<{
   id: 'journey-dallas-03'; cityId: 'dallas'; name: 'GOLDEN ASCENT'; chapter: 'GOLDEN GATES';
-  timeLimitMs: 160000; firstClearCredits: 450;
+  objective: 'Fly through 10 Golden Gates while climbing and descending before time runs out.'; courseRevision: 2;
+  timeLimitMs: 180000; firstClearCredits: 450;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas04: Readonly<{
   id: 'journey-dallas-04'; cityId: 'dallas'; name: 'DOWNTOWN SLALOM'; chapter: 'GOLDEN GATES';
-  firstClearCredits: 500; timeLimitMs: 160000;
+  objective: 'Fly through 10 Golden Gates while making alternating turns before time runs out.'; courseRevision: 2;
+  firstClearCredits: 500; timeLimitMs: 180000;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas05: Readonly<{
   id: 'journey-dallas-05'; cityId: 'dallas'; name: 'NEEDLE RUSH'; chapter: 'GOLDEN GATES';
-  timeLimitMs: 160000; firstClearCredits: 600;
+  objective: 'Fly through 10 increasingly precise Golden Gates before time runs out.'; courseRevision: 2;
+  timeLimitMs: 180000; firstClearCredits: 600;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas06: Readonly<{
   id: 'journey-dallas-06'; cityId: 'dallas'; name: 'GOLDEN CHAMPIONSHIP'; chapter: 'GOLDEN GATES';
-  timeLimitMs: 160000; firstClearCredits: 750;
+  objective: 'Fly through 10 Golden Gates before time runs out.'; courseRevision: 2;
+  timeLimitMs: 180000; firstClearCredits: 750;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
@@ -44,7 +50,7 @@ export const journeyDallas07: Readonly<{
 }>;
 export const journeyDallas08: Readonly<{
   id: 'journey-dallas-08'; cityId: 'dallas'; name: 'GIANT PLANE & TWO ESCORTS'; chapter: 'SKY ADVENTURES';
-  firstClearCredits: 950; startAirportId: 'dfw'; timeLimitMs: 300000; bossHealth: 2000;
+  firstClearCredits: 950; startAirportId: 'dfw'; timeLimitMs: 390000; bossHealth: 2000;
   escortHealth: 1000; escortCount: 2; escortScale: 16; escortFireDelayMs: 5000;
   escortAircraft: readonly ['trainer', 'trainer'];
   escortLiveries: readonly ['bluejay-skybolt', 'bluejay-aurora'];
@@ -96,40 +102,40 @@ export const journeyDallas12: Readonly<{
 }>;
 export const journeyDallas13: Readonly<{
   id: 'journey-dallas-13'; cityId: 'dallas'; name: 'FIRST CONTACT'; chapter: 'SKY HUNTERS';
-  timeLimitMs: 240000; firstClearCredits: 1650; startAirportId: 'dfw';
+  timeLimitMs: 180000; firstClearCredits: 1650; startAirportId: 'dfw';
   enemyAircraft: 'privateJet'; enemyLivery: 'nightowl-sunset-red'; enemyHealth: 150;
-  enemyAltitude: 800; aggressionDistance: 10000; patrolRadius: 1500; cruiseSpeed: 400;
+  enemyAltitude: 2400; aggressionDistance: 10500; patrolRadius: 4500; cruiseSpeed: 400;
   enemySpawn: Readonly<{ x: number; z: number }>;
 }>;
 export const journeyDallas14: Readonly<{
   id: 'journey-dallas-14'; cityId: 'dallas'; name: 'SURPRISE ATTACK'; chapter: 'SKY HUNTERS';
-  timeLimitMs: 240000; firstClearCredits: 1800; startAirportId: 'love';
+  timeLimitMs: 242000; firstClearCredits: 1800; startAirportId: 'love';
   enemyAircraft: 'trainer'; enemyLivery: 'bluejay-aurora'; enemyHealth: 150;
-  enemyAltitude: 800; aggressionDistance: 10000; patrolRadius: 1500; cruiseSpeed: 460;
+  enemyAltitude: 2400; aggressionDistance: 30000; patrolRadius: 4500; cruiseSpeed: 460;
   warningMs: 3000; rearApproachMs: 18000; enemySpawn: Readonly<{ x: number; z: number }>;
 }>;
 export const journeyDallas15: Readonly<{
   id: 'journey-dallas-15'; cityId: 'dallas'; name: 'HOT PURSUIT'; chapter: 'SKY HUNTERS';
   firstClearCredits: 1950; startAirportId: 'addison'; bossName: 'ESCAPING MAMMOTH'; bossHealth: 200;
-  timeLimitMs:300000; enemyAircraft:'cargo'; enemyLivery:'mammoth-sand'; enemyAltitude:800;
-  enemySpawn:Readonly<{x:number;z:number}>; cruiseSpeed:420; threatDistance:10000; arrivalRadius:650;
+  timeLimitMs:270000; enemyAircraft:'cargo'; enemyLivery:'mammoth-sand'; enemyAltitude:2400;
+  enemySpawn:Readonly<{x:number;z:number}>; cruiseSpeed:420; threatDistance:30000; arrivalRadius:1950;
   escapeRoute:readonly Readonly<{x:number;z:number}>[];
 }>;
 export const journeyDallas16: Readonly<{
   id:'journey-dallas-16';cityId:'dallas';name:'DOUBLE THREAT';chapter:'SKY HUNTERS';
-  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs:300000;enemyHealth:100;aggressionDistance:10000;
+  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs:300000;enemyHealth:100;aggressionDistance:8000;
   enemies:readonly Readonly<{aircraft:'privateJet'|'trainer';livery:string;x:number;z:number;altitude:number}>[];
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas17:Readonly<{
   id:'journey-dallas-17';cityId:'dallas';name:'IRON HUNTER';chapter:'SKY HUNTERS';firstClearCredits:2250;
-  startAirportId:'executive';timeLimitMs:360000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:250;
-  enemyAltitude:800;aggressionDistance:10000;patrolRadius:2000;cruiseSpeed:400;enemySpawn:Readonly<{x:number;z:number}>;
+  startAirportId:'executive';timeLimitMs:330000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:250;
+  enemyAltitude:2400;aggressionDistance:6000;patrolRadius:6000;cruiseSpeed:400;enemySpawn:Readonly<{x:number;z:number}>;
 }>;
 export const journeyDallas18: Readonly<{
   id: 'journey-dallas-18'; cityId: 'dallas'; name: 'FINAL SHOWDOWN'; chapter: 'SKY HUNTERS'; firstClearCredits: 2400;
-  startAirportId: 'dfw'; timeLimitMs: 420000; enemyAircraft: 'fighter'; enemyLivery: 'firehawk-inferno'; enemyHealth: 300;
-  enemyAltitude: 900; aggressionDistance: 10000; patrolRadius: 2500; cruiseSpeed: 600;
+  startAirportId: 'dfw'; timeLimitMs: 360000; enemyAircraft: 'fighter'; enemyLivery: 'firehawk-inferno'; enemyHealth: 300;
+  enemyAltitude: 2700; aggressionDistance: 8000; patrolRadius: 7500; cruiseSpeed: 600;
   enemySpawn: Readonly<{x:number;z:number}>; enemyDamage: 20; shotIntervalMs: 750; burstShots: 2; burstPauseMs: 2000;
 }>;
 export const journeyDallas19: Readonly<{

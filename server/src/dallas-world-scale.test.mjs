@@ -29,7 +29,7 @@ test('Dallas renderer, server airports, terrain, Journey gates, and portal share
     assert.equal(scaledDallasWorld.getTerrainHeight(rendered.x, rendered.z),
       sourceDallas.getTerrainHeight(airport.x, airport.z) * DALLAS_WORLD_SCALE);
   }
-  assert.equal(journeyDallas01.gates[0].x, -5_360 * DALLAS_WORLD_SCALE);
+  assert.equal(journeyDallas01.gates[0].x, -4_668 * DALLAS_WORLD_SCALE);
   assert.equal(journeyDallas01.gates[0].radius, 340 * DALLAS_WORLD_SCALE);
   const gate = portalForCity('dallas', scaledDallasWorld.getTerrainHeight);
   assert.ok(gate);

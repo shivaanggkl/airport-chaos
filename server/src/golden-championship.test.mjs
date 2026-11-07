@@ -32,7 +32,7 @@ test('Golden Championship spans East and South Dallas and fits a normal Bluejay 
     centerline += distance;
     assert.ok(to.x-to.radius > terrain.bounds.minX*S && to.x+to.radius < terrain.bounds.maxX*S && to.z-to.radius > terrain.bounds.minZ*S && to.z+to.radius < terrain.bounds.maxZ*S);
   }
-  assert.ok(centerline > 45_000 * S && centerline < 55_000 * S);
+  assert.ok(centerline >= 162_000 && centerline <= 164_000);
   assert.ok(centerline / (aircraftFlightEnvelope.trainer.maxSpeed * .8) < 85 * S);
 });
 
@@ -90,7 +90,7 @@ test('Golden Championship uses the existing golden ring aperture and releases mi
   assert.equal(first.children[0].material.color.getHex(), 0xf7c948);
   assert.equal(first.children[1].geometry.parameters.radius, .86);
   assert.equal(first.scale.x, journeyDallas06.gates[0].radius);
-  assert.equal(final.scale.x, 340*S);
+  assert.equal(final.scale.x, 205*S);
   rings.setProgress(7, true);
   assert.equal(scene.children.filter(group => group.visible).length, 3, 'previous gate flashes briefly after a confirmed crossing');
   rings.update(.6);

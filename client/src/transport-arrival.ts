@@ -21,7 +21,7 @@ export class TransportArrivalSequence {
   private handoffStarted=false;
   private readonly scale=transportTuning.scale/8;
   constructor(private readonly aircraft:THREE.Group,private readonly terrain:(x:number,z:number)=>number,
-    private readonly scene:THREE.Scene,private readonly escorts:readonly THREE.Group[]=[], missionName?: string){
+    private readonly scene:THREE.Scene,private readonly escorts:readonly THREE.Group[]=[], missionName?: string,private readonly missionId?: string,private readonly durationMs=transportTuning.durationMs){
     this.alert.className='transport-arrival-alert';
     this.alert.setAttribute('role','status');
     this.alert.innerHTML=missionName === 'GIANT PLANE & TWO ESCORTS'
@@ -46,7 +46,7 @@ export class TransportArrivalSequence {
   skip():void{this.elapsed=TransportArrivalSequence.totalSeconds;}
   update(delta:number):void{
     this.elapsed=Math.min(TransportArrivalSequence.totalSeconds,this.elapsed+delta);
-    const pose=transportPose(this.elapsed*1000);
+    const pose=transportPose(this.elapsed*1000,900,this.durationMs,this.missionId);
     this.aircraft.position.set(pose.x,Math.max(pose.y,this.terrain(pose.x,pose.z)+350),pose.z);
     this.aircraft.rotation.set(0,pose.yaw,0);this.aircraft.visible=true;
     const sideX=Math.cos(pose.yaw),sideZ=-Math.sin(pose.yaw);

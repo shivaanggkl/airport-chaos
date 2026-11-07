@@ -58,7 +58,7 @@ test('one server-owned Bluejay, duplicate prevention, horizontal aggression boun
   ctx.ensureFirstContact('owner', pilot, active, 1460); assert.equal(engaged, 1);
 });
 
-test('server-confirmed twelve-minute clock, target ownership, deadline, first clear and replay protection', () => {
+test('server-confirmed 4:02 clock, target ownership, deadline, first clear and replay protection', () => {
   const f = fixture();
   try {
     const a = f.store.launch('pilot', 'trainer', 1000, mission.id);
@@ -181,10 +181,13 @@ test('M8 keeps its Journey identity, exact Love Field distance, livery, clock an
  assert.equal(mission.startAirportId, 'love');
  assert.equal(mission.enemyAircraft, 'trainer');
  assert.equal(mission.enemyLivery, 'bluejay-aurora');
- assert.ok(Math.abs(Math.hypot(mission.enemySpawn.x-love.x,mission.enemySpawn.z-love.z)-20_000*DALLAS_WORLD_SCALE)<1e-8);
+ const runwayZ=love.z+Math.min(love.runwayLength*.32,love.runwayLength*.5-120);
+ const separation=Math.hypot(mission.enemySpawn.x-love.x,mission.enemySpawn.z-runwayZ);
+ assert(separation>=12_000&&separation<=20_000);
+ assert(mission.enemySpawn.z>runwayZ,"enemy starts behind northbound departure");
  assert.deepEqual(boundJourneyHunterPoint(mission.enemySpawn),mission.enemySpawn);
  assert.equal(mission.enemyHealth / projectileDamageForAircraft('trainer'),6);
- assert.equal(mission.timeLimitMs,240_000*DALLAS_WORLD_SCALE);
+ assert.equal(mission.timeLimitMs,242_000);
  assert.doesNotMatch(source,/updateJourneyEscape|ensureJourneyEscapeHunter|updateEscapeHold/);
 });
 
@@ -210,5 +213,12 @@ test('an unavailable rear position falls back to a truthful side warning without
 test('M8 can close on a moving Bluejay without exceeding the real aircraft speed cap',()=>{
  assert.equal(ambushCruiseSpeed({x:0,y:0,z:-200}),mission.cruiseSpeed);
  assert.equal(ambushCruiseSpeed({x:0,y:0,z:-600}),660);
- assert.equal(ambushCruiseSpeed({x:0,y:0,z:-1200}),aircraftFlightEnvelope.trainer.maxSpeed);
+ assert.equal(ambushCruiseSpeed({x:0,y:0,z:-1200}),1320);
+ assert.equal(ambushCruiseSpeed({x:0,y:0,z:-2000}),aircraftFlightEnvelope.trainer.maxSpeed);
 });
+
+ test('18-second warning still identifies a genuine rear attacker outside firing range',()=>{
+ const state={activatedAt:1000},pilot={position:{x:0,y:800,z:0},velocity:{x:0,y:0,z:-400},rotation:{x:0,y:0,z:0}};
+ assert.equal(ambushApproach(state,{x:500,y:800,z:7000},460,pilot,19000),undefined);
+ assert.equal(state.rearWarning,true);assert.equal(ambushCanFire(state,21999),false);assert.equal(ambushCanFire(state,22000),true);
+ });

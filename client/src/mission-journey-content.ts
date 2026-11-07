@@ -10,11 +10,11 @@ const missions = [journeyDallas01, journeyDallas02, journeyDallas03, journeyDall
 // always come from the live definitions above.
 const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = {
   'journey-dallas-01': journeyDallas01.objective,
-  'journey-dallas-02': 'Fly Through 10 Golden Gates Before Time Run Out.',
-  'journey-dallas-03': 'Fly Through 10 Golden Gates Before Time Run Out.',
-  'journey-dallas-04': 'Fly Through 10 Golden Gates Before Time Run Out.',
-  'journey-dallas-05': 'Fly Through 10 Golden Gates Before Time Run Out.',
-  'journey-dallas-06': 'Fly Through 10 Golden Gates Before Time Run Out.',
+  'journey-dallas-02': journeyDallas02.objective,
+  'journey-dallas-03': journeyDallas03.objective,
+  'journey-dallas-04': journeyDallas04.objective,
+  'journey-dallas-05': journeyDallas05.objective,
+  'journey-dallas-06': journeyDallas06.objective,
   'journey-dallas-07': 'Find And Shoot Down The GIANT PLANE Before Time Runs Out.',
   'journey-dallas-08': 'Shoot Down the GIANT PLANE And Both ESCORT Planes Before Time Runs Out.',
   'journey-dallas-09': 'Shoot Down the GIANT PLANE And All Three ESCORT Planes Before Time Runs Out.',

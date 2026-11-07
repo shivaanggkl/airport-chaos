@@ -15,7 +15,7 @@ export function ambushApproach(state: AmbushState, enemy: V, speed: number,
   const rear = distance > 0 && (dx * forward.x + dz * forward.z) / distance < -.3;
   if ((rear && distance <= 4_000) || now - state.activatedAt >= journeyDallas14.rearApproachMs) {
     state.warningAt = now;
-    state.rearWarning = rear && distance <= 4_000;
+    state.rearWarning = rear;
     return undefined;
   }
   const intercept = hunterFlightIntercept(enemy, speed, pilot.position, pilot.velocity);

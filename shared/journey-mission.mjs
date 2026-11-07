@@ -10,15 +10,17 @@ const baseJourneyDallas01 = Object.freeze({
   id: 'journey-dallas-01',
   cityId: 'dallas',
   name: 'ROOKIE RUSH',
+  courseRevision: 4,
   objective: 'Fly through 10 Golden Gates before time runs out.',
   chapter: 'GOLDEN GATES',
   timeLimitMs: 60_000, // 3:00 after the single Dallas world-scale conversion.
   firstClearCredits: 250,
-  airborneSpawn: Object.freeze({ x: -6_200, z: -8_400, altitude: 840, heading: -Math.PI * .75, speed: 650 }),
-  // Love Field and the skyline fill the opening view. A broad clockwise arc
-  // ends beside the Trinity without asking new pilots for a sharp turn.
+  airborneSpawn: Object.freeze({ x: -23_774.425306686753, z: -24_500, altitude: 840, heading: -2.3160829596050476, speed: 650 }),
+  // The extended straight approach stays within Dallas and faces gate one.
+  // The unchanged gate course ends beside the Trinity.
   gates: Object.freeze([
-    { x: -5360, z: -7560, altitude: 840, radius: 340 },
+    // Give the player a 78 km opening approach at the current aircraft speeds.
+    { x: -4668, z: -6868, altitude: 840, radius: 340 },
     { x: -3340, z: -5760, altitude: 845, radius: 335 },
     { x: -1580, z: -4165, altitude: 850, radius: 330 },
     { x: 290, z: -2515, altitude: 860, radius: 325 },
@@ -31,111 +33,139 @@ const baseJourneyDallas01 = Object.freeze({
   ]),
 });
 
+// Match M1's player-controlled opening distance, before the single Dallas scale conversion.
+const rookieRushOpeningDistance = Math.hypot(
+  baseJourneyDallas01.gates[0].x - baseJourneyDallas01.airborneSpawn.x,
+  baseJourneyDallas01.gates[0].z - baseJourneyDallas01.airborneSpawn.z,
+);
+
 const baseJourneyDallas02 = Object.freeze({
   id: 'journey-dallas-02', cityId: 'dallas', name: 'LAKE RACER',
-  chapter: 'GOLDEN GATES', firstClearCredits: 350, timeLimitMs: 150_000,
-  airborneSpawn: Object.freeze({ x: -6_000, z: -14_000, altitude: 770, heading: -2.11, speed: 650 }),
-  // Broad S-bends carry new racers east around White Rock Lake.
+  objective: 'Fly through 10 Golden Gates before time runs out.',
+  courseRevision: 2,
+  chapter: 'GOLDEN GATES', firstClearCredits: 350, timeLimitMs: 60_000, // 3:00 after Dallas scaling.
+  airborneSpawn: Object.freeze({ x: 1629 - rookieRushOpeningDistance, z: -15_441, altitude: 770, heading: -Math.PI / 2, speed: 650 }),
+  // Two broad opposing bends pass along White Rock Lake's western approach.
   gates: Object.freeze([
-    { x: -3_500, z: -12_500, altitude: 770, radius: 320 },
-    { x: 500, z: -13_500, altitude: 780, radius: 315 },
-    { x: 5_300, z: -11_200, altitude: 795, radius: 310 },
-    { x: 9_500, z: -9_000, altitude: 810, radius: 305 },
-    { x: 11_500, z: -5_000, altitude: 825, radius: 300 },
-    { x: 10_000, z: -1_000, altitude: 840, radius: 295 },
-    { x: 6_500, z: 2_000, altitude: 850, radius: 290 },
-    { x: 2_500, z: 1_000, altitude: 845, radius: 285 },
-    { x: -500, z: -2_500, altitude: 825, radius: 285 },
-    { x: -3_500, z: -6_000, altitude: 800, radius: 330 },
+    { x: 1629, z: -15441, altitude: 770, radius: 320 },
+    { x: 4162, z: -15441, altitude: 780, radius: 315 },
+    { x: 6238, z: -13988, altitude: 795, radius: 310 },
+    { x: 7104, z: -11607, altitude: 810, radius: 305 },
+    { x: 6238, z: -9227, altitude: 825, radius: 300 },
+    { x: 4162, z: -7773, altitude: 840, radius: 295 },
+    { x: 3296, z: -5393, altitude: 850, radius: 290 },
+    { x: 4162, z: -3012, altitude: 845, radius: 285 },
+    { x: 6238, z: -1559, altitude: 825, radius: 285 },
+    { x: 8771, z: -1559, altitude: 800, radius: 330 },
   ]),
 });
+
+// Match M1/M2 opening distance while staying inside the Dallas boundary.
+const ascentApproachZ = 1 * Math.sqrt(rookieRushOpeningDistance ** 2 - 20300 ** 2);
 
 const baseJourneyDallas03 = Object.freeze({
   id: 'journey-dallas-03', cityId: 'dallas', name: 'GOLDEN ASCENT',
-  chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 450,
-  airborneSpawn: Object.freeze({ x: -11_000, z: -20_000, altitude: 650, heading: -1.25, speed: 650 }),
-  // Climb around Addison and North Dallas, then descend on the return arc.
+  objective: 'Fly through 10 Golden Gates while climbing and descending before time runs out.',
+  courseRevision: 2,
+  chapter: 'GOLDEN GATES', timeLimitMs: 60_000, firstClearCredits: 450, // 3:00 after Dallas scaling.
+  airborneSpawn: Object.freeze({ x: -24500, z: -20000 + ascentApproachZ, altitude: 700, heading: Math.atan2(-20300, ascentApproachZ), speed: 650 }),
+  // Broad North Dallas arc: gates 1–5 climb, then gates 6–10 descend.
   gates: Object.freeze([
-    { x: -8_000, z: -21_000, altitude: 680, radius: 310 },
-    { x: -4_000, z: -21_000, altitude: 740, radius: 300 },
-    { x: 0, z: -20_000, altitude: 810, radius: 290 },
-    { x: 4_000, z: -17_500, altitude: 880, radius: 285 },
-    { x: 5_500, z: -13_000, altitude: 950, radius: 280 },
-    { x: 3_500, z: -9_000, altitude: 1_030, radius: 275 },
-    { x: 0, z: -6_500, altitude: 990, radius: 270 },
-    { x: -4_500, z: -8_000, altitude: 920, radius: 265 },
-    { x: -8_500, z: -11_500, altitude: 830, radius: 260 },
-    { x: -10_000, z: -16_000, altitude: 750, radius: 330 },
+    { x: -4200, z: -20000, altitude: 700, radius: 310 },
+    { x: -1467, z: -20000, altitude: 800, radius: 300 },
+    { x: 1225, z: -19525, altitude: 900, radius: 290 },
+    { x: 3702, z: -18370, altitude: 1000, radius: 285 },
+    { x: 5459, z: -16276, altitude: 1100, radius: 280 },
+    { x: 5934, z: -13585, altitude: 1020, radius: 275 },
+    { x: 4999, z: -11016, altitude: 940, radius: 270 },
+    { x: 2905, z: -9259, altitude: 860, radius: 265 },
+    { x: 213, z: -8784, altitude: 780, radius: 260 },
+    { x: -2355, z: -9719, altitude: 700, radius: 330 },
   ]),
 });
+
+// Match M1/M2 opening distance while staying inside the Dallas boundary.
+const slalomApproachZ = -1 * Math.sqrt(rookieRushOpeningDistance ** 2 - 12200 ** 2);
 
 const baseJourneyDallas04 = Object.freeze({
   id: 'journey-dallas-04', cityId: 'dallas', name: 'DOWNTOWN SLALOM',
-  chapter: 'GOLDEN GATES', firstClearCredits: 500, timeLimitMs: 160_000,
-  airborneSpawn: Object.freeze({ x: -8_500, z: -12_000, altitude: 850, heading: -2.36, speed: 650 }),
-  // A measured left-right slalom crosses Downtown and the Trinity corridor.
+  objective: 'Fly through 10 Golden Gates while making alternating turns before time runs out.',
+  courseRevision: 2,
+  chapter: 'GOLDEN GATES', firstClearCredits: 500, timeLimitMs: 60_000, // 3:00 after Dallas scaling.
+  airborneSpawn: Object.freeze({ x: -24500, z: 1000 + slalomApproachZ, altitude: 850, heading: Math.atan2(-12200, slalomApproachZ), speed: 650 }),
+  // Alternating 30-degree turns cross the western approach, Trinity and Downtown.
   gates: Object.freeze([
-    { x: -6_000, z: -10_000, altitude: 850, radius: 325 },
-    { x: -3_000, z: -7_300, altitude: 865, radius: 310 },
-    { x: -4_500, z: -3_300, altitude: 900, radius: 300 },
-    { x: -2_300, z: 700, altitude: 935, radius: 290 },
-    { x: -4_200, z: 4_300, altitude: 960, radius: 280 },
-    { x: -1_700, z: 7_800, altitude: 945, radius: 275 },
-    { x: 2_300, z: 9_200, altitude: 910, radius: 270 },
-    { x: 5_000, z: 5_700, altitude: 880, radius: 265 },
-    { x: 3_200, z: 1_600, altitude: 860, radius: 260 },
-    { x: 5_000, z: -3_000, altitude: 850, radius: 340 },
+    { x: -12300, z: 1000, altitude: 850, radius: 325 },
+    { x: -9563, z: 1733, altitude: 865, radius: 310 },
+    { x: -6826, z: 1000, altitude: 900, radius: 300 },
+    { x: -4090, z: 1733, altitude: 935, radius: 290 },
+    { x: -1353, z: 1000, altitude: 960, radius: 280 },
+    { x: 1384, z: 1733, altitude: 945, radius: 275 },
+    { x: 4121, z: 1000, altitude: 910, radius: 270 },
+    { x: 6858, z: 1733, altitude: 880, radius: 265 },
+    { x: 9594, z: 1000, altitude: 860, radius: 260 },
+    { x: 12331, z: 1733, altitude: 850, radius: 340 },
   ]),
 });
+
+// Match M1/M2 opening distance while staying inside the Dallas boundary.
+const needleApproachZ = 1 * Math.sqrt(rookieRushOpeningDistance ** 2 - 10000 ** 2);
 
 const baseJourneyDallas05 = Object.freeze({
   id: 'journey-dallas-05', cityId: 'dallas', name: 'NEEDLE RUSH',
-  chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 600,
-  airborneSpawn: Object.freeze({ x: -22_000, z: -14_000, altitude: 700, heading: -1.80, speed: 650 }),
-  // Race from DFW through Las Colinas to tight Trinity-side gates.
+  objective: 'Fly through 10 increasingly precise Golden Gates before time runs out.',
+  courseRevision: 2,
+  chapter: 'GOLDEN GATES', timeLimitMs: 60_000, firstClearCredits: 600, // 3:00 after Dallas scaling.
+  airborneSpawn: Object.freeze({ x: -24500, z: -11500 + needleApproachZ, altitude: 730, heading: Math.atan2(-10000, needleApproachZ), speed: 650 }),
+  // Las Colinas to Trinity: gradual bends keep the shrinking openings easy to line up.
   gates: Object.freeze([
-    { x: -18_500, z: -13_200, altitude: 730, radius: 300 },
-    { x: -15_000, z: -15_000, altitude: 755, radius: 290 },
-    { x: -11_500, z: -13_000, altitude: 780, radius: 275 },
-    { x: -9_000, z: -9_000, altitude: 810, radius: 260 },
-    { x: -12_000, z: -5_500, altitude: 840, radius: 250 },
-    { x: -14_500, z: -1_500, altitude: 870, radius: 240 },
-    { x: -11_000, z: 2_500, altitude: 900, radius: 230 },
-    { x: -7_000, z: 4_000, altitude: 880, radius: 220 },
-    { x: -4_300, z: 2_300, altitude: 840, radius: 215 },
-    { x: -5_000, z: -2_000, altitude: 800, radius: 320 },
+    { x: -14500, z: -11500, altitude: 730, radius: 300 },
+    { x: -11513, z: -11973, altitude: 755, radius: 290 },
+    { x: -8764, z: -10691, altitude: 780, radius: 275 },
+    { x: -6440, z: -8742, altitude: 810, radius: 260 },
+    { x: -4700, z: -6257, altitude: 840, radius: 250 },
+    { x: -3663, z: -3406, altitude: 870, radius: 245 },
+    { x: -3398, z: -385, altitude: 900, radius: 240 },
+    { x: -3925, z: 2603, altitude: 880, radius: 235 },
+    { x: -5207, z: 5352, altitude: 840, radius: 230 },
+    { x: -7157, z: 7675, altitude: 800, radius: 225 },
   ]),
 });
 
+// Match M1/M2 opening distance while staying inside the Dallas boundary.
+const championshipApproachZ = -1 * Math.sqrt(rookieRushOpeningDistance ** 2 - 19820 ** 2);
+
 const baseJourneyDallas06 = Object.freeze({
   id: 'journey-dallas-06', cityId: 'dallas', name: 'GOLDEN CHAMPIONSHIP',
-  chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 750,
-  airborneSpawn: Object.freeze({ x: 7_000, z: -14_000, altitude: 760, heading: 3.00, speed: 650 }),
-  // White Rock, Trinity and Dallas Executive link east to south Dallas.
+  objective: 'Fly through 10 Golden Gates before time runs out.',
+  courseRevision: 2,
+  chapter: 'GOLDEN GATES', timeLimitMs: 60_000, firstClearCredits: 750, // 3:00 after Dallas scaling.
+  airborneSpawn: Object.freeze({ x: 24820, z: -8000 + championshipApproachZ, altitude: 780, heading: Math.atan2(19820, championshipApproachZ), speed: 650 }),
+  // White Rock to Trinity and Executive: broad curves, alternating turns, then a precise finish.
   gates: Object.freeze([
-    { x: 6_500, z: -10_500, altitude: 780, radius: 300 },
-    { x: 10_000, z: -7_500, altitude: 820, radius: 290 },
-    { x: 12_000, z: -3_000, altitude: 860, radius: 280 },
-    { x: 8_500, z: 1_000, altitude: 900, radius: 265 },
-    { x: 3_500, z: 4_000, altitude: 850, radius: 255 },
-    { x: -1_000, z: 3_500, altitude: 920, radius: 245 },
-    { x: -4_100, z: 2_300, altitude: 980, radius: 235 },
-    { x: -8_500, z: 4_000, altitude: 900, radius: 225 },
-    { x: -10_000, z: 8_500, altitude: 820, radius: 205 },
-    { x: -6_700, z: 11_000, altitude: 780, radius: 340 },
+    { x: 5000, z: -8000, altitude: 780, radius: 300 },
+    { x: 2500, z: -6000, altitude: 820, radius: 290 },
+    { x: -700, z: -6000, altitude: 860, radius: 280 },
+    { x: -3000, z: -3800, altitude: 900, radius: 265 },
+    { x: -5800, z: -3000, altitude: 850, radius: 255 },
+    { x: -6400, z: -450, altitude: 920, radius: 245 },
+    { x: -4100, z: 2300, altitude: 980, radius: 235 },
+    { x: -4100, z: 5500, altitude: 900, radius: 225 },
+    { x: -5300, z: 8500, altitude: 820, radius: 215 },
+    { x: -6700, z: 11400, altitude: 780, radius: 205 },
   ]),
 });
 
 const baseJourneyDallas07 = Object.freeze({
   id: 'journey-dallas-07', cityId: 'dallas', name: 'GIANT PLANE',
-  chapter: 'SKY SIEGE', timeLimitMs: transportTuning.durationMs, firstClearCredits: 850,
+  chapter: 'SKY SIEGE', timeLimitMs: 360_000, firstClearCredits: 850,
   startAirportId: 'dfw', gates: Object.freeze([]), bossHealth: transportTuning.health,
 });
 
 const baseJourneyDallas08 = Object.freeze({
   id: 'journey-dallas-08', cityId: 'dallas', name: 'GIANT PLANE & TWO ESCORTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 950,
-  startAirportId: 'dfw', timeLimitMs: 300_000, bossHealth: transportTuning.health,
+  startAirportId: 'dfw', timeLimitMs: 130_000, bossHealth: transportTuning.health,
   escortHealth: 1_000, escortCount: 2, escortScale: remoteAircraftScale, escortFireDelayMs: 5_000,
   escortAircraft: Object.freeze(['trainer', 'trainer']),
   escortLiveries: Object.freeze(['bluejay-skybolt', 'bluejay-aurora']),
@@ -211,50 +241,51 @@ const baseJourneyDallas12 = Object.freeze({
   gunShotDamage: baseJourneyDallas11.gunShotDamage,
 });
 
-// Northbound open-air corridor from Love Field. The wider rings and slight
-// lateral bends reward sustained speed rather than precision steering.
-// Keep the historical mission ID: this is displayed Journey slot 7.
+// Keep the historical identity: this combat mission is displayed Journey slot 7.
 const firstContactDfw = { x: -22_800, z: -13_600 };
-const firstContactBearing = Math.hypot(firstContactDfw.x, firstContactDfw.z);
 const baseJourneyDallas13 = Object.freeze({
   id: 'journey-dallas-13', cityId: 'dallas', name: 'FIRST CONTACT',
-  chapter: 'SKY HUNTERS', timeLimitMs: 240_000, firstClearCredits: 1_650,
+  chapter: 'SKY HUNTERS', timeLimitMs: 60_000, firstClearCredits: 1_650,
   startAirportId: 'dfw', enemyAircraft: 'privateJet', enemyLivery: 'nightowl-sunset-red',
-  enemyHealth: 150, enemyAltitude: 800, aggressionDistance: 10_000,
+  enemyHealth: 150, enemyAltitude: 800, aggressionDistance: 3_500,
   patrolRadius: 1_500, cruiseSpeed: 400,
   enemySpawn: Object.freeze({
-    x: firstContactDfw.x - firstContactDfw.x / firstContactBearing * 20_000,
-    z: firstContactDfw.z - firstContactDfw.z / firstContactBearing * 20_000,
+    x: firstContactDfw.x + 300,
+    z: firstContactDfw.z - 6_500,
   }),
 });
 
 const baseJourneyDallas14 = Object.freeze({
   id: 'journey-dallas-14', cityId: 'dallas', name: 'SURPRISE ATTACK',
-  chapter: 'SKY HUNTERS', timeLimitMs: 240_000, firstClearCredits: 1_800,
+  chapter: 'SKY HUNTERS', timeLimitMs: 242_000 / DALLAS_WORLD_SCALE, firstClearCredits: 1_800,
   startAirportId: 'love', enemyAircraft: 'trainer', enemyLivery: 'bluejay-aurora',
   enemyHealth: 150, enemyAltitude: 800, aggressionDistance: 10_000,
   patrolRadius: 1_500, cruiseSpeed: 460, warningMs: 3_000, rearApproachMs: 18_000,
-  // Northbound from Love Field with a 4 km lateral offset; exactly 20 km horizontal.
-  enemySpawn: Object.freeze({ x: -5_140 - 4_000, z: -7_780 - Math.sqrt(20_000 ** 2 - 4_000 ** 2) }),
+  // Trailing Love Field’s northbound departure, 16 km from the airport center.
+  enemySpawn: Object.freeze({ x: -5_140 - 600, z: -7_780 + Math.sqrt((16_000 / 3) ** 2 - 600 ** 2) }),
 });
 
 const baseJourneyDallas15 = Object.freeze({
   id: 'journey-dallas-15', cityId: 'dallas', name: 'HOT PURSUIT',
-  chapter: 'SKY HUNTERS', firstClearCredits: 1_950, timeLimitMs: 300_000,
+  chapter: 'SKY HUNTERS', firstClearCredits: 1_950, timeLimitMs: 90_000,
   startAirportId: 'addison', bossName: 'ESCAPING MAMMOTH', bossHealth: 200,
   enemyAircraft: 'cargo', enemyLivery: 'mammoth-sand', enemyAltitude: 800,
-  enemySpawn: Object.freeze({x:-16_500,z:-13_200}), cruiseSpeed: 420, threatDistance: 10_000, arrivalRadius: 650,
-  // Keep the final leg inside the established Hunter airspace turning margin.
-  escapeRoute: Object.freeze([Object.freeze({x:-21_500,z:8_000}),Object.freeze({x:-3_000,z:8_000})]),
+  enemySpawn: Object.freeze({x:-23_000 / DALLAS_WORLD_SCALE,z:-74_000 / DALLAS_WORLD_SCALE}), cruiseSpeed: 420, threatDistance: 10_000, arrivalRadius: 650,
+  // A continuous North Dallas escape corridor, kept inside the scaled world and Hunter turning margin.
+  escapeRoute: Object.freeze([
+    Object.freeze({x:-45_000 / DALLAS_WORLD_SCALE,z:-68_000 / DALLAS_WORLD_SCALE}),
+    Object.freeze({x:-58_000 / DALLAS_WORLD_SCALE,z:-50_000 / DALLAS_WORLD_SCALE}),
+    Object.freeze({x:-59_000 / DALLAS_WORLD_SCALE,z:-40_000 / DALLAS_WORLD_SCALE}),
+  ]),
 });
 
 // Two independently flying opponents share permission to initiate shots.
 const baseJourneyDallas16 = Object.freeze({
   id:'journey-dallas-16',cityId:'dallas',name:'DOUBLE THREAT',chapter:'SKY HUNTERS',
-  firstClearCredits:2_100,startAirportId:'dfw',timeLimitMs:300_000,enemyHealth:100,aggressionDistance:10_000,
+  firstClearCredits:2_100,startAirportId:'dfw',timeLimitMs:100_000,enemyHealth:100,aggressionDistance:8_000 / DALLAS_WORLD_SCALE,
   enemies:Object.freeze([
-    Object.freeze({aircraft:'privateJet',livery:'nightowl-sunset-red',x:-13_000,z:-18_000,altitude:750}),
-    Object.freeze({aircraft:'trainer',livery:'bluejay-skybolt',x:-13_000,z:-8_000,altitude:900}),
+    Object.freeze({aircraft:'privateJet',livery:'nightowl-sunset-red',x:-65_000 / DALLAS_WORLD_SCALE,z:-53_500 / DALLAS_WORLD_SCALE,altitude:750}),
+    Object.freeze({aircraft:'trainer',livery:'bluejay-skybolt',x:-57_000 / DALLAS_WORLD_SCALE,z:-51_000 / DALLAS_WORLD_SCALE,altitude:900}),
   ]),
   gates:Object.freeze([]),
 });
@@ -262,17 +293,17 @@ const baseJourneyDallas16 = Object.freeze({
 // A heavy, aggressive opponent uses the same single-enemy combat lifecycle.
 const baseJourneyDallas17 = Object.freeze({
   id: 'journey-dallas-17', cityId: 'dallas', name: 'IRON HUNTER', chapter: 'SKY HUNTERS', firstClearCredits: 2_250,
-  startAirportId: 'executive', timeLimitMs: 360_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 250,
-  enemyAltitude: 800, aggressionDistance: 10_000, patrolRadius: 2_000, cruiseSpeed: 400,
-  enemySpawn: Object.freeze({ x: -15_100, z: 0 }),
+  startAirportId: 'executive', timeLimitMs: 110_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 250,
+  enemyAltitude: 800, aggressionDistance: 6_000 / DALLAS_WORLD_SCALE, patrolRadius: 2_000, cruiseSpeed: 400,
+  enemySpawn: Object.freeze({ x: -10_500 / DALLAS_WORLD_SCALE, z: 16_000 / DALLAS_WORLD_SCALE }),
 });
 
 // Chapter 2 finale; weapon pacing and damage are private to this encounter.
 const baseJourneyDallas18 = Object.freeze({
   id: 'journey-dallas-18', cityId: 'dallas', name: 'FINAL SHOWDOWN', chapter: 'SKY HUNTERS', firstClearCredits: 2_400,
-  startAirportId: 'dfw', timeLimitMs: 420_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-inferno', enemyHealth: 300,
-  enemyAltitude: 900, aggressionDistance: 10_000, patrolRadius: 2_500, cruiseSpeed: 600,
-  enemySpawn: Object.freeze({ x: -4_800, z: -13_600 }),
+  startAirportId: 'dfw', timeLimitMs: 120_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-inferno', enemyHealth: 300,
+  enemyAltitude: 900, aggressionDistance: 8_000 / DALLAS_WORLD_SCALE, patrolRadius: 2_500, cruiseSpeed: 600,
+  enemySpawn: Object.freeze({ x: -47_500 / DALLAS_WORLD_SCALE, z: -48_000 / DALLAS_WORLD_SCALE }),
   enemyDamage: 20, shotIntervalMs: 750, burstShots: 2, burstPauseMs: 2_000,
 });
 
