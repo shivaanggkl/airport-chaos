@@ -1,3 +1,4 @@
+import {authoredDallasBuildings,replacedDallasFootprint} from './dallas-building-occlusion.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import { transportPose, transportTuning, transportFootprintRadius, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
@@ -31,11 +32,13 @@ export function loadTransportBuildings(): Building[] {
             }
             if (xs.length >= 3) {
                 const item = { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), top: (b[0]! + b[3]!) * DALLAS_WORLD_SCALE };
+                if (replacedDallasFootprint(item.minX,item.maxX,item.minZ,item.maxZ)) continue;
                 if (item.maxX >= minX && item.minX <= maxX && item.maxZ >= minZ && item.minZ <= maxZ)
                     result.push(item);
             }
         }
     }
+    for (const b of authoredDallasBuildings()) if (b.maxX >= minX && b.minX <= maxX && b.maxZ >= minZ && b.minZ <= maxZ) result.push(b);
     indexBuildingsForOcclusion(result);
     return result;
 }

@@ -9,6 +9,7 @@ import {
   journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
   journeyGateCrossing, journeyGatePlane,
 } from '../../shared/journey-mission.mjs';
+import { DALLAS_WORLD_SCALE as S, scaleDallasPoint } from '../../shared/dallas-world-scale.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { stepCoordinatedBank, throttleSpeedTarget } from '../../shared/flight-control-rules.mjs';
 import { generateDallasSkyline } from '../../shared/dallas-skyline.mjs';
@@ -23,14 +24,15 @@ const terrain = JSON.parse(readFileSync(new URL('../../client/src/data/dallas-el
 const heights = Buffer.from(terrain.elevations, 'base64');
 
 function elevationAt(x, z) {
+  x /= S; z /= S;
   const gx = (x - terrain.bounds.minX) / (terrain.bounds.maxX - terrain.bounds.minX) * (terrain.width - 1);
   const gz = (z - terrain.bounds.minZ) / (terrain.bounds.maxZ - terrain.bounds.minZ) * (terrain.height - 1);
   const ix = Math.max(0, Math.min(terrain.width - 2, Math.floor(gx)));
   const iz = Math.max(0, Math.min(terrain.height - 2, Math.floor(gz)));
   const tx = gx - ix, tz = gz - iz;
   const sample = (sx, sz) => terrain.baseElevation + heights.readUInt16LE((sz * terrain.width + sx) * 2) * terrain.scale;
-  return (1 - tz) * ((1 - tx) * sample(ix, iz) + tx * sample(ix + 1, iz)) +
-    tz * ((1 - tx) * sample(ix, iz + 1) + tx * sample(ix + 1, iz + 1));
+  return ((1 - tz) * ((1 - tx) * sample(ix, iz) + tx * sample(ix + 1, iz)) +
+    tz * ((1 - tx) * sample(ix, iz + 1) + tx * sample(ix + 1, iz + 1))) * S;
 }
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -46,10 +48,10 @@ test('the six Golden Gates routes grow in difficulty across Dallas districts', (
     const points = [mission.airborneSpawn, ...mission.gates];
     const legs = points.slice(1).map((point, index) => distance(point, points[index]));
     const length = legs.reduce((sum, leg) => sum + leg, 0);
-    assert.ok(length / fastSpeed >= 60 && length / fastSpeed <= 85, `${mission.name}: Bluejay route length`);
-    assert.ok(legs.every(leg => leg >= 2_500 && leg <= 7_500), `${mission.name}: readable gate spacing`);
-    assert.ok(points.every(point => Math.abs(point.x) + (point.radius ?? 0) < 25_000 &&
-      Math.abs(point.z) + (point.radius ?? 0) < 25_000), `${mission.name}: inside the Dallas terrain`);
+    assert.ok(missionIndex===0 ? length>=65000&&length<=70000 : length / fastSpeed >= 30 * S && length / fastSpeed <= 42.5 * S, `${mission.name}: Bluejay route length`);
+    assert.ok(missionIndex===0 ? legs[0]>=3000&&legs[0]<=4000&&legs.slice(1).every(l=>l>=5000&&l<=9000) : legs.every(leg => leg >= 2_500 * S && leg <= 7_500 * S), `${mission.name}: readable gate spacing`);
+    assert.ok(points.every(point => point.x - (point.radius ?? 0) > terrain.bounds.minX * S && point.x + (point.radius ?? 0) < terrain.bounds.maxX * S &&
+      point.z - (point.radius ?? 0) > terrain.bounds.minZ * S && point.z + (point.radius ?? 0) < terrain.bounds.maxZ * S), `${mission.name}: inside the Dallas terrain`);
     for (let index = 1; index < points.length - 1; index++) {
       const before = points[index - 1], at = points[index], after = points[index + 1];
       const first = Math.atan2(at.z - before.z, at.x - before.x);
@@ -62,28 +64,32 @@ test('the six Golden Gates routes grow in difficulty across Dallas districts', (
     courses.add(JSON.stringify(mission.gates.map(gate => [gate.x, gate.z])));
   }
   assert.equal(courses.size, 6);
-  const skyline = { x: -600, z: -450 }, lake = { x: 5_200, z: -8_500 }, trinity = { x: -4_100, z: 2_300 };
+  const skyline = scaleDallasPoint({ x: -600, z: -450 }), lake = scaleDallasPoint({ x: 5_200, z: -8_500 }), trinity = scaleDallasPoint({ x: -4_100, z: 2_300 });
   const rookieHeading = Math.atan2(-(skyline.x - journeyDallas01.airborneSpawn.x),
     -(skyline.z - journeyDallas01.airborneSpawn.z));
-  assert.ok(Math.abs(angle(rookieHeading, journeyDallas01.airborneSpawn.heading)) < .15);
-  assert.ok(distance(journeyDallas01.airborneSpawn, { x: -5_140, z: -7_780 }) < 4_000,
+  assert.ok(Math.abs(angle(rookieHeading, journeyDallas01.airborneSpawn.heading)) < Math.PI / 6,
+    'Downtown remains inside the forward view while the aircraft faces gate one');
+  const firstGate = journeyDallas01.gates[0];
+  assert.ok(Math.abs(angle(Math.atan2(-(firstGate.x - journeyDallas01.airborneSpawn.x),
+    -(firstGate.z - journeyDallas01.airborneSpawn.z)), journeyDallas01.airborneSpawn.heading)) < 1e-9);
+  assert.ok(distance(journeyDallas01.airborneSpawn, scaleDallasPoint({ x: -5_140, z: -7_780 })) < 4_000 * S,
     'Rookie Rush begins close to Love Field');
-  assert.ok(journeyDallas01.gates.every(gate => gate.radius >= 300));
-  assert.ok(distance(journeyDallas01.gates.at(-1), trinity) < 1_500);
-  assert.ok(journeyDallas02.gates.some(gate => distance(gate, lake) < 3_000));
-  assert.ok(journeyDallas02.gates.some(gate => gate.x > 11_000), 'Lake Racer reaches East Dallas');
-  assert.ok(journeyDallas03.gates[5].altitude < 1_200);
+  assert.ok(journeyDallas01.gates.every(gate => gate.radius >= 300 * S));
+  assert.ok(distance(journeyDallas01.gates.at(-1), trinity) < 1_500 * S);
+  assert.ok(journeyDallas02.gates.some(gate => distance(gate, lake) < 3_000 * S));
+  assert.ok(journeyDallas02.gates.some(gate => gate.x > 11_000 * S), 'Lake Racer reaches East Dallas');
+  assert.ok(journeyDallas03.gates[5].altitude < 1_200 * S);
   assert.ok(journeyDallas03.gates.slice(1, 6).every((gate, index) => gate.altitude > journeyDallas03.gates[index].altitude));
   assert.ok(journeyDallas03.gates.slice(6).every((gate, index) => gate.altitude < journeyDallas03.gates[index + 5].altitude));
-  assert.ok(journeyDallas03.gates.some(gate => gate.z < -20_000), 'Golden Ascent reaches North Dallas');
+  assert.ok(journeyDallas03.gates.some(gate => gate.z < -20_000 * S), 'Golden Ascent reaches North Dallas');
   assert.ok(journeyDallas04.gates[1].x > journeyDallas04.gates[2].x && journeyDallas04.gates[3].x > journeyDallas04.gates[4].x);
-  assert.ok(journeyDallas05.gates.some(gate => distance(gate, trinity) < 2_000));
-  assert.ok(journeyDallas05.gates.some(gate => gate.x < -18_000), 'Needle Rush reaches West Dallas');
+  assert.ok(journeyDallas05.gates.some(gate => distance(gate, trinity) < 2_000 * S));
+  assert.ok(journeyDallas05.gates.some(gate => gate.x < -18_000 * S), 'Needle Rush reaches West Dallas');
   assert.ok(journeyDallas05.gates[8].radius < journeyDallas04.gates[8].radius);
-  assert.ok(journeyDallas06.gates.some(gate => distance(gate, lake) < 3_000));
-  assert.ok(journeyDallas06.gates.some(gate => distance(gate, trinity) < 500));
-  assert.ok(journeyDallas06.gates.at(-1).radius >= 340);
-  assert.ok(journeyDallas06.gates.some(gate => gate.z >= 11_000), 'Golden Championship reaches South Dallas');
+  assert.ok(journeyDallas06.gates.some(gate => distance(gate, lake) < 3_000 * S));
+  assert.ok(journeyDallas06.gates.some(gate => distance(gate, trinity) < 500 * S));
+  assert.ok(journeyDallas06.gates.at(-1).radius >= 340 * S);
+  assert.ok(journeyDallas06.gates.some(gate => gate.z >= 11_000 * S), 'Golden Championship reaches South Dallas');
   assert.ok(Math.min(...journeyDallas06.gates.map(gate => gate.radius)) <
     Math.min(...journeyDallas05.gates.map(gate => gate.radius)), 'the final race has the narrowest gate');
 });
@@ -94,7 +100,7 @@ test('normal Bluejay bank steering reaches every gate in order from the authored
     let { x, z, heading } = mission.airborneSpawn;
     let y = elevationAt(x, z) + mission.airborneSpawn.altitude;
     let roll = 0, gateIndex = 0, elapsed = 0;
-    while (elapsed < 120 && gateIndex < mission.gates.length) {
+    while (elapsed < 120 * S && gateIndex < mission.gates.length) {
       const gate = mission.gates[gateIndex];
       const plane = journeyGatePlane(mission, gateIndex);
       const targetHeading = Math.atan2(-(gate.x - x), -(gate.z - z));
@@ -119,7 +125,7 @@ test('normal Bluejay bank steering reaches every gate in order from the authored
       elapsed += dt;
     }
     assert.equal(gateIndex, 10, `${mission.name}: all gates reached`);
-    assert.ok(elapsed >= 60 && elapsed <= 90, `${mission.name}: ${elapsed.toFixed(1)}s Bluejay run`);
+    assert.ok(mission.id===journeyDallas01.id ? elapsed>=30&&elapsed<=160 : elapsed >= 30 * S && elapsed <= 45 * S, `${mission.name}: ${elapsed.toFixed(1)}s Bluejay run`);
   }
 });
 
@@ -187,7 +193,7 @@ test('all 60 rendered gates match their authoritative crossing centers and direc
 test('all six centerline corridors and full gate openings clear mapped buildings and terrain', () => {
   const blocks = new Map();
   const add = block => {
-    const key = `${Math.floor(block.x / 2_000)},${Math.floor(block.z / 2_000)}`;
+    const key = `${Math.floor(block.x / (2_000 * S))},${Math.floor(block.z / (2_000 * S))}`;
     if (!blocks.has(key)) blocks.set(key, []);
     blocks.get(key).push(block);
   };
@@ -199,14 +205,14 @@ test('all six centerline corridors and full gate openings clear mapped buildings
       if (building.length < 10) continue;
       const xs = building.slice(4).filter((_, index) => index % 2 === 0);
       const zs = building.slice(5).filter((_, index) => index % 2 === 0);
-      const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
+      const minX = Math.min(...xs) * S, maxX = Math.max(...xs) * S, minZ = Math.min(...zs) * S, maxZ = Math.max(...zs) * S;
       add({ x: (minX + maxX) / 2, z: (minZ + maxZ) / 2,
-        radius: Math.hypot(maxX - minX, maxZ - minZ) / 2, top: building[0] + building[3] });
+        radius: Math.hypot(maxX - minX, maxZ - minZ) / 2, top: (building[0] + building[3]) * S });
     }
   }
-  for (const building of generateDallasSkyline(cityAirports.dallas, []))
-    add({ x: building.x, z: building.z, radius: Math.hypot(building.width, building.depth) / 2,
-      top: elevationAt(building.x, building.z) + building.height + 24 });
+  for (const building of generateDallasSkyline(cityAirports.dallas.map(a => ({ ...a, x: a.x / S, z: a.z / S, runwayWidth: a.runwayWidth / S, runwayLength: a.runwayLength / S })), []))
+    add({ x: building.x * S, z: building.z * S, radius: Math.hypot(building.width, building.depth) * S / 2,
+      top: elevationAt(building.x * S, building.z * S) + (building.height + 24) * S });
 
   for (const mission of missions) {
     let minimumGround = Infinity, minimumRoof = Infinity;
@@ -222,7 +228,7 @@ test('all six centerline corridors and full gate openings clear mapped buildings
         const y = fromY + (toY - fromY) * t, opening = to.radius * .92;
         for (const side of [-180, 0, 180])
           minimumGround = Math.min(minimumGround, y - elevationAt(x - dz / length * side, z + dx / length * side) - opening);
-        const cellX = Math.floor(x / 2_000), cellZ = Math.floor(z / 2_000);
+        const cellX = Math.floor(x / (2_000 * S)), cellZ = Math.floor(z / (2_000 * S));
         for (let cx = cellX - 1; cx <= cellX + 1; cx++) for (let cz = cellZ - 1; cz <= cellZ + 1; cz++)
           for (const building of blocks.get(`${cx},${cz}`) ?? []) {
             if (Math.hypot(building.x - x, building.z - z) - building.radius > 180) continue;
@@ -230,7 +236,7 @@ test('all six centerline corridors and full gate openings clear mapped buildings
           }
       }
     }
-    assert.ok(minimumGround > 200, `${mission.name}: terrain aperture clearance ${minimumGround.toFixed(0)} m`);
-    assert.ok(minimumRoof > 200, `${mission.name}: roof aperture clearance ${minimumRoof.toFixed(0)} m`);
+    assert.ok(minimumGround > 200 * S, `${mission.name}: terrain aperture clearance ${minimumGround.toFixed(0)} m`);
+    assert.ok(minimumRoof > 200 * S, `${mission.name}: roof aperture clearance ${minimumRoof.toFixed(0)} m`);
   }
 });

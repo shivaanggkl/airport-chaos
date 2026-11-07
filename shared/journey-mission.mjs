@@ -11,22 +11,22 @@ const baseJourneyDallas01 = Object.freeze({
   cityId: 'dallas',
   name: 'ROOKIE RUSH',
   chapter: 'GOLDEN GATES',
-  timeLimitMs: 150_000,
+  timeLimitMs: 60_000, // 3:00 after the single Dallas world-scale conversion.
   firstClearCredits: 250,
-  airborneSpawn: Object.freeze({ x: -7_800, z: -9_900, altitude: 780, heading: -2.49, speed: 650 }),
+  airborneSpawn: Object.freeze({ x: -6_200, z: -8_400, altitude: 840, heading: -Math.PI * .75, speed: 650 }),
   // Love Field and the skyline fill the opening view. A broad clockwise arc
   // ends beside the Trinity without asking new pilots for a sharp turn.
   gates: Object.freeze([
-    { x: -5_700, z: -7_800, altitude: 780, radius: 340 },
-    { x: -2_600, z: -5_100, altitude: 785, radius: 335 },
-    { x: 600, z: -2_200, altitude: 790, radius: 330 },
-    { x: 4_000, z: 800, altitude: 800, radius: 325 },
-    { x: 7_000, z: 3_900, altitude: 810, radius: 320 },
-    { x: 6_800, z: 7_200, altitude: 810, radius: 315 },
-    { x: 3_400, z: 9_600, altitude: 800, radius: 310 },
-    { x: -1_500, z: 8_500, altitude: 790, radius: 305 },
-    { x: -4_800, z: 6_000, altitude: 785, radius: 300 },
-    { x: -5_100, z: 2_300, altitude: 780, radius: 350 },
+    { x: -5360, z: -7560, altitude: 840, radius: 340 },
+    { x: -3340, z: -5760, altitude: 845, radius: 335 },
+    { x: -1580, z: -4165, altitude: 850, radius: 330 },
+    { x: 290, z: -2515, altitude: 860, radius: 325 },
+    { x: 2200, z: -900, altitude: 870, radius: 320 },
+    { x: 2400, z: 1300, altitude: 870, radius: 315 },
+    { x: 1000, z: 3300, altitude: 860, radius: 310 },
+    { x: -1300, z: 4000, altitude: 850, radius: 305 },
+    { x: -3500, z: 3500, altitude: 845, radius: 300 },
+    { x: -5100, z: 1800, altitude: 840, radius: 350 },
   ]),
 });
 

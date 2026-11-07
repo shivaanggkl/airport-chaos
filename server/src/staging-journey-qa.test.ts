@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
+import {journeyMissionOrder,journeyMissionSlot} from '../../shared/journey-mission.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { PlayerProfileStore } from './player-profiles.js';
 import { localJourneyQaUnlockEnabled, stagingJourneyQaPilotUnlockEnabled, stagingJourneyQaUnlockEnabled } from './staging-journey-qa.js';
@@ -47,14 +48,14 @@ test('staging per-pilot QA access unlocks missions only for the granted pilot wi
     database.prepare('INSERT INTO journey_qa_unlocked_pilots (pilot_id, granted_at) VALUES (?, ?)').run('qa-pilot', 1_000);
     database.close();
     assert.equal(normal.qaMissionAccess('qa-pilot'), false);
-    assert.throws(() => normal.launch('qa-pilot', 'trainer', 1_000, 'journey-dallas-24'), /locked/);
+    assert.throws(() => normal.launch('qa-pilot', 'trainer', 1_000, 'journey-dallas-19'), /locked/);
 
     const staging = new JourneyAttemptStore(path, false, true);
     assert.equal(staging.qaMissionAccess('qa-pilot'), true);
     assert.equal(staging.qaMissionAccess('other-pilot'), false);
-    assert.equal(staging.launch('qa-pilot', 'trainer', 1_000, 'journey-dallas-24').missionId, 'journey-dallas-24');
-    assert.throws(() => staging.launch('other-pilot', 'trainer', 1_000, 'journey-dallas-24'), /locked/);
-    assert.equal(staging.progress('qa-pilot', 'journey-dallas-24').completed, false);
+    assert.equal(staging.launch('qa-pilot', 'trainer', 1_000, 'journey-dallas-19').missionId, 'journey-dallas-19');
+    assert.throws(() => staging.launch('other-pilot', 'trainer', 1_000, 'journey-dallas-19'), /locked/);
+    assert.equal(staging.progress('qa-pilot', 'journey-dallas-19').completed, false);
     const verify = new DatabaseSync(path);
     assert.equal((verify.prepare('SELECT COUNT(*) AS count FROM journey_completions').get() as { count: number }).count, 0);
     assert.deepEqual(verify.prepare('SELECT pilot_id, credits, sky_tokens FROM player_profiles ORDER BY pilot_id').all().map(row => ({ ...row })), [
@@ -75,14 +76,16 @@ test('QA unlock allows every Dallas mission without recording false completion o
   setup.close();
   try {
     const normal = new JourneyAttemptStore(path);
-    assert.throws(() => normal.launch('qa-pilot', 'trainer', 1_000, 'journey-dallas-24'), /locked/);
+    assert.throws(() => normal.launch('qa-pilot', 'trainer', 1_000, 'journey-dallas-19'), /locked/);
     const qa = new JourneyAttemptStore(path, true);
-    for (let number = 1; number <= 24; number += 1) {
-      const missionId = `journey-dallas-${String(number).padStart(2, '0')}`;
+    assert.equal(journeyMissionOrder.length,24);
+    for (const [index, missionId] of journeyMissionOrder.entries()) {
+      const number=index+1;assert.equal(journeyMissionSlot(missionId),number);
       assert.equal(qa.launch('qa-pilot', 'trainer', 1_000 + number, missionId).missionId, missionId);
       assert.equal(qa.progress('qa-pilot', missionId).completed, false);
     }
-    assert.throws(() => qa.launch('qa-pilot', 'trainer', 2_000, 'journey-dallas-25'), /Unknown/);
+    assert.throws(() => qa.launch('qa-pilot', 'trainer', 2_000, 'journey-dallas-24'), /locked/);
+    assert.throws(() => qa.launch('qa-pilot', 'trainer', 2_001, 'journey-dallas-26'), /Unknown/);
     const verify = new DatabaseSync(path);
     assert.equal((verify.prepare('SELECT COUNT(*) AS count FROM journey_completions').get() as { count: number }).count, 0);
     assert.equal((verify.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'qa-pilot'").get() as { credits: number }).credits, 0);

@@ -1,3 +1,4 @@
+import {DALLAS_WORLD_SCALE} from '../../shared/dallas-world-scale.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
@@ -31,7 +32,7 @@ test('M24 victory, timeout, replay, mission migration, and first-clear credits r
     db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('p',0,0)");
     db.close();
     try {
-        const store = new JourneyAttemptStore(path, true), win = now => { let a = store.launch('p', 'trainer', now, journeyDallas19.id); store.approach('p', a.attemptId, now + 1); assert.equal(store.startTimedGateClock('p', a.attemptId, now + 2), undefined); a = store.startMonsterArrival('p', a.attemptId, now + 3); assert.equal(a.deadlineAt, now + 300003); assert.equal(store.acceptGate('p', a.attemptId, 0, now + 4), undefined); for (let i = 0; i < 60; i++)
+        const store = new JourneyAttemptStore(path, true), win = now => { let a = store.launch('p', 'trainer', now, journeyDallas19.id); store.approach('p', a.attemptId, now + 1); assert.equal(store.startTimedGateClock('p', a.attemptId, now + 2), undefined); a = store.startMonsterArrival('p', a.attemptId, now + 3); assert.equal(a.deadlineAt, now + 3 + journeyDallas19.timeLimitMs); assert.equal(store.acceptGate('p', a.attemptId, 0, now + 4), undefined); for (let i = 0; i < 60; i++)
             a = store.hitMonster('p', a.attemptId, now + 200 + i * 250, 25); assert.equal(a.status, 'COMPLETED'); assert.equal(a.monsterHealth, 0); assert.equal(store.hitMonster('p', a.attemptId, now + 31000, 25), undefined); return a; };
         assert.equal(new JourneyAttemptStore(path, false).canAccessMission('p', 'journey-dallas-24'), false);
         assert.equal(win(1000).firstClearCredits, 4000);
@@ -170,13 +171,13 @@ test('visible M24 retains legacy identity and historical clears without duplicat
   assert.equal(reopened.get('p',old.attemptId).failureReason,'MISSION_UPDATED');assert(reopened.progress('p',journeyDallas19.id).completed);
   assert.equal(journeyMissionSlot(journeyDallas19.id),24);assert.equal(journeyMissionSlot(journeyDallas25.id),19);
   assert.equal(journeyDallas19.firstClearCredits,4000);assert.equal(journeyDallas25.firstClearCredits,2550);
-  assert.equal(journeyDallas25.bossHealth,500);assert.equal(journeyDallas25.timeLimitMs,240000);
+  assert.equal(journeyDallas25.bossHealth,500);assert.equal(journeyDallas25.timeLimitMs,240000*DALLAS_WORLD_SCALE);
   assert.equal(reopened.canAccessMission('p',journeyDallas24.id),false);
   assert.equal(authorizedJourneyAirborneSpawn({missionId:journeyDallas19.id,status:'APPROACH'},journeyDallas19,()=>135),undefined);
   const a=reopened.launch('p','trainer',60000,journeyDallas19.id);reopened.approach('p',a.attemptId,60001);
   const started=reopened.startMonsterArrival('p',a.attemptId,60002);
-  assert.equal(started.deadlineAt,360002);reopened.pause('p',a.attemptId,60003);
-  const resumed=reopened.resume('p',a.attemptId,61003);assert.equal(resumed.attempt.deadlineAt,361002);
+  assert.equal(started.deadlineAt,60002+journeyDallas19.timeLimitMs);reopened.pause('p',a.attemptId,60003);
+  const resumed=reopened.resume('p',a.attemptId,61003);assert.equal(resumed.attempt.deadlineAt,started.deadlineAt+1000);
   const result=reopened.hitMonster('p',a.attemptId,61004,1500);assert.equal(result.status,'COMPLETED');assert.equal(result.firstClearCredits,0);
   assert.equal(db.prepare("SELECT credits FROM player_profiles WHERE pilot_id='p'").get().credits,2550);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}

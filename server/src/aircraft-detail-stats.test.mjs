@@ -4,10 +4,10 @@ import { aircraftDefinitions, aircraftSpeedCapsMph, garageStats } from '../../cl
 
 test('Store and Hangar aircraft speed details match the current flight caps', () => {
   const expected = {
-    trainer: { normal: 1800, boost: 2304, speedBars: 3 },
-    cargo: { normal: 2100, boost: 2625, speedBars: 3 },
-    privateJet: { normal: 2700, boost: 3510, speedBars: 4 },
-    fighter: { normal: 3000, boost: 4050, speedBars: 5 },
+    trainer: { normal: 3600, boost: 4608, speedBars: 3 },
+    cargo: { normal: 4200, boost: 5250, speedBars: 3 },
+    privateJet: { normal: 5400, boost: 7020, speedBars: 4 },
+    fighter: { normal: 6000, boost: 8100, speedBars: 5 },
   };
   for (const type of Object.keys(expected)) {
     const details = expected[type];

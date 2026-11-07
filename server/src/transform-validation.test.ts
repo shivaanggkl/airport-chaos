@@ -48,3 +48,13 @@ test('bounded coordinated desktop turning remains valid within the aircraft enve
     previous = next;
   }
 });
+
+test('all aircraft accept their current normal and Boost ceilings without permitting teleporting', () => {
+  for (const envelope of Object.values(aircraftFlightEnvelope)) {
+    for (const ratio of [1, envelope.boostMaxSpeed]) {
+      const distance = envelope.maxSpeed * ratio * .1;
+      assert.equal(validateClientTransform(origin, { ...origin, z: -distance }, 100, envelope).accepted, true);
+    }
+    assert.equal(validateClientTransform(origin, { ...origin, z: -10000 }, 100, envelope).accepted, false);
+  }
+});

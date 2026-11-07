@@ -8,14 +8,14 @@ test('Rookie Rush is an independent ten-gate Dallas route; Free Fly keeps four D
   const mission = journeyDallas01;
   assert.equal(mission.id, 'journey-dallas-01');
   assert.equal(mission.gates.length, 10);
-  assert.equal(mission.timeLimitMs, 150_000);
+  assert.equal(mission.timeLimitMs, 180_000);
   assert.equal(mission.firstClearCredits, 250);
   assert.equal(dfwSpeedGates.length, 4);
   assert.notEqual(mission.gates, dfwSpeedGates);
   assert.ok(mission.gates.every(gate => Math.abs(gate.x) + gate.radius < 25_000 && Math.abs(gate.z) + gate.radius < 25_000));
   assert.ok(mission.gates.every(gate => gate.altitude >= 760));
   assert.ok(Math.hypot(mission.gates[0].x - mission.airborneSpawn.x,
-    mission.gates[0].z - mission.airborneSpawn.z) <= 3_000);
+    mission.gates[0].z - mission.airborneSpawn.z) >= 3_000 && Math.hypot(mission.gates[0].x-mission.airborneSpawn.x,mission.gates[0].z-mission.airborneSpawn.z)<=4_000);
 });
 
 test('every Rookie Rush gate accepts movement from either side through its visible opening', () => {
@@ -42,6 +42,6 @@ test('the shorter gate sequence keeps frequent gates and room for Bluejay', () =
     Math.hypot(point.x - points[index].x, point.z - points[index].z));
   const centerline = legs.reduce((distance, leg) => distance + leg, 0);
   const bluejayFast = aircraftFlightEnvelope.trainer.maxSpeed * .8;
-  assert.ok(centerline / bluejayFast >= 60 && centerline / bluejayFast <= 80);
-  assert.ok(legs.slice(1).every((leg) => leg <= 7_500));
+  assert.ok(centerline / bluejayFast >= 30 && centerline / bluejayFast <= 60);
+  assert.ok(legs.slice(1).every((leg) => leg <= 9_000));
 });

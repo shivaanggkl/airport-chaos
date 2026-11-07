@@ -1,3 +1,4 @@
+import { dallasLandmarks, landmarkBounds } from '../../shared/dallas-landmarks.mjs';
 import { cityDiscoveries } from '../../shared/city-discoveries.mjs';
 import { addDowntownDistrict } from './dallas-skyline';
 import { inDallasCore } from '../../shared/dallas-skyline.mjs';
@@ -1147,9 +1148,10 @@ function addSteppedTower(scene: THREE.Scene, obstacles: ObstacleBounds[], x: num
   const podiumHeight = Math.min(28, height * 0.14);
   const shaftHeight = (height - podiumHeight) * 0.8;
   const crownHeight = height - podiumHeight - shaftHeight;
-  addCityBox(scene, obstacles, x, z, width * 1.2, podiumHeight, depth * 1.2, landmarkMaterials.concrete, rotation);
-  addCityBox(scene, obstacles, x, z, width, shaftHeight, depth, material, rotation, true, podiumHeight);
-  addCityBox(scene, obstacles, x, z, width * 0.72, crownHeight, depth * 0.72, material, rotation, true, podiumHeight + shaftHeight);
+  addCityBox(scene, obstacles, x, z, width * 1.2, podiumHeight, depth * 1.2, landmarkMaterials.concrete, rotation, false);
+  addCityBox(scene, obstacles, x, z, width, shaftHeight, depth, material, rotation, false, podiumHeight);
+  addCityBox(scene, obstacles, x, z, width * 0.72, crownHeight, depth * 0.72, material, rotation, false, podiumHeight + shaftHeight);
+  obstacles.push(...landmarkBounds({kind:'stepped',x,z,width,depth,height},getTerrainHeight));
   // Thin face markings give existing Downtown and Las Colinas glass shafts
   // readable vertical bays. They are batched per tower and add no solid volume.
   const strips = new THREE.InstancedMesh(towerFacadeStrip, landmarkMaterials.steel, 8);
@@ -1180,28 +1182,28 @@ const signatureNeedle = new THREE.CylinderGeometry(0.25, 0.45, 1, 6);
 function addSignatureTower(scene: THREE.Scene, obstacles: ObstacleBounds[], x: number, z: number, width: number, depth: number, height: number, style: number): void {
   const material = [landmarkMaterials.glassDark, landmarkMaterials.glassBlue, landmarkMaterials.glassGreen, landmarkMaterials.steel][style % 4];
   const baseY = getTerrainHeight(x, z);
-  const plinth = addCityBox(scene, obstacles, x, z, width * 1.08, 15, depth * 1.08, landmarkMaterials.concrete, style * 0.09);
+  const plinth = addCityBox(scene, obstacles, x, z, width * 1.08, 15, depth * 1.08, landmarkMaterials.concrete, style * 0.09, false);
   if (style % 4 === 0) {
     const shaft = new THREE.Mesh(signaturePrism, material);
     shaft.scale.set(width * 0.48, height - 30, depth * 0.48);
     shaft.position.set(x, baseY + 15 + (height - 30) * 0.5, z);
     shaft.rotation.y = Math.PI / 6;
     scene.add(shaft);
-    addCityBox(scene, obstacles, x, z, width * 0.5, 15, depth * 0.5, landmarkMaterials.steel, 0, true, height - 15);
+    addCityBox(scene, obstacles, x, z, width * 0.5, 15, depth * 0.5, landmarkMaterials.steel, 0, false, height - 15);
   } else if (style % 4 === 1) {
-    addCityBox(scene, obstacles, x - width * 0.18, z, width * 0.47, height - 24, depth * 0.82, material, 0.07, true, 15);
-    addCityBox(scene, obstacles, x + width * 0.19, z, width * 0.42, height - 45, depth * 0.78, material, -0.07, true, 15);
+    addCityBox(scene, obstacles, x - width * 0.18, z, width * 0.47, height - 24, depth * 0.82, material, 0.07, false, 15);
+    addCityBox(scene, obstacles, x + width * 0.19, z, width * 0.42, height - 45, depth * 0.78, material, -0.07, false, 15);
     addCityBox(scene, obstacles, x, z, width * 0.88, 9, depth * 0.72, landmarkMaterials.steel, 0, false, height - 60);
   } else if (style % 4 === 2) {
-    addCityBox(scene, obstacles, x, z, width * 0.88, height * 0.72, depth * 0.88, material, style * 0.06, true, 15);
+    addCityBox(scene, obstacles, x, z, width * 0.88, height * 0.72, depth * 0.88, material, style * 0.06, false, 15);
     const crown = new THREE.Mesh(signatureTaper, material);
     crown.scale.set(width * 0.43, height * 0.28, depth * 0.43);
     crown.position.set(x, baseY + height * 0.86, z);
     crown.rotation.y = Math.PI / 5;
     scene.add(crown);
   } else {
-    addCityBox(scene, obstacles, x, z, width * 0.94, height * 0.57, depth * 0.92, material, style * 0.05, true, 15);
-    addCityBox(scene, obstacles, x + width * 0.14, z - depth * 0.08, width * 0.58, height * 0.3, depth * 0.68, material, style * 0.05, true, height * 0.57 + 15);
+    addCityBox(scene, obstacles, x, z, width * 0.94, height * 0.57, depth * 0.92, material, style * 0.05, false, 15);
+    addCityBox(scene, obstacles, x + width * 0.14, z - depth * 0.08, width * 0.58, height * 0.3, depth * 0.68, material, style * 0.05, false, height * 0.57 + 15);
     const needle = new THREE.Mesh(signatureNeedle, landmarkMaterials.steel);
     needle.scale.set(2.3, 27, 2.3);
     needle.position.set(x + width * 0.14, baseY + height + 16, z - depth * 0.08);
@@ -1209,14 +1211,13 @@ function addSignatureTower(scene: THREE.Scene, obstacles: ObstacleBounds[], x: n
   }
   // One simple collision envelope covers faceted/tapered shapes without tiny
   // collider fragments. The plinth already retains a ground obstruction.
-  obstacles.push({ x, z, halfX: width * 0.5, halfZ: depth * 0.5, height, baseY, polygon: [] });
+  obstacles.push(...landmarkBounds({kind:'signature',x,z,width,depth,height,style},getTerrainHeight));
   void plinth;
 }
 
 function addReunionTower(scene: THREE.Scene, obstacles: ObstacleBounds[]): void {
   // Reunion Tower's real downtown location, represented with original primitive geometry.
-  const x = -1120;
-  const z = 130;
+  const {x,z} = dallasLandmarks.find(b=>b.kind==='reunion')!;
   const baseY = getTerrainHeight(x, z);
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(6, 9, 134, 10), landmarkMaterials.steel);
   shaft.position.set(x, baseY + 67, z);
@@ -1226,38 +1227,24 @@ function addReunionTower(scene: THREE.Scene, obstacles: ObstacleBounds[]): void 
   ring.position.copy(globe.position);
   ring.rotation.x = Math.PI / 2;
   scene.add(shaft, globe, ring);
-  obstacles.push({ x, z, halfX: 28, halfZ: 28, height: 171, baseY, polygon: [] });
+  obstacles.push(...landmarkBounds(dallasLandmarks.find(b=>b.kind==='reunion')!,getTerrainHeight));
 }
 
 function addDallasSkyline(scene: THREE.Scene, obstacles: ObstacleBounds[]): void {
-  addReunionTower(scene, obstacles);
-  // Tallest and faceted landmark masses sit at their real downtown coordinates, using non-trademarked proportions.
-  addSteppedTower(scene, obstacles, -330, -360, 58, 72, 282, landmarkMaterials.glassDark, 0.05);
-  const facetedBaseY = getTerrainHeight(-780, -230);
-  const faceted = new THREE.Mesh(new THREE.CylinderGeometry(32, 47, 224, 4), landmarkMaterials.glassBlue);
-  faceted.position.set(-780, facetedBaseY + 112, -230);
-  faceted.rotation.y = Math.PI / 4;
-  scene.add(faceted);
-  obstacles.push({ x: -780, z: -230, halfX: 50, halfZ: 50, height: 224, baseY: facetedBaseY, polygon: [] });
-  addSteppedTower(scene, obstacles, -600, -610, 54, 52, 205, landmarkMaterials.glassBlue, -0.15);
-  addSteppedTower(scene, obstacles, -170, -700, 48, 58, 186, landmarkMaterials.glassDark, 0.18);
-  addSteppedTower(scene, obstacles, -1050, -580, 52, 48, 164, landmarkMaterials.steel, -0.1);
-  addSteppedTower(scene, obstacles, -1230, -370, 44, 50, 150, landmarkMaterials.glassBlue, 0.22);
-  // Eight different crown/shaft combinations replace the old repetitive box
-  // cores at the same city anchors. They are original silhouettes, not copies.
-  const signatures: ReadonlyArray<readonly [number, number, number, number, number]> = [
-    [-420, 20, 48, 66, 330], [-650, 50, 40, 45, 275], [-900, 120, 45, 48, 300],
-    [-250, 150, 38, 42, 235], [-1340, 10, 42, 46, 260], [-940, -790, 44, 50, 310],
-    [-420, -980, 52, 48, 285], [-1280, -760, 46, 44, 245],
-  ];
-  signatures.forEach(([x, z, width, depth, height], index) => addSignatureTower(scene, obstacles, x, z, width, depth, height, index));
-
-  // Las Colinas/Irving's lower but visible business cluster anchors the DFW-to-downtown route.
-  const lasColinas: ReadonlyArray<readonly [number, number, number, number, number]> = [
-    [dallasLocations.lasColinas.x, dallasLocations.lasColinas.z, 68, 62, 138], [-13270, -9180, 55, 48, 112], [-13740, -8990, 52, 48, 94],
-    [-13080, -9570, 46, 48, 82], [-14000, -9560, 48, 44, 78],
-  ];
-  lasColinas.forEach(([x, z, width, depth, height], index) => addSteppedTower(scene, obstacles, x, z, width, depth, height, index % 2 ? landmarkMaterials.glassGreen : landmarkMaterials.glassBlue, 0.12));
+  const materials = [landmarkMaterials.glassDark, landmarkMaterials.glassBlue, landmarkMaterials.glassGreen, landmarkMaterials.steel];
+  for (const b of dallasLandmarks) {
+    if (b.kind === 'reunion') addReunionTower(scene, obstacles);
+    else if (b.kind === 'stepped') addSteppedTower(scene, obstacles, b.x, b.z, b.width, b.depth, b.height, materials[b.material!], b.rotation);
+    else if (b.kind === 'signature') addSignatureTower(scene, obstacles, b.x, b.z, b.width, b.depth, b.height, b.style!);
+    else {
+      const baseY = getTerrainHeight(b.x,b.z);
+      const faceted = new THREE.Mesh(new THREE.CylinderGeometry(32, 47, b.height, 4), landmarkMaterials.glassBlue);
+      faceted.position.set(b.x, baseY + b.height / 2, b.z);
+      faceted.rotation.y = Math.PI / 4;
+      scene.add(faceted);
+      obstacles.push(...landmarkBounds(b,getTerrainHeight));
+    }
+  }
 }
 
 function addTrinityRiver(scene: THREE.Scene, waterBounds: WaterBounds[]): void {

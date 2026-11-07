@@ -9004,15 +9004,20 @@ function hitsWorldObstacle(): boolean {
     Math.floor(airplane.position.x / COLLISION_CELL_SIZE),
     Math.floor(airplane.position.z / COLLISION_CELL_SIZE),
   );
-  for (const obstacle of obstacleGrid.get(cellKey) ?? noNearbyObstacles) {
-    if (
-      planeBottom <= (obstacle.baseY ?? 0) + obstacle.height &&
-      Math.abs(airplane.position.x - obstacle.x) <= obstacle.halfX + COLLISION_PADDING &&
-      Math.abs(airplane.position.z - obstacle.z) <= obstacle.halfZ + COLLISION_PADDING &&
-      (!obstacle.polygon || pointInWorldPolygon(airplane.position.x, airplane.position.z, obstacle.polygon))
-    ) {
-      return true;
+  // Dallas buildings are intentionally pass-through for aircraft. Projectile
+  // occlusion is independent; terrain/runway contact is evaluated in updateFlight.
+  if (cityId !== 'dallas') {
+    for (const obstacle of obstacleGrid.get(cellKey) ?? noNearbyObstacles) {
+      if (
+        planeBottom <= (obstacle.baseY ?? 0) + obstacle.height &&
+        Math.abs(airplane.position.x - obstacle.x) <= obstacle.halfX + COLLISION_PADDING &&
+        Math.abs(airplane.position.z - obstacle.z) <= obstacle.halfZ + COLLISION_PADDING &&
+        (!obstacle.polygon || pointInWorldPolygon(airplane.position.x, airplane.position.z, obstacle.polygon))
+      ) {
+        return true;
+      }
     }
+
   }
 
   for (const mountain of mountainGrid.get(cellKey) ?? noNearbyMountains) {
@@ -9218,9 +9223,10 @@ function updateFlight(delta: number): void {
       onGround = false;
       takeoffThrustBlend = 0;
       contextualHints.trigger('worldMap');
-      velocity.y = 0.8 + (currentSpeed - currentAircraft.takeoffSpeed) * 0.05 * currentAircraft.lift;
-      verticalSpeed = velocity.y;
-      airplane.position.y = groundPlaneY(airplane.position.x, airplane.position.z) + 0.02;
+      // Release the wheels without an artificial upward impulse. The next
+      // airborne step uses the same attitude and momentum, then lift raises it.
+      velocity.y = 0;
+      verticalSpeed = 0;
       setFlightState('TAKEOFF');
     }
 
@@ -9292,9 +9298,10 @@ function updateFlight(delta: number): void {
   const boostThrust = boostActive
     ? currentAircraft.acceleration * ((currentAircraft.boostThrust ?? 1.35) - 1)
     : 0;
-  // Runway acceleration is much lower than airborne acceleration. Ease that
-  // handoff after liftoff so forward motion does not lurch on the first air frame.
-  takeoffThrustBlend = Math.min(1, takeoffThrustBlend + delta / 1.25);
+  // Keep runway thrust at wheel release, then build airborne power gradually.
+  // Heavy aircraft spool up more slowly; an already-airborne spawn stays at 1.
+  const takeoffPowerSeconds = Math.max(8, 10 * Math.sqrt(currentAircraft.inertia));
+  takeoffThrustBlend = Math.min(1, takeoffThrustBlend + delta / takeoffPowerSeconds);
   const engineThrust = THREE.MathUtils.lerp(
     throttle * currentAircraft.groundAcceleration,
     throttle * currentAircraft.acceleration / currentAircraft.inertia,
@@ -11741,8 +11748,9 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       // would fail a fresh Journey attempt before its intro starts.
       applyServerProfile(message.profile, undefined, message.selectionRevision, undefined, undefined, false, true);
     }
-    if (airAssaultMode && !message.resumeFlight) {
-      // A new server encounter starts from the runway, even after a server restart.
+    if ((airAssaultMode || portalEligible) && !message.resumeFlight) {
+      // A fresh authoritative runway spawn cannot retain an airborne velocity
+      // from the previous connection. Real recovered flights are restored below.
       restartGame(false);
       localLifeState = networkLifeState(message.lifeState);
       applyLocalHull(message.health, message.maxHealth, message.activeAircraftType);
@@ -11756,7 +11764,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       airplane.rotation.set(0, heading, 0, 'YXZ');
       currentSpeed = message.airborneSpawn.speed; verticalSpeed = 0;
       velocity.set(-Math.sin(heading) * currentSpeed, 0, -Math.cos(heading) * currentSpeed);
-      throttle = ((journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id)||journeyAttempt?.missionId===journeyDallas20.id) ? .32 : journeyAttempt?.missionId===journeyDallas07.id || journeyAttempt?.missionId===journeyDallas08.id || journeyAttempt?.missionId===journeyDallas09.id || journeyAttempt?.missionId===journeyDallas10.id || journeyAttempt?.missionId===journeyDallas11.id ? .5 : .55;
+      throttle = journeyAttempt?.missionId===journeyDallas01.id ? .75 : ((journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id)||journeyAttempt?.missionId===journeyDallas20.id) ? .32 : journeyAttempt?.missionId===journeyDallas07.id || journeyAttempt?.missionId===journeyDallas08.id || journeyAttempt?.missionId===journeyDallas09.id || journeyAttempt?.missionId===journeyDallas10.id || journeyAttempt?.missionId===journeyDallas11.id ? .5 : .55;
       mobileInput.setThrottleState(throttle);
       setFlightState('FLYING');
       updateCamera(1);

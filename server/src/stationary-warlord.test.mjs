@@ -92,7 +92,7 @@ test('20 confirmed 25-damage shots defeat the server boss; replayed shots do not
     disposeM19(e);
     assert.equal(e.disposed, true);
 });
-test('M19 persists completion once, starts its four-minute clock at GO, times out and retries cleanly', () => {
+test('M19 persists completion once, starts its scaled boss clock at GO, times out and retries cleanly', () => {
     const dir = mkdtempSync(join(tmpdir(), 'stationary-boss-')), path = join(dir, 'profile.sqlite');
     const db = new DatabaseSync(path);
     db.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");
@@ -102,7 +102,7 @@ test('M19 persists completion once, starts its four-minute clock at GO, times ou
             const a = store.launch('pilot', 'trainer', start, journeyDallas25.id);
             assert.equal(a.monsterHealth, 500);
             store.approach('pilot', a.attemptId, start + 100);
-            assert.equal(store.startMonsterArrival('pilot', a.attemptId, start + 3000)?.deadlineAt, start + 243000);
+            assert.equal(store.startMonsterArrival('pilot', a.attemptId, start + 3000)?.deadlineAt, start + 3000 + journeyDallas25.timeLimitMs);
             for (let i = 1; i <= 20; i++) {
                 const result = store.hitMonster('pilot', a.attemptId, start + 3000 + i * 100, 25);
                 assert.equal(result.status, i === 20 ? 'COMPLETED' : 'RACING');
@@ -115,11 +115,12 @@ test('M19 persists completion once, starts its four-minute clock at GO, times ou
         const a = store.launch('pilot', 'trainer', 600000, journeyDallas25.id);
         store.approach('pilot', a.attemptId, 600100);
         store.startMonsterArrival('pilot', a.attemptId, 603000);
-        assert.equal(store.hitMonster('pilot', a.attemptId, 843000, 500), undefined);
-        assert.equal(store.fail('pilot', a.attemptId, 'TIME_UP', 843000)?.status, 'FAILED');
-        const retry = store.launch('pilot', 'trainer', 900000, journeyDallas25.id);
+        const deadline=603000+journeyDallas25.timeLimitMs;
+        assert.equal(store.hitMonster('pilot', a.attemptId, deadline, 500), undefined);
+        assert.equal(store.fail('pilot', a.attemptId, 'TIME_UP', deadline)?.status, 'FAILED');
+        const retry = store.launch('pilot', 'trainer', deadline+1000, journeyDallas25.id);
         assert.equal(retry.monsterHealth, 500);
-        assert.equal(store.abandon('pilot', retry.attemptId, 900100)?.status, 'ABANDONED');
+        assert.equal(store.abandon('pilot', retry.attemptId, deadline+1100)?.status, 'ABANDONED');
     }
     finally {
         db.close();
