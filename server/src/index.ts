@@ -1259,7 +1259,16 @@ function buildTransformWorldBounds(cityId: CityId): TransformWorldBounds {
   const maxX = Math.max(...airports.map(airport => airport.x + airport.runwayLength), ...territories.map(territory => territory.bounds.maxX));
   const minZ = Math.min(...airports.map(airport => airport.z - airport.runwayLength), ...territories.map(territory => territory.bounds.minZ));
   const maxZ = Math.max(...airports.map(airport => airport.z + airport.runwayLength), ...territories.map(territory => territory.bounds.maxZ));
-  return { minX: minX - 30_000, maxX: maxX + 30_000, minY: -2_000, maxY: 40_000, minZ: minZ - 30_000, maxZ: maxZ + 30_000 };
+  // Airport/territory extents do not cover the whole rendered city. In
+  // particular, M6's authorized airborne start lies east of those extents.
+  const city = cityRegistry[cityId];
+  const origin = city.worldOrigin as { x: number; z: number };
+  const halfSize = Number(city.worldSize) / 2;
+  return {
+    minX: Math.min(minX - 30_000, origin.x - halfSize), maxX: Math.max(maxX + 30_000, origin.x + halfSize),
+    minY: -2_000, maxY: 40_000,
+    minZ: Math.min(minZ - 30_000, origin.z - halfSize), maxZ: Math.max(maxZ + 30_000, origin.z + halfSize),
+  };
 }
 const transformWorldBounds: Record<CityId, TransformWorldBounds> = {
   dallas: buildTransformWorldBounds('dallas'),
@@ -8017,8 +8026,13 @@ server.on('connection', (socket, request) => {
     : journeyAttempt?.missionId === journeyDallas07.id ? journeyDallas07.startAirportId
     : (journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas20.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id) ? journeyDallas19.startAirportId
     : undefined;
-  // Rookie Rush starts airborne; the other Golden Gates missions retain runway takeoff.
+  // All six Golden Gates races start from their server-authorized airborne definitions.
   const airborneSpawn = authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas01, dallasTerrain.elevationAt)
+    ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas02, dallasTerrain.elevationAt)
+    ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas03, dallasTerrain.elevationAt)
+    ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas04, dallasTerrain.elevationAt)
+    ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas05, dallasTerrain.elevationAt)
+    ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas06, dallasTerrain.elevationAt)
     ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas19, dallasTerrain.elevationAt)
     ?? authorizedJourneyAirborneSpawn(journeyAttempt,journeyDallas20,dallasTerrain.elevationAt)
     ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas22, dallasTerrain.elevationAt);

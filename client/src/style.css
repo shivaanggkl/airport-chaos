@@ -1901,6 +1901,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .mission-clear-sparkles i:nth-child(11) { --x: 43%; --y: 73%; --size: 3px; --delay: -.2s; }
 .mission-clear-sparkles i:nth-child(12) { --x: 58%; --y: 72%; --size: 3px; --delay: -.9s; }
 #game-root.mission-clear-active > :not(canvas):not(.mission-clear) { opacity: 0 !important; pointer-events: none !important; }
+#game-root.aircraft-victory-active > :not(canvas):not(.transport-crash-flash) { opacity: 0 !important; pointer-events: none !important; }
 @keyframes mission-clear-pop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
 @keyframes mission-clear-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes mission-clear-out { to { opacity: 0; } }
@@ -7144,3 +7145,12 @@ html.custom-control-layout #game-root #radar-panel {
 @media (prefers-reduced-motion: reduce) { .image-story-image.is-active { animation: none; transform: none; } .image-story-image, .image-story-sequence { transition: none; } }
 
 .launch-cinematic-active:has(.image-story-sequence:not([hidden])) .mission-intro-skip { top: max(12px, env(safe-area-inset-top)); bottom: auto; }
+
+/* Reuse the speed lever on desktop without enabling the touch flight layout. */
+#touch-controls.desktop-throttle-only > :not([data-touch-control="throttle"]) { display: none; }
+#touch-controls.desktop-throttle-only [data-touch-control="throttle"] {
+  left: auto;
+  right: max(32px, env(safe-area-inset-right));
+  top: 55%;
+  transform: translateY(-50%);
+}

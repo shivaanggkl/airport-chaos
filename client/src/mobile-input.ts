@@ -225,11 +225,15 @@ export class MobileInputControls {
 
   setThrottleState(throttle: number) {
     const value = clamp(throttle, 0, 1);
-    this.throttleTarget = value;
+    // Desktop keeps its existing keyboard throttle until the lever is dragged.
+    this.throttleTarget = this.deviceEnabled() || this.demoActive ? value : undefined;
     this.renderThrottle(value, false);
   }
 
-  syncFlightState(throttle: number, boostMeter: number, boostActive: boolean) {
+  syncFlightState(throttle: number, boostMeter: number, boostActive: boolean, keyboardThrottleActive = false) {
+    if (keyboardThrottleActive && this.root.classList.contains('desktop-throttle-only')) {
+      this.throttleTarget = undefined;
+    }
     const lever = this.root.querySelector<HTMLElement>('[data-touch-throttle]');
     if (!lever) return;
     const ready = boostMeter >= 99.5;
@@ -323,7 +327,8 @@ export class MobileInputControls {
   private refresh() {
     const enabled = this.deviceEnabled() || this.demoActive;
     const landscape = innerWidth > innerHeight;
-    this.root.hidden = !(enabled && landscape);
+    this.root.hidden = enabled && !landscape;
+    this.root.classList.toggle('desktop-throttle-only', !enabled);
     document.documentElement.classList.toggle('touch-controls-enabled', enabled);
     document.documentElement.classList.toggle('touch-controls-active', enabled && landscape);
     this.aimTarget.classList.toggle('touch-aim-enabled', enabled && landscape);

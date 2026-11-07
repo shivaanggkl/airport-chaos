@@ -179,15 +179,15 @@ for(const mission of [missions.journeyDallas13,missions.journeyDallas14]) {
   provoke();assert.equal(engagements,1,'activation is latched');
   assert.equal(ctx.skyHunterDepartureReady('unrelated',pilot,missions.journeyDallas19.id),true,'unrelated missions retain their existing rules');
  });
- test(`${mission.name}: GO owns its four-minute timer and Journey matches it`,()=>{
+ test(`${mission.name}: GO owns its independent timer and Journey matches it`,()=>{
   const f=fixture();try {
    const a=f.store.launch('pilot','trainer',1000,mission.id);
    assert.equal('airborneSpawn' in mission,false,'combat definition preserves its runway start');
    f.store.approach('pilot',a.attemptId,2000);f.store.assignFirstContact('pilot',a.attemptId,'enemy');
    assert.equal(f.store.get('pilot',a.attemptId).deadlineAt,null,'intro does not consume the timer');
    const racing=f.store.startFirstContact('pilot',a.attemptId,3000);
-   assert.equal(racing.deadlineAt-racing.startedAt,240000);
-   assert.equal(missionJourneyDetails.find(m=>m.id===mission.id).timeLimit,'4:00');
+   assert.equal(racing.deadlineAt-racing.startedAt,mission.id===missions.journeyDallas13.id?180000:242000);
+   assert.equal(missionJourneyDetails.find(m=>m.id===mission.id).timeLimit,mission.id===missions.journeyDallas13.id?'3:00':'4:02');
   }finally {f.db.close();rmSync(f.dir,{recursive:true,force:true});}
  });
 }

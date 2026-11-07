@@ -2261,7 +2261,7 @@ async function startTrainingFromHub(replayConfirmed = false): Promise<void> {
 async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDay = 'day', trainingSession = false, modeOverride?: LaunchMode, resumeExistingFlight=false): Promise<void> {
   if (pendingAircraftSelection && !await pendingAircraftSelection) throw new Error('Aircraft change was not confirmed');
   if (city.status !== 'available' || !city.loadWorld) return;
-  const timePreset = modeOverride === 'air-assault' ? 'day' : modeOverride === 'sky-duel' ? 'evening' : resolveCityTimePreset(city, requestedTimePreset);
+  const timePreset = resolveCityTimePreset(city, modeOverride === 'air-assault' ? 'day' : modeOverride === 'sky-duel' ? 'evening' : requestedTimePreset);
   if (cityJourneyMode === 'missions' && city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
   const launchProgress = authoritativeHomeProfile?.pilotProgress;
   setFlightLaunchAircraft(authoritativeHomeProfile ? {

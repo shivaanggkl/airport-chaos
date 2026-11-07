@@ -8,7 +8,7 @@ import {DatabaseSync} from 'node:sqlite';
 import vm from 'node:vm';
 import ts from 'typescript';
 import * as THREE from 'three';
-import {journeyDallas04,journeyDallas05,journeyGateCrossing,journeyGatePlane} from '../../shared/journey-mission.mjs';
+import {journeyDallas01,journeyDallas04,journeyDallas05,journeyGateCrossing,journeyGatePlane} from '../../shared/journey-mission.mjs';
 import * as controls from '../../shared/flight-control-rules.mjs';
 import {mobileIdleBrakeRequested} from '../../shared/mobile-input-rules.mjs';
 import {aircraftDefinitions} from '../../client/src/aircraft.js';
@@ -91,9 +91,9 @@ test(`${mission.name} full openings and corridors clear terrain, mapped building
 });
 
 
-test(`${mission.name} has safe spacing, gradual turns and an aligned 3.5km first gate`,()=>{
- assert(length>=(mission===journeyDallas04?78000:82000)&&length<=(mission===journeyDallas04?82000:88000));assert.equal(mission.timeLimitMs,mission===journeyDallas04?210000:225000);assert.equal(mission.gates.length,10);
- assert(Math.abs(distance(points[0],points[1])-3500)<1e-6);
+test(`${mission.name} has safe spacing, gradual turns and an aligned opening matching M1`,()=>{
+ assert(length>=(mission===journeyDallas04?154000:159000)&&length<=(mission===journeyDallas04?156000:161000));assert.equal(mission.timeLimitMs,180000);assert.equal(mission.gates.length,10);
+ assert(Math.abs(distance(points[0],points[1])-distance(journeyDallas01.airborneSpawn,journeyDallas01.gates[0]))<1e-6);
  const turns=[];
  for(let i=2;i<points.length;i++){
   const a=points[i-2],b=points[i-1],c=points[i];
@@ -102,13 +102,13 @@ test(`${mission.name} has safe spacing, gradual turns and an aligned 3.5km first
   assert(Math.abs(angle)<=65*Math.PI/180);turns.push(angle);
  }
  if(mission===journeyDallas04) {
-  for(let i=1;i<turns.length;i++)assert(turns[i]*turns[i-1]<0,'noticeable alternating turns');
+  for(let i=2;i<turns.length;i++)assert(turns[i]*turns[i-1]<0,'alternating slalom after the opening approach');
   assert(Math.abs(turns[0])>10*Math.PI/180&&turns.slice(1).every(t=>Math.abs(t)>25*Math.PI/180));
   assert.deepEqual(mission.gates.map(g=>g.radius),[325,310,300,290,280,275,270,265,260,340].map(r=>r*S));
  } else {
   for(let i=1;i<10;i++)assert(mission.gates[i].radius<mission.gates[i-1].radius);
   assert.deepEqual(mission.gates.map(g=>g.radius),[300,290,275,260,250,245,240,235,230,225].map(r=>r*S));
-  assert(distance(mission.airborneSpawn,{x:-13500*S,z:-9350*S})<12000,'Las Colinas approach');
+  assert(distance(mission.gates[0],{x:-13500*S,z:-9350*S})<12000,'first gate stays near Las Colinas');
   for(let i=7;i<turns.length;i++)assert(Math.abs(turns[i])<25*Math.PI/180,'gentle precision approaches');
  }
  const spawn=authorizedJourneyAirborneSpawn({missionId:mission.id,status:'APPROACH'},mission,ground);
@@ -154,7 +154,7 @@ test('M4/M5 keep authoritative deadlines, ordered gates, retry and one-time rewa
    assert.equal(finish(30000).firstClearCredits,0);
    assert.equal(db.prepare("SELECT credits FROM player_profiles WHERE pilot_id='pilot'").get().credits,before+mission.firstClearCredits);
    // Previous-course clears still unlock missions and retain their historical time/receipt.
-   db.prepare('UPDATE journey_attempts SET definition_revision=0,finish_time_ms=5000 WHERE mission_id=?').run(mission.id);
+   db.prepare('UPDATE journey_attempts SET definition_revision=?,finish_time_ms=5000 WHERE mission_id=?').run(mission.courseRevision-1,mission.id);
    db.prepare("UPDATE journey_completions SET best_time_ms=5000 WHERE pilot_id='pilot' AND mission_id=?").run(mission.id);
    assert.equal(store.progress('pilot',mission.id).completed,true);
    assert.equal(store.progress('pilot',mission.id).bestTimeMs,undefined);
@@ -171,11 +171,11 @@ test('M4/M5 keep authoritative deadlines, ordered gates, retry and one-time rewa
    store.pause('pilot',retry.attemptId,402000);
    assert.equal(store.resume('pilot',retry.attemptId,403000).attempt.deadlineAt,402000+mission.timeLimitMs);
    const stale=store.launch('other','trainer',700000,mission.id);
-   db.prepare('UPDATE journey_attempts SET definition_revision=0 WHERE attempt_id=?').run(stale.attemptId);
+   db.prepare('UPDATE journey_attempts SET definition_revision=? WHERE attempt_id=?').run(mission.courseRevision-1,stale.attemptId);
    assert.equal(new JourneyAttemptStore(path,true).get('other',stale.attemptId).failureReason,'MISSION_UPDATED');
    assert.equal(store.launch('other','trainer',800000,mission.id).gateIndex,0);
    const detail=missionJourneyDetails.find(m=>m.id===mission.id);
-   assert.equal(detail.description,mission.objective);assert.equal(detail.timeLimit,mission===journeyDallas04?'3:30':'3:45');
+   assert.equal(detail.description,mission.objective);assert.equal(detail.timeLimit,'3:00');
   }
  } finally {db.close();rmSync(dir,{recursive:true,force:true});}
 });

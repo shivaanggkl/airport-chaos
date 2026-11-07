@@ -27,12 +27,12 @@ const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'u
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const points=[mission.airborneSpawn,...mission.gates],length=points.slice(1).reduce((sum,p,i)=>sum+distance(p,points[i]),0);
 
-test('Rookie Rush is a scaled-once 68km course with ten original-size gates and a three-minute GO clock',()=>{
- assert.equal(mission.gates.length,10);assert.equal(mission.timeLimitMs,180000);assert.equal(mission.firstClearCredits,250);assert(length>=65000&&length<=70000);
+test('Rookie Rush is a scaled-once 140km course with ten original-size gates and a three-minute GO clock',()=>{
+ assert.equal(mission.gates.length,10);assert.equal(mission.timeLimitMs,180000);assert.equal(mission.firstClearCredits,250);assert(length>=140000&&length<=141000);
  assert.equal(missionJourneyDetails.find(m=>m.id===mission.id).timeLimit,'3:00');
  assert.equal(mission.objective,'Fly through 10 Golden Gates before time runs out.');
  assert.equal(missionJourneyDetails.find(m=>m.id===mission.id).description,mission.objective);
- assert(distance(points[0],points[1])>=3000&&distance(points[0],points[1])<=4000);
+ assert(Math.abs(distance(points[0],points[1])-6*Math.hypot(3064*3,3064*3))<1e-6);
  assert.deepEqual(mission.gates.map(g=>g.radius),[340,335,330,325,320,315,310,305,300,350].map(r=>r*S));
  for(let i=2;i<points.length;i++){
   const a=points[i-2],b=points[i-1],c=points[i],l=distance(b,c);assert(l>=5000&&l<=9000);
@@ -72,7 +72,9 @@ function simulateCourse(type,throttleTarget){
 test('deterministic 75% Bluejay run clears all ten gates with at least 20s remaining without Boost',t=>{
  const run=simulateCourse('trainer',.75);
  t.diagnostic(`route ${(length/1000).toFixed(3)} km; 75% Bluejay ${run.elapsed.toFixed(2)}s; ${run.remaining.toFixed(2)}s remaining; ${run.index}/10 gates`);
- assert.equal(run.index,10);assert(run.elapsed<=160);assert(run.elapsed>=60);
+ assert.equal(run.index,10);assert(run.elapsed<=160);
+ // The shifted opening changes the shortest valid path through the large gates.
+ assert(run.elapsed >= (length - 2 * mission.gates.reduce((sum,g)=>sum+g.radius,0)) / aircraftDefinitions.trainer.maxSpeed);
 });
 
 test('full-throttle Firehawk uses the same ten authoritative gates without Boost or performance overrides',t=>{
@@ -114,7 +116,7 @@ test('M1 GO, ordered crossings, timeout, retry, pause and one-time credits prese
  try{
   const store=new JourneyAttemptStore(path,true);
   const finish=(pilot,now)=>{
-   const a=store.launch(pilot,'trainer',now,mission.id);assert.equal(store.get(pilot,a.attemptId).aircraftType,'trainer');store.approach(pilot,a.attemptId,now+100);
+   const a=store.launch(pilot,'trainer',now,mission.id);assert.equal(store.get(pilot,a.attemptId).aircraftType,'trainer');assert.equal(db.prepare('SELECT definition_revision FROM journey_attempts WHERE attempt_id=?').get(a.attemptId).definition_revision,mission.courseRevision);store.approach(pilot,a.attemptId,now+100);
    assert.equal(store.acceptGate(pilot,a.attemptId,0,now+500),undefined);assert.equal(store.startRookieRush('other',a.attemptId,now+1000),undefined);
    const started=store.startRookieRush(pilot,a.attemptId,now+1000);assert.equal(started.deadlineAt,now+181000);assert.equal(store.startRookieRush(pilot,a.attemptId,now+1001),undefined);
    for(const [i,g]of mission.gates.entries()){
@@ -128,12 +130,12 @@ test('M1 GO, ordered crossings, timeout, retry, pause and one-time credits prese
   };
   assert.equal(finish('pilot',1000).firstClearCredits,250);assert.equal(finish('pilot',30000).firstClearCredits,0);
   assert.equal(db.prepare("SELECT credits FROM player_profiles WHERE pilot_id='pilot'").get().credits,250);
-  db.prepare("INSERT INTO journey_completions VALUES('veteran',?,'old-course',1,5000,1)").run(mission.id);
+  const old=finish('veteran',45000);db.prepare('UPDATE journey_attempts SET definition_revision=?,finish_time_ms=5000 WHERE attempt_id=?').run(mission.courseRevision-1,old.attemptId);db.prepare("UPDATE journey_completions SET best_time_ms=5000 WHERE pilot_id='veteran'").run();
   assert.equal(store.rookieRushBestTime('veteran'),undefined);assert.equal(finish('veteran',60000).firstClearCredits,0);
-  assert.equal(store.rookieRushBestTime('veteran'),10000);assert.equal(store.progress('veteran').firstAttemptId,'old-course');assert.equal(store.progress('veteran').bestTimeMs,5000);
+  assert.equal(store.rookieRushBestTime('veteran'),10000);assert.equal(store.progress('veteran').firstAttemptId,old.attemptId);assert.equal(store.progress('veteran').bestTimeMs,5000);
   const late=store.launch('pilot','trainer',100000,mission.id);store.approach('pilot',late.attemptId,100100);const start=store.startRookieRush('pilot',late.attemptId,101000);
   assert.equal(store.acceptGate('pilot',late.attemptId,0,start.deadlineAt),undefined);assert.equal(store.fail('pilot',late.attemptId,'TIME_UP',start.deadlineAt).status,'FAILED');
   const paused=store.launch('pilot','trainer',300000,mission.id);store.approach('pilot',paused.attemptId,300100);store.startRookieRush('pilot',paused.attemptId,301000);store.pause('pilot',paused.attemptId,302000);assert.equal(store.resume('pilot',paused.attemptId,303000).attempt.deadlineAt,482000);
-  const legacy=store.launch('other','trainer',500000,mission.id);db.prepare('UPDATE journey_attempts SET definition_revision=0 WHERE attempt_id=?').run(legacy.attemptId);assert.equal(new JourneyAttemptStore(path,true).get('other',legacy.attemptId).failureReason,'MISSION_UPDATED');
+  const legacy=store.launch('other','trainer',500000,mission.id);db.prepare('UPDATE journey_attempts SET definition_revision=? WHERE attempt_id=?').run(mission.courseRevision-1,legacy.attemptId);assert.equal(new JourneyAttemptStore(path,true).get('other',legacy.attemptId).failureReason,'MISSION_UPDATED');
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
 });

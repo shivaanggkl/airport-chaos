@@ -8,7 +8,7 @@ import {DatabaseSync} from 'node:sqlite';
 import vm from 'node:vm';
 import ts from 'typescript';
 import * as THREE from 'three';
-import {journeyDallas06,journeyMissionOrder,journeyGateCrossing,journeyGatePlane} from '../../shared/journey-mission.mjs';
+import {journeyDallas01,journeyDallas06,journeyMissionOrder,journeyGateCrossing,journeyGatePlane} from '../../shared/journey-mission.mjs';
 import * as controls from '../../shared/flight-control-rules.mjs';
 import {mobileIdleBrakeRequested} from '../../shared/mobile-input-rules.mjs';
 import {aircraftDefinitions} from '../../client/src/aircraft.js';
@@ -92,8 +92,8 @@ test(`${mission.name} full openings and corridors clear terrain, mapped building
 
 
 test('Golden Championship route connects White Rock, Trinity and Executive with a precise finish',()=>{
- assert(length>=88000&&length<=94000);assert.equal(mission.timeLimitMs,240000);assert.equal(mission.gates.length,10);
- assert(distance(points[0],points[1])>=3000&&distance(points[0],points[1])<=4000);
+ assert(length>=162000&&length<=164000);assert.equal(mission.timeLimitMs,180000);assert.equal(mission.gates.length,10);
+ assert(Math.abs(distance(points[0],points[1])-Math.hypot(journeyDallas01.gates[0].x-journeyDallas01.airborneSpawn.x,journeyDallas01.gates[0].z-journeyDallas01.airborneSpawn.z))<1e-6);
  const turns=[];
  for(let i=2;i<points.length;i++){
   const a=points[i-2],b=points[i-1],c=points[i];
@@ -108,7 +108,7 @@ test('Golden Championship route connects White Rock, Trinity and Executive with 
  assert(points.every(p=>Math.abs(p.x)+(p.radius??0)<25000*S&&Math.abs(p.z)+(p.radius??0)<25000*S));
  const spawn=authorizedJourneyAirborneSpawn({missionId:mission.id,status:'APPROACH'},mission,ground);
  assert.equal(spawn.position.y,ground(spawn.position.x,spawn.position.z)+mission.airborneSpawn.altitude);
- assert.equal(spawn.speed,650);assert(distance(mission.airborneSpawn,{x:5200*S,z:-8500*S})<3000);
+ assert.equal(spawn.speed,650);assert(distance(mission.gates[0],{x:5200*S,z:-8500*S})<3000);
  assert(mission.gates.some(g=>distance(g,{x:-4100*S,z:2300*S})<1000));
  assert(distance(mission.gates.at(-1),{x:-6700*S,z:10600*S})<3000);
  const s=mission.airborneSpawn,g=mission.gates[0];
@@ -151,7 +151,7 @@ test('M6 keeps authoritative deadlines, ordered gates, retry and one-time reward
    assert.equal(finish(30000).firstClearCredits,0);
    assert.equal(db.prepare("SELECT credits FROM player_profiles WHERE pilot_id='pilot'").get().credits,before+mission.firstClearCredits);
    // Previous-course clears still unlock missions and retain their historical time/receipt.
-   db.prepare('UPDATE journey_attempts SET definition_revision=0,finish_time_ms=5000 WHERE mission_id=?').run(mission.id);
+   db.prepare('UPDATE journey_attempts SET definition_revision=?,finish_time_ms=5000 WHERE mission_id=?').run(mission.courseRevision-1,mission.id);
    db.prepare("UPDATE journey_completions SET best_time_ms=5000 WHERE pilot_id='pilot' AND mission_id=?").run(mission.id);
    assert.equal(store.progress('pilot',mission.id).completed,true);
    assert.equal(store.progress('pilot',mission.id).bestTimeMs,undefined);
@@ -177,11 +177,11 @@ test('M6 keeps authoritative deadlines, ordered gates, retry and one-time reward
    assert.equal(store.acceptGate('pilot',exit.attemptId,0,503000),undefined);
    assert.equal(db.prepare("SELECT credits FROM player_profiles WHERE pilot_id='pilot'").get().credits,before+750);
    const stale=store.launch('other','trainer',700000,mission.id);
-   db.prepare('UPDATE journey_attempts SET definition_revision=0 WHERE attempt_id=?').run(stale.attemptId);
+   db.prepare('UPDATE journey_attempts SET definition_revision=? WHERE attempt_id=?').run(mission.courseRevision-1,stale.attemptId);
    assert.equal(new JourneyAttemptStore(path,true).get('other',stale.attemptId).failureReason,'MISSION_UPDATED');
    assert.equal(store.launch('other','trainer',800000,mission.id).gateIndex,0);
    const detail=missionJourneyDetails.find(m=>m.id===mission.id);
-   assert.equal(detail.description,mission.objective);assert.equal(detail.timeLimit,'4:00');
+   assert.equal(detail.description,mission.objective);assert.equal(detail.timeLimit,'3:00');
   }
  } finally {db.close();rmSync(dir,{recursive:true,force:true});}
 });

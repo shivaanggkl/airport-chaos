@@ -32,7 +32,7 @@ test('Golden Championship spans East and South Dallas and fits a normal Bluejay 
     centerline += distance;
     assert.ok(to.x-to.radius > terrain.bounds.minX*S && to.x+to.radius < terrain.bounds.maxX*S && to.z-to.radius > terrain.bounds.minZ*S && to.z+to.radius < terrain.bounds.maxZ*S);
   }
-  assert.ok(centerline >= 88_000 && centerline <= 94_000);
+  assert.ok(centerline >= 162_000 && centerline <= 164_000);
   assert.ok(centerline / (aircraftFlightEnvelope.trainer.maxSpeed * .8) < 85 * S);
 });
 

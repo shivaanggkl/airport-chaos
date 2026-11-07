@@ -2,16 +2,24 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { getCity, resolveCityTimePreset } from '../../client/src/cities.ts';
 import { createTimeVisuals } from '../../client/src/time-visuals.ts';
+import { readFileSync } from 'node:fs';
 import { DiscoverySystem } from '../../client/src/discoveries.ts';
 
-test('Dallas offers Day, Dusk, and Evening and rejects removed presets', () => {
+test('Dallas always resolves to Evening, including old URL, portal and mode preferences', () => {
   const dallas = getCity('dallas');
   assert.ok(dallas);
-  assert.deepEqual(dallas.timePresets, ['day', 'dusk', 'evening']);
-  for (const preset of dallas.timePresets) assert.equal(resolveCityTimePreset(dallas, preset), preset);
-  assert.equal(resolveCityTimePreset(dallas, 'night'), 'day');
-  assert.equal(resolveCityTimePreset(dallas, 'satellite'), 'day');
-  assert.equal(resolveCityTimePreset(dallas, null), 'day');
+  assert.deepEqual(dallas.timePresets, ['evening']);
+  for (const value of ['day','dusk','night','evening','satellite',null,undefined])
+    assert.equal(resolveCityTimePreset(dallas, value), 'evening');
+});
+
+test('multiplayer mode defaults pass through city policy before launch and initial rendering', () => {
+  const bootstrap=readFileSync(new URL('../../client/src/bootstrap.ts',import.meta.url),'utf8');
+  const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+  assert.match(bootstrap,/const timePreset = resolveCityTimePreset\(city, modeOverride === 'air-assault'/);
+  assert.match(main,/let worldTimeOfDay: CityTimeOfDay = resolveCityTimePreset\(activeCity, airAssaultMode/);
+  assert.match(main,/const preset = resolveCityTimePreset\(activeCity!, requestedPreset\)/);
+  assert.match(main,/worldTimeOfDay = resolveCityTimePreset\(definition,/);
 });
 
 test('Milwaukee remains Day-only even with a Dallas preference or URL value', () => {

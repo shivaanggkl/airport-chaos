@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { missionTimePreset } from '../../client/src/mission-time-presets.ts';
 
-test('all 24 missions use the requested Day, Night and Evening defaults', () => {
-  const expected = ['day','evening','evening','day','dusk','evening','evening','dusk','evening','day','evening','evening','day','evening','dusk','evening','evening','day','evening','dusk','evening','day','evening','evening'];
+test('all 24 Dallas missions use Evening, including their cinematics', () => {
+  const expected = Array(24).fill('evening');
   assert.deepEqual(Array.from({length:24},(_,i)=>missionTimePreset(i+1)),expected);
 });
 
