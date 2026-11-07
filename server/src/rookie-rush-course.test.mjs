@@ -30,6 +30,8 @@ const points=[mission.airborneSpawn,...mission.gates],length=points.slice(1).red
 test('Rookie Rush is a scaled-once 68km course with ten original-size gates and a three-minute GO clock',()=>{
  assert.equal(mission.gates.length,10);assert.equal(mission.timeLimitMs,180000);assert.equal(mission.firstClearCredits,250);assert(length>=65000&&length<=70000);
  assert.equal(missionJourneyDetails.find(m=>m.id===mission.id).timeLimit,'3:00');
+ assert.equal(mission.objective,'Fly through 10 Golden Gates before time runs out.');
+ assert.equal(missionJourneyDetails.find(m=>m.id===mission.id).description,mission.objective);
  assert(distance(points[0],points[1])>=3000&&distance(points[0],points[1])<=4000);
  assert.deepEqual(mission.gates.map(g=>g.radius),[340,335,330,325,320,315,310,305,300,350].map(r=>r*S));
  for(let i=2;i<points.length;i++){
@@ -45,13 +47,13 @@ test('Rookie Rush is a scaled-once 68km course with ten original-size gates and 
  assert(shortestBound/aircraftDefinitions.trainer.maxSpeed>=30);
 });
 
-test('deterministic 75% Bluejay run executes the real client flight integrator, clears all ten gates and leaves 20s without boost',t=>{
+function simulateCourse(type,throttleTarget){
  const ast=ts.createSourceFile('main.ts',source,ts.ScriptTarget.Latest,true),fn=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='updateFlight');assert(fn);
- const s=mission.airborneSpawn,airplane=new THREE.Group(),e=aircraftDefinitions.trainer,dt=1/60;
+ const s=mission.airborneSpawn,airplane=new THREE.Group(),e=aircraftDefinitions[type],dt=1/60;
  airplane.position.set(s.x,ground(s.x,s.z)+s.altitude,s.z);airplane.rotation.set(0,s.heading,0,'YXZ');
  let input={x:0,y:0},elapsed=0,index=0;
  const no=()=>{},fail=()=>assert.fail('unexpected crash/landing in the airborne course');
- const sandbox={...controls,THREE,Math,Number,console,mobileIdleBrakeRequested,airplane,currentAircraft:e,aircraftType:'trainer',velocity:new THREE.Vector3(-Math.sin(s.heading)*s.speed,0,-Math.cos(s.heading)*s.speed),forward:new THREE.Vector3(),liftDirection:new THREE.Vector3(),sideSlip:new THREE.Vector3(),heldActions:new Set(),throttle:.75,currentSpeed:s.speed,verticalSpeed:0,heading:s.heading,pitch:0,roll:0,onGround:false,crashed:false,portalInTransit:false,guidedTutorialActive:false,activeWeatherZone:undefined,cityEvent:undefined,combatLockState:'NONE',speedBrakeStrength:0,boostActive:false,boostMeter:100,boostVisualStrength:0,smoothedTouchSteering:{x:0,y:0},yawControlStrength:0,pitchControlStrength:0,takeoffThrustBlend:1,speedBonus:0,flightState:'FLYING',performance:{now:()=>elapsed*1000},groundPlaneY:(x,z)=>ground(x,z)+1.2,getLandingAssistAirport:()=>null,getAirportAtPosition:()=>null,updateLocalWeather:no,updateAirborneProgress:no,hitsWorldObstacle:()=>false,beginCrashPresentation:fail,endRun:fail,evaluateLanding:fail,setFlightState:no,mobileInput:{getThrottleTarget:()=>.75,getSteeringInput:()=>input,getPitchInverted:()=>false},moveToward:(x,y,d)=>x<y?Math.min(y,x+d):Math.max(y,x-d),smoothstep01:x=>x*x*(3-2*x)};
+ const sandbox={...controls,THREE,Math,Number,console,mobileIdleBrakeRequested,airplane,currentAircraft:e,aircraftType:type,velocity:new THREE.Vector3(-Math.sin(s.heading)*s.speed,0,-Math.cos(s.heading)*s.speed),forward:new THREE.Vector3(),liftDirection:new THREE.Vector3(),sideSlip:new THREE.Vector3(),heldActions:new Set(),throttle:throttleTarget,currentSpeed:s.speed,verticalSpeed:0,heading:s.heading,pitch:0,roll:0,onGround:false,crashed:false,portalInTransit:false,guidedTutorialActive:false,activeWeatherZone:undefined,cityEvent:undefined,combatLockState:'NONE',speedBrakeStrength:0,boostActive:false,boostMeter:100,boostVisualStrength:0,smoothedTouchSteering:{x:0,y:0},yawControlStrength:0,pitchControlStrength:0,takeoffThrustBlend:1,speedBonus:0,flightState:'FLYING',performance:{now:()=>elapsed*1000},groundPlaneY:(x,z)=>ground(x,z)+1.2,getLandingAssistAirport:()=>null,getAirportAtPosition:()=>null,updateLocalWeather:no,updateAirborneProgress:no,hitsWorldObstacle:()=>false,beginCrashPresentation:fail,endRun:fail,evaluateLanding:fail,setFlightState:no,mobileInput:{getThrottleTarget:()=>throttleTarget,getSteeringInput:()=>input,getPitchInverted:()=>false},moveToward:(x,y,d)=>x<y?Math.min(y,x+d):Math.max(y,x-d),smoothstep01:x=>x*x*(3-2*x)};
  const context=vm.createContext(sandbox);vm.runInContext(ts.transpileModule(fn.getText(ast).replaceAll('import.meta.env.DEV','false'),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
  let lastHeading=s.heading;
  while(elapsed<180&&index<10){
@@ -64,8 +66,19 @@ test('deterministic 75% Bluejay run executes the real client flight integrator, 
   assert(p.y-ground(p.x,p.z)>1000,'controlled flight remains safely above terrain');
   if(journeyGateCrossing(before,p,index,ground(g.x,g.z),mission)==='VALID')index++;
  }
- t.diagnostic(`route ${(length/1000).toFixed(3)} km; 75% Bluejay ${elapsed.toFixed(2)}s; ${(180-elapsed).toFixed(2)}s remaining; ${index}/10 gates`);
- assert.equal(index,10);assert(elapsed<=160);assert(elapsed>=30);
+ return {elapsed,index,remaining:180-elapsed};
+}
+
+test('deterministic 75% Bluejay run clears all ten gates with at least 20s remaining without Boost',t=>{
+ const run=simulateCourse('trainer',.75);
+ t.diagnostic(`route ${(length/1000).toFixed(3)} km; 75% Bluejay ${run.elapsed.toFixed(2)}s; ${run.remaining.toFixed(2)}s remaining; ${run.index}/10 gates`);
+ assert.equal(run.index,10);assert(run.elapsed<=160);assert(run.elapsed>=60);
+});
+
+test('full-throttle Firehawk uses the same ten authoritative gates without Boost or performance overrides',t=>{
+ const run=simulateCourse('fighter',1);
+ assert.equal(run.index,10);assert(run.elapsed<180);
+ t.diagnostic(`100% Firehawk ${run.elapsed.toFixed(2)}s; requested fastest-run minimum 60s; ${run.index}/10 gates`);
 });
 
 test('full Rookie Rush openings and corridors clear terrain, mapped buildings and the rendered authored skyline',async()=>{

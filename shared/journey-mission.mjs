@@ -10,6 +10,7 @@ const baseJourneyDallas01 = Object.freeze({
   id: 'journey-dallas-01',
   cityId: 'dallas',
   name: 'ROOKIE RUSH',
+  objective: 'Fly through 10 Golden Gates before time runs out.',
   chapter: 'GOLDEN GATES',
   timeLimitMs: 60_000, // 3:00 after the single Dallas world-scale conversion.
   firstClearCredits: 250,
