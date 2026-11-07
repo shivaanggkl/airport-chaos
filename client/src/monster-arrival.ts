@@ -1,3 +1,4 @@
+import {M20_INTRO} from './m20-intro';
 import {M19_INTRO} from './m19-intro';
 import type {ObstacleBounds} from './world';
 import {MONSTER_VICTORY_SECONDS} from './monster-victory';
@@ -125,6 +126,43 @@ export class MonsterArrivalView {
   private readonly warningMaterial=new THREE.MeshBasicMaterial({color:0xffae3d,transparent:true,opacity:.6,depthWrite:false});
   private readonly mouthFire=new THREE.Mesh(coreGeometry,this.warningMaterial);
   private castingHand?:THREE.Mesh;
+  private strikingIntroEnabled=false;
+  private introLanded=false;
+  private introRoared=false;
+  private introReleased=false;
+  private readonly introShotOrigin=new THREE.Vector3();
+  private readonly introFistWorld=new THREE.Vector3();
+  get introFistPosition():THREE.Vector3{return this.introFistWorld;}
+  get introProjectilePosition():THREE.Vector3{return this.pool[0]!.group.position;}
+  prepareStrikingIntro():void {
+    if(!this.striking||this.hunting||this.state)return;
+    this.strikingIntroEnabled=true;this.introLanded=false;this.introRoared=false;this.introReleased=false;
+    (this.creature as AshenWarlordModel).prepareStrikingIntro();
+  }
+  private clearStrikingIntro():void {
+    if(!this.strikingIntroEnabled)return;
+    this.strikingIntroEnabled=false;this.mouthFire.visible=false;if(this.castingHand)this.castingHand.visible=false;
+    const shot=this.pool[0]!;shot.group.visible=false;shot.group.scale.setScalar(1);
+    (shot.group.children[0] as THREE.Mesh).material=coreMaterial;this.particles.clear();
+  }
+  private updateStrikingIntro():void {
+    const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!;
+    actor.handPosition('left',this.introFistWorld);
+    if(t>=M20_INTRO.land&&!this.introLanded){this.introLanded=true;this.particles.emit(actor.root.position.x,actor.root.position.y,actor.root.position.z,true,14,95,1.5);this.onFootfall?.();}
+    if(t>=M20_INTRO.roar&&!this.introRoared){this.introRoared=true;this.onRoar?.();}
+    const casting=t>=M20_INTRO.cast&&t<M20_INTRO.release;
+    this.mouthFire.visible=t<2||casting;
+    if(t<2){actor.corePosition(this.mouthWorld);this.mouthFire.position.copy(this.mouthWorld);this.mouthFire.scale.setScalar(25+35*THREE.MathUtils.smoothstep(t,0,2));}
+    else if(casting){actor.handPosition('right',this.mouthWorld);this.mouthFire.position.copy(this.mouthWorld);this.mouthFire.scale.setScalar(25+55*THREE.MathUtils.smoothstep(t,M20_INTRO.cast,M20_INTRO.shoot));}
+    if(this.castingHand){this.castingHand.visible=casting;actor.handPosition('left',this.mouthWorld);this.castingHand.position.copy(this.mouthWorld);this.castingHand.scale.setScalar(this.mouthFire.scale.x);}
+    if(t>=M20_INTRO.release&&t<M20_INTRO.runway&&!this.introReleased){
+      this.introReleased=true;actor.handPosition('right',this.introShotOrigin);shot.id=null;shot.spawnPending=false;shot.direction.set(0,1,0);shot.group.quaternion.setFromUnitVectors(forward,shot.direction);
+      shot.group.children.forEach((part,index)=>{part.visible=index<2;});(shot.group.children[0] as THREE.Mesh).material=this.warningMaterial;this.onProjectile?.();
+    }
+    const age=t-M20_INTRO.release;
+    shot.group.visible=this.introReleased&&age>=0&&age<1.2;
+    if(shot.group.visible){shot.group.position.copy(this.introShotOrigin).addScaledVector(shot.direction,age*ashenWarlordHeight*.9);shot.group.scale.setScalar(1-THREE.MathUtils.smoothstep(age,1,1.2));}
+  }
   private readonly scene: THREE.Scene;
   private readonly camera?: THREE.Camera;
   private state:MonsterStateMessage|null=null;
@@ -290,6 +328,7 @@ export class MonsterArrivalView {
   }
   /** Presentation only: no encounter state, damage, or reward events. */
   setIntroTime(seconds: number | null): void {
+    if(seconds===null)this.clearStrikingIntro();
     if(!this.crimsonCore || this.state&&seconds!==null)return;
     if(this.stationary||this.striking){if(this.stationary&&seconds!==null&&seconds>=M19_INTRO.walkEnd&&(this.introTime??0)<M19_INTRO.walkEnd){this.onRoar?.();this.onDestruction?.();}this.introTime=seconds;(this.creature as AshenWarlordModel).setIntroTime(seconds);return;}
     if(seconds!==null&&!this.introOrigin){
@@ -386,6 +425,7 @@ export class MonsterArrivalView {
     const mouthAvailable=!this.striking&&c.mouthPosition(this.mouthWorld);
     if(!this.striking&&this.crimsonCore&&this.renderedTitan?.ability&&['energy-beam','fireball-barrage'].includes(power??'')){const p=this.renderedTitan.ability.origin;this.mouthFire.position.set(p.x,p.y,p.z);}else if(mouthAvailable)this.mouthFire.position.copy(this.mouthWorld);
     this.mouthFire.scale.setScalar((this.striking?25+50*(this.renderedTitan?.ability?.progress??0):this.state?.attackKind==='fan'?19:16)*(1+.025*Math.sin(this.elapsed*6)));
+    if(this.strikingIntroEnabled&&this.introTime!==null&&!this.state&&!this.ending)this.updateStrikingIntro();
     if(this.ending) {
       this.endingElapsed+=delta;
       if((this.stationary||this.striking)&&this.endingElapsed>=(this.ending==='defeat'?MONSTER_VICTORY_SECONDS:M19_TIMEOUT.durationMs/1000)&&this.onEndingComplete){const complete=this.onEndingComplete;this.onEndingComplete=undefined;complete();}

@@ -1,3 +1,4 @@
+import {m20IntroMotion} from './m20-intro';
 import {M19_INTRO,m19WalkDistance} from './m19-intro';
 import type {ObstacleBounds} from './world';
 import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
@@ -44,10 +45,31 @@ export class AshenWarlordModel {
     private fallback = 'idle';
     private clock = 0;
     private introTime: number | null = null;
+    private strikingIntro?:{position:THREE.Vector3;yaw:number;last?:AuthoredAnimation;previous?:AuthoredAnimation;transitionAt:number};
+    prepareStrikingIntro():void {
+        if(!this.striking||this.hunting||this.frame||this.strikingIntro)return;
+        this.strikingIntro={position:this.root.position.clone(),yaw:this.root.rotation.y,transitionAt:0};
+        this.introTime=0;this.applyStrikingIntro(0);
+    }
+    private applyStrikingIntro(seconds:number):void {
+        const intro=this.strikingIntro!,motion=m20IntroMotion(seconds),clip=model.clips[motion.key]!;
+        this.root.position.copy(intro.position);this.root.position.y+=motion.height;
+        this.root.rotation.y=intro.yaw+motion.yawOffset;
+        const pose:AuthoredAnimation={clip:clip.name,time:motion.time,blend:1,offsetY:0};
+        if(intro.last&&intro.last.clip!==pose.clip){intro.previous={...intro.last};intro.transitionAt=seconds;}
+        const transition=seconds-intro.transitionAt;
+        if(intro.previous&&transition<.18){pose.previousClip=intro.previous.clip;pose.previousTime=Math.min(this.actions.get(intro.previous.clip)!.getClip().duration,intro.previous.time+transition);pose.blend=transition/.18;}
+        this.apply(pose);this.groundIntroPose(motion.height);intro.last=pose;
+    }
     private arrivalIntro?:{position:THREE.Vector3;yaw:number;walkYaw:number;startTime:number;distance:number};
     private readonly introRegions:{node:THREE.Object3D;offset:THREE.Vector3;radii:THREE.Vector3}[]=[];
     setIntroTime(seconds: number | null): void {
         this.introTime=seconds;
+        if(seconds===null&&this.strikingIntro){
+            const saved=this.strikingIntro;this.strikingIntro=undefined;
+            this.root.position.copy(saved.position);this.root.rotation.y=saved.yaw;
+            this.apply({clip:model.clips.idle!.name,time:0,blend:1,offsetY:0});this.groundIntroPose();
+        }
         if(seconds===null&&this.arrivalIntro){
             const saved=this.arrivalIntro;
             this.root.position.copy(saved.position);this.root.rotation.y=saved.yaw;this.root.visible=true;
@@ -84,10 +106,10 @@ export class AshenWarlordModel {
         this.setIntroTime(null);
         throw Error('M19 cinematic approach is obstructed');
     }
-    private groundIntroPose():void {
+    private groundIntroPose(clearance=0):void {
         if(!this.mesh||!this.instance)return;
         let lift=-Infinity;
-        for(const point of model.support){this.mesh.getVertexPosition(point.index!,this.temp);this.mesh.localToWorld(this.temp);lift=Math.max(lift,(this.groundAt?.(this.temp.x,this.temp.z)??this.root.position.y)-this.temp.y);}
+        for(const point of model.support){this.mesh.getVertexPosition(point.index!,this.temp);this.mesh.localToWorld(this.temp);lift=Math.max(lift,(this.groundAt?.(this.temp.x,this.temp.z)??(this.root.position.y-clearance))+clearance-this.temp.y);}
         this.instance.position.y+=lift;this.root.updateMatrixWorld(true);this.mesh.skeleton.update();
     }
     private applyArrivalIntro(seconds:number):void {
@@ -236,6 +258,7 @@ export class AshenWarlordModel {
             this.apply({clip:clip.name,time:firing?t:this.endingTime%clip.duration,previousClip:firing?model.clips.idle!.name:undefined,previousTime:this.endingTime%model.clips.idle!.duration,blend,offsetY:0});
         }
         }
+        else if(this.strikingIntro&&this.introTime!==null&&!this.frame)this.applyStrikingIntro(this.introTime);
         else if(this.arrivalIntro&&this.introTime!==null&&!this.frame)this.applyArrivalIntro(this.introTime);
         else if((this.stationary||this.striking)&&this.introTime!==null&&!this.frame){
             const t=this.introTime,clip=model.clips.roar!,local=t-.45;
