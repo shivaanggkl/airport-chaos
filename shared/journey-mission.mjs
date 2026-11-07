@@ -75,39 +75,43 @@ const baseJourneyDallas03 = Object.freeze({
 
 const baseJourneyDallas04 = Object.freeze({
   id: 'journey-dallas-04', cityId: 'dallas', name: 'DOWNTOWN SLALOM',
-  chapter: 'GOLDEN GATES', firstClearCredits: 500, timeLimitMs: 160_000,
-  airborneSpawn: Object.freeze({ x: -8_500, z: -12_000, altitude: 850, heading: -2.36, speed: 650 }),
-  // A measured left-right slalom crosses Downtown and the Trinity corridor.
+  objective: 'Fly through 10 Golden Gates while making alternating turns before time runs out.',
+  courseRevision: 1,
+  chapter: 'GOLDEN GATES', firstClearCredits: 500, timeLimitMs: 70_000, // 3:30 after Dallas scaling.
+  airborneSpawn: Object.freeze({ x: -13466.666666666667, z: 1000, altitude: 850, heading: -Math.PI / 2, speed: 650 }),
+  // Alternating 30-degree turns cross the western approach, Trinity and Downtown.
   gates: Object.freeze([
-    { x: -6_000, z: -10_000, altitude: 850, radius: 325 },
-    { x: -3_000, z: -7_300, altitude: 865, radius: 310 },
-    { x: -4_500, z: -3_300, altitude: 900, radius: 300 },
-    { x: -2_300, z: 700, altitude: 935, radius: 290 },
-    { x: -4_200, z: 4_300, altitude: 960, radius: 280 },
-    { x: -1_700, z: 7_800, altitude: 945, radius: 275 },
-    { x: 2_300, z: 9_200, altitude: 910, radius: 270 },
-    { x: 5_000, z: 5_700, altitude: 880, radius: 265 },
-    { x: 3_200, z: 1_600, altitude: 860, radius: 260 },
-    { x: 5_000, z: -3_000, altitude: 850, radius: 340 },
+    { x: -12300, z: 1000, altitude: 850, radius: 325 },
+    { x: -9563, z: 1733, altitude: 865, radius: 310 },
+    { x: -6826, z: 1000, altitude: 900, radius: 300 },
+    { x: -4090, z: 1733, altitude: 935, radius: 290 },
+    { x: -1353, z: 1000, altitude: 960, radius: 280 },
+    { x: 1384, z: 1733, altitude: 945, radius: 275 },
+    { x: 4121, z: 1000, altitude: 910, radius: 270 },
+    { x: 6858, z: 1733, altitude: 880, radius: 265 },
+    { x: 9594, z: 1000, altitude: 860, radius: 260 },
+    { x: 12331, z: 1733, altitude: 850, radius: 340 },
   ]),
 });
 
 const baseJourneyDallas05 = Object.freeze({
   id: 'journey-dallas-05', cityId: 'dallas', name: 'NEEDLE RUSH',
-  chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 600,
-  airborneSpawn: Object.freeze({ x: -22_000, z: -14_000, altitude: 700, heading: -1.80, speed: 650 }),
-  // Race from DFW through Las Colinas to tight Trinity-side gates.
+  objective: 'Fly through 10 increasingly precise Golden Gates before time runs out.',
+  courseRevision: 1,
+  chapter: 'GOLDEN GATES', timeLimitMs: 75_000, firstClearCredits: 600, // 3:45 after Dallas scaling.
+  airborneSpawn: Object.freeze({ x: -15666.666666666667, z: -12500, altitude: 730, heading: -Math.PI / 2, speed: 650 }),
+  // Las Colinas to Trinity: gradual bends keep the shrinking openings easy to line up.
   gates: Object.freeze([
-    { x: -18_500, z: -13_200, altitude: 730, radius: 300 },
-    { x: -15_000, z: -15_000, altitude: 755, radius: 290 },
-    { x: -11_500, z: -13_000, altitude: 780, radius: 275 },
-    { x: -9_000, z: -9_000, altitude: 810, radius: 260 },
-    { x: -12_000, z: -5_500, altitude: 840, radius: 250 },
-    { x: -14_500, z: -1_500, altitude: 870, radius: 240 },
-    { x: -11_000, z: 2_500, altitude: 900, radius: 230 },
-    { x: -7_000, z: 4_000, altitude: 880, radius: 220 },
-    { x: -4_300, z: 2_300, altitude: 840, radius: 215 },
-    { x: -5_000, z: -2_000, altitude: 800, radius: 320 },
+    { x: -14500, z: -12500, altitude: 730, radius: 300 },
+    { x: -11513, z: -11973, altitude: 755, radius: 290 },
+    { x: -8764, z: -10691, altitude: 780, radius: 275 },
+    { x: -6440, z: -8742, altitude: 810, radius: 260 },
+    { x: -4700, z: -6257, altitude: 840, radius: 250 },
+    { x: -3663, z: -3406, altitude: 870, radius: 245 },
+    { x: -3398, z: -385, altitude: 900, radius: 240 },
+    { x: -3925, z: 2603, altitude: 880, radius: 235 },
+    { x: -5207, z: 5352, altitude: 840, radius: 230 },
+    { x: -7157, z: 7675, altitude: 800, radius: 225 },
   ]),
 });
 

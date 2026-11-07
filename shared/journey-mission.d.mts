@@ -23,13 +23,15 @@ export const journeyDallas03: Readonly<{
 }>;
 export const journeyDallas04: Readonly<{
   id: 'journey-dallas-04'; cityId: 'dallas'; name: 'DOWNTOWN SLALOM'; chapter: 'GOLDEN GATES';
-  firstClearCredits: 500; timeLimitMs: 160000;
+  objective: 'Fly through 10 Golden Gates while making alternating turns before time runs out.'; courseRevision: 1;
+  firstClearCredits: 500; timeLimitMs: 210000;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas05: Readonly<{
   id: 'journey-dallas-05'; cityId: 'dallas'; name: 'NEEDLE RUSH'; chapter: 'GOLDEN GATES';
-  timeLimitMs: 160000; firstClearCredits: 600;
+  objective: 'Fly through 10 increasingly precise Golden Gates before time runs out.'; courseRevision: 1;
+  timeLimitMs: 225000; firstClearCredits: 600;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;

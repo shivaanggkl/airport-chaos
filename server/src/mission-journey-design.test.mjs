@@ -96,8 +96,8 @@ test('all 24 mission details use live titles, rewards, objectives and clocks', (
     assert.equal(journeyMissions.journeyMissionSlot(detail.id),index+1);
     assert.match(detail.timeLimit, /^(?:\d+:\d{2}|NO LIMIT)$/);
   }
-  for(const detail of missionJourneyDetails.slice(0,3))assert.equal(detail.description,journeyMissions[`journeyDallas${detail.id.slice(-2)}`].objective);
-  for(const detail of missionJourneyDetails.slice(3,6))assert.equal(detail.description,'Fly Through 10 Golden Gates Before Time Run Out.');
+  for(const detail of missionJourneyDetails.slice(0,5))assert.equal(detail.description,journeyMissions[`journeyDallas${detail.id.slice(-2)}`].objective);
+  for(const detail of missionJourneyDetails.slice(5,6))assert.equal(detail.description,'Fly Through 10 Golden Gates Before Time Run Out.');
   const hunters=['NIGHTOWL','BLUEJAY','MAMMOTH','Both Enemy','ARMORED MAMMOTH','Legendary FIREHAWK'];
   for(const [index,target] of hunters.entries())assert.equal(missionJourneyDetails[index+6].description,`Find And Shoot Down ${target} Plane${index===3?'s':''} Before Time Runs Out.`);
   const giantObjectives=[

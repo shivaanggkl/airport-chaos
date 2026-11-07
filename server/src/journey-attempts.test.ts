@@ -659,9 +659,9 @@ test('historical White Rock Skimmer completion keeps rewards and unlocks without
 
 test('Needle Rush has ten progressively smaller golden openings and bidirectional crossings', () => {
   assert.equal(journeyDallas05.name, 'NEEDLE RUSH');
-  assert.equal(journeyDallas05.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
+  assert.equal(journeyDallas05.timeLimitMs, 225_000);
   assert.ok(journeyDallas05.airborneSpawn);
-  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [300, 290, 275, 260, 250, 240, 230, 220, 215, 320].map(radius => radius * DALLAS_WORLD_SCALE));
+  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [300, 290, 275, 260, 250, 245, 240, 235, 230, 225].map(radius => radius * DALLAS_WORLD_SCALE));
   for (let index = 0; index < 10; index += 1) {
     const gate = journeyDallas05.gates[index]!;
     const previous = journeyDallas05.gates[Math.max(0, index - 1)]!;
@@ -921,7 +921,7 @@ test('historical championship clears preserve rewards while new race records sta
 
 test('Downtown Slalom gates accept sequential crossings through either face of the solid ring', () => {
   assert.equal(journeyDallas04.gates.length, 10);
-  assert.equal(journeyDallas04.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
+  assert.equal(journeyDallas04.timeLimitMs, 210_000);
   assert.equal(journeyDallas04.firstClearCredits, 500);
   for (let index = 0; index < 10; index += 1) {
     const gate = journeyDallas04.gates[index]!;

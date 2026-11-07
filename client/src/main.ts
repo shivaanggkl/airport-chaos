@@ -2959,7 +2959,7 @@ function updateJourneyHud(): void {
     const mission = championshipMission ? journeyDallas06 : precisionMission ? journeyDallas05 : downtownMission ? journeyDallas04 : ascentMission ? journeyDallas03 : lakeMission ? journeyDallas02 : journeyDallas01;
     const gateCount = mission.gates.length;
     const distanceMeters = target ? distance * WORLD_METERS_PER_UNIT : 0;
-    if (journeyHudObjective) journeyHudObjective.textContent = dfwMission ? journeyDallas01.objective : lakeMission ? journeyDallas02.objective : ascentMission ? journeyDallas03.objective : 'Fly Through 10 Golden Gates Before Time Run Out.';
+    if (journeyHudObjective) journeyHudObjective.textContent = dfwMission ? journeyDallas01.objective : lakeMission ? journeyDallas02.objective : ascentMission ? journeyDallas03.objective : downtownMission ? journeyDallas04.objective : precisionMission ? journeyDallas05.objective : 'Fly Through 10 Golden Gates Before Time Run Out.';
     if (journeyHudProgress) journeyHudProgress.textContent = `GATE ${Math.min(gateIndex + 1, gateCount)} / ${gateCount}`;
     if (journeyHudTarget && !downtownMission) journeyHudTarget.textContent = `GATE ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
     if (journeyHudTimer) journeyHudTimer.hidden = true;
@@ -4565,7 +4565,7 @@ function beginFlightLaunchCinematic(): void {
           : missionCombatIntroPath.missionNumber === 11 ? '<span>IRON HUNTER · ARMORED MAMMOTH</span>'
           : missionCombatIntroPath.missionNumber === 12 ? '<span>FINAL SHOWDOWN · LEGENDARY FIREHAWK</span>'
           : '<span>FIRST CONTACT · SHOOT DOWN NIGHTOWL</span>'
-      : journeyAttempt?.missionId === journeyDallas01.id ? `<span>${journeyDallas01.objective}</span>` : journeyAttempt?.missionId === journeyDallas02.id ? `<span>${journeyDallas02.objective}</span>` : journeyAttempt?.missionId === journeyDallas03.id ? `<span>${journeyDallas03.objective}</span>` : '<span>Fly through 10 Golden Gates before Time runs out.</span>';
+      : journeyAttempt?.missionId === journeyDallas01.id ? `<span>${journeyDallas01.objective}</span>` : journeyAttempt?.missionId === journeyDallas02.id ? `<span>${journeyDallas02.objective}</span>` : journeyAttempt?.missionId === journeyDallas03.id ? `<span>${journeyDallas03.objective}</span>` : journeyAttempt?.missionId === journeyDallas04.id ? `<span>${journeyDallas04.objective}</span>` : journeyAttempt?.missionId === journeyDallas05.id ? `<span>${journeyDallas05.objective}</span>` : '<span>Fly through 10 Golden Gates before Time runs out.</span>';
     flightLaunchTitle.classList.toggle('is-monster-arrival',Boolean(missionCombatIntroPath?.arrivalIntro||missionCombatIntroPath?.strikingIntro||missionCombatIntroPath?.huntingIntro));
     if(missionCombatIntroPath?.arrivalIntro)flightLaunchTitle.textContent=m19IntroText(0);
     if(missionCombatIntroPath?.strikingIntro)flightLaunchTitle.textContent=m20IntroText(0);

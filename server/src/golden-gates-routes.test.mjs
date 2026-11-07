@@ -40,7 +40,7 @@ const angle = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
 test('the six Golden Gates routes grow in difficulty across Dallas districts', () => {
   const courses = new Set();
-  const turnLimits = [55, 60, 60, 75, 80, 80];
+  const turnLimits = [55, 60, 60, 65, 65, 80];
   for (const [missionIndex, mission] of missions.entries()) {
     assert.equal(mission.id, `journey-dallas-0${missionIndex + 1}`);
     assert.equal(mission.gates.length, 10);
@@ -48,8 +48,8 @@ test('the six Golden Gates routes grow in difficulty across Dallas districts', (
     const points = [mission.airborneSpawn, ...mission.gates];
     const legs = points.slice(1).map((point, index) => distance(point, points[index]));
     const length = legs.reduce((sum, leg) => sum + leg, 0);
-    assert.ok(missionIndex===0 ? length>=65000&&length<=70000 : missionIndex===1 ? length>=70000&&length<=75000 : missionIndex===2 ? length>=75000&&length<=80000 : length / fastSpeed >= 30 * S && length / fastSpeed <= 42.5 * S, `${mission.name}: Bluejay route length`);
-    assert.ok(missionIndex===0 ? legs[0]>=3000&&legs[0]<=4000&&legs.slice(1).every(l=>l>=5000&&l<=9000) : missionIndex<=2 ? legs[0]>=3000&&legs[0]<=4000&&legs.slice(1).every(l=>l>=5000&&l<=9000) : legs.every(leg => leg >= 2_500 * S && leg <= 7_500 * S), `${mission.name}: readable gate spacing`);
+    assert.ok(missionIndex===0 ? length>=65000&&length<=70000 : missionIndex===1 ? length>=70000&&length<=75000 : missionIndex===2 ? length>=75000&&length<=80000 : missionIndex===3 ? length>=78000&&length<=82000 : missionIndex===4 ? length>=82000&&length<=88000 : length / fastSpeed >= 30 * S && length / fastSpeed <= 42.5 * S, `${mission.name}: Bluejay route length`);
+    assert.ok(missionIndex===0 ? legs[0]>=3000&&legs[0]<=4000&&legs.slice(1).every(l=>l>=5000&&l<=9000) : missionIndex<=2 ? legs[0]>=3000&&legs[0]<=4000&&legs.slice(1).every(l=>l>=5000&&l<=9000) : missionIndex<=4 ? legs[0]>=3000&&legs[0]<=4000&&legs.slice(1).every(l=>l>=6000&&l<=10000) : legs.every(leg => leg >= 2_500 * S && leg <= 7_500 * S), `${mission.name}: readable gate spacing`);
     assert.ok(points.every(point => point.x - (point.radius ?? 0) > terrain.bounds.minX * S && point.x + (point.radius ?? 0) < terrain.bounds.maxX * S &&
       point.z - (point.radius ?? 0) > terrain.bounds.minZ * S && point.z + (point.radius ?? 0) < terrain.bounds.maxZ * S), `${mission.name}: inside the Dallas terrain`);
     for (let index = 1; index < points.length - 1; index++) {
@@ -82,9 +82,9 @@ test('the six Golden Gates routes grow in difficulty across Dallas districts', (
   assert.ok(journeyDallas03.gates.slice(1, 5).every((gate, index) => gate.altitude > journeyDallas03.gates[index].altitude));
   assert.ok(journeyDallas03.gates.slice(5).every((gate, index) => gate.altitude < journeyDallas03.gates[index + 4].altitude));
   assert.ok(journeyDallas03.gates.some(gate => gate.z <= -20_000 * S), 'Golden Ascent reaches North Dallas');
-  assert.ok(journeyDallas04.gates[1].x > journeyDallas04.gates[2].x && journeyDallas04.gates[3].x > journeyDallas04.gates[4].x);
+  assert.ok(journeyDallas04.gates[1].z > journeyDallas04.gates[2].z && journeyDallas04.gates[3].z > journeyDallas04.gates[4].z);
   assert.ok(journeyDallas05.gates.some(gate => distance(gate, trinity) < 2_000 * S));
-  assert.ok(journeyDallas05.gates.some(gate => gate.x < -18_000 * S), 'Needle Rush reaches West Dallas');
+  assert.ok(journeyDallas05.gates.some(gate => distance(gate, scaleDallasPoint({x:-13500,z:-9350})) < 4000*S), 'Needle Rush passes Las Colinas');
   assert.ok(journeyDallas05.gates[8].radius < journeyDallas04.gates[8].radius);
   assert.ok(journeyDallas06.gates.some(gate => distance(gate, lake) < 3_000 * S));
   assert.ok(journeyDallas06.gates.some(gate => distance(gate, trinity) < 500 * S));
@@ -125,7 +125,7 @@ test('normal Bluejay bank steering reaches every gate in order from the authored
       elapsed += dt;
     }
     assert.equal(gateIndex, 10, `${mission.name}: all gates reached`);
-    assert.ok(mission.id===journeyDallas01.id ? elapsed>=30&&elapsed<=160 : mission.id===journeyDallas02.id||mission.id===journeyDallas03.id ? elapsed<=mission.timeLimitMs/1000-20 : elapsed >= 30 * S && elapsed <= 45 * S, `${mission.name}: ${elapsed.toFixed(1)}s Bluejay run`);
+    assert.ok(mission.id===journeyDallas01.id ? elapsed>=30&&elapsed<=160 : mission.id!==journeyDallas06.id ? elapsed<=mission.timeLimitMs/1000-20 : elapsed >= 30 * S && elapsed <= 45 * S, `${mission.name}: ${elapsed.toFixed(1)}s Bluejay run`);
   }
 });
 
