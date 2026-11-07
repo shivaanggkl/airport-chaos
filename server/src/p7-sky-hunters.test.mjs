@@ -177,7 +177,7 @@ for(const mission of [missions.journeyDallas13,missions.journeyDallas14]) {
   active.status='RACING';ctx.provokeJourneyHunter('intruder',pilot,'enemy',1000);assert(!enemy.bot.journeyProvoked);
   provoke();assert(enemy.bot.journeyProvoked);assert.equal(engagements,1);
   provoke();assert.equal(engagements,1,'activation is latched');
-  assert.equal(ctx.skyHunterDepartureReady('unrelated',pilot,missions.journeyDallas17.id),true,'later missions retain their existing rules');
+  assert.equal(ctx.skyHunterDepartureReady('unrelated',pilot,missions.journeyDallas19.id),true,'unrelated missions retain their existing rules');
  });
  test(`${mission.name}: GO owns its four-minute timer and Journey matches it`,()=>{
   const f=fixture();try {

@@ -3275,9 +3275,9 @@ function removeJourneyHunter(attempt: JourneyAttempt): void {
 }
 /** Hostility starts only after accepted runway takeoff and safe airborne departure. */
 function skyHunterDepartureReady(playerId: string, pilot: PlayerState, missionId: string): boolean {
-  if (missionId !== journeyDallas13.id && missionId !== journeyDallas14.id && missionId !== journeyDallas15.id && missionId !== journeyDallas16.id) return true;
-  const mission = missionId === journeyDallas13.id ? journeyDallas13 : missionId === journeyDallas14.id ? journeyDallas14 : missionId === journeyDallas15.id ? journeyDallas15 : journeyDallas16;
-  const tookOff = missionId === journeyDallas13.id || missionId === journeyDallas16.id ? playerJourneyDfwTakeoff.has(playerId) : missionId === journeyDallas14.id ? playerJourneyLoveTakeoff.has(playerId) : playerJourneyAddisonTakeoff.has(playerId);
+  if (missionId !== journeyDallas13.id && missionId !== journeyDallas14.id && missionId !== journeyDallas15.id && missionId !== journeyDallas16.id && missionId !== journeyDallas17.id && missionId !== journeyDallas18.id) return true;
+  const mission = missionId === journeyDallas13.id ? journeyDallas13 : missionId === journeyDallas14.id ? journeyDallas14 : missionId === journeyDallas15.id ? journeyDallas15 : missionId === journeyDallas16.id ? journeyDallas16 : missionId === journeyDallas17.id ? journeyDallas17 : journeyDallas18;
+  const tookOff = missionId === journeyDallas13.id || missionId === journeyDallas16.id || missionId === journeyDallas18.id ? playerJourneyDfwTakeoff.has(playerId) : missionId === journeyDallas14.id ? playerJourneyLoveTakeoff.has(playerId) : missionId === journeyDallas17.id ? playerJourneyExecutiveTakeoff.has(playerId) : playerJourneyAddisonTakeoff.has(playerId);
   const airport = cityAirports.dallas.find(candidate => candidate.id === mission.startAirportId)!;
   return tookOff && !playerJourneyRunwayPrep.has(playerId) &&
     pilot.position.y - botTerrainHeight('dallas', pilot.position.x, pilot.position.z) >= 120 &&
@@ -7132,7 +7132,7 @@ function updateBots(now: number, expertOnly = false): void {
     const followingCombatWaypoint = Boolean(combatNavigation);
     const requestedTarget = combatNavigation?.waypoint ?? bot.route[Math.min(bot.routeIndex, bot.route.length - 1)];
     const target = requestedTarget && bot.journeyAttemptId && !bot.journeyLeader && !bot.journeyRearGuardEscort
-      ? { ...requestedTarget, ...journeyHunterSteeringTarget(player.position, hunterForward(player), requestedTarget, bot.journeyCrossfire ? Number(cityRegistry.dallas.worldSize) / 2 : undefined) }
+      ? { ...requestedTarget, ...journeyHunterSteeringTarget(player.position, hunterForward(player), requestedTarget, (bot.journeyCrossfire || bot.journeyIronHunter || bot.journeyFinalShowdown) ? Number(cityRegistry.dallas.worldSize) / 2 : undefined) }
       : requestedTarget;
     if (!target) continue;
     const dx = target.x - player.position.x;
@@ -7165,7 +7165,7 @@ function updateBots(now: number, expertOnly = false): void {
       const nextPatrolWaypoint = bot.journeyAttemptId && !bot.journeyProvoked ? bot.route[bot.routeIndex] : undefined;
       if (nextPatrolWaypoint) {
         advanceBotFlight(player, bot, bot.journeyLeader ? nextPatrolWaypoint : {
-          ...nextPatrolWaypoint, ...journeyHunterSteeringTarget(player.position, hunterForward(player), nextPatrolWaypoint, bot.journeyCrossfire ? Number(cityRegistry.dallas.worldSize) / 2 : undefined),
+          ...nextPatrolWaypoint, ...journeyHunterSteeringTarget(player.position, hunterForward(player), nextPatrolWaypoint, (bot.journeyCrossfire || bot.journeyIronHunter || bot.journeyFinalShowdown) ? Number(cityRegistry.dallas.worldSize) / 2 : undefined),
         }, delta);
       } else if (smoothHunter(player)) {
         advanceBotFlight(player, bot, bot.route[bot.routeIndex] ?? target, delta);

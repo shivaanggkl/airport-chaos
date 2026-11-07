@@ -1,4 +1,4 @@
-import {journeyDallas18} from '../../shared/journey-mission.mjs';
+import {journeyDallas18,journeyDallas19,journeyDallas20,journeyDallas21,journeyDallas22,journeyDallas25} from '../../shared/journey-mission.mjs';
 import {hunterBallisticSolution} from './hunter-flight.js';
 import {aircraftPresentationMuzzleSockets} from '../../shared/aircraft-presentation-scale.mjs';
 import {ballisticShotSpeed,COMBAT_RANGE,AIM_ENVELOPE} from '../../shared/protocol.mjs';
@@ -30,7 +30,7 @@ const ast = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true
 function runtime(names, context) {
   const code = ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.includes(node.name?.text))
     .map(node => node.getText(ast)).join('\n');
-  const sandbox = vm.createContext({journeyDallas18,journeyDallas17:mission,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas23,recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
+  const sandbox = vm.createContext({journeyDallas18,journeyDallas19,journeyDallas20,journeyDallas21,journeyDallas22,journeyDallas25,journeyDallas17:mission,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas23,recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
   vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, sandbox);
   return sandbox;
 }
@@ -184,11 +184,11 @@ test('M11 keeps identity, Executive runway, safe spawn, canonical VERY HARD and 
   assert.equal(journeyMissionSlot(mission.id),11);
   assert.equal(mission.name,'IRON HUNTER');assert.equal(mission.startAirportId,'executive');
   const distance=Math.hypot(mission.enemySpawn.x-executive.x,mission.enemySpawn.z-executive.z);
-  assert.ok(distance>=12000*DALLAS_WORLD_SCALE&&distance<=15000*DALLAS_WORLD_SCALE);assert.equal(mission.enemyAltitude,800*DALLAS_WORLD_SCALE);
+  assert.ok(distance>=14000&&distance<=20000);assert.equal(mission.enemyAltitude,800*DALLAS_WORLD_SCALE);
   const enemy=createOpponent({aircraft:mission.enemyAircraft,livery:mission.enemyLivery,level:'VERY_HARD',personality:'aggressive',behavior:'patrol',cityId:'dallas',position:{...mission.enemySpawn,y:1000},rotation:{x:0,y:0,z:0},speed:mission.cruiseSpeed,health:mission.enemyHealth});
   assert.equal(enemy.profile,enemyAiLevels.VERY_HARD);assert.equal(mission.enemyHealth,250);
   assert.equal(projectileDamageForAircraft('trainer')*10,mission.enemyHealth);
-  assert.equal(mission.firstClearCredits,2250);assert.equal(mission.timeLimitMs,360000*DALLAS_WORLD_SCALE);
+  assert.equal(mission.firstClearCredits,2250);assert.equal(mission.timeLimitMs,330000);
   for(const obsolete of ['heart','heartId','startHealthFraction','finishAirportId','requiredLandingScore'])assert.equal(obsolete in mission,false);
   assert.doesNotMatch(source,/collectCriticalHeart|recordCriticalLanding/);
 });

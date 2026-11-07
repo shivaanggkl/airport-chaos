@@ -273,17 +273,17 @@ const baseJourneyDallas16 = Object.freeze({
 // A heavy, aggressive opponent uses the same single-enemy combat lifecycle.
 const baseJourneyDallas17 = Object.freeze({
   id: 'journey-dallas-17', cityId: 'dallas', name: 'IRON HUNTER', chapter: 'SKY HUNTERS', firstClearCredits: 2_250,
-  startAirportId: 'executive', timeLimitMs: 360_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 250,
-  enemyAltitude: 800, aggressionDistance: 10_000, patrolRadius: 2_000, cruiseSpeed: 400,
-  enemySpawn: Object.freeze({ x: -15_100, z: 0 }),
+  startAirportId: 'executive', timeLimitMs: 110_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 250,
+  enemyAltitude: 800, aggressionDistance: 6_000 / DALLAS_WORLD_SCALE, patrolRadius: 2_000, cruiseSpeed: 400,
+  enemySpawn: Object.freeze({ x: -10_500 / DALLAS_WORLD_SCALE, z: 16_000 / DALLAS_WORLD_SCALE }),
 });
 
 // Chapter 2 finale; weapon pacing and damage are private to this encounter.
 const baseJourneyDallas18 = Object.freeze({
   id: 'journey-dallas-18', cityId: 'dallas', name: 'FINAL SHOWDOWN', chapter: 'SKY HUNTERS', firstClearCredits: 2_400,
-  startAirportId: 'dfw', timeLimitMs: 420_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-inferno', enemyHealth: 300,
-  enemyAltitude: 900, aggressionDistance: 10_000, patrolRadius: 2_500, cruiseSpeed: 600,
-  enemySpawn: Object.freeze({ x: -4_800, z: -13_600 }),
+  startAirportId: 'dfw', timeLimitMs: 120_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-inferno', enemyHealth: 300,
+  enemyAltitude: 900, aggressionDistance: 8_000 / DALLAS_WORLD_SCALE, patrolRadius: 2_500, cruiseSpeed: 600,
+  enemySpawn: Object.freeze({ x: -47_500 / DALLAS_WORLD_SCALE, z: -48_000 / DALLAS_WORLD_SCALE }),
   enemyDamage: 20, shotIntervalMs: 750, burstShots: 2, burstPauseMs: 2_000,
 });
 

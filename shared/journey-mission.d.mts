@@ -128,13 +128,13 @@ export const journeyDallas16: Readonly<{
 }>;
 export const journeyDallas17:Readonly<{
   id:'journey-dallas-17';cityId:'dallas';name:'IRON HUNTER';chapter:'SKY HUNTERS';firstClearCredits:2250;
-  startAirportId:'executive';timeLimitMs:360000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:250;
-  enemyAltitude:800;aggressionDistance:10000;patrolRadius:2000;cruiseSpeed:400;enemySpawn:Readonly<{x:number;z:number}>;
+  startAirportId:'executive';timeLimitMs:330000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:250;
+  enemyAltitude:2400;aggressionDistance:6000;patrolRadius:6000;cruiseSpeed:400;enemySpawn:Readonly<{x:number;z:number}>;
 }>;
 export const journeyDallas18: Readonly<{
   id: 'journey-dallas-18'; cityId: 'dallas'; name: 'FINAL SHOWDOWN'; chapter: 'SKY HUNTERS'; firstClearCredits: 2400;
-  startAirportId: 'dfw'; timeLimitMs: 420000; enemyAircraft: 'fighter'; enemyLivery: 'firehawk-inferno'; enemyHealth: 300;
-  enemyAltitude: 900; aggressionDistance: 10000; patrolRadius: 2500; cruiseSpeed: 600;
+  startAirportId: 'dfw'; timeLimitMs: 360000; enemyAircraft: 'fighter'; enemyLivery: 'firehawk-inferno'; enemyHealth: 300;
+  enemyAltitude: 2700; aggressionDistance: 8000; patrolRadius: 7500; cruiseSpeed: 600;
   enemySpawn: Readonly<{x:number;z:number}>; enemyDamage: 20; shotIntervalMs: 750; burstShots: 2; burstPauseMs: 2000;
 }>;
 export const journeyDallas19: Readonly<{
