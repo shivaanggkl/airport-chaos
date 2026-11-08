@@ -1,3 +1,5 @@
+export type TransportLockPart = 'body' | 'left' | 'right' | 'core';
+export function transportLockParts(missionId?: string): readonly TransportLockPart[];
 export type TransportPoint = {
     x: number;
     y: number;

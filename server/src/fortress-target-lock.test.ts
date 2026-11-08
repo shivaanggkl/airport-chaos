@@ -7,34 +7,35 @@ import ts from 'typescript';
 import * as THREE from 'three';
 import { aircraftPresentationMuzzleSockets } from '../../shared/aircraft-presentation-scale.mjs';
 import { segmentBlockedByBuildings } from './monster-arrival.js';
-import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
-import { transportPose } from '../../shared/giant-incoming.mjs';
-import { AIM_ENVELOPE, COMBAT_RANGE, aimGoal, biasAim, stepAim, insideDynamicLock, ballisticShotSpeed, projectileDamageForAircraft, fireIntervalMs } from '../../shared/protocol.mjs';
-import { transportFortressAimTarget, transportFortressTarget, transportFortressImpact } from './giant-incoming.js';
+import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13 } from '../../shared/journey-mission.mjs';
+import { transportPose, transportLockParts } from '../../shared/giant-incoming.mjs';
+import { AIM_ENVELOPE, COMBAT_RANGE, aimGoal, biasAim, stepAim, insideDynamicLock, ballisticShotSpeed, projectileDamageForAircraft, fireIntervalMs, aimTargetScore, AIM_SWITCH_MARGIN } from '../../shared/protocol.mjs';
+import { transportFortressAimTarget, transportFortressTarget, transportFortressImpact, transportImpact } from './giant-incoming.js';
 
 const server = readFileSync(new URL('./index.ts',import.meta.url),'utf8');
 const client = readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
 const view = readFileSync(new URL('../../client/src/giant-incoming.ts',import.meta.url),'utf8');
 const normalize = (v:THREE.Vector3Like) => new THREE.Vector3(v.x,v.y,v.z).normalize();
 const rotateLocalYxz = (v:THREE.Vector3Like,r:THREE.Vector3Like) => new THREE.Vector3(v.x,v.y,v.z).applyEuler(new THREE.Euler(r.x,r.y,r.z,'YXZ'));
-function fixture() {
+function fixture(missionId: string=journeyDallas11.id) {
   let now=1000;
-  const encounter={attemptId:'owned',playerId:'pilot',missionId:journeyDallas11.id as string,startedAt:0,durationMs:180000,altitude:1700,fortressGunsEnabled:true,gunYaw:0,gunPitch:0,hitSequence:0};
-  const attempt={missionId:journeyDallas11.id,status:'RACING',pausedAt:null,deadlineAt:180000,fortressLeftHealth:250,fortressRightHealth:250,monsterHealth:1500};
-  const pose=transportPose(now,1700,180000,journeyDallas11.id);
+  const encounter={attemptId:'owned',playerId:'pilot',missionId,startedAt:0,durationMs:180000,altitude:1700,fortressGunsEnabled:true,gunYaw:0,gunPitch:0,hitSequence:0};
+  const attempt={missionId,status:'RACING',pausedAt:null,deadlineAt:180000,fortressLeftHealth:250,fortressRightHealth:250,monsterHealth:1500};
+  const pose=transportPose(now,1700,180000,missionId);
   const position=new THREE.Vector3(pose.x+Math.sin(pose.yaw)*3000,pose.y+300,pose.z+Math.cos(pose.yaw)*3000);
   const owner:any={pilotId:'profile',aircraftType:'trainer',cityId:'dallas',lifeState:'alive',lastStateAt:now,position,rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:0}};
   let locked:string|undefined;
   const packets:any[]=[];
-  const store={get:()=>attempt,hitFortressComponent:(_pilot:string,_attempt:string,part:'left'|'right'|'core',_now:number,damage:number)=>{
+  const reinforcementChecks:any[]=[];
+  const store={get:()=>attempt,hitFortressComponent:(_pilot:string,_attempt:string,part:'body'|'left'|'right'|'core',_now:number,damage:number)=>{
     const key=part==='left'?'fortressLeftHealth':part==='right'?'fortressRightHealth':'monsterHealth';
     attempt[key]=Math.max(0,attempt[key]-damage);return {...attempt};
-  }};
+  },hitTransport:(_pilot:string,_attempt:string,_now:number,damage:number)=>{attempt.monsterHealth=Math.max(0,attempt.monsterHealth-damage);return {...attempt};}};
   const context=vm.createContext({Math,Number,Date:{now:()=>now},randomUUID,projectileDamageForAircraft,
-    players:new Map([['pilot',owner]]),sendToPlayer:(_id:string,packet:any)=>packets.push(packet),sendJourneyState:()=>{},
-    canFire:(p:any,at:number)=>at-(p.lastFireAt??-Infinity)>=fireIntervalMs(p.aircraftType),COMBAT_RANGE,AIM_ENVELOPE,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas11,journeyDallas12,
+    beginReinforcementWave:(attempt:unknown)=>reinforcementChecks.push(attempt),players:new Map([['pilot',owner]]),sendToPlayer:(_id:string,packet:any)=>packets.push(packet),sendJourneyState:()=>{},
+    canFire:(p:any,at:number)=>at-(p.lastFireAt??-Infinity)>=fireIntervalMs(p.aircraftType),COMBAT_RANGE,AIM_ENVELOPE,AIM_SWITCH_MARGIN,aimTargetScore,journeyDallas07,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas11,journeyDallas12,
     playerJourneyAttempts:new Map([['pilot','owned']]),transportEncounters:new Map([['owned',encounter]]),journeyStore:store,
-    combatTransformFreshMs:500,transportPose,transportFortressAimTarget,transportFortressTarget,transportFortressImpact,
+    combatTransformFreshMs:500,transportPose,transportLockParts,transportFortressAimTarget,transportFortressTarget,transportFortressImpact,transportImpact,
     aircraftPresentationMuzzleSockets,normalize,transportBuildings:[],segmentBlockedByBuildings,dallasTerrain:{elevationAt:()=>0},biasAim,aimGoal,stepAim,insideDynamicLock,ballisticShotSpeed,
     rotateLocalYxz,forwardDirection:(t:any)=>rotateLocalYxz({x:0,y:0,z:-1},t.rotation).normalize(),
     dot:(a:any,b:any)=>a.x*b.x+a.y*b.y+a.z*b.z,closestLockTarget:()=>undefined,validDynamicTarget:()=>undefined,
@@ -46,16 +47,16 @@ function fixture() {
   for(const [start,end] of [['function createFortressAssistedShot(','function applyEventAircraftHit('],['function applyTransportHit(','function updateTransportEncounters(']]) {
     vm.runInContext(ts.transpileModule(server.slice(server.indexOf(start!),server.indexOf(end!)),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
   }
-  return {owner,encounter,attempt,context,packets,get locked(){return locked;},
-    point:(part:'left'|'right'|'core')=>transportFortressTarget(transportPose(now,1700,180000,journeyDallas11.id),part),
-    aimAt(part:'left'|'right'|'core'){
+  return {owner,encounter,attempt,context,packets,reinforcementChecks,get locked(){return locked;},
+    point:(part:'body'|'left'|'right'|'core')=>transportFortressTarget(transportPose(now,1700,180000,missionId),part),
+    aimAt(part:'body'|'left'|'right'|'core'){
       const offset=new THREE.Vector3().copy(this.point(part)).sub(owner.position);
       owner.rotation.y=Math.atan2(-offset.x,-offset.z);
       owner.rotation.x=Math.atan2(offset.y,Math.hypot(offset.x,offset.z));
     },
     step(){
-      const before=transportPose(now,1700,180000,journeyDallas11.id);now+=100;
-      const after=transportPose(now,1700,180000,journeyDallas11.id);
+      const before=transportPose(now,1700,180000,missionId);now+=100;
+      const after=transportPose(now,1700,180000,missionId);
       owner.position.x+=after.x-before.x;owner.position.z+=after.z-before.z;
       owner.lastStateAt=now;context.now=now;vm.runInContext("updateAssistedAim('pilot',owner,now,0,0)",context);},
     fire(targetId=locked,aim=owner.assistedAim){context.targetId=targetId;context.shotAim=aim;return vm.runInContext("createAssistedShot('pilot',owner,targetId,'shot',undefined,shotAim)",context);},
@@ -90,7 +91,7 @@ test('M17 switches components with aim; destroyed parts cannot retain a lock',()
 test('M17 lock rejects wrong owner, other mission/city, stale transforms, pause, timeout, defeat, range and aim-away',()=>{
   const cases=[
     (f:ReturnType<typeof fixture>)=>{f.encounter.playerId='other';},
-    (f:ReturnType<typeof fixture>)=>{f.encounter.missionId=journeyDallas12.id;},
+    (f:ReturnType<typeof fixture>)=>{f.encounter.missionId=journeyDallas13.id;},
     (f:ReturnType<typeof fixture>)=>{f.owner.cityId='milwaukee';},
     (f:ReturnType<typeof fixture>)=>{f.owner.lastStateAt=-10000;},
     (f:ReturnType<typeof fixture>)=>{(f.attempt as any).pausedAt=1000;},
@@ -173,11 +174,75 @@ test('M17 tracer leads the rendered component without changing target geometry o
   instance.root=new THREE.Group();instance.root.scale.setScalar(32);instance.root.rotation.y=.7;
   instance.root.position.set(500,1700,-800);
   instance.state={pose:{velocity:{x:350,y:0,z:120}}};
-  for(const side of ['left','right','core'] as const){
+  for(const side of ['body','left','right','core'] as const){
     const now=instance.fortressComponentPosition(side,new THREE.Vector3());
     const impact=instance.fortressComponentPosition(side,new THREE.Vector3(),.35);
     assert.ok(Math.abs(impact.x-now.x-350*.35)<1e-8);
     assert.ok(Math.abs(impact.z-now.z-120*.35)<1e-8);
     assert.equal(impact.y,now.y);
+  }
+});
+
+
+for(const mission of [journeyDallas07,journeyDallas08,journeyDallas09,journeyDallas10]) {
+  test(`${mission.name}: body locks and assisted shots damage the giant without altering wing health`,()=>{
+    const f=fixture(mission.id);
+    for(let i=0;i<15;i++){f.aimAt('body');f.step();}
+    assert.equal(f.locked,'transport:owned:body');assert.equal(f.valid(),true);
+    assert.equal(f.fire(),true);
+    assert.equal(f.attempt.monsterHealth,1475);
+    assert.equal(f.attempt.fortressLeftHealth,250);assert.equal(f.attempt.fortressRightHealth,250);
+    assert.equal(f.packets[0].targetId,'transport:owned:body');
+    assert.equal(f.reinforcementChecks.length,mission===journeyDallas09?1:0);
+    assert.equal(f.fire(),false);
+    f.attempt.monsterHealth=0;assert.equal(f.valid(),false);f.step();assert.equal(f.locked,undefined);
+  });
+}
+
+test('M18 independently locks and hits both wings and engine while escorts remain active',()=>{
+  for(const side of ['left','right','core'] as const){
+    const f=fixture(journeyDallas12.id);
+    for(let i=0;i<15;i++){f.aimAt(side);f.step();}
+    assert.equal(f.locked,`transport:owned:${side}`);assert.equal(f.fire(),true);
+    assert.equal(f.attempt.fortressLeftHealth,side==='left'?225:250);
+    assert.equal(f.attempt.fortressRightHealth,side==='right'?225:250);
+    assert.equal(f.attempt.monsterHealth,side==='core'?1475:1500);
+  }
+});
+
+test('transport lock IDs are limited to each mission target set and never depend on duration',()=>{
+  for(const mission of [journeyDallas07,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas11,journeyDallas12]){
+    const f=fixture(mission.id),fortress=mission===journeyDallas11||mission===journeyDallas12;
+    assert.deepEqual(transportLockParts(mission.id),fortress?['left','right','core']:['body']);
+    f.encounter.durationMs=240000; // Equal or different timers cannot change target eligibility.
+    for(let i=0;i<15;i++){f.aimAt(fortress?'left':'body');f.step();}
+    assert.equal(f.locked,fortress?'transport:owned:left':'transport:owned:body');
+    assert.equal(f.fire(fortress?'transport:owned:body':'transport:owned:core'),false);
+    f.attempt.deadlineAt=0;assert.equal(f.fire(),false);
+  }
+  assert.deepEqual(transportLockParts(journeyDallas13.id),[]);
+});
+
+test('escort and giant compete by aim alignment; destroying the giant leaves escort targeting available',()=>{
+  for(const mission of [journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12]){
+    const f=fixture(mission.id),side=mission===journeyDallas12?'left':'body';
+    const escort={position:new THREE.Vector3()};
+    f.context.escort=escort;
+    vm.runInContext("closestLockTarget=()=>['escort',escort];validDynamicTarget=()=>escort",f.context);
+    for(let i=0;i<15;i++){
+      f.aimAt(side);
+      const direction=rotateLocalYxz({x:0,y:0,z:-1},f.owner.rotation);
+      escort.position.copy(f.owner.position).addScaledVector(direction,3000).add(new THREE.Vector3(500,0,0));
+      f.step();
+    }
+    assert.equal(f.locked,`transport:owned:${side}`,'aimed giant must win over a nearby escort');
+    for(let i=0;i<15;i++){
+      f.owner.rotation.y+=.04;
+      escort.position.copy(f.owner.position).addScaledVector(rotateLocalYxz({x:0,y:0,z:-1},f.owner.rotation),1500);
+      f.step();
+    }
+    assert.equal(f.locked,'escort','aimed escort must win over the giant');
+    f.attempt.monsterHealth=0;f.attempt.fortressLeftHealth=0;f.attempt.fortressRightHealth=0;
+    f.step();assert.equal(f.locked,'escort');
   }
 });

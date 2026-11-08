@@ -20,7 +20,7 @@ import { portalForCity, portalModeAllowed, sweptPortalCrossing, portalRules, typ
 import { AirAssaultUi } from './air-assault';
 import { airAssaultHearts, type AssaultSnapshot } from '../../shared/air-assault.mjs';
 import { missionTimePreset } from './mission-time-presets';
-import { transportTuning, transportScaleForMission } from '../../shared/giant-incoming.mjs';
+import { transportTuning, transportScaleForMission, transportLockParts } from '../../shared/giant-incoming.mjs';
 import {GiantIncomingView,type TransportStateMessage} from './giant-incoming';
 import { CrashSequence, type CrashSurface } from './crash-sequence';
 import { applyAircraftCosmetics as applyEquippedLivery, applyReinforcementEscortPaint } from './aircraft-cosmetics';
@@ -2205,7 +2205,7 @@ function updateRadar(direction: THREE.Vector3): void {
   if (challengeMarker && !missionFocus) drawRadarMarker(direction, challengeMarker.x, challengeMarker.z, 'challenge');
   const journeyTarget = journeyGates?.target();
   if (journeyTarget) drawRadarMarker(direction, journeyTarget.x, journeyTarget.z, 'mission', `GATE ${journeyTarget.index + 1}`);
-  if((journeyAttempt?.missionId===journeyDallas07.id || journeyAttempt?.missionId===journeyDallas08.id || journeyAttempt?.missionId===journeyDallas09.id || journeyAttempt?.missionId===journeyDallas10.id || journeyAttempt?.missionId===journeyDallas11.id || journeyAttempt?.missionId===journeyDallas12.id && journeyAttempt.finalPhase !== 'ESCORTS') && transportView && missionFocus)drawRadarMarker(direction,transportView.position.x,transportView.position.z,'mission',journeyAttempt?.missionId===journeyDallas10.id?'GUNSHIP':'TRANSPORT');
+  if((journeyAttempt?.missionId===journeyDallas07.id || journeyAttempt?.missionId===journeyDallas08.id || journeyAttempt?.missionId===journeyDallas09.id || journeyAttempt?.missionId===journeyDallas10.id || journeyAttempt?.missionId===journeyDallas11.id || journeyAttempt?.missionId===journeyDallas12.id) && transportView && missionFocus)drawRadarMarker(direction,transportView.position.x,transportView.position.z,'mission',journeyAttempt?.missionId===journeyDallas10.id?'GUNSHIP':'TRANSPORT');
   if (((journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id)||journeyAttempt?.missionId===journeyDallas20.id) &&
     (journeyAttempt.status === 'APPROACH' || journeyAttempt.status === 'RACING') &&
     missionObjective?.id === `${journeyAttempt.attemptId}:monster`) {
@@ -8053,9 +8053,9 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
   const duration = message.ownerId === localPlayerId
     ? THREE.MathUtils.clamp(distance / visualSpeed, 0.12, 0.35)
     : Math.max(0.001, Math.min(0.08 + THREE.MathUtils.clamp(distance / COMBAT_RANGE, 0, 1) * 0.07, distance / visualSpeed));
-  const componentPrefix = journeyAttempt?.missionId===journeyDallas11.id ? `transport:${journeyAttempt.attemptId}:` : null;
+  const componentPrefix = transportLockParts(journeyAttempt?.missionId).length && journeyAttempt ? `transport:${journeyAttempt.attemptId}:` : null;
   const component = componentPrefix && message.targetId.startsWith(componentPrefix) ? message.targetId.slice(componentPrefix.length) : undefined;
-  if (transportView && (component==='left' || component==='right' || component==='core')) {
+  if (transportView && (component==='body' || component==='left' || component==='right' || component==='core')) {
     // Keep the tracer straight and meet the rendered component at impact time.
     transportView.fortressComponentPosition(component,targetPosition,duration);
     assistedShotDirection.subVectors(targetPosition,origin).normalize();
@@ -8694,7 +8694,7 @@ function updateLockCircle(afterCamera = false): void {
   getCurrentMuzzleTransform(transportReticleOrigin, transportReticleDirection);
   const origin = transportReticleOrigin;
   combatAimForward.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(muzzleQuaternion);
-  const targetPosition = selectedCombatTarget?.remote.plane.position ?? (journeyAttempt?.missionId===journeyDallas11.id || journeyAttempt?.missionId===journeyDallas12.id && journeyAttempt.finalPhase !== 'ESCORTS'
+  const targetPosition = selectedCombatTarget?.remote.plane.position ?? (journeyAttempt?.missionId===journeyDallas11.id || journeyAttempt?.missionId===journeyDallas12.id
     ? transportTarget?.fortressTargetPosition : transportTarget?.position);
   const depth = targetPosition
     ? Math.max(1, transportReticleDirection.copy(targetPosition).sub(origin).dot(combatAimForward))
@@ -8877,10 +8877,11 @@ function updateCombatTarget(delta = 0): void {
     candidateDistance = combatOffset.length();
     candidateAngle = Math.acos(THREE.MathUtils.clamp(combatForward.dot(combatOffset) / candidateDistance, -1, 1));
   }
-  const transportAimTarget = (journeyAttempt?.missionId===journeyDallas07.id || journeyAttempt?.missionId===journeyDallas08.id || journeyAttempt?.missionId===journeyDallas09.id || journeyAttempt?.missionId===journeyDallas10.id || journeyAttempt?.missionId===journeyDallas11.id || journeyAttempt?.missionId===journeyDallas12.id && journeyAttempt.finalPhase !== 'ESCORTS') && journeyAttempt.status==='RACING' && transportView?.hasState && airplane.position.distanceTo(transportView.position)<=COMBAT_RANGE
+  const transportAimTarget = journeyAttempt?.status==='RACING' && transportLockParts(journeyAttempt.missionId).length && transportView?.hasState
     ? `transport:${journeyAttempt.attemptId}` : null;
-  const componentTarget = journeyAttempt?.missionId===journeyDallas11.id && transportAimTarget && freshAim &&
-    ['left','right','core'].some(side=>serverAimTargetId===`${transportAimTarget}:${side}`) ? serverAimTargetId : null;
+  const componentTarget = transportAimTarget && freshAim &&
+    transportLockParts(journeyAttempt?.missionId).some(side=>serverAimTargetId===`${transportAimTarget}:${side}`) ? serverAimTargetId : null;
+  if (componentTarget) candidate=null; // A fresh authoritative transport selection wins over local escort search.
   const targetId = candidate?.playerId ?? componentTarget ?? transportAimTarget;
   if (targetId !== lockedTargetId) lockedTargetId = targetId;
   validateServerLock(targetId, delta);
@@ -8891,7 +8892,8 @@ function updateCombatTarget(delta = 0): void {
 
   if (componentTarget && !candidate && transportView) {
     selectedCombatTarget = null;
-    const side = transportView.updateFortressTarget(airplane.position,airplane.rotation.y,airplane.quaternion,componentTarget);
+    const side = componentTarget.endsWith(':body') ? 'body' : transportView.updateFortressTarget(airplane.position,airplane.rotation.y,airplane.quaternion,componentTarget);
+    if (side==='body') transportView.fortressComponentPosition(side,transportView.fortressTargetPosition);
     combatOffset.copy(transportView.fortressTargetPosition).sub(airplane.position).applyQuaternion(combatInverseQuaternion);
     // The server validates component visibility and aim. Firing requests the
     // same assisted-shot path used by opponent planes; hits remain authoritative.
@@ -8901,7 +8903,7 @@ function updateCombatTarget(delta = 0): void {
     combatLockState = locked ? 'LOCKED' : 'SEARCHING';
     acquisitionCircleElement.classList.add('target-near');
     acquisitionCircleElement.classList.toggle('locked',locked);
-    showTargetRangeFeedback({playerId:componentTarget,displayName:side==='core'?'ENGINE':`${side.toUpperCase()} WING`,isBot:true},combatOffset.length(),true,locked);
+    showTargetRangeFeedback({playerId:componentTarget,displayName:side==='body'?'GIANT PLANE':side==='core'?'ENGINE':`${side.toUpperCase()} WING`,isBot:true},combatOffset.length(),true,locked);
     return;
   }
 
@@ -11378,9 +11380,9 @@ function sendFireIntent(): boolean {
   }
   projectileDirection.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(muzzleQuaternion);
   const componentAttempt = journeyAttempt;
-  const componentLock = componentAttempt?.missionId===journeyDallas11.id && componentAttempt.status==='RACING' &&
+  const componentLock = componentAttempt?.status==='RACING' &&
     performance.now()-serverAimReceivedAt<=500 && serverLockedTargetId===serverAimTargetId &&
-    ['left','right','core'].some(side=>serverLockedTargetId===`transport:${componentAttempt.attemptId}:${side}`);
+    transportLockParts(componentAttempt.missionId).some(side=>serverLockedTargetId===`transport:${componentAttempt.attemptId}:${side}`);
   const targetId = selectedCombatTarget?.locked ? selectedCombatTarget.remote.playerId : componentLock ? serverLockedTargetId ?? undefined : undefined;
   const clientShotId = createClientShotId();
   if (combatQaElement) combatQaDetail = `shot: ${targetId ? `assisted → ${targetId.slice(0, 8)}` : 'ballistic'}`;
