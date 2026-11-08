@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
-import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
 
 // Missions 11/12 replaced Gravity Drop/Sky Pendulum. Exercise their current
@@ -22,7 +21,7 @@ for (const mission of [journeyDallas11, journeyDallas12]) {
     assert.equal(mission.startAirportId, 'dfw');
     assert.equal(mission.turretHealth, 250);
     assert.equal(mission.coreHealth, mission === journeyDallas11 ? 1500 : 1750);
-    assert.equal(mission.timeLimitMs, (mission === journeyDallas11 ? 330000 : 360000) * DALLAS_WORLD_SCALE);
+    assert.equal(mission.timeLimitMs, 180000);
     assert.equal(mission.firstClearCredits, mission === journeyDallas11 ? 1250 : 1500);
     assert.equal('gates' in mission, false);
     if ('escortAircraft' in mission) {

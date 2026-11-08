@@ -58,7 +58,7 @@ test('one server-owned Bluejay, duplicate prevention, horizontal aggression boun
   ctx.ensureFirstContact('owner', pilot, active, 1460); assert.equal(engaged, 1);
 });
 
-test('server-confirmed 4:02 clock, target ownership, deadline, first clear and replay protection', () => {
+test('server-confirmed 3:00 clock, target ownership, deadline, first clear and replay protection', () => {
   const f = fixture();
   try {
     const a = f.store.launch('pilot', 'trainer', 1000, mission.id);
@@ -187,7 +187,7 @@ test('M8 keeps its Journey identity, exact Love Field distance, livery, clock an
  assert(mission.enemySpawn.z>runwayZ,"enemy starts behind northbound departure");
  assert.deepEqual(boundJourneyHunterPoint(mission.enemySpawn),mission.enemySpawn);
  assert.equal(mission.enemyHealth / projectileDamageForAircraft('trainer'),6);
- assert.equal(mission.timeLimitMs,242_000);
+ assert.equal(mission.timeLimitMs,180_000);
  assert.doesNotMatch(source,/updateJourneyEscape|ensureJourneyEscapeHunter|updateEscapeHold/);
 });
 

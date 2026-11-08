@@ -77,12 +77,12 @@ test('GO-owned six-minute clock, target ownership, deadline, first clear and rep
     assert.equal(f.store.acceptGate('pilot', a.attemptId, 0, 1300), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 1300), undefined);
     const started = f.store.startFirstContact('pilot', a.attemptId, 2000);
-    assert.equal(started.deadlineAt, 362_000);
+    assert.equal(started.deadlineAt, 182_000);
     assert.equal(f.store.startFirstContact('pilot', a.attemptId, 3000), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'wrong', 3000), undefined);
-    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 362_000), undefined);
-    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 241_999).firstClearCredits, 2400);
-    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 241_999), undefined);
+    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 182_000), undefined);
+    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 181_999).firstClearCredits, 2400);
+    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 181_999), undefined);
     const replay = f.store.launch('pilot', 'trainer', 300_000, mission.id);
     f.store.approach('pilot', replay.attemptId); f.store.assignFirstContact('pilot', replay.attemptId, 'new');
     f.store.startFirstContact('pilot', replay.attemptId, 301_000);
@@ -190,7 +190,7 @@ test('M12 keeps identity, DFW runway, safe spawn, canonical LEGENDARY and origin
   const enemy=createOpponent({aircraft:mission.enemyAircraft,livery:mission.enemyLivery,level:'LEGENDARY',personality:'aggressive',behavior:'patrol',cityId:'dallas',position:{...mission.enemySpawn,y:1000},rotation:{x:0,y:0,z:0},speed:mission.cruiseSpeed,health:mission.enemyHealth});
   assert.equal(enemy.profile,enemyAiLevels.LEGENDARY);assert.equal(mission.enemyHealth,300);
   assert.equal(projectileDamageForAircraft('trainer')*12,mission.enemyHealth);
-  assert.equal(mission.firstClearCredits,2400);assert.equal(mission.timeLimitMs,360000);
+  assert.equal(mission.firstClearCredits,2400);assert.equal(mission.timeLimitMs,180000);
   for(const obsolete of ['territoryId','captureMs','defenseMs','defenseRadius','hunterDelayMs'])assert.equal(obsolete in mission,false);
   assert.doesNotMatch(source,/updateSiegeCapture|updateSiegeDefense|assignSiegeHunter/);
 });

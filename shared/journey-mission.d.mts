@@ -45,12 +45,12 @@ export const journeyDallas06: Readonly<{
 }>;
 export const journeyDallas07: Readonly<{
   id: 'journey-dallas-07'; cityId: 'dallas'; name: 'GIANT PLANE'; chapter: 'SKY SIEGE';
-  timeLimitMs: number; firstClearCredits: 850; startAirportId: 'dfw'; bossHealth: 2000;
+  timeLimitMs: 180000; firstClearCredits: 850; startAirportId: 'dfw'; bossHealth: 2000;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas08: Readonly<{
   id: 'journey-dallas-08'; cityId: 'dallas'; name: 'GIANT PLANE & TWO ESCORTS'; chapter: 'SKY ADVENTURES';
-  firstClearCredits: 950; startAirportId: 'dfw'; timeLimitMs: 390000; bossHealth: 2000;
+  firstClearCredits: 950; startAirportId: 'dfw'; timeLimitMs: 180000; bossHealth: 2000;
   escortHealth: 1000; escortCount: 2; escortScale: 16; escortFireDelayMs: 5000;
   escortAircraft: readonly ['trainer', 'trainer'];
   escortLiveries: readonly ['bluejay-skybolt', 'bluejay-aurora'];
@@ -62,7 +62,7 @@ export const journeyDallas08: Readonly<{
 }>;
 export const journeyDallas09: Readonly<{
   id: 'journey-dallas-09'; cityId: 'dallas'; name: 'GIANT PLANE & THREE ESCORTS'; chapter: 'SKY ADVENTURES';
-  firstClearCredits: 1050; startAirportId: 'dfw'; timeLimitMs: 330000; bossHealth: 2000;
+  firstClearCredits: 1050; startAirportId: 'dfw'; timeLimitMs: 180000; bossHealth: 2000;
   escortCount: 3; initialEscortCount: 3; escortScale: 16;
   escortHealth: readonly [75, 125, 175];
   escortAircraft: readonly ['trainer', 'cargo', 'privateJet'];
@@ -73,7 +73,7 @@ export const journeyDallas09: Readonly<{
 }>;
 export const journeyDallas10: Readonly<{
   id: 'journey-dallas-10'; cityId: 'dallas'; name: 'GIANT PLANE & FOUR ESCORTS'; chapter: 'SKY ADVENTURES';
-  timeLimitMs: 330000; firstClearCredits: 1150; startAirportId: 'dfw'; bossHealth: 2000;
+  timeLimitMs: 180000; firstClearCredits: 1150; startAirportId: 'dfw'; bossHealth: 2000;
   escortCount: 4; escortScale: 16; escortHealth: readonly [175, 225, 175, 225];
   escortAircraft: readonly ['privateJet', 'cargo', 'privateJet', 'cargo'];
   escortLiveries: readonly ['nightowl-forest', 'mammoth-sand', 'nightowl-royal-violet', 'mammoth-desert-sand'];
@@ -84,7 +84,7 @@ export const journeyDallas10: Readonly<{
 }>;
 export const journeyDallas11: Readonly<{
   id: 'journey-dallas-11'; cityId: 'dallas'; name: 'ARMORED GIANT PLANE'; chapter: 'SKY ADVENTURES';
-  timeLimitMs: 330000; firstClearCredits: 1250; startAirportId: 'dfw';
+  timeLimitMs: 180000; firstClearCredits: 1250; startAirportId: 'dfw';
   turretHealth: 250; coreHealth: 1500;
   hatch: Readonly<{ z: 22.05; bottom: -0.45; width: 3.85; height: 3.35 }>;
   coreLocal: Readonly<{ x: 0; y: 1.2; z: 21.2 }>; coreRadius: 0.9;
@@ -93,7 +93,7 @@ export const journeyDallas11: Readonly<{
 }>;
 export const journeyDallas12: Readonly<{
   id: 'journey-dallas-12'; cityId: 'dallas'; name: 'ARMORED GIANT PLANE & TWO ESCORTS'; chapter: 'SKY ADVENTURES';
-  timeLimitMs: 360000; firstClearCredits: 1500; startAirportId: 'dfw';
+  timeLimitMs: 180000; firstClearCredits: 1500; startAirportId: 'dfw';
   turretHealth: 250; coreHealth: 1750;
   escortCount: 2; escortScale: number; escortHealth: readonly [175, 225];
   escortAircraft: readonly ['privateJet', 'fighter']; escortLiveries: readonly ['nightowl-forest', 'firehawk-inferno'];
@@ -109,7 +109,7 @@ export const journeyDallas13: Readonly<{
 }>;
 export const journeyDallas14: Readonly<{
   id: 'journey-dallas-14'; cityId: 'dallas'; name: 'SURPRISE ATTACK'; chapter: 'SKY HUNTERS';
-  timeLimitMs: 242000; firstClearCredits: 1800; startAirportId: 'love';
+  timeLimitMs: 180000; firstClearCredits: 1800; startAirportId: 'love';
   enemyAircraft: 'trainer'; enemyLivery: 'bluejay-aurora'; enemyHealth: 150;
   enemyAltitude: 2400; aggressionDistance: 30000; patrolRadius: 4500; cruiseSpeed: 460;
   warningMs: 3000; rearApproachMs: 18000; enemySpawn: Readonly<{ x: number; z: number }>;
@@ -117,24 +117,24 @@ export const journeyDallas14: Readonly<{
 export const journeyDallas15: Readonly<{
   id: 'journey-dallas-15'; cityId: 'dallas'; name: 'HOT PURSUIT'; chapter: 'SKY HUNTERS';
   firstClearCredits: 1950; startAirportId: 'addison'; bossName: 'ESCAPING MAMMOTH'; bossHealth: 200;
-  timeLimitMs:270000; enemyAircraft:'cargo'; enemyLivery:'mammoth-sand'; enemyAltitude:2400;
+  timeLimitMs: 180000; enemyAircraft:'cargo'; enemyLivery:'mammoth-sand'; enemyAltitude:2400;
   enemySpawn:Readonly<{x:number;z:number}>; cruiseSpeed:420; threatDistance:30000; arrivalRadius:1950;
   escapeRoute:readonly Readonly<{x:number;z:number}>[];
 }>;
 export const journeyDallas16: Readonly<{
   id:'journey-dallas-16';cityId:'dallas';name:'DOUBLE THREAT';chapter:'SKY HUNTERS';
-  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs:300000;enemyHealth:100;aggressionDistance:8000;
+  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs: 180000;enemyHealth:100;aggressionDistance:8000;
   enemies:readonly Readonly<{aircraft:'privateJet'|'trainer';livery:string;x:number;z:number;altitude:number}>[];
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas17:Readonly<{
   id:'journey-dallas-17';cityId:'dallas';name:'IRON HUNTER';chapter:'SKY HUNTERS';firstClearCredits:2250;
-  startAirportId:'executive';timeLimitMs:330000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:250;
+  startAirportId:'executive';timeLimitMs: 180000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:250;
   enemyAltitude:2400;aggressionDistance:6000;patrolRadius:6000;cruiseSpeed:400;enemySpawn:Readonly<{x:number;z:number}>;
 }>;
 export const journeyDallas18: Readonly<{
   id: 'journey-dallas-18'; cityId: 'dallas'; name: 'FINAL SHOWDOWN'; chapter: 'SKY HUNTERS'; firstClearCredits: 2400;
-  startAirportId: 'dfw'; timeLimitMs: 360000; enemyAircraft: 'fighter'; enemyLivery: 'firehawk-inferno'; enemyHealth: 300;
+  startAirportId: 'dfw'; timeLimitMs: 180000; enemyAircraft: 'fighter'; enemyLivery: 'firehawk-stealth-gray'; enemyHealth: 300;
   enemyAltitude: 2700; aggressionDistance: 8000; patrolRadius: 7500; cruiseSpeed: 600;
   enemySpawn: Readonly<{x:number;z:number}>; enemyDamage: 20; shotIntervalMs: 750; burstShots: 2; burstPauseMs: 2000;
 }>;

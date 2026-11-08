@@ -80,8 +80,8 @@ test('takeoff-only six-minute clock, target ownership, deadline, first clear and
     assert.equal(f.store.startFirstContact('pilot', a.attemptId, 3000), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'wrong', 3000), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', started.deadlineAt), undefined);
-    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 241_999).firstClearCredits, 2250);
-    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 241_999), undefined);
+    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 181_999).firstClearCredits, 2250);
+    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 181_999), undefined);
     const replay = f.store.launch('pilot', 'trainer', 300_000, mission.id);
     f.store.approach('pilot', replay.attemptId); f.store.assignFirstContact('pilot', replay.attemptId, 'new');
     f.store.startFirstContact('pilot', replay.attemptId, 301_000);
@@ -188,7 +188,7 @@ test('M11 keeps identity, Executive runway, safe spawn, canonical VERY HARD and 
   const enemy=createOpponent({aircraft:mission.enemyAircraft,livery:mission.enemyLivery,level:'VERY_HARD',personality:'aggressive',behavior:'patrol',cityId:'dallas',position:{...mission.enemySpawn,y:1000},rotation:{x:0,y:0,z:0},speed:mission.cruiseSpeed,health:mission.enemyHealth});
   assert.equal(enemy.profile,enemyAiLevels.VERY_HARD);assert.equal(mission.enemyHealth,250);
   assert.equal(projectileDamageForAircraft('trainer')*10,mission.enemyHealth);
-  assert.equal(mission.firstClearCredits,2250);assert.equal(mission.timeLimitMs,330000);
+  assert.equal(mission.firstClearCredits,2250);assert.equal(mission.timeLimitMs,180000);
   for(const obsolete of ['heart','heartId','startHealthFraction','finishAirportId','requiredLandingScore'])assert.equal(obsolete in mission,false);
   assert.doesNotMatch(source,/collectCriticalHeart|recordCriticalLanding/);
 });

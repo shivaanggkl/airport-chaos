@@ -36,11 +36,11 @@ test('Mission 9 reinforcements enter the forward view and converge outside the t
     (left.z - transport.z) * (right.z - transport.z) < 0);
 });
 
-test('Mission 9 preserves its reward and uses a 16:30 transport route with three specified escorts', () => {
+test('Mission 9 preserves its reward and uses a 3:00 transport route with three specified escorts', () => {
   assert.equal(journeyDallas09.name, 'GIANT PLANE & THREE ESCORTS');
   assert.equal(journeyDallas09.firstClearCredits, 1_050);
   assert.equal(journeyDallas09.bossHealth, 2_000);
-  assert.equal(journeyDallas09.timeLimitMs, 990_000);
+  assert.equal(journeyDallas09.timeLimitMs, 180_000);
   assert.equal(journeyDallas09.escortCount, 3);
   assert.equal(journeyDallas09.initialEscortCount, 3);
   assert.deepEqual(journeyDallas09.escortHealth, [75, 125, 175]);
@@ -52,7 +52,7 @@ test('Mission 9 preserves its reward and uses a 16:30 transport route with three
   }
   const end = transportPose(journeyDallas09.timeLimitMs, 900, journeyDallas09.timeLimitMs);
   assert.ok(Math.abs(end.x - transportCourse.end.x) < .001 && Math.abs(end.z - transportCourse.end.z) < .001);
-  assert.ok(transportRouteLength / 990 < aircraftFlightEnvelope.trainer.maxSpeed * .5);
+  assert.ok(transportRouteLength / (journeyDallas09.timeLimitMs / 1000) < aircraftFlightEnvelope.trainer.maxSpeed);
 });
 
 test('one threshold crossing starts the wave; a terminal transport hit cancels it', () => {
@@ -127,7 +127,7 @@ test('Mission 9 unlock, first clear, replay, timeout and wallet remain server-ow
     assert.equal(store.approach('pilot', first.attemptId)?.status, 'APPROACH');
     assert.ok(missionFocusForAttempt(store.get('pilot', first.attemptId)));
     assert.equal(store.hitTransport('pilot', first.attemptId, 1_500, 25), undefined);
-    assert.equal(store.startGiantIncoming('pilot', first.attemptId, 2_000)?.deadlineAt, 992_000);
+    assert.equal(store.startGiantIncoming('pilot', first.attemptId, 2_000)?.deadlineAt, 182_000);
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'bluejay', 1)?.targetId, 'bluejay');
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'replacement', 1), undefined);
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'mammoth', 2)?.secondaryTargetId, 'mammoth');

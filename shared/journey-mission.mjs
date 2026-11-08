@@ -158,14 +158,14 @@ const baseJourneyDallas06 = Object.freeze({
 
 const baseJourneyDallas07 = Object.freeze({
   id: 'journey-dallas-07', cityId: 'dallas', name: 'GIANT PLANE',
-  chapter: 'SKY SIEGE', timeLimitMs: 360_000, firstClearCredits: 850,
+  chapter: 'SKY SIEGE', timeLimitMs: 180_000, firstClearCredits: 850,
   startAirportId: 'dfw', gates: Object.freeze([]), bossHealth: transportTuning.health,
 });
 
 const baseJourneyDallas08 = Object.freeze({
   id: 'journey-dallas-08', cityId: 'dallas', name: 'GIANT PLANE & TWO ESCORTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 950,
-  startAirportId: 'dfw', timeLimitMs: 130_000, bossHealth: transportTuning.health,
+  startAirportId: 'dfw', timeLimitMs: 60_000, bossHealth: transportTuning.health,
   escortHealth: 1_000, escortCount: 2, escortScale: remoteAircraftScale, escortFireDelayMs: 5_000,
   escortAircraft: Object.freeze(['trainer', 'trainer']),
   escortLiveries: Object.freeze(['bluejay-skybolt', 'bluejay-aurora']),
@@ -189,7 +189,7 @@ const baseJourneyDallas08 = Object.freeze({
 const baseJourneyDallas09 = Object.freeze({
   id: 'journey-dallas-09', cityId: 'dallas', name: 'GIANT PLANE & THREE ESCORTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 1_050,
-  startAirportId: 'dfw', timeLimitMs: 330_000, bossHealth: transportTuning.health,
+  startAirportId: 'dfw', timeLimitMs: 60_000, bossHealth: transportTuning.health,
   escortCount: 3, initialEscortCount: 3, escortScale: remoteAircraftScale,
   escortHealth: Object.freeze([75, 125, 175]),
   escortAircraft: Object.freeze(['trainer', 'cargo', 'privateJet']),
@@ -201,7 +201,7 @@ const baseJourneyDallas09 = Object.freeze({
 
 const baseJourneyDallas10 = Object.freeze({
   id: 'journey-dallas-10', cityId: 'dallas', name: 'GIANT PLANE & FOUR ESCORTS',
-  chapter: 'SKY ADVENTURES', timeLimitMs: 330_000, firstClearCredits: 1_150,
+  chapter: 'SKY ADVENTURES', timeLimitMs: 60_000, firstClearCredits: 1_150,
   startAirportId: 'dfw', bossHealth: transportTuning.health,
   escortCount: 4, escortScale: remoteAircraftScale,
   escortHealth: Object.freeze([175, 225, 175, 225]),
@@ -215,7 +215,7 @@ const baseJourneyDallas10 = Object.freeze({
 
 const baseJourneyDallas11 = Object.freeze({
   id: 'journey-dallas-11', cityId: 'dallas', name: 'ARMORED GIANT PLANE',
-  chapter: 'SKY ADVENTURES', timeLimitMs: 330_000, firstClearCredits: 1_250,
+  chapter: 'SKY ADVENTURES', timeLimitMs: 60_000, firstClearCredits: 1_250,
   startAirportId: 'dfw', turretHealth: 250, coreHealth: 1_500,
   hatch: Object.freeze({ z: 22.05, bottom: -0.45, width: 3.85, height: 3.35 }),
   coreLocal: Object.freeze({ x: 0, y: 1.2, z: 21.2 }), coreRadius: 0.9,
@@ -225,7 +225,7 @@ const baseJourneyDallas11 = Object.freeze({
 
 const baseJourneyDallas12 = Object.freeze({
   id: 'journey-dallas-12', cityId: 'dallas', name: 'ARMORED GIANT PLANE & TWO ESCORTS',
-  chapter: 'SKY ADVENTURES', timeLimitMs: 360_000, firstClearCredits: 1_500,
+  chapter: 'SKY ADVENTURES', timeLimitMs: 60_000, firstClearCredits: 1_500,
   startAirportId: 'dfw', turretHealth: baseJourneyDallas11.turretHealth, coreHealth: 1_750,
   escortCount: 2, escortScale: baseJourneyDallas10.escortScale,
   escortHealth: Object.freeze([175, 225]),
@@ -257,7 +257,7 @@ const baseJourneyDallas13 = Object.freeze({
 
 const baseJourneyDallas14 = Object.freeze({
   id: 'journey-dallas-14', cityId: 'dallas', name: 'SURPRISE ATTACK',
-  chapter: 'SKY HUNTERS', timeLimitMs: 242_000 / DALLAS_WORLD_SCALE, firstClearCredits: 1_800,
+  chapter: 'SKY HUNTERS', timeLimitMs: 60_000, firstClearCredits: 1_800,
   startAirportId: 'love', enemyAircraft: 'trainer', enemyLivery: 'bluejay-aurora',
   enemyHealth: 150, enemyAltitude: 800, aggressionDistance: 10_000,
   patrolRadius: 1_500, cruiseSpeed: 460, warningMs: 3_000, rearApproachMs: 18_000,
@@ -267,7 +267,7 @@ const baseJourneyDallas14 = Object.freeze({
 
 const baseJourneyDallas15 = Object.freeze({
   id: 'journey-dallas-15', cityId: 'dallas', name: 'HOT PURSUIT',
-  chapter: 'SKY HUNTERS', firstClearCredits: 1_950, timeLimitMs: 90_000,
+  chapter: 'SKY HUNTERS', firstClearCredits: 1_950, timeLimitMs: 60_000,
   startAirportId: 'addison', bossName: 'ESCAPING MAMMOTH', bossHealth: 200,
   enemyAircraft: 'cargo', enemyLivery: 'mammoth-sand', enemyAltitude: 800,
   enemySpawn: Object.freeze({x:-23_000 / DALLAS_WORLD_SCALE,z:-74_000 / DALLAS_WORLD_SCALE}), cruiseSpeed: 420, threatDistance: 10_000, arrivalRadius: 650,
@@ -282,7 +282,7 @@ const baseJourneyDallas15 = Object.freeze({
 // Two independently flying opponents share permission to initiate shots.
 const baseJourneyDallas16 = Object.freeze({
   id:'journey-dallas-16',cityId:'dallas',name:'DOUBLE THREAT',chapter:'SKY HUNTERS',
-  firstClearCredits:2_100,startAirportId:'dfw',timeLimitMs:100_000,enemyHealth:100,aggressionDistance:8_000 / DALLAS_WORLD_SCALE,
+  firstClearCredits:2_100,startAirportId:'dfw',timeLimitMs: 60_000,enemyHealth:100,aggressionDistance:8_000 / DALLAS_WORLD_SCALE,
   enemies:Object.freeze([
     Object.freeze({aircraft:'privateJet',livery:'nightowl-sunset-red',x:-65_000 / DALLAS_WORLD_SCALE,z:-53_500 / DALLAS_WORLD_SCALE,altitude:750}),
     Object.freeze({aircraft:'trainer',livery:'bluejay-skybolt',x:-57_000 / DALLAS_WORLD_SCALE,z:-51_000 / DALLAS_WORLD_SCALE,altitude:900}),
@@ -293,7 +293,7 @@ const baseJourneyDallas16 = Object.freeze({
 // A heavy, aggressive opponent uses the same single-enemy combat lifecycle.
 const baseJourneyDallas17 = Object.freeze({
   id: 'journey-dallas-17', cityId: 'dallas', name: 'IRON HUNTER', chapter: 'SKY HUNTERS', firstClearCredits: 2_250,
-  startAirportId: 'executive', timeLimitMs: 110_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 250,
+  startAirportId: 'executive', timeLimitMs: 60_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 250,
   enemyAltitude: 800, aggressionDistance: 6_000 / DALLAS_WORLD_SCALE, patrolRadius: 2_000, cruiseSpeed: 400,
   enemySpawn: Object.freeze({ x: -10_500 / DALLAS_WORLD_SCALE, z: 16_000 / DALLAS_WORLD_SCALE }),
 });
@@ -301,7 +301,7 @@ const baseJourneyDallas17 = Object.freeze({
 // Chapter 2 finale; weapon pacing and damage are private to this encounter.
 const baseJourneyDallas18 = Object.freeze({
   id: 'journey-dallas-18', cityId: 'dallas', name: 'FINAL SHOWDOWN', chapter: 'SKY HUNTERS', firstClearCredits: 2_400,
-  startAirportId: 'dfw', timeLimitMs: 120_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-inferno', enemyHealth: 300,
+  startAirportId: 'dfw', timeLimitMs: 60_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-stealth-gray', enemyHealth: 300,
   enemyAltitude: 900, aggressionDistance: 8_000 / DALLAS_WORLD_SCALE, patrolRadius: 2_500, cruiseSpeed: 600,
   enemySpawn: Object.freeze({ x: -47_500 / DALLAS_WORLD_SCALE, z: -48_000 / DALLAS_WORLD_SCALE }),
   enemyDamage: 20, shotIntervalMs: 750, burstShots: 2, burstPauseMs: 2_000,

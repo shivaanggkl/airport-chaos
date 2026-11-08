@@ -1,7 +1,7 @@
 import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
 import { readFileSync } from 'node:fs';
-import { transportPose, transportTuning, transportFootprintRadius, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
-import { COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
+import { transportPose, transportTuning, transportFootprintRadius, transportFootprintForMission, transportScaleForMission, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
+import { AIM_ENVELOPE, COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
 import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
 import { segmentBlockedByBuildings, indexBuildingsForOcclusion } from './monster-arrival.js';
 type Building = {
@@ -12,7 +12,7 @@ type Building = {
     top: number;
 };
 export function transportBuildingCoverage() {
-    const first=transportPose(0),last=transportPose(transportTuning.durationMs),reach=COMBAT_RANGE+transportFootprintRadius;
+    const first=transportPose(0),last=transportPose(transportTuning.durationMs),reach=COMBAT_RANGE+transportFootprintForMission('journey-dallas-07')*1.5;
     return {minX:first.x-reach,maxX:last.x+reach,minZ:Math.min(first.z,last.z)-reach,maxZ:Math.max(first.z,last.z)+reach};
 }
 export function loadTransportBuildings(): Building[] {
@@ -20,8 +20,9 @@ export function loadTransportBuildings(): Building[] {
     indexBuildingsForOcclusion(result);
     return result;
 }
-export function transportAltitude(buildings: readonly Building[], terrain: (x: number, z: number) => number): number {
+export function transportAltitude(buildings: readonly Building[], terrain: (x: number, z: number) => number, missionId?: string): number {
     let ceiling = 0;
+    const footprint = transportFootprintForMission(missionId);
     const first = transportPose(0), last = transportPose(transportTuning.durationMs);
     const dx = last.x-first.x, dz = last.z-first.z, lengthSquared = dx*dx+dz*dz;
     // One conservative footprint/route check per mapped building, not a full
@@ -30,16 +31,16 @@ export function transportAltitude(buildings: readonly Building[], terrain: (x: n
         const x=(building.minX+building.maxX)/2, z=(building.minZ+building.maxZ)/2;
         const t=Math.max(0,Math.min(1,((x-first.x)*dx+(z-first.z)*dz)/lengthSquared));
         const radius=Math.hypot(building.maxX-building.minX,building.maxZ-building.minZ)/2;
-        if(Math.hypot(x-first.x-t*dx,z-first.z-t*dz)<=transportFootprintRadius+radius)
+        if(Math.hypot(x-first.x-t*dx,z-first.z-t*dz)<=footprint+radius)
             ceiling=Math.max(ceiling,building.top);
     }
     for(let ms=0;ms<=transportTuning.durationMs;ms+=100){
         const p=transportPose(ms);
-        for(const x of [-transportFootprintRadius,0,transportFootprintRadius])
-            for(const z of [-transportFootprintRadius,0,transportFootprintRadius])
+        for(const x of [-footprint,0,footprint])
+            for(const z of [-footprint,0,footprint])
                 ceiling=Math.max(ceiling,terrain(p.x+x,p.z+z));
     }
-    return Math.max(900,ceiling+250+4.41283*transportTuning.scale);
+    return Math.max(900,ceiling+250+4.41283*transportScaleForMission(missionId)) * transportTuning.altitudeMultiplier;
 
 }
 const collisionData = (JSON.parse(readFileSync(new URL('../../shared/giant-transport-collision.json', import.meta.url), 'utf8')) as {
@@ -75,7 +76,7 @@ function gunLocal(p:Point,pose:CollisionPose,gun=0):number[]{const q=local(p,pos
     pitch=gun?pose.sideGuns?.[gun-1]?.pitch??0:pose.gunPitch??0,
     c=Math.cos(yaw),s=Math.sin(yaw),gx=c*x-s*z,gz=s*x+c*z,cp=Math.cos(pitch),sp=Math.sin(pitch);
     return[gx,cp*y-sp*gz,sp*y+cp*gz];}
-function local(p: Point, pose: TransportPose): number[] { const x = p.x - pose.x, z = p.z - pose.z, c = Math.cos(pose.yaw), s = Math.sin(pose.yaw); const lx = c * x - s * z, ly = p.y - pose.y, r = pose.roll ?? 0, cr = Math.cos(r), sr = Math.sin(r); return [(cr * lx + sr * ly) / transportTuning.scale, (-sr * lx + cr * ly) / transportTuning.scale, (s * x + c * z) / transportTuning.scale]; }
+function local(p: Point, pose: TransportPose): number[] { const x = p.x - pose.x, z = p.z - pose.z, c = Math.cos(pose.yaw), s = Math.sin(pose.yaw); const lx = c * x - s * z, ly = p.y - pose.y, r = pose.roll ?? 0, cr = Math.cos(r), sr = Math.sin(r); return [(cr * lx + sr * ly) / (pose.scale ?? transportTuning.scale), (-sr * lx + cr * ly) / (pose.scale ?? transportTuning.scale), (s * x + c * z) / (pose.scale ?? transportTuning.scale)]; }
 const cross = (a: number[], b: number[]) => [a[1]! * b[2]! - a[2]! * b[1]!, a[2]! * b[0]! - a[0]! * b[2]!, a[0]! * b[1]! - a[1]! * b[0]!];
 const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
 const sub = (a: number[], b: number[]) => a.map((v, i) => v - b[i]!);
@@ -243,15 +244,33 @@ export function transportGunMuzzle(p: TransportPose, gun: number, yaw = 0, pitch
     const distance = 2.1299991607666016, x = side * 11 + Math.sin(heading) * Math.cos(pitch) * distance;
     const y = 4.699999809265137 + Math.sin(pitch) * distance, z = Math.cos(heading) * Math.cos(pitch) * distance;
     const cr = Math.cos(p.roll), sr = Math.sin(p.roll), lx = cr * x - sr * y, ly = sr * x + cr * y, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
-    return { x: p.x + (c * lx + s * z) * transportTuning.scale, y: p.y + ly * transportTuning.scale,
-        z: p.z + (-s * lx + c * z) * transportTuning.scale };
+    return { x: p.x + (c * lx + s * z) * (p.scale ?? transportTuning.scale), y: p.y + ly * (p.scale ?? transportTuning.scale),
+        z: p.z + (-s * lx + c * z) * (p.scale ?? transportTuning.scale) };
 }
 export function transportFortressTarget(p: TransportPose, component:'left'|'right'|'core'):Point {
     const x=component==='left'?-11:component==='right'?11:journeyDallas11.coreLocal.x,
       y=component==='core'?journeyDallas11.coreLocal.y:4.7,z=component==='core'?journeyDallas11.coreLocal.z:0;
     const cr=Math.cos(p.roll),sr=Math.sin(p.roll),lx=cr*x-sr*y,ly=sr*x+cr*y,c=Math.cos(p.yaw),s=Math.sin(p.yaw);
-    return {x:p.x+(c*lx+s*z)*transportTuning.scale,y:p.y+ly*transportTuning.scale,
-      z:p.z+(-s*lx+c*z)*transportTuning.scale};
+    return {x:p.x+(c*lx+s*z)*(p.scale ?? transportTuning.scale),y:p.y+ly*(p.scale ?? transportTuning.scale),
+      z:p.z+(-s*lx+c*z)*(p.scale ?? transportTuning.scale)};
+}
+/** Pick a living component under the aircraft's full firing direction, never the camera. */
+export function transportFortressAimTarget(pose: TransportPose, origin: Point, forward: Point,
+    health: Readonly<Record<'left'|'right'|'core', number>>) {
+    let best: { component: 'left'|'right'|'core'; position: Point } | undefined;
+    let bestCosine = Math.cos(AIM_ENVELOPE);
+    const forwardLength = Math.hypot(forward.x, forward.y, forward.z);
+    if (!Number.isFinite(forwardLength) || forwardLength === 0) return undefined;
+    for (const component of ['left', 'right', 'core'] as const) {
+        if (!(health[component] > 0)) continue;
+        const position = transportFortressTarget(pose, component);
+        const x = position.x-origin.x, y = position.y-origin.y, z = position.z-origin.z;
+        const distance = Math.hypot(x,y,z);
+        if (!(distance > 0 && distance <= COMBAT_RANGE)) continue;
+        const cosine = (x*forward.x+y*forward.y+z*forward.z)/(distance*forwardLength);
+        if (cosine > bestCosine) { bestCosine = cosine; best = { component, position }; }
+    }
+    return best;
 }
 export function transportGunAim(p: TransportPose, target: Point, gun: number): { yaw: number; pitch: number; eligible: boolean } {
     if (gun === 0) return transportAim(p, target);
@@ -287,7 +306,7 @@ export function stepCrossfireGunCycle(cycle: CrossfireGunCycle, now: number, leg
     return gun;
 }
 export function transportMuzzle(p: TransportPose, yaw = 0, pitch = 0): Point {
-    const distance = 2.1299991607666016 * transportTuning.scale, x = Math.sin(yaw) * Math.cos(pitch) * distance, y = 4.699999809265137 * transportTuning.scale + Math.sin(pitch) * distance, z = 18.600000381469727 * transportTuning.scale + Math.cos(yaw) * Math.cos(pitch) * distance;
+    const distance = 2.1299991607666016 * (p.scale ?? transportTuning.scale), x = Math.sin(yaw) * Math.cos(pitch) * distance, y = 4.699999809265137 * (p.scale ?? transportTuning.scale) + Math.sin(pitch) * distance, z = 18.600000381469727 * (p.scale ?? transportTuning.scale) + Math.cos(yaw) * Math.cos(pitch) * distance;
     const cr = Math.cos(p.roll), sr = Math.sin(p.roll), lx = cr * x - sr * y, ly = sr * x + cr * y, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
     return { x: p.x + c * lx + s * z, y: p.y + ly, z: p.z - s * lx + c * z };
 }

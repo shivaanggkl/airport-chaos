@@ -1802,6 +1802,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .journey-result-actions [data-journey-exit] { color: #f6fbff; border-color: #35d6ff; background: linear-gradient(#1e4d7a,#163458); }
 .journey-result-actions button[hidden] { display: none; }
 .journey-result.is-terminal .journey-result-card [data-journey-result-heading] { display: none; }
+.journey-result.is-terminal:not(.is-training):not(.is-flight-result) .journey-result-card [data-journey-result-heading],
 .journey-result.is-terminal.is-failure .journey-result-card [data-journey-result-heading] { display: block; margin: 0 0 6px; color: #315f7a; font-size: clamp(13px, 1.6vw, 18px); line-height: 1.1; }
 .journey-result.is-terminal .journey-result-card h2 { margin: 0; color: #0b2345; font-size: clamp(28px, 4vw, 48px); line-height: 1; letter-spacing: .015em; }
 .journey-result.is-terminal .journey-result-card > strong { margin: 2px 0 10px; color: #315f7a; font-size: clamp(16px, 2vw, 23px); line-height: 1.1; }
@@ -7154,3 +7155,12 @@ html.custom-control-layout #game-root #radar-panel {
   top: 55%;
   transform: translateY(-50%);
 }
+
+/* Journey combat reuses the Sky Duel telemetry header and its responsive layout. */
+.journey-combat-header { z-index: 30; }
+.journey-combat-header .sky-duel-hud-scoreboard { justify-content: center; }
+.journey-combat-header-active .flight-hud-center,
+.journey-combat-header-active .flight-hud-rewards,
+.journey-combat-header-active .flight-hud-danger { display: none !important; }
+#game-root.journey-combat-header-active #right-flight-stack,
+#game-root.journey-combat-header-active .flight-game-hud #flight-map-button { top: calc(var(--safe-area-top) + 84px); }

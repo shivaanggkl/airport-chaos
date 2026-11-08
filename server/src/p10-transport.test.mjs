@@ -1,4 +1,4 @@
-import {transportPose,transportRouteForMission,transportCourse,transportFootprintRadius,transportRouteLength,transportTuning} from '../../shared/giant-incoming.mjs';
+import {transportPose,transportRouteForMission,transportCourse,transportFootprintRadius,transportFootprintForMission,transportScaleForMission,transportRouteLength,transportTuning} from '../../shared/giant-incoming.mjs';
 import {createTransportEncounter,stepTransportEncounter,transportImpact,transportAircraftImpact,transportAltitude,transportFortressImpact,loadTransportBuildings} from './giant-incoming.js';
 import {rearGuardShouldRejoin,createRearGuardFireState,rearGuardTakeoff,rearGuardShooter,rearGuardShotResolved} from './rear-guard-fire.js';
 import assert from 'node:assert/strict';
@@ -175,31 +175,31 @@ function simulate(mission) {
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 }
 
-test('M13 actual non-Boost Bluejay flight and moving-hull combat completes before its six-minute exit',t=>{
+test('M13 actual non-Boost Bluejay flight and moving-hull combat completes before its three-minute exit',t=>{
  const r=simulate(missions.journeyDallas07);t.diagnostic(JSON.stringify(r));
- assert.equal(r.status,'COMPLETED');assert.equal(r.credits,850);assert.equal(r.pilotHits,80);assert(r.completion<=315);assert(r.firstEngagement>=30&&r.firstEngagement<=75);assert(!r.crashed);assert(r.health>0);
+ assert.equal(r.status,'COMPLETED');assert.equal(r.credits,850);assert.equal(r.pilotHits,80);assert(r.completion<=180);assert(r.firstEngagement>=30&&r.firstEngagement<=75);assert(!r.crashed);assert(r.health>0);
 });
 
-test('M13 route, clearance and full-airframe exit agree with its authoritative six-minute deadline',()=>{
- const m=missions.journeyDallas07,route=transportRouteForMission(m.id),altitude=transportAltitude(buildings,ground);
+test('M13 route, clearance and full-airframe exit agree with its authoritative three-minute deadline',()=>{
+ const m=missions.journeyDallas07,route=transportRouteForMission(m.id),altitude=transportAltitude(buildings,ground,m.id);
  const collision=JSON.parse(readFileSync(new URL('../../shared/giant-transport-collision.json',import.meta.url),'utf8'));
- const bottom=collision.triangles.reduce((minimum,t)=>Math.min(minimum,t[1],t[4],t[7]),Infinity)*transportTuning.scale;
- assert.equal(m.timeLimitMs,360000);assert.equal(missionJourneyDetails.find(d=>d.id===m.id).timeLimit,'6:00');
+ const bottom=collision.triangles.reduce((minimum,t)=>Math.min(minimum,t[1],t[4],t[7]),Infinity)*transportScaleForMission(m.id);
+ assert.equal(m.timeLimitMs,180000);assert.equal(missionJourneyDetails.find(d=>d.id===m.id).timeLimit,'3:00');
  assert(route.length<transportRouteLength);assert(route.length>=route.exitX-route.start.x);
  for(let elapsed=0;elapsed<m.timeLimitMs;elapsed+=1000){
   const p=transportPose(elapsed,altitude,m.timeLimitMs,m.id),q=transportPose(elapsed+1000,altitude,m.timeLimitMs,m.id);
-  assert(Math.abs(Math.hypot(q.x-p.x,q.z-p.z)-route.length/360)<1e-6);
-  assert(p.x-transportFootprintRadius<route.exitX,'no early escape');
-  assert(p.y>ground(p.x,p.z)+transportFootprintRadius*.14);
-  for(const b of buildings)if(b.minX<=p.x+transportFootprintRadius&&b.maxX>=p.x-transportFootprintRadius&&b.minZ<=p.z+transportFootprintRadius&&b.maxZ>=p.z-transportFootprintRadius)assert(p.y+bottom>b.top+1,'entire transport clears mapped buildings');
+  assert(Math.abs(Math.hypot(q.x-p.x,q.z-p.z)-route.length/(m.timeLimitMs/1000))<1e-6);
+  assert(p.x-transportFootprintForMission(m.id)<route.exitX,'no early escape');
+  assert(p.y>ground(p.x,p.z)+transportFootprintForMission(m.id)*.14);
+  for(const b of buildings)if(b.minX<=p.x+transportFootprintForMission(m.id)&&b.maxX>=p.x-transportFootprintForMission(m.id)&&b.minZ<=p.z+transportFootprintForMission(m.id)&&b.maxZ>=p.z-transportFootprintForMission(m.id))assert(p.y+bottom>b.top+1,'entire transport clears mapped buildings');
  }
- const end=transportPose(m.timeLimitMs,altitude,m.timeLimitMs,m.id);assert(end.x-transportFootprintRadius>=route.exitX-1e-6);
+ const end=transportPose(m.timeLimitMs,altitude,m.timeLimitMs,m.id);assert(end.x-transportFootprintForMission(m.id)>=route.exitX-1e-6);
  assert.deepEqual(transportPose(m.timeLimitMs+1000,altitude,m.timeLimitMs,m.id),end);
  const a=cityAirports.dallas.find(a=>a.id==='dfw');assert(Math.hypot(route.start.x-a.x,route.start.z-a.z)<15000,'transport begins near DFW');
  assert(route.exitX-(a.x+20000)>75000,'a 75km east-exit route cannot begin within 20km of DFW');
 });
 
-test('M14 non-Boost Bluejay destroys both real escorts and the moving transport before 6:30',t=>{
+test('M14 non-Boost Bluejay destroys both real escorts and the moving transport before 3:00',t=>{
  const r=simulate(missions.journeyDallas08);t.diagnostic(JSON.stringify(r));assert.equal(r.status,'COMPLETED');assert.equal(r.credits,950);assert.deepEqual(r.escortHealths,[0,0]);assert.equal(r.pilotHits,80);assert(r.completion<=345);assert(r.health>0);assert(!r.crashed);
 });
 
@@ -221,9 +221,9 @@ for(const mission of [missions.journeyDallas07,missions.journeyDallas08])test(`$
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 
-test('M14 transport escape matches 6:30 and only M14 escorts use the practical combat area',()=>{
+test('M14 transport escape matches 3:00 and only M14 escorts use the practical combat area',()=>{
  const mission=missions.journeyDallas08,route=transportRouteForMission(mission.id);
- assert.equal(mission.timeLimitMs,390000);assert.equal(missionJourneyDetails.find(d=>d.id===mission.id).timeLimit,'6:30');
+ assert.equal(mission.timeLimitMs,180000);assert.equal(missionJourneyDetails.find(d=>d.id===mission.id).timeLimit,'3:00');
  const before=transportPose(mission.timeLimitMs-50,900,mission.timeLimitMs,mission.id),end=transportPose(mission.timeLimitMs,900,mission.timeLimitMs,mission.id);
  assert(before.x-transportFootprintRadius<route.exitX);assert(end.x-transportFootprintRadius>=route.exitX-1e-6);
  const transport={x:0,z:0},near={x:2000,z:0},far={x:10000,z:0};
@@ -241,3 +241,22 @@ test('M15–M18 keep the legacy route, movement, heading and collision poses at 
   }
  }
 });
+
+for(const mission of [missions.journeyDallas07,missions.journeyDallas08,missions.journeyDallas09,missions.journeyDallas10,missions.journeyDallas11,missions.journeyDallas12]){
+ test(`${mission.name}: three-minute Journey display matches the server GO deadline and timeout`,()=>{
+  const f=fixture();try{
+   assert.equal(mission.timeLimitMs,180000);
+   assert.equal(missionJourneyDetails.find(detail=>detail.id===mission.id)?.timeLimit,'3:00');
+   const attempt=f.store.launch('pilot','trainer',1000,mission.id);
+   assert.equal(attempt.deadlineAt,null);
+   f.store.approach('pilot',attempt.attemptId,2000);
+   assert.equal(f.store.startGiantIncoming('other',attempt.attemptId,3000),undefined);
+   const active=f.store.startGiantIncoming('pilot',attempt.attemptId,3000);
+   assert.equal(active.deadlineAt,183000);
+   assert.equal(f.store.startGiantIncoming('pilot',attempt.attemptId,4000),undefined);
+   if(mission.id===missions.journeyDallas11.id||mission.id===missions.journeyDallas12.id)
+    assert.equal(f.store.hitFortressComponent('pilot',attempt.attemptId,'left',active.deadlineAt,1),undefined);
+   else assert.equal(f.store.hitTransport('pilot',attempt.attemptId,active.deadlineAt,1),undefined);
+  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
+ });
+}

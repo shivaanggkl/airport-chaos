@@ -165,7 +165,7 @@ function simulate(mission) {
 
 test('M9 physical Bluejay interception settles before the Mammoth escapes',t=>{
  const r=simulate(missions.journeyDallas15);t.diagnostic(JSON.stringify(r));
- assert.equal(r.status,'COMPLETED');assert.equal(r.credits,1950);assert(r.completion<=230);assert(r.firstEngagement>=30&&r.firstEngagement<=60);assert(!r.escaped);
+ assert.equal(r.status,'COMPLETED');assert.equal(r.credits,1950);assert(r.completion<=180);assert(r.firstEngagement>=30&&r.firstEngagement<=60);assert(!r.escaped);
 });
 
 
@@ -183,8 +183,8 @@ test('M9 geometry and Journey timer match the scaled escape definition',()=>{
   }
   if(i>1){const r=points[i-2],a=Math.atan2(p.z-r.z,p.x-r.x),b=Math.atan2(q.z-p.z,q.x-p.x);assert(Math.abs(Math.atan2(Math.sin(b-a),Math.cos(b-a)))<Math.PI/3);}
  }
- assert(length>=45000&&length<=65000);assert.equal(m.timeLimitMs,270000);
- assert.equal(missionJourneyDetails.find(d=>d.id===m.id).timeLimit,'4:30');
+ assert(length>=45000&&length<=65000);assert.equal(m.timeLimitMs,180000);
+ assert.equal(missionJourneyDetails.find(d=>d.id===m.id).timeLimit,'3:00');
 });
 
 test('M9 hostility requires accepted Addison departure and latches once',()=>{
@@ -203,7 +203,7 @@ test('M10 physical non-Boost Bluejay defeats both independently flying coordinat
  assert.equal(r.status,'COMPLETED');assert.equal(r.credits,2100);assert.equal(r.killTimes.length,2);assert(r.completion<=255);assert(r.firstEngagement>=30&&r.firstEngagement<=60);
 });
 
-test('M10 compact placements, world turns and five-minute Journey deadline agree',()=>{
+test('M10 compact placements, world turns and three-minute Journey deadline agree',()=>{
  const m=missions.journeyDallas16,a=cityAirports.dallas.find(a=>a.id==='dfw');
  const runwayZ=a.z+Math.min(a.runwayLength*.32,a.runwayLength*.5-120);
  for(const enemy of m.enemies){
@@ -212,7 +212,7 @@ test('M10 compact placements, world turns and five-minute Journey deadline agree
   assert(!segmentBlockedByBuildings({x:enemy.x,y:ground(enemy.x,enemy.z)+enemy.altitude,z:enemy.z},{x:enemy.x,y:ground(enemy.x,enemy.z)+enemy.altitude,z:enemy.z},buildings,30));
  }
  assert(Math.hypot(m.enemies[0].x-m.enemies[1].x,m.enemies[0].z-m.enemies[1].z)>4000);
- assert.equal(m.timeLimitMs,300000);assert.equal(missionJourneyDetails.find(d=>d.id===m.id).timeLimit,'5:00');
+ assert.equal(m.timeLimitMs,180000);assert.equal(missionJourneyDetails.find(d=>d.id===m.id).timeLimit,'3:00');
  // Only M10 opts into the actual city boundary; all older callers retain their envelope.
  const position={x:-67000,z:-50000},forward={x:-1,z:0},waypoint={x:-100000,z:-50000};
  assert.equal(journeyHunterSteeringTarget(position,forward,waypoint).x,-100000);

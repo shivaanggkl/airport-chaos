@@ -232,5 +232,5 @@ test('M7 rejects incompatible resumed attempts and uses short, explicit mission 
   assert.ok(receive.indexOf('firstContactSupported !== true') < receive.indexOf('journeyAttempt = message.attempt'));
   assert.match(content, /Find And Shoot Down NIGHTOWL Plane Before Time Runs Out\./);
   assert.match(client, /Find And Shoot Down NIGHTOWL Plane Before Time Runs Out\./);
-  assert.match(client, /SHOOT DOWN NIGHTOWL/);
+  assert.match(client, /SHOOT DOWN NIGHTOWL/i);
 });

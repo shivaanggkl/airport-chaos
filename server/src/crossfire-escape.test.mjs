@@ -34,11 +34,11 @@ test('displayed M10 preserves identity, DFW entry, two appearances, health and d
 
 test('manual takeoff clock, no gate completion, two distinct kills, deadline and once-only reward',()=>{
  const f=fixture();try{const a=assigned(f);assert.equal(f.store.get('pilot',a.attemptId).startedAt,null);assert.equal(f.store.assignCrossfireHunter('pilot',a.attemptId,'duplicate',1),undefined);assert.equal(f.store.acceptGate('pilot',a.attemptId,0,1500),undefined);assert.equal(f.store.completeHunter('pilot',a.attemptId,'one',1500),undefined);
- const start=f.store.startDoubleThreat('pilot',a.attemptId,2000);assert.equal(start.deadlineAt,302000);assert.equal(f.store.startDoubleThreat('pilot',a.attemptId,2100),undefined);assert.equal(f.store.completeHunter('outsider',a.attemptId,'one',2200),undefined);assert.equal(f.store.completeHunter('pilot',a.attemptId,'wrong',2200),undefined);
+ const start=f.store.startDoubleThreat('pilot',a.attemptId,2000);assert.equal(start.deadlineAt,182000);assert.equal(f.store.startDoubleThreat('pilot',a.attemptId,2100),undefined);assert.equal(f.store.completeHunter('outsider',a.attemptId,'one',2200),undefined);assert.equal(f.store.completeHunter('pilot',a.attemptId,'wrong',2200),undefined);
  assert.equal(f.store.completeHunter('pilot',a.attemptId,'one',2500).status,'RACING');assert.equal(f.store.get('pilot',a.attemptId).crossfireKills,1);assert.equal(f.store.completeHunter('pilot',a.attemptId,'one',2600),undefined);assert.equal(f.store.progress('pilot',mission.id).completed,false);
  assert.equal(f.store.completeHunter('pilot',a.attemptId,'two',3000).firstClearCredits,2100);assert.equal(f.store.completeHunter('pilot',a.attemptId,'two',3100),undefined);
  const replay=assigned(f,4000);f.store.startDoubleThreat('pilot',replay.attemptId,4500);f.store.completeHunter('pilot',replay.attemptId,'two',4600);assert.equal(f.store.completeHunter('pilot',replay.attemptId,'one',4700).firstClearCredits,0);assert.equal(f.db.prepare('SELECT credits FROM player_profiles').get().credits,2100);
- const late=assigned(f,5000);f.store.startDoubleThreat('pilot',late.attemptId,6000);assert.equal(f.store.completeHunter('pilot',late.attemptId,'one',306000),undefined);
+ const late=assigned(f,5000);f.store.startDoubleThreat('pilot',late.attemptId,6000);assert.equal(f.store.completeHunter('pilot',late.attemptId,'one',186000),undefined);
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 

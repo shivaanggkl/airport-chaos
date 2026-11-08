@@ -5,8 +5,8 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import * as THREE from 'three';
 import {AircraftVictory} from '../../client/src/aircraft-victory.js';
-import {aircraftPresentationMuzzleSockets} from '../../shared/aircraft-presentation-scale.mjs';
-import {journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16} from '../../shared/journey-mission.mjs';
+import {aircraftPresentationMuzzleSockets,aircraftPresentationScale} from '../../shared/aircraft-presentation-scale.mjs';
+import {journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18} from '../../shared/journey-mission.mjs';
 
 const hit={playerId:'enemy',killerId:'pilot',cause:'combat',position:{x:12345,y:2456,z:-34567},aircraftType:'privateJet'};
 for(const destructionFirst of [false,true])test(`success and destruction join safely in either event order: destruction first ${destructionFirst}`,()=>{
@@ -44,7 +44,7 @@ test('real M7 destruction handler uses the ground-crash breakup once at the serv
  const plane=new THREE.Group();plane.position.set(-999,111,222);plane.rotation.y=.6;
  const no=()=>{},remote={plane,aircraftType:'privateJet',identityTag:{visible:true},hullTag:{visible:true},playerProxy:{visible:true}};
  const effects=[],events=[],classes=new Set(['aircraft-victory-active']);
- const ctx=vm.createContext({THREE,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,aircraftVictoryCandidates:[ending],aircraftVictory:ending,aircraftVictoryReplay:null,prepareAircraftVictoryReplay(){},clearAircraftVictoryReplay(){},journeyMode:true,journeyAttempt:{missionId:journeyDallas13.id,attemptId:'attempt',targetId:'enemy',status:'COMPLETED'},
+ const ctx=vm.createContext({THREE,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,aircraftVictoryCandidates:[ending],aircraftVictory:ending,aircraftVictoryReplay:null,prepareAircraftVictoryReplay(){},clearAircraftVictoryReplay(){},journeyMode:true,journeyAttempt:{missionId:journeyDallas13.id,attemptId:'attempt',targetId:'enemy',status:'COMPLETED'},
   message:hit,localPlayerId:'pilot',airplane:new THREE.Group(),remotePlayers:new Map([['enemy',remote]]),recentDestructionIds:new Map(),performance:{now:()=>1000},
   updateHumanRosterStatus:no,destructionPosition:new THREE.Vector3(),recordEscortHudHealth:no,selectedCombatTarget:undefined,
   hapticsManager:{emit:no},audioManager:{playDestroyConfirm:no},airAssaultMode:false,skyDuelMode:false,
@@ -70,9 +70,9 @@ test('retry/exit cleanup clears the ending, cinematic chrome and flash',()=>{
 });
 
 
-for(const mission of [journeyDallas13,journeyDallas14,journeyDallas15])test(`${mission.name}: actual success presentation waits behind the ending without restarting it`,()=>{
+for(const mission of [journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas17,journeyDallas18])test(`${mission.name}: actual success presentation waits behind the ending without restarting it`,()=>{
  const ending=new AircraftVictory('attempt','enemy','pilot',mission),hidden=new Set();
- const ctx=vm.createContext({journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,aircraftVictory:ending,crashSequence:null,
+ const ctx=vm.createContext({journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,aircraftVictory:ending,crashSequence:null,
   clearHeldActions(){},mobileInput:{reset(){}},boostActive:true,runStarted:true,cinematicDirector:{clearPresentation(){}},
   journeyResultElement:{classList:{add:c=>hidden.add(c)}},flightGameRoot:{classList:{add(){}}}});
  ctx.result={missionId:mission.id,attemptId:'attempt',status:'COMPLETED'};
@@ -97,7 +97,7 @@ test('the fatal ballistic shot replays from its recorded launch to the confirmed
  assert(camera.position.distanceTo(ending.bulletPosition)<650,'camera establishes the muzzle before following the final bullet');
  ending.update(.21);ending.updateCamera(camera);assert(camera.position.distanceTo(ending.bulletPosition)<50);
  const contact=ending.update(.2);assert(contact.blast);assert(!ending.replaying);assert(!contact.complete);
- assert.deepEqual(ending.bulletPosition.toArray(),[12340,2456,-34567]);
+ assert.deepEqual(ending.bulletPosition.toArray(),[12345,2456,-34567]);
  assert.equal(ending.update(1.1).complete,true);
 });
 
@@ -113,18 +113,18 @@ test('assisted finishing shots retain their server muzzle and require the owned 
  assert.deepEqual(ending.impactPosition.toArray(),[12345,2456,-34567]);
 });
 
-for(const mission of [journeyDallas13,journeyDallas14,journeyDallas15])test(`${mission.name}: actual scene keeps the correct enemy and tracer until contact, then cleans them before the blast`,()=>{
+for(const mission of [journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas17,journeyDallas18])test(`${mission.name}: actual scene keeps the correct enemy and tracer until contact, then cleans them before the blast`,()=>{
  const ending=new AircraftVictory('attempt','enemy','pilot',mission);ending.confirmSuccess();
  ending.recordProjectile({projectileId:'finish',ownerId:'pilot',position:{x:11745,y:2456,z:-34567},speed:1000});
  ending.recordFatalHit({playerId:'enemy',shooterId:'pilot',health:0,impactId:'finish',impactPosition:hit.position});
  ending.confirmDestruction(hit,.6);
  const airplane=new THREE.Group(),scene=new THREE.Scene(),events=[],created=[],liveries=[];
  const ctx=vm.createContext({THREE,aircraftVictory:ending,aircraftVictoryReplay:null,airplane,scene,journeyDallas13,
-  aircraftType:'trainer',aircraftPresentationMuzzleSockets,serverProfile:{cosmetics:{equipped:{}}},applyEquippedLivery:(_plane,type,paint)=>liveries.push({type,paint}),
+  camera:new THREE.PerspectiveCamera(58),aircraftType:'trainer',aircraftPresentationMuzzleSockets,aircraftPresentationScale,serverProfile:{cosmetics:{equipped:{}}},applyEquippedLivery:(_plane,type,paint)=>liveries.push({type,paint}),
   createAirplane:type=>{created.push(type);const p=new THREE.Group();p.userData.airframeRoot=new THREE.Group();p.add(p.userData.airframeRoot);return p;},
   createProjectileMesh:()=>{const g=new THREE.Group();g.add(new THREE.Group(),new THREE.Group());return g;},audioManager:{playDestroyConfirm(){}},disposeAirplaneMaterials:()=>events.push('dispose'),
   createDestructionEffect:(position,type)=>{assert.equal(type,mission.enemyAircraft);assert.deepEqual(position.toArray(),[12345,2456,-34567]);events.push('blast');},playDestructionSound(){},
-  transportCrashFlash:{style:{}},flightGameRoot:{classList:{remove(){}}},journeyAttempt:{attemptId:'attempt',status:'COMPLETED'},showJourneyResult:()=>events.push('success')});
+  transportCrashFlash:{style:{}},flightGameRoot:{classList:{remove(){}}},journeyDallas17,journeyDallas18,journeyAttempt:{attemptId:'attempt',status:'COMPLETED'},showJourneyResult:()=>events.push('success')});
  vm.runInContext(code('clearAircraftVictoryReplay')+'\n'+code('prepareAircraftVictoryReplay')+'\n'+code('updateAircraftVictory')+'\nprepareAircraftVictoryReplay(aircraftVictory);updateAircraftVictory(.3);',ctx);
  const replay=ctx.aircraftVictoryReplay;
  assert.deepEqual(created,['trainer',mission.enemyAircraft]);
@@ -132,7 +132,7 @@ for(const mission of [journeyDallas13,journeyDallas14,journeyDallas15])test(`${m
  assert(replay.root.visible);assert(replay.enemy.visible);assert.equal(airplane.visible,false);
  assert.deepEqual(replay.enemy.position.toArray(),[12345,2456,-34567]);
  assert(replay.tracer.position.distanceTo(ending.shotOrigin)>0);assert(!events.includes('blast'));
- vm.runInContext('updateAircraftVictory(.4);',ctx);
+ vm.runInContext((mission===journeyDallas17||mission===journeyDallas18)?'updateAircraftVictory(.7);':'updateAircraftVictory(.4);',ctx);
  assert.equal(ctx.aircraftVictoryReplay,null);assert.equal(scene.children.length,0);assert(airplane.visible);
  assert.deepEqual(events,['dispose','dispose','blast']);
  vm.runInContext('updateAircraftVictory(1.1);',ctx);assert.equal(events.at(-1),'success');
@@ -150,6 +150,32 @@ test('replay aircraft keep moving while the final bullet catches the opponent at
  assert.equal(ending.update(.5).blast,true);assert.deepEqual(ending.enemyPosition.toArray(),[12345,2456,-34567]);
 });
 
+test('M8 holds the opponent at its confirmed pose while only the finishing bullet travels into it',()=>{
+ const ending=new AircraftVictory('attempt','enemy','pilot',journeyDallas14);
+ ending.recordProjectile({projectileId:'finish',ownerId:'pilot',position:{x:0,y:2400,z:0},speed:2000});
+ // A confirmed sphere collision can lie off the visible aircraft's center.
+ ending.recordFatalHit({playerId:'enemy',shooterId:'pilot',health:0,impactId:'finish',impactPosition:{x:0,y:2400,z:-1900}});
+ const position={x:90,y:2400,z:-2000};
+ ending.confirmDestruction({...hit,position},Math.PI/2,undefined,{x:1500,y:0,z:0});
+ ending.confirmSuccess();
+ const camera=new THREE.PerspectiveCamera(58,2.17,.1,100000);
+ ending.setTargetRadius(180);
+ for(let frame=0;frame<9;frame++){
+  assert.equal(ending.update(.1).blast,false);
+  assert.deepEqual(ending.enemyPosition.toArray(),[position.x,position.y,position.z],'opponent must not fly across the finishing replay');
+  assert.deepEqual(ending.pilotMuzzlePosition.toArray(),ending.shotOrigin.toArray(),'pilot stays at the recorded firing position');
+  assert(ending.bulletPosition.distanceTo(ending.shotOrigin)>0,'the bullet visibly travels');
+  ending.updateCamera(camera);camera.updateMatrixWorld();
+  assert(camera.position.distanceTo(ending.enemyPosition)>=450-1e-6,'camera stays outside the scaled opponent');
+  const projected=ending.enemyPosition.clone().project(camera);
+  assert(Math.abs(projected.x)<1&&Math.abs(projected.y)<1&&projected.z>-1&&projected.z<1,'opponent remains inside the camera frustum');
+ }
+ assert(ending.update(.2).blast);
+ assert.deepEqual(ending.bulletPosition.toArray(),[position.x,position.y,position.z]);
+ assert.deepEqual(ending.enemyPosition.toArray(),ending.bulletPosition.toArray());
+ assert.deepEqual(ending.impactPosition.toArray(),ending.enemyPosition.toArray());
+});
+
 for(const finalOrdinal of [0,1])test(`M10 plays the final enemy's bullet and crash screenplay only, kill order ending ${finalOrdinal}`,()=>{
  const ids=['nightowl','bluejay'],first=1-finalOrdinal;
  const candidates=journeyDallas16.enemies.map((enemy,index)=>new AircraftVictory('attempt',ids[index],'pilot',
@@ -159,7 +185,7 @@ for(const finalOrdinal of [0,1])test(`M10 plays the final enemy's bullet and cra
   ending.recordFatalHit({playerId:ending.targetId,shooterId:'pilot',health:0,impactId:'finish',impactPosition:hit.position});
  }
  const planes=ids.map(()=>new THREE.Group()),events=[],effects=[];
- const no=()=>{},ctx=vm.createContext({THREE,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,
+ const no=()=>{},ctx=vm.createContext({THREE,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,
   aircraftVictory:candidates[0],aircraftVictoryCandidates:candidates,aircraftVictoryReplay:null,prepareAircraftVictoryReplay:ending=>events.push(`replay:${ending.targetId}`),clearAircraftVictoryReplay(){},
   journeyMode:true,journeyAttempt:{missionId:journeyDallas16.id,attemptId:'attempt',targetId:ids[0],secondaryTargetId:ids[1],crossfireKills:1<<first,status:'RACING'},
   message:{...hit,playerId:ids[first],aircraftType:journeyDallas16.enemies[first].aircraft},localPlayerId:'pilot',airplane:new THREE.Group(),
@@ -178,4 +204,91 @@ for(const finalOrdinal of [0,1])test(`M10 plays the final enemy's bullet and cra
  assert.equal(effects.at(-1),journeyDallas16.enemies[finalOrdinal].aircraft,'blast retains final enemy aircraft');
  vm.runInContext('updateAircraftVictory(1.1);',ctx);assert.equal(events.at(-1),'success');
  assert.deepEqual(ctx.aircraftVictory.impactPosition.toArray(),[12345,2456,-34567]);
+});
+
+test('all 24 Journey success headings include their displayed mission number, including remapped internal IDs',async()=>{
+ const styles=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
+ const headingRule=styles.match(/\.journey-result\.is-terminal:not\(\.is-training\):not\(\.is-flight-result\)[^{]*\{([^}]+)\}/);
+ assert(headingRule);assert.match(headingRule[1],/display:\s*block/);
+ const {missionJourneyDetails}=await import('../../client/src/mission-journey-content.js');
+ const {journeyMissionSlot}=await import('../../shared/journey-mission.mjs');
+ const start=source.indexOf('  const resultSlot = journeyMissionSlot(attempt.missionId);');
+ const end=source.indexOf(';',source.indexOf("[data-journey-result-heading]",start))+1;
+ const statement=ts.transpileModule(source.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ assert.equal(missionJourneyDetails.length,24);
+ missionJourneyDetails.forEach((mission,index)=>{
+  const heading={textContent:''};
+  const ctx=vm.createContext({attempt:{missionId:mission.id},success:true,breakoutMission:index>=18,journeyMissionSlot,journeyResultElement:{querySelector:()=>heading}});
+  vm.runInContext(`{${statement}}`,ctx);
+  assert.equal(heading.textContent,`M${index+1}`,mission.id);
+  ctx.success=false;vm.runInContext(`{${statement}}`,ctx);assert.equal(heading.textContent,`M${index+1}`,`${mission.id} failure`);
+ });
+});
+
+for(const mission of [journeyDallas17,journeyDallas18])test(`${mission.name}: state packets preserve the recorded fatal shot through completion instead of resetting the replay`,()=>{
+ const start=source.indexOf('    if ((message.attempt.missionId !== journeyDallas13.id');
+ const end=source.indexOf("    if (message.attempt.missionId === journeyDallas16.id && message.attempt.status === 'COMPLETED')",start);
+ const stateHandler=ts.transpileModule(source.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ const attempt={missionId:mission.id,attemptId:'state-replay',targetId:'enemy',status:'RACING'};
+ let clears=0;
+ const ctx=vm.createContext({journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,AircraftVictory,
+  message:{attempt},localPlayerId:'pilot',aircraftVictory:null,aircraftVictoryCandidates:[],clearAircraftVictoryReplay:()=>clears++,flightGameRoot:{classList:{remove(){}}},transportCrashFlash:{style:{}}});
+ vm.runInContext(stateHandler,ctx);
+ const ending=ctx.aircraftVictory;
+ ending.recordProjectile({projectileId:'finisher',ownerId:'pilot',position:{x:hit.position.x,y:hit.position.y,z:hit.position.z+12},speed:6000});
+ vm.runInContext(stateHandler,ctx);assert.equal(ctx.aircraftVictory,ending,'health-state packets must retain shot history');
+ ending.recordFatalHit({playerId:'enemy',shooterId:'pilot',health:0,impactId:'finisher',impactPosition:hit.position});
+ ctx.message={attempt:{...attempt,status:'COMPLETED'}};
+ vm.runInContext(stateHandler,ctx);
+ assert.equal(ctx.aircraftVictory,ending,'completion packet must retain the fatal shot');
+ assert.equal(clears,0);assert(ending.hasReplay);
+ ending.confirmSuccess();ending.confirmDestruction(hit,0,undefined,{x:1000,y:0,z:0});
+ assert.equal(ending.update(.6).blast,false);assert(ending.replaying);
+ assert(ending.update(.11).blast);
+ ctx.message={attempt:{...attempt,status:'ABANDONED'}};vm.runInContext(stateHandler,ctx);
+ assert.equal(ctx.aircraftVictory,null);assert.equal(clears,1,'exit still cleans the replay');
+});
+
+for(const distance of [12,600,6000])test(`M11 matches M10 bullet travel, camera and destruction timing at ${distance}m`,()=>{
+ const enemy=journeyDallas16.enemies[0];
+ const endings=[new AircraftVictory('m10','enemy','pilot',{enemyAircraft:enemy.aircraft,enemyLivery:enemy.livery}),new AircraftVictory('m11','enemy','pilot',journeyDallas17)];
+ const position={x:100,y:2400,z:100-distance};
+ for(const ending of endings){
+  ending.recordProjectile({projectileId:'finish',ownerId:'pilot',position:{x:100,y:2400,z:100},speed:6000});
+  ending.recordFatalHit({playerId:'enemy',shooterId:'pilot',health:0,impactId:'finish',impactPosition:position});
+  ending.confirmDestruction({...hit,position},0,undefined,{x:200,y:0,z:0});ending.confirmSuccess();
+ }
+ let blasted=false;
+ for(let frame=0;frame<50;frame++){
+  const frames=endings.map(ending=>ending.update(.05));assert.deepEqual(frames[1],frames[0]);
+  assert.deepEqual(endings[1].bulletPosition.toArray(),endings[0].bulletPosition.toArray());
+  assert.deepEqual(endings[1].pilotMuzzlePosition.toArray(),endings[0].pilotMuzzlePosition.toArray());
+  const cameras=endings.map(ending=>{const camera=new THREE.PerspectiveCamera(58);ending.updateCamera(camera);return camera;});
+  assert.deepEqual(cameras[1].position.toArray(),cameras[0].position.toArray());
+  if(frames[1].blast){blasted=true;assert.deepEqual(endings[1].bulletPosition.toArray(),[position.x,position.y,position.z]);}
+ }
+ assert(blasted);assert(endings.every(ending=>ending.complete));
+});
+
+for(const mission of [journeyDallas17,journeyDallas18])test(`${mission.name}: starts at the exact gameplay camera, fires from the muzzle, then follows the bullet to contact`,()=>{
+ const ending=new AircraftVictory('camera-start','enemy','pilot',mission);
+ const origin={x:100,y:2400,z:100},position={x:100,y:2400,z:-500};
+ ending.recordProjectile({projectileId:'finish',ownerId:'pilot',position:origin,speed:6000});
+ ending.recordFatalHit({playerId:'enemy',shooterId:'pilot',health:0,impactId:'finish',impactPosition:position});
+ ending.confirmDestruction({...hit,position},0);ending.confirmSuccess();
+ const camera=new THREE.PerspectiveCamera(67);camera.position.set(115,2410,140);camera.lookAt(100,2400,80);
+ const initialPosition=camera.position.clone(),initialRotation=camera.quaternion.clone();
+ ending.beginFromGameplayCamera(camera);
+ assert.equal(ending.update(.2).blast,false);ending.updateCamera(camera);
+ assert.deepEqual(camera.position.toArray(),initialPosition.toArray());
+ assert(camera.quaternion.angleTo(initialRotation)<1e-6);assert.equal(camera.fov,67);
+ assert.deepEqual(ending.bulletPosition.toArray(),[100,2400,100]);
+ ending.update(.4);ending.updateCamera(camera);
+ assert(ending.bulletPosition.distanceTo(ending.shotOrigin)>0);
+ assert(camera.position.distanceTo(initialPosition)>1,'camera travels with the bullet after the gameplay-view handoff');
+ assert(camera.quaternion.angleTo(initialRotation)>.01,'camera turns toward the bullet after the gameplay-view handoff');
+ assert.equal(ending.update(.2).blast,false);
+ assert(ending.update(.11).blast);
+ assert.deepEqual(ending.bulletPosition.toArray(),[100,2400,-500]);
+ assert.equal(ending.update(1.1).complete,true);
 });

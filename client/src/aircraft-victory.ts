@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CrashSequence } from './crash-sequence';
-import { journeyDallas13 } from '../../shared/journey-mission.mjs';
+import { journeyDallas13, journeyDallas14 } from '../../shared/journey-mission.mjs';
 import { BASE_PROJECTILE_SPEED } from '../../shared/protocol.mjs';
 
 type Destruction = {
@@ -31,6 +31,11 @@ export class AircraftVictory {
   private readonly impactCamera = new THREE.Vector3();
   private readonly cameraSide = new THREE.Vector3();
   private readonly cameraOffset = new THREE.Vector3();
+  private readonly cameraSeparation = new THREE.Vector3();
+  private cameraClearance = 80;
+  private gameplayCamera: { position: THREE.Vector3; quaternion: THREE.Quaternion; fov: number } | null = null;
+  private launchHold = 0;
+  private readonly followCameraRotation = new THREE.Quaternion();
   private sequence: CrashSequence | null = null;
   private resultConfirmed = false;
   private destructionConfirmed = false;
@@ -44,6 +49,17 @@ export class AircraftVictory {
   get hasCamera(): boolean { return this.replayStarted || this.sequence !== null; }
   get hasReplay(): boolean { return this.replayReady; }
   get replaying(): boolean { return this.replayStarted && this.replayElapsed < this.replayDuration; }
+
+  setTargetRadius(radius: number): void {
+    if (Number.isFinite(radius) && radius > 0) this.cameraClearance = Math.max(80, radius * 2.5);
+  }
+
+  beginFromGameplayCamera(camera: THREE.PerspectiveCamera): void {
+    if (this.gameplayCamera || this.replayStarted || !this.replayReady) return;
+    this.gameplayCamera = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), fov: camera.fov };
+    this.launchHold = .25;
+    this.replayDuration += this.launchHold;
+  }
 
   recordProjectile(message: { projectileId: string; ownerId: string; position: {x:number;y:number;z:number}; speed: number }): void {
     this.recordShot(message.projectileId, message.ownerId, message.position, message.speed);
@@ -93,7 +109,18 @@ export class AircraftVictory {
       message.killerId !== this.pilotId || message.cause !== 'combat' || !p ||
       ![p.x, p.y, p.z, heading].every(Number.isFinite)) return false;
     this.position.set(p.x, p.y, p.z);
-    if (velocity && [velocity.x,velocity.y,velocity.z].every(Number.isFinite)) this.enemyVelocity.copy(velocity);
+    if (this.replayReady) {
+      // The authoritative projectile impact is on an enlarged collision sphere,
+      // not necessarily on the visible hull. End this presentation at the
+      // confirmed aircraft position so the visible bullet actually hits it.
+      this.impactPosition.copy(this.position);
+      this.shotDirection.subVectors(this.impactPosition, this.shotOrigin).normalize();
+      this.cameraSide.crossVectors(this.shotDirection, THREE.Object3D.DEFAULT_UP).normalize();
+    }
+    // M8's fast rear ambush must not become a second plane fly-by in the
+    // finishing replay. Hold its confirmed pose while the final bullet travels.
+    if (this.mission !== journeyDallas14 && velocity && [velocity.x,velocity.y,velocity.z].every(Number.isFinite)) this.enemyVelocity.copy(velocity);
+    if (this.mission === journeyDallas14) this.pilotTravel = 0;
     this.enemyPosition.copy(this.position).addScaledVector(this.enemyVelocity,-this.shotTravelSeconds);
     if (!this.replayReady) this.impactPosition.copy(this.position);
     this.enemyRotation.set(rotation?.x ?? 0, heading, rotation?.z ?? 0, 'YXZ');
@@ -117,7 +144,7 @@ export class AircraftVictory {
       this.replayStarted = true;
       const remaining = this.replayDuration - this.replayElapsed;
       this.replayElapsed = Math.min(this.replayDuration, this.replayElapsed + blastDelta);
-      const progress = this.replayElapsed / this.replayDuration;
+      const progress = THREE.MathUtils.clamp((this.replayElapsed - this.launchHold) / (this.replayDuration - this.launchHold), 0, 1);
       this.bulletPosition.lerpVectors(this.shotOrigin, this.impactPosition, progress);
       this.pilotMuzzlePosition.copy(this.shotOrigin).addScaledVector(this.shotDirection,this.pilotTravel * progress);
       this.enemyPosition.copy(this.position).addScaledVector(this.enemyVelocity,-this.shotTravelSeconds * (1-progress));
@@ -140,11 +167,29 @@ export class AircraftVictory {
       camera.position.copy(this.pilotMuzzlePosition).lerp(this.bulletPosition,follow)
         .addScaledVector(this.shotDirection,-38).addScaledVector(this.cameraSide,12+12*follow);
       camera.position.y += 12;
-      this.cameraTarget.lerpVectors(this.bulletPosition,this.impactPosition,
-        Math.min(1,30 / Math.max(1,this.bulletPosition.distanceTo(this.impactPosition))));
+      // Follow the moving opponent, rather than looking past it along the
+      // bullet's original line while it crosses that line at high speed.
+      this.cameraTarget.copy(this.enemyPosition);
+      this.cameraSeparation.subVectors(camera.position, this.enemyPosition);
+      if (this.cameraSeparation.length() < this.cameraClearance) {
+        if (this.cameraSeparation.lengthSq() < .001) this.cameraSeparation.copy(this.shotDirection).negate();
+        camera.position.copy(this.enemyPosition).add(this.cameraSeparation.setLength(this.cameraClearance));
+      }
       camera.lookAt(this.cameraTarget);
+      if (this.gameplayCamera) {
+        const blend = THREE.MathUtils.smoothstep(this.replayElapsed, this.launchHold, this.launchHold + .3);
+        camera.position.lerpVectors(this.gameplayCamera.position, camera.position, blend);
+        this.followCameraRotation.copy(camera.quaternion);
+        camera.quaternion.slerpQuaternions(this.gameplayCamera.quaternion, this.followCameraRotation, blend);
+        if (camera.fov !== this.gameplayCamera.fov) {
+          camera.fov = this.gameplayCamera.fov;
+          camera.updateProjectionMatrix();
+        }
+      }
     } else {
       camera.position.copy(this.impactCamera);
+      this.cameraSeparation.subVectors(camera.position, this.impactPosition).setLength(Math.max(this.cameraClearance, camera.position.distanceTo(this.impactPosition)));
+      camera.position.copy(this.impactPosition).add(this.cameraSeparation);
       camera.lookAt(this.impactPosition);
     }
   }
