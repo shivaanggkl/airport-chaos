@@ -1,3 +1,4 @@
+export function transportGunMounts(missionId?:string): readonly Readonly<{x:number;y:number;z:number;yaw:number}>[];
 export type TransportLockPart = 'body' | 'left' | 'right' | 'core';
 export function transportLockParts(missionId?: string): readonly TransportLockPart[];
 export type TransportPoint = {
@@ -6,6 +7,7 @@ export type TransportPoint = {
     z: number;
 };
 export type TransportPose = TransportPoint & {
+    missionId?: string;
     scale?: number;
     yaw: number;
     gunYaw?: number;

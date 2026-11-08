@@ -55,7 +55,7 @@ test('M24 victory, timeout, replay, mission migration, and first-clear credits r
         rmSync(dir, { recursive: true, force: true });
     }
 });
-test('M24 uses only its nine clips, walks physically, turns smoothly, and casts one authorized shot', async () => {
+test('M24 uses only its nine clips, walks physically, turns smoothly, and casts an authorized three-fireball volley', async () => {
  const e=encounter(),spawn={...e.frame.position},initialYaw=e.frame.yaw;
  const actor=new AshenWarlordModel(source,false,true,true,true);await actor.ready;
  const allowed=new Set(timing.motions.map(k=>model.clips[k].name));
@@ -64,7 +64,7 @@ test('M24 uses only its nine clips, walks physically, turns smoothly, and casts 
  assert.equal(journeyDallas19.name,'FINAL MONSTER BATTLE');assert.equal(journeyDallas19.bossHealth,1500);
  assert.equal(finalWarlordSpecies.level,'HARD');
  const punch=finalWarlordSpecies.abilities.find(a=>a.mechanism==='sweep'),shot=finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile');
- assert.equal(punch.damage,25);assert.equal(punch.cooldown,3.5);assert.equal(shot.damage,20);assert.equal(shot.cooldown,5);assert.equal(shot.count,1);
+ assert.equal(punch.damage,25);assert.equal(punch.cooldown,3.5);assert.equal(shot.damage,25);assert.equal(shot.cooldown,5);assert.equal(shot.count,3);
  const seen=new Set(),roars=[],releases=[],shots=new Map();let traveled=0,lastPosition={...spawn},lastYaw=initialYaw,maxAnchorError=0,projectileHits=0;
  for(let i=1;i<=2400;i++){
   const now=100000+i*50,angle=initialYaw+(i>600?2:1);
@@ -84,11 +84,11 @@ test('M24 uses only its nine clips, walks physically, turns smoothly, and casts 
    assert(!['jump','land','shockwave','contact'].includes(event.type));
    if(event.type==='roar')roars.push(now);
    if(event.type==='release'){
-    assert.equal(event.ability,'fireball-barrage');assert.equal(f.animation.clip,model.clips.shoot.name);releases.push(now);
+    assert.equal(event.ability,'fireball-barrage');assert.equal(f.animation.clip,model.clips.shoot.name);if(releases.at(-1)!==now)releases.push(now);
     const hand=f.limbs['hand-right'];assert(Math.hypot(event.position.x-hand.x,event.position.y-hand.y,event.position.z-hand.z)<5);
     shots.set(event.attackId??f.ability.eventId,(shots.get(event.attackId??f.ability.eventId)??0)+1);
    }
-   if(event.kind==='damage'){projectileHits++;assert.equal(event.type,'projectile');assert.equal(event.amount,20);const damage=permittedM19Damage(e,event,now);assert.equal(damage,20);assert.equal(permittedM19Damage(e,event,now),0);}
+   if(event.kind==='damage'){projectileHits++;assert.equal(event.type,'projectile');assert.equal(event.amount,25);const damage=permittedM19Damage(e,event,now);assert.equal(damage,25);assert.equal(permittedM19Damage(e,event,now),0);}
   }
   if(i%10===0){
    actor.root.position.set(f.position.x,f.position.y,f.position.z);actor.root.rotation.y=f.yaw;actor.setTitanPose(f);actor.update(.05,0,0);
@@ -99,7 +99,7 @@ test('M24 uses only its nine clips, walks physically, turns smoothly, and casts 
  assert(traveled>300&&roars.length>=2&&shots.size>=2);assert(projectileHits>0);
  for(let i=1;i<roars.length;i++)assert(roars[i]-roars[i-1]>=16000);
  for(let i=1;i<releases.length;i++)assert(releases[i]-releases[i-1]>=5000);
- assert([...shots.values()].every(n=>n===1));assert(maxAnchorError<1);
+ assert([...shots.values()].every(n=>n===3));assert(maxAnchorError<1);
  actor.dispose();disposeM19(e);
 });
 test('M24 punch needs actual fist collision, respects cooldown, and missed punches do no damage',()=>{
@@ -171,7 +171,7 @@ test('visible M24 retains legacy identity and historical clears without duplicat
   assert.equal(reopened.get('p',old.attemptId).failureReason,'MISSION_UPDATED');assert(reopened.progress('p',journeyDallas19.id).completed);
   assert.equal(journeyMissionSlot(journeyDallas19.id),24);assert.equal(journeyMissionSlot(journeyDallas25.id),19);
   assert.equal(journeyDallas19.firstClearCredits,4000);assert.equal(journeyDallas25.firstClearCredits,2550);
-  assert.equal(journeyDallas25.bossHealth,500);assert.equal(journeyDallas25.timeLimitMs,240000*DALLAS_WORLD_SCALE);
+  assert.equal(journeyDallas25.bossHealth,500);assert.equal(journeyDallas25.timeLimitMs,360000);
   assert.equal(reopened.canAccessMission('p',journeyDallas24.id),false);
   assert.equal(authorizedJourneyAirborneSpawn({missionId:journeyDallas19.id,status:'APPROACH'},journeyDallas19,()=>135),undefined);
   const a=reopened.launch('p','trainer',60000,journeyDallas19.id);reopened.approach('p',a.attemptId,60001);
@@ -221,7 +221,7 @@ test('Hard shooting leads moving aircraft more accurately than Medium without pe
   for(let i=1;i<=360&&fraction===undefined;i++){
    const p={x:root.x+forward.x*6000+velocity.x*i*.05,y:root.y+1500,z:root.z+forward.z*6000+velocity.z*i*.05};
    stepM19(e,p,velocity,20,100000+i*50);
-   const release=e.events.find(v=>v.type==='release'),shot=e.frame.projectiles[0];
+   const release=e.events.find(v=>v.type==='release'),shot=e.frame.projectiles.find(p=>p.id.endsWith(':1'));
    if(release&&shot){
     const relative={x:p.x-release.position.x,y:p.y-release.position.y,z:p.z-release.position.z};
     const distance=Math.hypot(relative.x,relative.y,relative.z),directSide=(relative.x*right.x+relative.z*right.z)/distance;

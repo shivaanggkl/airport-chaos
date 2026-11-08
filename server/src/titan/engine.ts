@@ -24,7 +24,7 @@ export type Threat = {
     velocity: Vec;
     radius: number;
 };
-export type AuthoredPoseContext={running?:boolean;anchoredMotion?:{kind:"jump"|"roar";elapsed:number};roarElapsed?:number;resting?:boolean;time:number;health:number;headYaw?:number;headPitch?:number;gait:number;velocity:Vec;yawVelocity:number;airborne:boolean;ability:null|{id:string;stage:string;progress:number;elapsed:number;active:number;warning:number;windup:number;recovery:number}};
+export type AuthoredPoseContext={running?:boolean;anchoredMotion?:{kind:"jump"|"roar";elapsed:number};roarElapsed?:number;stationaryPunchElapsed?:number;resting?:boolean;time:number;health:number;headYaw?:number;headPitch?:number;gait:number;velocity:Vec;yawVelocity:number;airborne:boolean;ability:null|{id:string;stage:string;progress:number;elapsed:number;active:number;warning:number;windup:number;recovery:number}};
 export type Environment = {
     authoredPose?:boolean;
     /** Trusted host policy: scenery cannot confine city-roaming encounters. Combat occlusion remains separate. */
@@ -157,6 +157,8 @@ export class TitanEncounter {
     #anchorTarget?:Target;
     #roarAt=20;
     #roarStarted=-Infinity;
+    #stationaryPunchStarted=-Infinity;
+    #stationaryRestUntil=0;
     #time = 0;
     #health: number;
     #damageImpact: Vec | null = null;
@@ -245,6 +247,7 @@ export class TitanEncounter {
         this.id = id;
         this.species = species;
         this.#env = environment;
+        if(species.stationary)this.#roarAt=species.stationary.firstRoarAfter??20;
         if(species.hunting){this.#roarAt=species.hunting.roarInterval;this.#huntRestUntil=species.hunting.restSeconds??1;}
         if(species.anchored){this.#anchorJumpAt=species.anchored.jumpInterval;this.#roarAt=species.anchored.roarInterval;}
         this.#initial = { ...position };
@@ -324,7 +327,7 @@ export class TitanEncounter {
     }
     #withinCone(origin: Vec, target: Vec, cone: number) { const d = unit(origin, target); return d.x * Math.sin(this.#yaw) + d.z * Math.cos(this.#yaw) >= Math.cos(cone); }
     #eligible(a: Ability, t: Target,ignoreCooldown=false,ignoreFacing=false) {
-        if(this.species.director&&a.mechanism==='sweep'){const lead=Math.min(1.5,a.warning+a.windup+a.active*.5);t={...t,position:{x:t.position.x+t.velocity.x*lead,y:t.position.y+t.velocity.y*lead,z:t.position.z+t.velocity.z*lead}};}
+        if((this.species.director||this.species.stationary)&&a.mechanism==='sweep'){const lead=Math.min(1.5,a.warning+a.windup+a.active*.5);t={...t,position:{x:t.position.x+t.velocity.x*lead,y:t.position.y+t.velocity.y*lead,z:t.position.z+t.velocity.z*lead}};}
         const origin = this.#anchor(a.requires[0]), d = distance(origin, t.position), alt = t.position.y - this.#env.ground(t.position.x, t.position.z);
         if(a.mechanism==='sweep'&&a.contactBounds){const dx=t.position.x-this.#position.x,dz=t.position.z-this.#position.z,c=Math.cos(this.#yaw),s=Math.sin(this.#yaw),p={x:c*dx-s*dz,y:t.position.y-this.#position.y,z:s*dx+c*dz},bounds=a.contactBounds;if((['x','y','z']as const).some(k=>p[k]<bounds.min[k]-t.radius||p[k]>bounds.max[k]+t.radius))return false;}
         if (a.mechanism === 'sweep' && !a.contactBounds && !a.requires.some(name => {
@@ -470,14 +473,28 @@ export class TitanEncounter {
             return;
         }
         if(this.species.stationary){
+            const profile=this.species.stationary;
             this.#tactic='observe';
-            if(this.#active||this.#time<this.#roarStarted+this.species.stationary.roarDuration)return;
+            if(this.#active || this.#time<this.#stationaryRestUntil || this.#time<this.#roarStarted+profile.roarDuration ||
+                this.#time<this.#stationaryPunchStarted+(profile.idlePunchDuration??0))return;
+            const punch=this.species.abilities[0];
+            if(t&&punch&&this.#eligible(punch,t)&&this.#start(punch,t)){
+                this.#stationaryPunchStarted=this.#time;
+                this.#stationaryRestUntil=this.#time+punch.warning+punch.windup+punch.active+punch.recovery+(profile.actionRestSeconds??0);
+                return;
+            }
             if(this.#time>=this.#roarAt){
-                this.#roarStarted=this.#time;this.#roarAt=this.#time+this.species.stationary.roarInterval;
+                this.#roarStarted=this.#time;this.#roarAt=this.#time+profile.roarInterval;
+                this.#stationaryRestUntil=this.#time+profile.roarDuration+(profile.actionRestSeconds??0);
                 this.#emit('animation','roar',this.#position,{ability:'stationary-roar'});return;
             }
-            const punch=this.species.abilities[0];
-            if(t&&punch&&this.#eligible(punch,t))this.#start(punch,t);
+            // A distant aircraft still sees an authored threat display. This is
+            // presentation only: attack damage continues to require a real sweep.
+            if(profile.idlePunchDuration && this.#stationaryPunchStarted<this.#roarStarted){
+                this.#stationaryPunchStarted=this.#time;
+                this.#stationaryRestUntil=this.#time+profile.idlePunchDuration+(profile.actionRestSeconds??0);
+                this.#emit('animation','punch',this.#position,{ability:'stationary-display-punch'});
+            }
             return;
         }
 
@@ -1016,7 +1033,7 @@ export class TitanEncounter {
                     this.#limbs[name] = titanAnchor(this.#position, this.#yaw, { ...rest.position, z: rest.position.z + (side === 'left' ? swing : -swing) });
             }
         }
-        this.#authoredAnimation=this.#env.articulate?.(this.#limbs,this.#feet,{...this.#position,y:this.#position.y-this.#crouch()},this.#yaw,this.#volumeAxes,{running:this.species.hunting?.runSeconds!==undefined&&Math.hypot(this.#velocity.x,this.#velocity.z)>this.species.movement.walk+.5,anchoredMotion:this.species.hunting&&this.#time<this.#roarStarted+this.species.hunting.roarSeconds?{kind:"roar",elapsed:this.#time-this.#roarStarted}:this.species.anchored?(this.#time<this.#anchorJumpStarted+this.species.anchored.jumpSeconds+this.species.anchored.landSeconds?{kind:"jump",elapsed:this.#time-this.#anchorJumpStarted}:this.#time<this.#roarStarted+this.species.anchored.roarSeconds?{kind:"roar",elapsed:this.#time-this.#roarStarted}:undefined):undefined,roarElapsed:this.species.stationary&&this.#time<this.#roarStarted+this.species.stationary.roarDuration?this.#time-this.#roarStarted:undefined,resting:this.#stopForAction||this.#idleCompleted,time:this.#time,health:this.#health,headYaw:this.#headYaw,headPitch:this.#headPitch,gait:this.#gait,velocity:this.#velocity,yawVelocity:this.#yawVelocity,airborne:this.#airborne,ability:a&&timeline?{id:a.definition.id,stage:timeline.stage,progress:timeline.progress,elapsed:this.#time-a.start,active:a.definition.active,warning:a.definition.warning,windup:a.definition.windup,recovery:a.definition.recovery}:null})??undefined;
+        this.#authoredAnimation=this.#env.articulate?.(this.#limbs,this.#feet,{...this.#position,y:this.#position.y-this.#crouch()},this.#yaw,this.#volumeAxes,{running:this.species.hunting?.runSeconds!==undefined&&Math.hypot(this.#velocity.x,this.#velocity.z)>this.species.movement.walk+.5,anchoredMotion:this.species.hunting&&this.#time<this.#roarStarted+this.species.hunting.roarSeconds?{kind:"roar",elapsed:this.#time-this.#roarStarted}:this.species.anchored?(this.#time<this.#anchorJumpStarted+this.species.anchored.jumpSeconds+this.species.anchored.landSeconds?{kind:"jump",elapsed:this.#time-this.#anchorJumpStarted}:this.#time<this.#roarStarted+this.species.anchored.roarSeconds?{kind:"roar",elapsed:this.#time-this.#roarStarted}:undefined):undefined,stationaryPunchElapsed:this.species.stationary?.idlePunchDuration&&this.#time<this.#stationaryPunchStarted+this.species.stationary.idlePunchDuration?this.#time-this.#stationaryPunchStarted:undefined,roarElapsed:this.species.stationary&&this.#time<this.#roarStarted+this.species.stationary.roarDuration?this.#time-this.#roarStarted:undefined,resting:this.#stopForAction||this.#idleCompleted,time:this.#time,health:this.#health,headYaw:this.#headYaw,headPitch:this.#headPitch,gait:this.#gait,velocity:this.#velocity,yawVelocity:this.#yawVelocity,airborne:this.#airborne,ability:a&&timeline?{id:a.definition.id,stage:timeline.stage,progress:timeline.progress,elapsed:this.#time-a.start,active:a.definition.active,warning:a.definition.warning,windup:a.definition.windup,recovery:a.definition.recovery}:null})??undefined;
         this.#updatingPose=false;
         if (dt > 0)
             for (const [name, p] of Object.entries(this.#limbs)) {
@@ -1031,6 +1048,8 @@ export class TitanEncounter {
         this.#emit('damage', a.definition.mechanism, position, { ability: a.definition.id, targetId: t.id, amount: a.definition.damage });
     }
     #shotVelocity(t: Target): Vec {
+        // M20 releases against the latest authoritative velocity, not a stale turn average.
+        if(this.species.id==='striking-warlord')return {...t.velocity};
         const recent = this.#memory.slice(-5), q = difficulties[this.species.level].prediction;
         if(this.species.hunting)return {x:t.velocity.x*q,y:t.velocity.y*q,z:t.velocity.z*q};
         if (!recent.length)
@@ -1089,7 +1108,7 @@ export class TitanEncounter {
         }
         const validTargets = targets.slice(0, 16).filter(v => v.authorized && v.alive && v.encounterId === this.id);
         if (def.mechanism === 'projectile') {
-            const count = def.count ?? 1, due = Math.min(count, 1 + Math.floor(t.progress * count));
+            const count = def.count ?? 1, due = def.simultaneous ? count : Math.min(count, 1 + Math.floor(t.progress * count));
             while (a.released < due) {
                 const index = a.released, debris = a.debris;
                 if (def.debris && !debris)
@@ -1099,9 +1118,9 @@ export class TitanEncounter {
                     break;
                 if (!point || this.#shots.filter(v => v.live).length >= 32)
                     break;
-                // Retry a blocked shot only inside its active window; never compress
-                // several overdue rounds into an instantaneous burst after a turn.
-                if(this.species.director&&a.lastReleaseAt!==undefined&&this.#time-a.lastReleaseAt+1e-9<def.active/count)break;
+                // Staggered attacks cannot compress overdue rounds into a burst;
+                // explicitly simultaneous volleys release together instead.
+                if(!def.simultaneous&&this.species.director&&a.lastReleaseAt!==undefined&&this.#time-a.lastReleaseAt+1e-9<def.active/count)break;
                 a.released++;a.lastReleaseAt=this.#time;
                 const dir = unit(from, point), angle = (index - (count - 1) / 2) * (def.spread ?? 0), c = Math.cos(angle), s = Math.sin(angle);
                 const shot: Shot = { id: `${this.id}:shot:${a.serial}:${index}`, position: { ...from }, velocity: { x: (dir.x * c + dir.z * s) * speed, y: dir.y * speed, z: (dir.z * c - dir.x * s) * speed }, radius: debris?.radius ?? def.radius, damage: def.damage, life: def.maxRange / speed, ability: def.id, attack: a.serial, live: true };
@@ -1283,6 +1302,20 @@ export class TitanEncounter {
         return projectileImpactFraction(local(from), local(to), { x: 0, y: 0, z: 0 }, local({ x: anchor.x + velocity.x, y: anchor.y + velocity.y, z: anchor.z + velocity.z }), delta, 1);
     }
     /** Trusted host supplies ordered, monotonic per-source contact sequences, including misses. */
+    /** Read-only acquisition query; uses the same live regions and obstruction as damage. */
+    hitTest(from:Vec,to:Vec,radius=1):Vec|null {
+        if(this.#disposed || this.#health<=0 || !Number.isFinite(radius) || radius<0 ||
+            [...Object.values(from),...Object.values(to)].some(v=>!Number.isFinite(v)))return null;
+        let first=Infinity;
+        for(const region of this.species.regions){
+            if(region.weakDuring && !(this.#active?.definition.id===region.weakDuring && ['WARNING','WINDUP'].includes(titanTimeline(this.#active.definition,this.#time-this.#active.start).stage)))continue;
+            const fraction=this.#regionFraction(region,from,to,radius,0);
+            if(fraction!==null && fraction<first)first=fraction;
+        }
+        const block=this.#env.obstruction(from,to,radius);
+        if(!Number.isFinite(first) || block!==null && block<first)return null;
+        return {x:from.x+(to.x-from.x)*first,y:from.y+(to.y-from.y)*first,z:from.z+(to.z-from.z)*first};
+    }
     damage(input: {
         encounterId: string;
         source: string;
@@ -1360,6 +1393,7 @@ export class TitanEncounter {
         this.#visibleSince = 0;
         this.#lastSeen = 0;
         this.#active = null;
+        if(this.species.stationary){this.#stationaryPunchStarted=-Infinity;this.#stationaryRestUntil=0;this.#roarStarted=-Infinity;this.#roarAt=this.#time+(this.species.stationary.firstRoarAfter??20);}
         if(this.species.hunting){this.#runApproachUntil=0;this.#pursuitRunUntil=0;this.#pursuitRunAt=this.#time+2;this.#huntRepositionUntil=0;this.#huntRepositionGoal=undefined;this.#huntLastVelocity=undefined;this.#huntRepositionAt=0;this.#huntFocus=undefined;this.#huntRestUntil=this.#time+(this.species.hunting.restSeconds??1);this.#roarStarted=-Infinity;this.#roarAt=this.#time+this.species.hunting.roarInterval;}
         if(this.species.anchored){this.#anchorJumpStarted=-Infinity;this.#anchorJumpAt=this.#time+this.species.anchored.jumpInterval;this.#anchorRestUntil=this.#time+1;this.#anchorTarget=undefined;this.#roarStarted=-Infinity;this.#roarAt=this.#time+this.species.anchored.roarInterval;}
         this.#stopForAction=false;this.#idleUntil=0;this.#idleCompleted=false;this.#lastTravelAt=-Infinity;

@@ -6,7 +6,7 @@ import ts from 'typescript';
 import * as THREE from 'three';
 import {AircraftVictory} from '../../client/src/aircraft-victory.js';
 import {aircraftPresentationMuzzleSockets,aircraftPresentationScale} from '../../shared/aircraft-presentation-scale.mjs';
-import {journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18} from '../../shared/journey-mission.mjs';
+import {journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18} from '../../shared/journey-mission.mjs';
 
 const hit={playerId:'enemy',killerId:'pilot',cause:'combat',position:{x:12345,y:2456,z:-34567},aircraftType:'privateJet'};
 for(const destructionFirst of [false,true])test(`success and destruction join safely in either event order: destruction first ${destructionFirst}`,()=>{
@@ -44,7 +44,7 @@ test('real M7 destruction handler uses the ground-crash breakup once at the serv
  const plane=new THREE.Group();plane.position.set(-999,111,222);plane.rotation.y=.6;
  const no=()=>{},remote={plane,aircraftType:'privateJet',identityTag:{visible:true},hullTag:{visible:true},playerProxy:{visible:true}};
  const effects=[],events=[],classes=new Set(['aircraft-victory-active']);
- const ctx=vm.createContext({THREE,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,aircraftVictoryCandidates:[ending],aircraftVictory:ending,aircraftVictoryReplay:null,prepareAircraftVictoryReplay(){},clearAircraftVictoryReplay(){},journeyMode:true,journeyAttempt:{missionId:journeyDallas13.id,attemptId:'attempt',targetId:'enemy',status:'COMPLETED'},
+ const ctx=vm.createContext({THREE,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,aircraftVictoryCandidates:[ending],aircraftVictory:ending,aircraftVictoryReplay:null,prepareAircraftVictoryReplay(){},clearAircraftVictoryReplay(){},journeyMode:true,journeyAttempt:{missionId:journeyDallas13.id,attemptId:'attempt',targetId:'enemy',status:'COMPLETED'},
   message:hit,localPlayerId:'pilot',airplane:new THREE.Group(),remotePlayers:new Map([['enemy',remote]]),recentDestructionIds:new Map(),performance:{now:()=>1000},
   updateHumanRosterStatus:no,destructionPosition:new THREE.Vector3(),recordEscortHudHealth:no,selectedCombatTarget:undefined,
   hapticsManager:{emit:no},audioManager:{playDestroyConfirm:no},airAssaultMode:false,skyDuelMode:false,
@@ -70,9 +70,10 @@ test('retry/exit cleanup clears the ending, cinematic chrome and flash',()=>{
 });
 
 
-for(const mission of [journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas17,journeyDallas18])test(`${mission.name}: actual success presentation waits behind the ending without restarting it`,()=>{
- const ending=new AircraftVictory('attempt','enemy','pilot',mission),hidden=new Set();
- const ctx=vm.createContext({journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,aircraftVictory:ending,crashSequence:null,
+for(const mission of [journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas17,journeyDallas18])test(`${mission.name}: actual success presentation waits behind the ending without restarting it`,()=>{
+ const config=(mission===journeyDallas08||mission===journeyDallas09||mission===journeyDallas10||mission===journeyDallas12)?{enemyAircraft:mission.escortAircraft[0],enemyLivery:mission.escortLiveries[0],fromGameplayCamera:true}:mission;
+ const ending=new AircraftVictory('attempt','enemy','pilot',config),hidden=new Set();
+ const ctx=vm.createContext({journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,aircraftVictory:ending,crashSequence:null,
   clearHeldActions(){},mobileInput:{reset(){}},boostActive:true,runStarted:true,cinematicDirector:{clearPresentation(){}},
   journeyResultElement:{classList:{add:c=>hidden.add(c)}},flightGameRoot:{classList:{add(){}}}});
  ctx.result={missionId:mission.id,attemptId:'attempt',status:'COMPLETED'};
@@ -113,7 +114,7 @@ test('assisted finishing shots retain their server muzzle and require the owned 
  assert.deepEqual(ending.impactPosition.toArray(),[12345,2456,-34567]);
 });
 
-for(const mission of [journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas17,journeyDallas18])test(`${mission.name}: actual scene keeps the correct enemy and tracer until contact, then cleans them before the blast`,()=>{
+for(const mission of [journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas17,journeyDallas18])test(`${mission.name}: actual scene keeps the correct enemy and tracer until contact, then cleans them before the blast`,()=>{
  const ending=new AircraftVictory('attempt','enemy','pilot',mission);ending.confirmSuccess();
  ending.recordProjectile({projectileId:'finish',ownerId:'pilot',position:{x:11745,y:2456,z:-34567},speed:1000});
  ending.recordFatalHit({playerId:'enemy',shooterId:'pilot',health:0,impactId:'finish',impactPosition:hit.position});
@@ -185,7 +186,7 @@ for(const finalOrdinal of [0,1])test(`M10 plays the final enemy's bullet and cra
   ending.recordFatalHit({playerId:ending.targetId,shooterId:'pilot',health:0,impactId:'finish',impactPosition:hit.position});
  }
  const planes=ids.map(()=>new THREE.Group()),events=[],effects=[];
- const no=()=>{},ctx=vm.createContext({THREE,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,
+ const no=()=>{},ctx=vm.createContext({THREE,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,
   aircraftVictory:candidates[0],aircraftVictoryCandidates:candidates,aircraftVictoryReplay:null,prepareAircraftVictoryReplay:ending=>events.push(`replay:${ending.targetId}`),clearAircraftVictoryReplay(){},
   journeyMode:true,journeyAttempt:{missionId:journeyDallas16.id,attemptId:'attempt',targetId:ids[0],secondaryTargetId:ids[1],crossfireKills:1<<first,status:'RACING'},
   message:{...hit,playerId:ids[first],aircraftType:journeyDallas16.enemies[first].aircraft},localPlayerId:'pilot',airplane:new THREE.Group(),
@@ -231,7 +232,7 @@ for(const mission of [journeyDallas17,journeyDallas18])test(`${mission.name}: st
  const stateHandler=ts.transpileModule(source.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
  const attempt={missionId:mission.id,attemptId:'state-replay',targetId:'enemy',status:'RACING'};
  let clears=0;
- const ctx=vm.createContext({journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,AircraftVictory,
+ const ctx=vm.createContext({journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,AircraftVictory,
   message:{attempt},localPlayerId:'pilot',aircraftVictory:null,aircraftVictoryCandidates:[],clearAircraftVictoryReplay:()=>clears++,flightGameRoot:{classList:{remove(){}}},transportCrashFlash:{style:{}}});
  vm.runInContext(stateHandler,ctx);
  const ending=ctx.aircraftVictory;
@@ -291,4 +292,76 @@ for(const mission of [journeyDallas17,journeyDallas18])test(`${mission.name}: st
  assert(ending.update(.11).blast);
  assert.deepEqual(ending.bulletPosition.toArray(),[100,2400,-500]);
  assert.equal(ending.update(1.1).complete,true);
+});
+
+const m14StateStart=source.indexOf('    if ((message.attempt.missionId !== journeyDallas13.id');
+const m14StateEnd=source.indexOf("    if (message.attempt.missionId === journeyDallas16.id && message.attempt.status === 'COMPLETED')",m14StateStart);
+const m14StateHandler=ts.transpileModule(source.slice(m14StateStart,m14StateEnd),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+function m14Fixture(mission=journeyDallas08) {
+ const ids=['escort-a','escort-b','escort-c','escort-d'].slice(0,mission.escortAircraft.length),events=[],effects=[],no=()=>{},camera=new THREE.PerspectiveCamera(58);
+ camera.position.set(100,200,300);camera.lookAt(0,150,0);camera.updateMatrixWorld();
+ const attempt={missionId:mission.id,attemptId:'escorts',targetId:ids[0],secondaryTargetId:ids[1],rearGuardThirdId:ids[2],rearGuardFourthId:ids[3],rearGuardKills:0,monsterHealth:2000,fortressLeftHealth:0,fortressRightHealth:0,status:'RACING'};
+ const planes=ids.map(()=>new THREE.Group());
+ const ctx=vm.createContext({THREE,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,AircraftVictory,
+  aircraftVictory:null,aircraftVictoryCandidates:[],aircraftVictoryReplay:null,
+  prepareAircraftVictoryReplay:ending=>{ending.beginFromGameplayCamera(camera);events.push(`replay:${ending.targetId}`);},clearAircraftVictoryReplay:no,
+  journeyMode:true,journeyAttempt:attempt,previousAttempt:undefined,localPlayerId:'pilot',airplane:new THREE.Group(),camera,
+  remotePlayers:new Map(ids.map((id,index)=>[id,{plane:planes[index],aircraftType:mission.escortAircraft[index],identityTag:{visible:true},hullTag:{visible:true},playerProxy:{visible:true}}])),
+  recentDestructionIds:new Map(),performance:{now:()=>1000},updateHumanRosterStatus:no,destructionPosition:new THREE.Vector3(),recordEscortHudHealth:no,selectedCombatTarget:undefined,
+  hapticsManager:{emit:no},audioManager:{playDestroyConfirm:no},airAssaultMode:false,skyDuelMode:false,flightRecap:{kills:0},gameplayFeedback:{push:no},killNotice:()=>'',score:0,recordBestScore:no,handleContractKill:no,showCombatMessage:no,
+  createDestructionEffect:(_p,type)=>effects.push(type),playDestructionSound:no,transportCrashFlash:{style:{}},flightGameRoot:{classList:{remove:no,add:no}},showJourneyResult:()=>events.push('success')});
+ vm.runInContext(receive+'\n'+code('updateAircraftVictory'),ctx);
+ const state=next=>{ctx.previousAttempt=ctx.journeyAttempt;ctx.journeyAttempt=next;ctx.message={attempt:next};vm.runInContext(m14StateHandler,ctx);};
+ state(attempt);
+ return {ctx,ids,events,effects,camera,state,attempt,destroy(index){ctx.message={...hit,playerId:ids[index],aircraftType:mission.escortAircraft[index]};vm.runInContext('receive();',ctx);}};
+}
+for(const mission of [journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12])for(const finalOrdinal of mission.escortAircraft.keys())for(const destructionFirst of [false,true])test(`${mission.name} final escort screenplay: final ${finalOrdinal}, destruction first ${destructionFirst}`,()=>{
+ const f=m14Fixture(mission),{ctx,ids,state,attempt,events,effects}=f;
+ state({...attempt,monsterHealth:0}); // The existing giant-plane blast has already finished.
+ assert.equal(ctx.aircraftVictoryCandidates.length,ids.length);assert.equal(ctx.aircraftVictory,null);
+ const ending=ctx.aircraftVictoryCandidates[finalOrdinal];
+ ending.recordAssistedShot({shotId:'last-bullet',ownerId:'pilot',targetId:ids[finalOrdinal],origin:{x:11745,y:2456,z:-34567},targetPosition:hit.position});
+ ending.recordFatalHit({playerId:ids[finalOrdinal],shooterId:'pilot',health:0});
+ let kills=0;const expectedEffects=[];
+ for(const index of ids.keys())if(index!==finalOrdinal){
+   kills|=1<<index;state({...attempt,monsterHealth:0,rearGuardKills:kills});f.destroy(index);
+   expectedEffects.push(mission.escortAircraft[index]);
+   assert.deepEqual(effects,expectedEffects);assert.equal(events.length,0,'earlier escorts do not start the ending');
+ }
+ assert.equal(ending.mission.enemyLivery,mission.escortLiveries[finalOrdinal]);
+ assert.equal(ending.mission.fromGameplayCamera,true);
+ if(destructionFirst)f.destroy(finalOrdinal);
+ state({...attempt,monsterHealth:0,rearGuardKills:(1<<ids.length)-1,status:'COMPLETED'});
+ assert.equal(ctx.aircraftVictory,ending);ending.confirmSuccess();
+ if(!destructionFirst)f.destroy(finalOrdinal);
+ assert.deepEqual(events,[`replay:${ids[finalOrdinal]}`]);
+ assert.equal(ending.update(0).blast,false);ending.updateCamera(f.camera);
+ assert.deepEqual(f.camera.position.toArray(),[100,200,300],'opening frame retains the gameplay camera');
+ assert.deepEqual(ending.bulletPosition.toArray(),[11745,2456,-34567]);
+ vm.runInContext('updateAircraftVictory(1.5);',ctx);
+ expectedEffects.push(mission.escortAircraft[finalOrdinal]);
+ assert.deepEqual(effects,expectedEffects,'last bullet reaches the escort before its shared destruction effect');
+ assert.equal(events.includes('success'),false,'success stays hidden through the blast');
+ vm.runInContext('updateAircraftVictory(1.1);',ctx);assert.equal(events.at(-1),'success');
+ assert.deepEqual(ending.impactPosition.toArray(),[12345,2456,-34567]);
+});
+for(const mission of [journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12])test(`${mission.name} escort-first order retains the giant ending, and retry clears stale escort shot history`,()=>{
+ const f=m14Fixture(mission),{ctx,state,attempt,events}=f;
+ let kills=0;for(const index of f.ids.keys()){kills|=1<<index;state({...attempt,rearGuardKills:kills});f.destroy(index);}
+ state({...attempt,rearGuardKills:kills,monsterHealth:0,status:'COMPLETED'});
+ assert.equal(ctx.aircraftVictory,null);assert.deepEqual(events,[],'giant last never replays an already-dead escort');
+ state({...attempt,attemptId:'retry',targetId:'new-a',secondaryTargetId:'new-b',rearGuardThirdId:'new-c',rearGuardFourthId:'new-d'});
+ assert.equal(ctx.aircraftVictoryCandidates.length,f.ids.length);
+ assert(ctx.aircraftVictoryCandidates.every(ending=>ending.attemptId==='retry'&&!ending.hasReplay));
+ state({...attempt,attemptId:'retry',status:'FAILED'});
+ assert.equal(ctx.aircraftVictoryCandidates.length,0);assert.equal(ctx.aircraftVictory,null);
+});
+
+for (const remainingWing of ['fortressLeftHealth','fortressRightHealth']) test(`M18 does not replay the last escort while ${remainingWing} is still alive`,()=>{
+ const f=m14Fixture(journeyDallas12),{ctx,state,attempt,events,effects}=f;
+ state({...attempt,monsterHealth:0,[remainingWing]:250,rearGuardKills:1});
+ f.destroy(0);f.destroy(1);
+ assert.equal(ctx.aircraftVictory,null);
+ assert.deepEqual(events,[],'destroying escorts cannot finish a living armored giant');
+ assert.deepEqual(effects,[...journeyDallas12.escortAircraft]);
 });

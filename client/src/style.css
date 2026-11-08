@@ -7164,3 +7164,7 @@ html.custom-control-layout #game-root #radar-panel {
 .journey-combat-header-active .flight-hud-danger { display: none !important; }
 #game-root.journey-combat-header-active #right-flight-stack,
 #game-root.journey-combat-header-active .flight-game-hud #flight-map-button { top: calc(var(--safe-area-top) + 84px); }
+
+/* The match rule belongs only to Sky Duel's instance of the shared header. */
+.sky-duel-ui .sky-duel-hud-scoreboard:has(.sky-duel-win-condition) { position: relative; }
+.sky-duel-win-condition { position: absolute; top: calc(100% + 3px); inset-inline: 0; color: #ffdf83; text-align: center; white-space: nowrap; font: 800 9px/1 var(--font-display); text-shadow: 0 1px 3px #082346; }

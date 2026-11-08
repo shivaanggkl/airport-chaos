@@ -89,7 +89,7 @@ test('M19 screenplay presents all four story scenes and smoothly hands off at 20
   path.sample(4500,cameraPosition,cameraTarget,chase,look);const low=cameraPosition.y;
   path.sample(11500,cameraPosition,cameraTarget,chase,look);assert(cameraPosition.y>low+500,'boss reveal rises from body to face');
   const other=new CombatMissionIntroPath(monster,player,19);assert.equal(other.sweepMs,11000);assert.equal(other.wipe(5750),.5);
-  assert.equal(journeyDallas25.bossHealth,500);assert.equal(journeyDallas25.timeLimitMs,240000*DALLAS_WORLD_SCALE);assert.equal(journeyDallas25.firstClearCredits,2550);assert.equal(journeyDallas25.startAirportId,'dfw');assert.equal(journeyDallas19.bossHealth,1500);
+  assert.equal(journeyDallas25.bossHealth,500);assert.equal(journeyDallas25.timeLimitMs,360000);assert.equal(journeyDallas25.firstClearCredits,2550);assert.equal(journeyDallas25.startAirportId,'love');assert.equal(journeyDallas19.bossHealth,1500);
   const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
   assert(main.includes('const arrivalIntro=journeyAttempt.missionId===journeyDallas25.id'));
   assert(main.includes('view.prepareStationaryIntro(obstacleBounds)'));

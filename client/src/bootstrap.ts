@@ -254,11 +254,11 @@ async function playJourneyMission(): Promise<void> {
     journeyAttemptMission = mission;
     const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
     if (!dallas) throw new Error('Dallas is unavailable');
-    missionJourney.hide();
-    citySelector.hidden = false;
+    citySelector.hidden = true;
     await enterCity(dallas, missionTimePreset(missionNumber));
   } catch (error) {
     console.error('[journey] Mission launch failed', error);
+    if (entryState === 'FLIGHT' && gameRoot.hidden) showMissionJourney(false, false);
     await refreshJourneyProgress();
     if (mission === 'mission-13' || mission === 'mission-14') missionJourneyElement.querySelector<HTMLElement>('[data-mission-objective]')!.textContent =
       error instanceof Error ? error.message : 'Mission 7 is unavailable. Please try again.';
@@ -2275,10 +2275,10 @@ async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDa
       : undefined,
   } : null);
   missionJourneyReturnPending = false;
-  missionJourney.hide();
-  appHeader.hide();
 
   if (!gameRoot.hidden) {
+    missionJourney.hide();
+    appHeader.hide();
     if (activeCityFromUrl()?.id !== city.id) {
       window.dispatchEvent(new CustomEvent('airport-chaos-city-exit', { detail: { cityId: city.id, timePreset } }));
       return;
@@ -2316,6 +2316,8 @@ async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDa
   await import('./main');
   notifySharedMenuPreferences();
   gameRoot.hidden = false;
+  missionJourney.hide();
+  appHeader.hide();
   citySelector.hidden = true;
 }
 

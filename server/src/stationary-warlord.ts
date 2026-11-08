@@ -9,8 +9,8 @@ import {journeyDallas25} from '../../shared/journey-mission.mjs';
 const base=structuredClone(ashenWarlordSpecies);
 const punch=base.abilities.find(a=>a.id==='hand-strike')!;
 export const stationaryWarlordSpecies=new SpeciesRegistry().register({...base,
-    id:'stationary-warlord',health:500,level:'EASY',contactDamage:undefined,director:undefined,
-    stationary:{roarDuration:model.clips.roar!.duration,roarInterval:22},
+    id:'stationary-warlord',health:500,level:'EASY',contactDamage:25,director:undefined,
+    stationary:{roarDuration:model.clips.roar!.duration,roarInterval:6.5,firstRoarAfter:0,idlePunchDuration:model.clips.punch!.duration,actionRestSeconds:.25},
     animations:['idle','punch','roar','defeat'],
     movement:{...base.movement,walk:0,run:0,chargeSpeed:0,turnRate:0,turnAcceleration:0,independentAim:false,traversalLeap:false},
     regions:base.regions.map(region=>({...region,multiplier:1})),

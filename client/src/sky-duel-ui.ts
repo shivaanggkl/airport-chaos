@@ -78,6 +78,7 @@ export class SkyDuelUi {
   private scoreA = 0;
   private scoreB = 0;
   private endsAt = 0;
+  private protectedUntil = 0;
   private countdownEndsAt = 0;
   private launchStartedAt = 0;
   private launchCountdownAt = 0;
@@ -156,8 +157,8 @@ export class SkyDuelUi {
       const localIsA = this.localPilotId === this.pilotAId;
       this.runwayLocalName.textContent = this.localPilot.name.toUpperCase();
       this.runwayOpponentName.textContent = (this.opponentPilot?.name || 'AI PLAYER').toUpperCase();
-      this.runwayLocalAirport.textContent = `${localIsA ? dallasDisplayNames.dfw : dallasDisplayNames.love} · RUNWAY`;
-      this.runwayOpponentAirport.textContent = `${localIsA ? dallasDisplayNames.love : dallasDisplayNames.dfw} · RUNWAY`;
+      this.runwayLocalAirport.textContent = `${dallasDisplayNames.dfw} · DEPARTURE ${localIsA ? 'A' : 'B'}`;
+      this.runwayOpponentAirport.textContent = `${dallasDisplayNames.dfw} · DEPARTURE ${localIsA ? 'B' : 'A'}`;
     }
   }
 
@@ -233,6 +234,9 @@ export class SkyDuelUi {
     this.localScore = this.statsHeader.localScore;
     this.opponentScore = this.statsHeader.opponentScore;
     this.clock = this.statsHeader.clock;
+    const winCondition = document.createElement('small');
+    winCondition.className = 'sky-duel-win-condition'; winCondition.textContent = 'FIRST TO 3 WINS';
+    this.clock.parentElement!.append(winCondition);
     this.runwayIntro = document.createElement('div');
     this.runwayIntro.className = 'sky-duel-runway-intro';
     this.runwayIntro.hidden = true;
@@ -322,7 +326,11 @@ export class SkyDuelUi {
   hasPracticeMatch(): boolean { return Boolean(this.matchId) && this.practiceMatch; }
   hasAbandonedSearch(): boolean { return this.abandonedSearch; }
 
+  combatProtected(): boolean { return Date.now() < this.protectedUntil; }
+
   handle(message: DuelMessage): void {
+    if (message.type === 'skyDuelSpawn' || message.type === 'skyDuelFound' && message.recovered) this.protectedUntil = message.protectedUntil ?? 0;
+    if (message.type === 'skyDuelLoading' || message.type === 'skyDuelResult') this.protectedUntil = 0;
     if (this.abandonedSearch) {
       if (message.type === 'skyDuelCancelled' || message.type === 'skyDuelResult') {
         this.abandonedSearch = false;
@@ -421,6 +429,8 @@ export class SkyDuelUi {
       this.scoreA = message.scoreA ?? this.scoreA;
       this.scoreB = message.scoreB ?? this.scoreB;
       this.endsAt = message.endsAt ?? this.endsAt;
+      if (message.phase === 'active' && message.endsAt !== undefined) this.protectedUntil = Math.max(this.protectedUntil,
+        message.endsAt - competitiveModes.skyDuel.durationMs + competitiveModes.skyDuel.protectionMs);
       this.panel.hidden = this.phase !== 'countdown' && !(this.phase === 'launch' && this.opponentDisconnected);
       this.root.classList.toggle('is-presentation', this.phase === 'countdown' || this.phase === 'launch');
       this.root.classList.remove('is-searching');

@@ -204,7 +204,7 @@ test('M7 launch refuses an old backend before creating an attempt and explains t
   for (const supported of [false, true]) {
     const objective = { textContent: '' }, calls = [];
     const context = vm.createContext({journeyDallas18,journeyDallas17,
-      journeyLaunchPending: false, dallasUnlocked: () => true, cityJourneyMode: '',
+      journeyLaunchPending: false, dallasUnlocked: () => true, cityJourneyMode: '', entryState: 'MISSION_JOURNEY',
       missionJourney: { selectedMissionNumber: 7, hide: () => {} },
       journeyMissionOrder: Array(6).fill('').concat(mission.id), pendingAircraftSelection: undefined,
       apiUrl: path => path, apiFetch: async path => {

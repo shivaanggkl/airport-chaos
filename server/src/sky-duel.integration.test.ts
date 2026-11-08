@@ -9,7 +9,7 @@ import test from 'node:test';
 import WebSocket from 'ws';
 import { PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
-import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
+import { competitiveModes } from '../../shared/competitive-modes.mjs';
 import { PlayerProfileStore } from './player-profiles.js';
 import { PilotSessionStore } from './session-auth.js';
 
@@ -176,9 +176,9 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     const [spawnA, spawnB] = await Promise.all([a.waitFor('skyDuelSpawn'), b.waitFor('skyDuelSpawn')]);
     assert.equal(spawnA.speed, 0);
     assert.equal(spawnB.speed, 0);
-    assert.equal(Math.abs(Number((spawnA.position as { x: number }).x) - Number((spawnB.position as { x: number }).x)),
-      Math.abs(cityAirports.dallas[0].x - cityAirports.dallas[1].x),
-      'human pilots start at DFW and Love Field');
+    const startA = spawnA.position as {x:number;z:number}, startB = spawnB.position as {x:number;z:number};
+    assert.equal(Math.hypot(startA.x-startB.x,startA.z-startB.z),4500,'mirrored DFW departures are 4.5 km apart');
+    assert.equal(startA.x,cityAirports.dallas[0].x);assert.equal(startB.x,cityAirports.dallas[0].x);
     await new Promise(resolveWait => setTimeout(resolveWait, 1_200));
     assert.equal(a.messages.some(message => message.type === 'skyDuelFound'), false,
       'countdown waits for both clients to finish loading');
@@ -242,19 +242,23 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     assert.equal(profiles.getOrCreate(second.pilotId, 'Second').credits, 4500,
       'reconnect never reserves a second stake');
     b.sendState();
-    await b.waitFor('playerState', message => message.playerId === loadingB.playerBId && message.lifeState === 'alive');
-    b.send('skyDuelGroundCrash');
-    await a.waitFor('skyDuelState', message => Number(firstIsA ? message.scoreA : message.scoreB) === 1);
-    b.send('skyDuelGroundCrash');
-    await b.waitFor('skyDuelSpawn', message => message.active === true);
-    assert.equal(Math.max(...a.messages.filter(message => message.type === 'skyDuelState')
-      .map(message => Number(firstIsA ? message.scoreA : message.scoreB))), 1,
-    'one crash gives the opponent one point even if the client repeats the report');
+    await b.waitFor('playerState', message => message.playerId === (firstIsA ? loadingB.playerBId : loadingB.playerAId) && message.lifeState === 'alive');
+    const recovered = await b.waitFor('skyDuelFound', message => message.recovered === true);
+    const activeState = await b.waitFor('skyDuelState', message => message.phase === 'active');
+    assert.equal(Number(recovered.protectedUntil), Number(activeState.endsAt) - competitiveModes.skyDuel.durationMs + competitiveModes.skyDuel.protectionMs,'reconnect preserves the original protection deadline');
+    await new Promise(resolveWait=>setTimeout(resolveWait,Math.max(0,Number(recovered.protectedUntil)-Date.now()+75)));
+    b.send('skyDuelGroundCrash');b.send('skyDuelGroundCrash');
+    await new Promise(resolveWait=>setTimeout(resolveWait,200));
+    assert.equal(a.messages.some(message=>message.type==='skyDuelState'&&Number(firstIsA?message.scoreA:message.scoreB)>0),false,
+      'a forged parked-plane crash cannot award a point');
     positionForCombat(a, b, spawnA, spawnB);
     const keepState = setInterval(() => { a?.stepCombatPose(); b?.stepCombatPose(); }, 100);
     const fire = setInterval(() => a?.send('fire'), 350);
     try {
-      await a.waitFor('skyDuelState', message => Number(firstIsA ? message.scoreA : message.scoreB) >= 2, 40_000 * DALLAS_WORLD_SCALE);
+      const respawn = await b.waitFor('skyDuelSpawn', message=>message.active===true,30000);
+      assert.equal(respawn.health,100);
+      assert.ok(Number(respawn.protectedUntil)-Date.now()>7500,'respawn protection is eight seconds from the server spawn');
+      await a.waitFor('skyDuelState', message => Number(firstIsA ? message.scoreA : message.scoreB) >= 2, 40000);
     } finally { clearInterval(fire); clearInterval(keepState); }
     a.send('skyDuelSurrender');
     const [resultA, resultB] = await Promise.all([a.waitFor('skyDuelResult'), b.waitFor('skyDuelResult')]);
@@ -306,18 +310,18 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     const combatState = setInterval(() => { a?.stepCombatPose(); b?.stepCombatPose(); }, 100);
     const combatFire = setInterval(() => a?.send('fire'), 350);
     try {
-      const score = await a.waitFor('skyDuelState', message => Number(thirdIsA ? message.scoreA : message.scoreB) >= 3, 160_000 * DALLAS_WORLD_SCALE);
+      const score = await a.waitFor('skyDuelState', message => Number(thirdIsA ? message.scoreA : message.scoreB) >= 3, 120_000);
       assert.equal(thirdIsA ? score.scoreB : score.scoreA, 0);
-      assert.equal(a.messages.some(message => message.type === 'skyDuelResult' && message.matchId === secondFound.matchId), false,
-        'three points do not end the match before the timer');
+      await a.waitFor('skyDuelResult', message => message.matchId === secondFound.matchId, 2000);
+      assert.equal(Number(thirdIsA ? score.scoreA : score.scoreB),3,'first to three settles without waiting for timeout');
     } finally { clearInterval(combatFire); clearInterval(combatState); }
     b.send('skyDuelSurrender');
     const win = await a.waitFor('skyDuelResult', message => message.matchId === secondFound.matchId);
     assert.equal(win.outcome, thirdIsA ? 'WIN_A' : 'WIN_B');
     assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5500);
     assert.equal(profiles.getOrCreate(fourth.pilotId, 'Fourth').credits, 4500);
-    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').pilotProgress.xp, 0,
-      'a forfeit does not grant natural match XP');
+    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').pilotProgress.xp, 40,
+      'a natural first-to-three win retains the existing 40-XP award');
     assert.equal(profiles.getOrCreate(fourth.pilotId, 'Fourth').pilotProgress.xp, 0,
       'an inactive guest loser receives no XP');
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sky_duel_receipts').get()?.count, 3);
@@ -346,9 +350,8 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     assert.ok(Number.isFinite(aiStart.altitudeMeters), 'AI starting altitude is available to the HUD');
     const aiStartPosition = aiStart.position as { x: number; y: number; z: number };
     const aiSpawn = a.messages.filter(message => message.type === 'skyDuelSpawn').at(-1)!;
-    assert.equal(Math.abs(aiStartPosition.x - Number((aiSpawn.position as { x: number }).x)),
-      Math.abs(cityAirports.dallas[0].x - cityAirports.dallas[1].x),
-      'AI starts on the Love Field runway');
+    assert.equal(aiStartPosition.x,cityAirports.dallas[0].x,'AI uses the same DFW runway');
+    assert.ok(Math.abs(aiStartPosition.z-Number((aiSpawn.position as {z:number}).z))>=4500,'AI begins at the opposite DFW departure');
     assert.equal(b.messages.some(message => message.type === 'playerState' && message.playerId === aiId), false,
       'practice AI is private to its pilot');
     const aiState = setInterval(() => a?.sendState(), 100);

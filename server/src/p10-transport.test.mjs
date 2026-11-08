@@ -93,7 +93,7 @@ function simulate(mission) {
  });
  if(escorted)ctx.spawnRearGuardEscorts('owner',pilot,f.store.get('pilot',a.attemptId),epoch);
  const attempt=f.store.get('pilot',a.attemptId),escortIds=escorted?[attempt.targetId,attempt.secondaryTargetId]:[],escorts=escortIds.map(id=>players.get(id));
- for(const actor of escorts){assert.equal(actor.health,1000);assert.equal(actor.aircraftType,'trainer');assert(distance(actor.position,transportPose(0,altitude,mission.timeLimitMs,mission.id))>transportFootprintRadius+100);}
+ for(const actor of escorts){assert.equal(actor.health,1000);assert.equal(actor.aircraftType,'trainer');const pose=transportPose(0,altitude,mission.timeLimitMs,mission.id);assert.equal(transportAircraftImpact(actor.position,actor.position,actor.rotation,actor.rotation,actor.aircraftType,pose,pose),undefined,'escort spawn must clear the actual enlarged transport mesh');}
  const shots=[],escortShots=[],enemyTurns=new Map(),enemyLastFire=new Map();let seed=17;
  const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
  let lastPilotFire=-Infinity,pilotHits=0,pilotShots=0,receivedHits=0,maxEscortSeparation=0,lastHeading=0,crashed=false;
@@ -175,16 +175,16 @@ function simulate(mission) {
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 }
 
-test('M13 actual non-Boost Bluejay flight and moving-hull combat completes before its three-minute exit',t=>{
+test('M13 actual non-Boost Bluejay flight and moving-hull combat completes before its 4:20 exit',t=>{
  const r=simulate(missions.journeyDallas07);t.diagnostic(JSON.stringify(r));
- assert.equal(r.status,'COMPLETED');assert.equal(r.credits,850);assert.equal(r.pilotHits,80);assert(r.completion<=180);assert(r.firstEngagement>=30&&r.firstEngagement<=75);assert(!r.crashed);assert(r.health>0);
+ assert.equal(r.status,'COMPLETED');assert.equal(r.credits,850);assert.equal(r.pilotHits,80);assert(r.completion<missions.journeyDallas07.timeLimitMs/1000);assert(r.firstEngagement>=30&&r.firstEngagement<=75*missions.journeyDallas07.timeLimitMs/180000);assert(!r.crashed);assert(r.health>0);
 });
 
-test('M13 route, clearance and full-airframe exit agree with its authoritative three-minute deadline',()=>{
+test('M13 route, clearance and full-airframe exit agree with its authoritative 4:20 deadline',()=>{
  const m=missions.journeyDallas07,route=transportRouteForMission(m.id),altitude=transportAltitude(buildings,ground,m.id);
  const collision=JSON.parse(readFileSync(new URL('../../shared/giant-transport-collision.json',import.meta.url),'utf8'));
  const bottom=collision.triangles.reduce((minimum,t)=>Math.min(minimum,t[1],t[4],t[7]),Infinity)*transportScaleForMission(m.id);
- assert.equal(m.timeLimitMs,180000);assert.equal(missionJourneyDetails.find(d=>d.id===m.id).timeLimit,'3:00');
+ assert.equal(m.timeLimitMs,260000);assert.equal(missionJourneyDetails.find(d=>d.id===m.id).timeLimit,'4:20');
  assert(route.length<transportRouteLength);assert(route.length>=route.exitX-route.start.x);
  for(let elapsed=0;elapsed<m.timeLimitMs;elapsed+=1000){
   const p=transportPose(elapsed,altitude,m.timeLimitMs,m.id),q=transportPose(elapsed+1000,altitude,m.timeLimitMs,m.id);
@@ -199,8 +199,8 @@ test('M13 route, clearance and full-airframe exit agree with its authoritative t
  assert(route.exitX-(a.x+20000)>75000,'a 75km east-exit route cannot begin within 20km of DFW');
 });
 
-test('M14 non-Boost Bluejay destroys both real escorts and the moving transport before 3:00',t=>{
- const r=simulate(missions.journeyDallas08);t.diagnostic(JSON.stringify(r));assert.equal(r.status,'COMPLETED');assert.equal(r.credits,950);assert.deepEqual(r.escortHealths,[0,0]);assert.equal(r.pilotHits,80);assert(r.completion<=345);assert(r.health>0);assert(!r.crashed);
+test('M14 non-Boost Bluejay destroys both real escorts and the moving transport before 4:20',t=>{
+ const r=simulate(missions.journeyDallas08);t.diagnostic(JSON.stringify(r));assert.equal(r.status,'COMPLETED');assert.equal(r.credits,950);assert.deepEqual(r.escortHealths,[0,0]);assert.equal(r.pilotHits,80);assert(r.completion<missions.journeyDallas08.timeLimitMs/1000);assert(r.health>0);assert(!r.crashed);
 });
 
 for(const mission of [missions.journeyDallas07,missions.journeyDallas08])test(`${mission.name}: current pause/reconnect preserves the exit deadline; retired active courses cannot inherit it`,()=>{
@@ -221,9 +221,9 @@ for(const mission of [missions.journeyDallas07,missions.journeyDallas08])test(`$
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 
-test('M14 transport escape matches 3:00 and only M14 escorts use the practical combat area',()=>{
+test('M14 transport escape matches 4:20 and only M14 escorts use the practical combat area',()=>{
  const mission=missions.journeyDallas08,route=transportRouteForMission(mission.id);
- assert.equal(mission.timeLimitMs,180000);assert.equal(missionJourneyDetails.find(d=>d.id===mission.id).timeLimit,'3:00');
+ assert.equal(mission.timeLimitMs,260000);assert.equal(missionJourneyDetails.find(d=>d.id===mission.id).timeLimit,'4:20');
  const before=transportPose(mission.timeLimitMs-50,900,mission.timeLimitMs,mission.id),end=transportPose(mission.timeLimitMs,900,mission.timeLimitMs,mission.id);
  assert(before.x-transportFootprintRadius<route.exitX);assert(end.x-transportFootprintRadius>=route.exitX-1e-6);
  const transport={x:0,z:0},near={x:2000,z:0},far={x:10000,z:0};
@@ -237,22 +237,24 @@ test('M15–M18 keep the legacy route, movement, heading and collision poses at 
   assert.deepEqual(transportRouteForMission(mission.id).start,transportCourse.start);
   for(const fraction of [0,.01,.25,.5,.75,.99,1,1.01]){
    const elapsed=mission.timeLimitMs*fraction;
-   assert.deepEqual(transportPose(elapsed,900,mission.timeLimitMs,mission.id),transportPose(elapsed,900,mission.timeLimitMs));
+   const {missionId: poseMissionId,...pose}=transportPose(elapsed,900,mission.timeLimitMs,mission.id);
+   if(poseMissionId!==undefined)assert.equal(poseMissionId,mission.id);
+   assert.deepEqual(pose,transportPose(elapsed,900,mission.timeLimitMs));
   }
  }
 });
 
 for(const mission of [missions.journeyDallas07,missions.journeyDallas08,missions.journeyDallas09,missions.journeyDallas10,missions.journeyDallas11,missions.journeyDallas12]){
- test(`${mission.name}: three-minute Journey display matches the server GO deadline and timeout`,()=>{
+ test(`${mission.name}: 4:20 Journey display matches the server GO deadline and timeout`,()=>{
   const f=fixture();try{
-   assert.equal(mission.timeLimitMs,180000);
-   assert.equal(missionJourneyDetails.find(detail=>detail.id===mission.id)?.timeLimit,'3:00');
+   assert.equal(mission.timeLimitMs,260000);
+   assert.equal(missionJourneyDetails.find(detail=>detail.id===mission.id)?.timeLimit,'4:20');
    const attempt=f.store.launch('pilot','trainer',1000,mission.id);
    assert.equal(attempt.deadlineAt,null);
    f.store.approach('pilot',attempt.attemptId,2000);
    assert.equal(f.store.startGiantIncoming('other',attempt.attemptId,3000),undefined);
    const active=f.store.startGiantIncoming('pilot',attempt.attemptId,3000);
-   assert.equal(active.deadlineAt,183000);
+   assert.equal(active.deadlineAt,263000);
    assert.equal(f.store.startGiantIncoming('pilot',attempt.attemptId,4000),undefined);
    if(mission.id===missions.journeyDallas11.id||mission.id===missions.journeyDallas12.id)
     assert.equal(f.store.hitFortressComponent('pilot',attempt.attemptId,'left',active.deadlineAt,1),undefined);

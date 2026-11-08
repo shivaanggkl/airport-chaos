@@ -1,6 +1,6 @@
 import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
 import { readFileSync } from 'node:fs';
-import { transportPose, transportTuning, transportFootprintRadius, transportFootprintForMission, transportScaleForMission, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
+import { transportPose, transportGunMounts, transportTuning, transportFootprintRadius, transportFootprintForMission, transportScaleForMission, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
 import { AIM_ENVELOPE, COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
 import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
 import { segmentBlockedByBuildings, indexBuildingsForOcclusion } from './monster-arrival.js';
@@ -70,12 +70,13 @@ const gunSurface=collisionData.gunTriangles.map(i=>triangles[i]!.map((v,axis)=>v
 const gunBounds=gunSurface.map(t=>({min:[0,1,2].map(a=>Math.min(t[a]!,t[a+3]!,t[a+6]!)),max:[0,1,2].map(a=>Math.max(t[a]!,t[a+3]!,t[a+6]!))}));
 const gunTree=tree(gunSurface.map((_,i)=>i),gunBounds);
 type CollisionPose = TransportPose & { sideGuns?: readonly { yaw: number; pitch: number }[] };
-function gunLocal(p:Point,pose:CollisionPose,gun=0):number[]{const q=local(p,pose),side=gun===1?-1:1,
-    x=q[0]!-(gun?side*11:0),y=q[1]!-4.699999809265137,z=q[2]!-(gun?0:18.600000381469727),
-    yaw=gun?side*Math.PI/2+(pose.sideGuns?.[gun-1]?.yaw??0):pose.gunYaw??0,
+function gunLocal(p:Point,pose:CollisionPose,gun=0):number[]{const q=local(p,pose),mount=transportGunMounts(pose.missionId)[gun]!,
+    x=q[0]!-mount.x,y=q[1]!-mount.y,z=q[2]!-mount.z,
+    yaw=mount.yaw+(gun?pose.sideGuns?.[gun-1]?.yaw??0:pose.gunYaw??0),
     pitch=gun?pose.sideGuns?.[gun-1]?.pitch??0:pose.gunPitch??0,
     c=Math.cos(yaw),s=Math.sin(yaw),gx=c*x-s*z,gz=s*x+c*z,cp=Math.cos(pitch),sp=Math.sin(pitch);
     return[gx,cp*y-sp*gz,sp*y+cp*gz];}
+
 function local(p: Point, pose: TransportPose): number[] { const x = p.x - pose.x, z = p.z - pose.z, c = Math.cos(pose.yaw), s = Math.sin(pose.yaw); const lx = c * x - s * z, ly = p.y - pose.y, r = pose.roll ?? 0, cr = Math.cos(r), sr = Math.sin(r); return [(cr * lx + sr * ly) / (pose.scale ?? transportTuning.scale), (-sr * lx + cr * ly) / (pose.scale ?? transportTuning.scale), (s * x + c * z) / (pose.scale ?? transportTuning.scale)]; }
 const cross = (a: number[], b: number[]) => [a[1]! * b[2]! - a[2]! * b[1]!, a[2]! * b[0]! - a[0]! * b[2]!, a[0]! * b[1]! - a[1]! * b[0]!];
 const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
@@ -127,7 +128,7 @@ function impactFraction(start:number[],end:number[],meshTree:Box,surface=triangl
 export function transportImpact(a:Point,b:Point,before:CollisionPose,after:CollisionPose,includeRearGun=true):Point|undefined {
  let first=impactFraction(local(a,before),local(b,after),bodyTree);
  if(includeRearGun)first=Math.min(first,impactFraction(gunLocal(a,before),gunLocal(b,after),gunTree,gunSurface));
- if(before.sideGuns&&after.sideGuns)for(const gun of [1,2])first=Math.min(first,
+ if(before.sideGuns&&after.sideGuns)for(let gun=1;gun<=Math.min(before.sideGuns.length,after.sideGuns.length);gun++)first=Math.min(first,
     impactFraction(gunLocal(a,before,gun),gunLocal(b,after,gun),gunTree,gunSurface));
  return Number.isFinite(first)?{x:a.x+(b.x-a.x)*first,y:a.y+(b.y-a.y)*first,z:a.z+(b.z-a.z)*first}:undefined;
 }
@@ -232,17 +233,18 @@ export type TransportEncounter = {
     fortressGunsEnabled?: boolean;
 };
 export type CrossfireGun = { yaw: number; pitch: number; warningUntil: number };
-export type CrossfireGunCycle = { guns: [CrossfireGun, CrossfireGun, CrossfireGun]; activeGun: number | null;
+export type CrossfireGunCycle = { guns: CrossfireGun[]; independent?: {nextBurstAt:number;shotsRemaining:number;nextShotAt:number}[]; activeGun: number | null;
     nextGun: number; nextBurstAt: number; shotsRemaining: number; nextShotAt: number };
 export function createTransportEncounter(attemptId: string, playerId: string, startedAt: number, altitude: number, durationMs = transportTuning.durationMs, crossfire = false, fortress = false, missionId?: string): TransportEncounter { return { missionId, attemptId, playerId, startedAt, altitude, durationMs, lastTickAt: startedAt, lastBroadcastAt: 0, nextBurstAt: startedAt + 2000, warningUntil: 0, shotsRemaining: 0, nextShotAt: 0, sequence: 0, hitSequence: 0, gunYaw: 0, gunPitch: 0, shots: [],
-    ...(crossfire || fortress ? { crossfire: { guns: Array.from({ length: 3 }, () => ({ yaw: 0, pitch: 0, warningUntil: 0 })) as CrossfireGunCycle['guns'],
+    ...(crossfire || fortress ? { crossfire: { guns: Array.from({ length: missionId===journeyDallas10.id ? 4 : 3 }, () => ({ yaw: 0, pitch: 0, warningUntil: 0 })) as CrossfireGunCycle['guns'],
+      ...(missionId===journeyDallas10.id ? {independent:Array.from({length:4},()=>({nextBurstAt:startedAt+2000,shotsRemaining:0,nextShotAt:0}))} : {}),
       activeGun: null, nextGun: fortress ? 1 : 0, nextBurstAt: startedAt + 2_000, shotsRemaining: 0, nextShotAt: 0 } } : {}),
     ...(fortress ? { fortressTurrets: [journeyDallas11.turretHealth,journeyDallas11.turretHealth] as [number,number] } : {}) }; }
 export function transportGunMuzzle(p: TransportPose, gun: number, yaw = 0, pitch = 0): Point {
     if (gun === 0) return transportMuzzle(p, yaw, pitch);
-    const side = gun === 1 ? -1 : 1, heading = side * Math.PI / 2 + yaw;
-    const distance = 2.1299991607666016, x = side * 11 + Math.sin(heading) * Math.cos(pitch) * distance;
-    const y = 4.699999809265137 + Math.sin(pitch) * distance, z = Math.cos(heading) * Math.cos(pitch) * distance;
+    const mount=transportGunMounts(p.missionId)[gun]!, heading=mount.yaw+yaw;
+    const distance = 2.1299991607666016, x = mount.x + Math.sin(heading) * Math.cos(pitch) * distance;
+    const y = mount.y + Math.sin(pitch) * distance, z = mount.z + Math.cos(heading) * Math.cos(pitch) * distance;
     const cr = Math.cos(p.roll), sr = Math.sin(p.roll), lx = cr * x - sr * y, ly = sr * x + cr * y, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
     return { x: p.x + (c * lx + s * z) * (p.scale ?? transportTuning.scale), y: p.y + ly * (p.scale ?? transportTuning.scale),
         z: p.z + (-s * lx + c * z) * (p.scale ?? transportTuning.scale) };
@@ -273,6 +275,12 @@ export function transportFortressAimTarget(pose: TransportPose, origin: Point, f
     return best;
 }
 export function transportGunAim(p: TransportPose, target: Point, gun: number): { yaw: number; pitch: number; eligible: boolean } {
+    if(p.missionId===journeyDallas10.id){
+      const mount=transportGunMounts(p.missionId)[gun]!,m=[mount.x,mount.y,mount.z],t=local(target,p);
+      const x=t[0]!-m[0]!,y=t[1]!-m[1]!,z=t[2]!-m[2]!,c=Math.cos(mount.yaw),s=Math.sin(mount.yaw);
+      const yaw=Math.atan2(c*x-s*z,s*x+c*z),pitch=Math.atan2(y,Math.hypot(x,z));
+      return {yaw,pitch,eligible:Math.hypot(x,y,z)*(p.scale??transportTuning.scale)<=COMBAT_RANGE && Math.abs(yaw)<=transportTuning.yawArc && Math.abs(pitch)<=transportTuning.pitchArc};
+    }
     if (gun === 0) return transportAim(p, target);
     const m = transportGunMuzzle(p, gun), x = target.x - m.x, z = target.z - m.z, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
     const lx = c * x - s * z, lz = s * x + c * z, side = gun === 1 ? -1 : 1;
@@ -326,15 +334,35 @@ export function transportInterceptTime(offset: Point, velocity: Point, speed: nu
     const roots = [(-b - Math.sqrt(discriminant)) / (2 * a), (-b + Math.sqrt(discriminant)) / (2 * a)].filter(t => t > 0);
     return roots.length ? Math.min(2.5, ...roots) : 0;
 }
+/** M16 aims at a reachable intercept, using the actual barrel and bullet speed. */
+export function transportGunIntercept(p:TransportPose,target:Point,velocity:Point,gun:number,yaw=0,pitch=0){
+    if(p.missionId!==journeyDallas10.id)return undefined;
+    const muzzle=transportGunMuzzle(p,gun,yaw,pitch),speed=journeyDallas10.gunProjectileSpeed;
+    const offset={x:target.x-muzzle.x,y:target.y-muzzle.y,z:target.z-muzzle.z};
+    const seconds=transportInterceptTime(offset,velocity,speed);
+    if(!(seconds>0 && seconds*speed<=COMBAT_RANGE))return undefined;
+    const point={x:target.x+velocity.x*seconds,y:target.y+velocity.y*seconds,z:target.z+velocity.z*seconds};
+    const x=point.x-muzzle.x,y=point.y-muzzle.y,z=point.z-muzzle.z,length=Math.hypot(x,y,z);
+    const aim=transportGunAim(p,point,gun);
+    if(!aim.eligible || !Number.isFinite(length) || Math.abs(length-speed*seconds)>.01)return undefined;
+    return {...aim,muzzle,point,seconds,speed,direction:{x:x/length,y:y/length,z:z/length}};
+}
 export function stepTransportEncounter(e: TransportEncounter, target: Point, velocity: Point, buildings: readonly Building[], now: number) {
     const dt = Math.max(0, Math.min(.1, (now - e.lastTickAt) / 1000));
     e.lastTickAt = now;
     const p = transportPose(now - e.startedAt, e.altitude, e.durationMs, e.missionId), m = transportMuzzle(p, e.gunYaw, e.gunPitch), aim = transportAim(p, target);
-    const move = (current: number, goal: number) => current + Math.max(-dt * .8, Math.min(dt * .8, goal - current));
+    const trackingRate=e.missionId===journeyDallas10.id ? journeyDallas10.gunTrackingRate : .8;
+    const move = (current: number, goal: number) => current + Math.max(-dt * trackingRate, Math.min(dt * trackingRate, goal - current));
     e.gunYaw = move(e.gunYaw, Math.max(-transportTuning.yawArc, Math.min(transportTuning.yawArc, aim.yaw)));
     e.gunPitch = move(e.gunPitch, Math.max(-transportTuning.pitchArc, Math.min(transportTuning.pitchArc, aim.pitch)));
     const fire = (gun: number, muzzle: Point) => {
         if (e.shots.length >= 9) return;
+        if(e.missionId===journeyDallas10.id){
+          const state=e.crossfire!.guns[gun]!,solution=transportGunIntercept(p,target,velocity,gun,state.yaw,state.pitch);
+          if(solution && !transportHullImpact(solution.muzzle,solution.point,p) && !segmentBlockedByBuildings(solution.muzzle,solution.point,buildings))
+            e.shots.push({id:`${e.attemptId}:${++e.sequence}`,position:solution.muzzle,direction:solution.direction,speed:solution.speed,traveled:0});
+          return;
+        }
         const distance = Math.hypot(target.x - muzzle.x, target.y - muzzle.y, target.z - muzzle.z);
         const initial = { x: (target.x - muzzle.x) / distance, y: (target.y - muzzle.y) / distance, z: (target.z - muzzle.z) / distance };
         const speed = ballisticShotSpeed(p.velocity, initial), offset = { x: target.x - muzzle.x, y: target.y - muzzle.y, z: target.z - muzzle.z };
@@ -351,20 +379,43 @@ export function stepTransportEncounter(e: TransportEncounter, target: Point, vel
         const cycle = e.crossfire;
         const legal = (gun: number) => {
             if (e.fortressTurrets && (gun === 0 || e.fortressTurrets[gun-1]! <= 0)) return false;
-            const state = cycle.guns[gun]!, gunAim = transportGunAim(p, target, gun);
+            const state = cycle.guns[gun]!;
+            if(cycle.independent){
+              const solution=transportGunIntercept(p,target,velocity,gun,state.yaw,state.pitch);
+              return !!solution && Math.abs(state.yaw-solution.yaw)<.015 && Math.abs(state.pitch-solution.pitch)<.015 &&
+                !transportHullImpact(solution.muzzle,solution.point,p) && !segmentBlockedByBuildings(solution.muzzle,solution.point,buildings);
+            }
+            const gunAim = transportGunAim(p, target, gun);
             const muzzle = transportGunMuzzle(p, gun, state.yaw, state.pitch);
             return gunAim.eligible && Math.abs(state.yaw - gunAim.yaw) < .06 &&
                 Math.abs(state.pitch - gunAim.pitch) < .06 &&
                 !transportHullImpact(muzzle, target, p) && !segmentBlockedByBuildings(muzzle, target, buildings);
         };
-        for (let gun = e.fortressTurrets ? 1 : 0; gun < 3; gun++) {
-            const state = cycle.guns[gun]!, goal = transportGunAim(p, target, gun);
+        for (let gun = e.fortressTurrets ? 1 : 0; gun < cycle.guns.length; gun++) {
+            const state = cycle.guns[gun]!, goal = (cycle.independent ? transportGunIntercept(p,target,velocity,gun,state.yaw,state.pitch) : undefined) ?? transportGunAim(p, target, gun);
             state.yaw = move(state.yaw, Math.max(-transportTuning.yawArc, Math.min(transportTuning.yawArc, goal.yaw)));
             state.pitch = move(state.pitch, Math.max(-transportTuning.pitchArc, Math.min(transportTuning.pitchArc, goal.pitch)));
         }
         if (!e.fortressTurrets || e.fortressGunsEnabled !== false) {
-            const gun = stepCrossfireGunCycle(cycle, now, legal, !!e.fortressTurrets);
-            if (gun !== null) fire(gun, transportGunMuzzle(p, gun, cycle.guns[gun]!.yaw, cycle.guns[gun]!.pitch));
+            if(cycle.independent){
+              for(let gun=0;gun<cycle.guns.length;gun++){
+                const state=cycle.guns[gun]!,schedule=cycle.independent[gun]!;
+                if(now>=schedule.nextBurstAt && !state.warningUntil && !schedule.shotsRemaining && legal(gun)){
+                  state.warningUntil=now+journeyDallas10.gunWarningMs;
+                  schedule.nextBurstAt=now+journeyDallas10.gunBurstIntervalMs;
+                }
+                if(state.warningUntil && now>=state.warningUntil){state.warningUntil=0;schedule.shotsRemaining=legal(gun)?2:0;schedule.nextShotAt=now;}
+                if(schedule.shotsRemaining && now>=schedule.nextShotAt){
+                  schedule.shotsRemaining--;schedule.nextShotAt=now+journeyDallas10.gunShotSpacingMs;
+                  if(legal(gun))fire(gun,transportGunMuzzle(p,gun,state.yaw,state.pitch));
+                }
+              }
+              cycle.activeGun=cycle.guns.findIndex(gun=>gun.warningUntil>now);
+              if(cycle.activeGun<0)cycle.activeGun=null;
+            }else{
+              const gun = stepCrossfireGunCycle(cycle, now, legal, !!e.fortressTurrets);
+              if (gun !== null) fire(gun, transportGunMuzzle(p, gun, cycle.guns[gun]!.yaw, cycle.guns[gun]!.pitch));
+            }
         }
         if (!e.fortressTurrets) return p;
     }

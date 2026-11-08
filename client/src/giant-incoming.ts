@@ -2,7 +2,7 @@ import { TransportArrivalSequence } from './transport-arrival.ts';
 import * as THREE from 'three';
 import { TransportDefeatSequence } from './transport-defeat';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { transportTuning, transportScaleForMission, type TransportStateMessage, type TransportPoint } from '../../shared/giant-incoming.mjs';
+import { transportTuning, transportGunMounts, transportScaleForMission, type TransportStateMessage, type TransportPoint } from '../../shared/giant-incoming.mjs';
 import { journeyDallas11 } from '../../shared/journey-mission.mjs';
 export type { TransportStateMessage } from '../../shared/giant-incoming.mjs';
 function roundedBayShape(width: number, height: number): THREE.Shape {
@@ -116,7 +116,7 @@ export class GiantIncomingView {
     onWarning?: () => void;
     private wasWarning = false;
     constructor(private scene: THREE.Scene, private readonly terrain:(x:number,z:number)=>number = ()=>0,
-        private readonly crossfire = false, private readonly fortress = false) {
+        private readonly crossfire = false, private readonly fortress = false, private readonly missionId?: string) {
         this.root.rotation.order = 'YXZ';
         this.root.name = 'mission-07-transport';
         this.root.scale.setScalar(transportTuning.scale);
@@ -139,11 +139,11 @@ export class GiantIncomingView {
                 this.guns.push({ yaw: level.getObjectByName('RearGunYaw')!, pitch: level.getObjectByName('RearGunPitch')! });
                 if (this.crossfire) {
                     const original = level.getObjectByName('RearGunYaw')!;
-                    this.sideGuns.push(([-1, 1] as const).map(side => {
+                    this.sideGuns.push(transportGunMounts(this.missionId).slice(1).map((mount,index) => {
                         const yaw = original.clone(true);
-                        yaw.name = side < 0 ? 'LeftGunYaw' : 'RightGunYaw';
-                        yaw.position.set(side * 11, 4.699999809265137, 0);
-                        yaw.rotation.y = side * Math.PI / 2;
+                        yaw.name = index===0 ? 'LeftGunYaw' : index===1 ? 'RightGunYaw' : 'FrontGunYaw';
+                        yaw.position.set(mount.x,mount.y,mount.z);
+                        yaw.rotation.y = mount.yaw;
                         level.add(yaw);
                         return { yaw, pitch: yaw.getObjectByName('RearGunPitch')!, muzzle: yaw.getObjectByName('RearGunMuzzle')! };
                     }));
@@ -287,7 +287,7 @@ export class GiantIncomingView {
             this.guns[lod]!.pitch.rotation.x = -(s.crossfireGuns?.[0]?.pitch ?? s.gunPitch);
             for (let side = 0; side < (this.sideGuns[lod]?.length ?? 0); side++) {
                 const gun = this.sideGuns[lod]![side]!, state = s.crossfireGuns?.[side + 1];
-                gun.yaw.rotation.y = (side === 0 ? -1 : 1) * Math.PI / 2 + (state?.yaw ?? 0);
+                gun.yaw.rotation.y = transportGunMounts(this.missionId)[side+1]!.yaw + (state?.yaw ?? 0);
                 gun.pitch.rotation.x = -(state?.pitch ?? 0);
             }
             const warningGun = s.activeGun ?? 0;

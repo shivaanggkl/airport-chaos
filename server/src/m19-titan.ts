@@ -241,11 +241,13 @@ export function disposeM19(e: M19Encounter) {
     e.disposed = true;
 }
 export function permittedM19Damage(e: M19Encounter, event: Snapshot['events'][number], now: number): number {
-    if((e.engine.species.id==='showdown-warlord'||e.engine.species.id==='final-warlord')&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===20||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===25&&now-e.contactAt>=3500))return 0;
-    if(e.engine.species.id==='pursuit-warlord'&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===10||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===15&&now-e.contactAt>=4000))return 0;
-    if(e.engine.species.hunting&&e.engine.species.id!=='showdown-warlord'&&e.engine.species.id!=='final-warlord'&&e.engine.species.id!=='pursuit-warlord'&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===15||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===20&&now-e.contactAt>=4000))return 0;
-    if(e.engine.species.anchored&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===10||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===15&&now-e.contactAt>=4000))return 0;
-    if(e.engine.species.stationary&&(event.type!=='sweep'||event.ability!=='hand-strike'||event.amount!==15||now-e.contactAt<4000))return 0;
+    const bodyContact=event.type==='contact' && event.amount===25 && e.engine.species.contactDamage===25 &&
+        ['stationary-warlord','striking-warlord','hunting-warlord','showdown-warlord','pursuit-warlord','final-warlord'].includes(e.engine.species.id);
+    if(!bodyContact&&(e.engine.species.id==='showdown-warlord'||e.engine.species.id==='final-warlord')&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===25||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===25&&now-e.contactAt>=3500))return 0;
+    if(!bodyContact&&e.engine.species.id==='pursuit-warlord'&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===25||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===15&&now-e.contactAt>=4000))return 0;
+    if(!bodyContact&&e.engine.species.hunting&&e.engine.species.id!=='showdown-warlord'&&e.engine.species.id!=='final-warlord'&&e.engine.species.id!=='pursuit-warlord'&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===25||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===20&&now-e.contactAt>=4000))return 0;
+    if(!bodyContact&&e.engine.species.anchored&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===e.engine.species.abilities.find(a=>a.id==='fireball-barrage')?.damage||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===15&&now-e.contactAt>=4000))return 0;
+    if(e.engine.species.stationary&&!bodyContact&&(event.type!=='sweep'||event.ability!=='hand-strike'||event.amount!==15||now-e.contactAt<4000))return 0;
     if (e.disposed || event.encounterId !== e.attemptId || event.kind !== 'damage' || event.targetId !== e.pilotId || !event.id.startsWith(`${e.attemptId}:event:`))
         return 0;
     const sequence = Number(event.id.split(':').at(-1));
@@ -254,7 +256,8 @@ export function permittedM19Damage(e: M19Encounter, event: Snapshot['events'][nu
     e.damageEventSequence = sequence;
     if (now - e.lastDamageAt < 100)
         return 0;
-    const contact = !['projectile', 'beam'].includes(event.type);
+    // Body contact has its own one-second engine cooldown; it must not consume the punch cooldown.
+    const contact = !bodyContact && !['projectile', 'beam'].includes(event.type);
     if (contact && now - e.contactAt < 1000)
         return 0;
     if (contact)

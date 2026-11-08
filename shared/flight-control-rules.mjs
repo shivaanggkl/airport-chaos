@@ -90,17 +90,13 @@ export function airborneAirbrakeDeceleration(forwardSpeed,strength,envelope){
   return Math.max(baseDrag*(envelope.airbrakeDrag??2),speed*envelope.inertia*.85)*Math.max(0,strength)/envelope.inertia;
 }
 
-export function airbornePitchTarget(pitchControl,forwardSpeed,throttle,envelope){
+export function airbornePitchTarget(pitchControl,envelope){
+  // Throttle changes speed, never the commanded attitude. Low-speed/idle
+  // descent is handled by lift and gravity, without rotating the nose.
   const command=clamp(pitchControl,-1,1);
-  const commandedPitch=command>=0
+  return command>=0
     ? envelope.maxClimbPitch*command
     : (envelope.maxDivePitch??envelope.maxClimbPitch)*command;
-  // Low power and stall reduce an upward pitch command, but must not point
-  // the nose down unless the pilot explicitly commands a dive.
-  const powerOff=1-clamp(throttle/.2,0,1);
-  const stall=clamp((envelope.stallSpeed-Math.max(0,forwardSpeed))/(envelope.stallSpeed*.52),0,1);
-  const target=commandedPitch-.1*powerOff-.2*stall;
-  return clamp(command>=0?Math.max(0,target):target,-.35,envelope.maxClimbPitch);
 }
 
 export function airborneLiftFactor(forwardSpeed,angleOfAttack,throttle,stallFactor,envelope){

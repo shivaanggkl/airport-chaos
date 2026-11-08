@@ -43,7 +43,7 @@ test('mission preview and countdown cannot simulate flight or report a preflight
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   assert.match(main, /const journeyPreflightActive = \(\): boolean => journeyMode &&[\s\S]*missionStartCountdownStartedAt !== null/);
   assert.match(main, /function endRun\([\s\S]*?if \(journeyPreflightActive\(\)\) return/);
-  assert.match(main, /if \(!crashed && runStarted && !visualQaInspectionActive && !screenplayFlightPaused && !journeyPreflightActive\(\)/);
+  assert.match(main, /if \(!crashed && runStarted && !monsterView\?\.timeoutCinematicActive && !visualQaInspectionActive && !screenplayFlightPaused && !journeyPreflightActive\(\)/);
   assert.match(server, /if \(message\.type === 'journeyCrash'\) \{[\s\S]*?if \(player\.hasRespawnTransform\) failPlayerJourney\(playerId, 'CRASHED'\)/);
 });
 
@@ -78,7 +78,7 @@ test('Journey timers wait for GO after the mission start countdown', () => {
   assert.match(countdown, /runStarted = true;[\s\S]*?type: 'journeyCountdownComplete', attemptId: journeyAttempt\.attemptId[\s\S]*?sendLocalState\(\)/);
   assert.match(server, /message\.type === 'journeyCountdownComplete'[\s\S]*?message\.attemptId === id && \(attempt\?\.status === 'APPROACH' \|\| attempt\?\.status === 'RACING'\)[\s\S]*?journeyCountdownComplete\.add\(id!\)/);
   assert.match(server, /attempt\?\.missionId===journeyDallas07\.id[\s\S]*?attempt\?\.missionId===journeyDallas12\.id\) && attempt\.status==='APPROACH' && transportReady\.has\(attemptId\) && journeyCountdownComplete\.has\(attemptId\)/);
-  assert.match(server, /journeyDallas19\.id && attempt\.status === 'APPROACH' && journeyCountdownComplete\.has\(attemptId\)/);
+  assert.match(server, /if \(\(\(attempt\?\.missionId===journeyDallas19\.id\|\|attempt\?\.missionId===journeyDallas25\.id[^\n]+journeyDallas20\.id\) && attempt\.status === 'APPROACH' && journeyCountdownComplete\.has\(attemptId\)/);
   assert.match(server, /journeyCountdownComplete\.add\(id!\);[\s\S]*?startRookieRush\(player\.pilotId, id!, now\)[\s\S]*?startTimedGateClock\(player\.pilotId, id!, now\)/);
   assert.match(server, /active && journeyCountdownComplete\.has\(journeyAttemptId\) && \(active\.missionId === journeyDallas01\.id/);
 });

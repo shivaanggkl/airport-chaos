@@ -12,7 +12,7 @@ import { createOpponent, hasClientOpponentOverride, opponentAim, opponentReactio
 import { enemyAiLevels } from '../../shared/enemy-ai.mjs';
 import { ambushApproach, ambushCanFire, ambushCruiseSpeed, type AmbushState } from './surprise-attack.js';
 import { advanceHunterFlight, hunterFlightIntercept, hunterBallisticSolution, hunterObservedPosition } from './hunter-flight.js';
-import { journeyMissionSlot } from '../../shared/journey-mission.mjs';
+import { journeyMissionSlot, isMonsterJourneyMission } from '../../shared/journey-mission.mjs';
 import {milwaukeeTerrainHeight} from '../../shared/milwaukee-terrain.mjs';
 import {PortalTransitionStore,type PortalFlight} from './portal-transitions.js';
 import {portalForCity,portalExit,sweptPortalCrossing,portalModeAllowed,portalRules,type PortalPose,type PortalGate} from '../../shared/intercity-portals.mjs';
@@ -97,7 +97,7 @@ import { AdMobSsvVerifier, RewardedAdStore, type RewardedAdClientEvent } from '.
 import { ReferralFlightTracker } from './referral-flight.js';
 import { SkyDuelStore, type DuelOutcome } from './sky-duel-store.js';
 import { closestDuelOpponent, type DuelQueueEntry } from './sky-duel-matchmaking.js';
-import { duelTimeoutWinner } from './sky-duel-rules.js';
+import { duelTimeoutWinner, duelScoreWinner } from './sky-duel-rules.js';
 import { competitiveModes } from '../../shared/competitive-modes.mjs';
 import { skyDuelAirportIds, skyDuelArenaCenter, skyDuelRunwaySpawn } from './sky-duel-spawn.js';
 
@@ -339,6 +339,9 @@ type SkyDuelSession = {
 };
 const skyDuelQueue = new Map<string, DuelQueueEntry>();
 const skyDuelSessions = new Map<string, SkyDuelSession>();
+const skyDuelScoredMatches = new Set<string>();
+const skyDuelCombatDeaths = new Set<string>();
+let skyDuelCombatStep = false;
 const skyDuelFairWaitNotified = new Set<string>();
 const pendingSkyDuelResults = new Map<string, { matchId: string; message: object }>();
 type SkyDuelRematch = { matchId: string; pilotA: string; pilotB: string; aiOpponent: boolean; practice: boolean;
@@ -415,9 +418,9 @@ function skyDuelBotRoute(position: Vector3, heading: number): Vector3[] {
   ];
 }
 
-function sendSkyDuelPeerState(playerId: string): void {
+function sendSkyDuelPeerState(playerId: string, recipientId?: string): void {
   const player = players.get(playerId);
-  const peerId = skyDuelPeer(playerId);
+  const peerId = recipientId ?? skyDuelPeer(playerId);
   if (!player || !peerId) return;
   sendToPlayer(peerId, {
     type: 'playerState', playerId, cityId: 'dallas', position: player.position, rotation: player.rotation,
@@ -441,8 +444,8 @@ function skyDuelSpawn(playerId: string, session: SkyDuelSession, now: number): v
   player.velocity = { x: 0, y: 0, z: 0 };
   player.health = skyDuelHealth;
   player.lifeState = 'respawning';
-  player.hasRespawnTransform = player.isBot;
-  player.spawnProtectedUntil = Math.max(now + 2_000, session.countdownEndsAt + 2_000);
+  player.hasRespawnTransform = true; // This pose was assigned by the server, not submitted by the client.
+  player.spawnProtectedUntil = now + competitiveModes.skyDuel.protectionMs;
   player.lastFireAt = now;
   player.assistedAim = undefined;
   if (player.bot && session.aiOpponent) {
@@ -611,8 +614,8 @@ function skyDuelPracticeSpawn(playerId: string, now: number): void {
   player.velocity = { x: 0, y: 0, z: 0 };
   player.health = skyDuelHealth;
   player.lifeState = 'respawning';
-  player.hasRespawnTransform = false;
-  player.spawnProtectedUntil = now + 2_000;
+  player.hasRespawnTransform = true;
+  player.spawnProtectedUntil = now + competitiveModes.skyDuel.protectionMs;
   player.skyDuelPractice = true;
   sendToPlayer(playerId, { type: 'skyDuelSpawn', position, heading, speed: 0,
     health: skyDuelHealth, protectedUntil: player.spawnProtectedUntil, active: true });
@@ -621,6 +624,10 @@ function skyDuelPracticeSpawn(playerId: string, now: number): void {
 
 function skyDuelFinish(session: SkyDuelSession, outcome: DuelOutcome, now: number, cause: 'completed' | 'forfeit' | 'absence' = 'completed'): void {
   if (!skyDuelSessions.has(session.id)) return;
+  // A validated terminal combat batch takes precedence over racing exit packets.
+  if ((cause !== 'completed' || outcome === 'CANCELLED') && skyDuelScoredMatches.has(session.id) &&
+    duelScoreWinner(session.scoreA,session.scoreB)) return;
+  skyDuelScoredMatches.delete(session.id);
   if (session.practice) {
     skyDuelSessions.delete(session.id);
     const pilot = players.get(session.playerA);
@@ -628,6 +635,7 @@ function skyDuelFinish(session: SkyDuelSession, outcome: DuelOutcome, now: numbe
       pilot.skyDuelMatchId = undefined;
       pilot.lifeState = 'destroyed';
       removePlayerProjectiles(session.playerA);
+      setServerLock(session.playerA, pilot); clearLocksForTarget(session.playerA);
     }
     const rematch = outcome === 'CANCELLED' ? undefined : offerSkyDuelRematch(session, now);
     removeBot(session.playerB);
@@ -658,6 +666,7 @@ function skyDuelFinish(session: SkyDuelSession, outcome: DuelOutcome, now: numbe
       player.skyDuelMatchId = undefined;
       player.lifeState = 'destroyed';
       removePlayerProjectiles(playerId);
+      setServerLock(playerId, player); clearLocksForTarget(playerId);
       if (!player.isBot) sendProfile(playerId, undefined, undefined, undefined, 'Sky Duel', true);
       const before = xpBefore.get(playerId);
       const after = !player.isBot ? profileStore.getOrCreate(player.pilotId, player.displayName).pilotProgress : undefined;
@@ -696,14 +705,29 @@ function skyDuelFinish(session: SkyDuelSession, outcome: DuelOutcome, now: numbe
 }
 
 function skyDuelScoreDestruction(session: SkyDuelSession, victimId: string, now: number): void {
-  if (session.phase !== 'active' || now >= session.startedAt + competitiveModes.skyDuel.durationMs) return;
-  if (victimId === session.playerA) {
+  if (skyDuelSessions.get(session.id) !== session || session.phase !== 'active' || now >= session.startedAt + competitiveModes.skyDuel.durationMs ||
+    players.get(victimId)?.lifeState !== 'destroyed') return;
+  if (victimId === session.playerA && !session.respawnA) {
     session.scoreB += 1;
     session.respawnA = now + competitiveModes.skyDuel.respawnMs;
-  } else if (victimId === session.playerB) {
+  } else if (victimId === session.playerB && !session.respawnB) {
     session.scoreA += 1;
     session.respawnB = now + competitiveModes.skyDuel.respawnMs;
+  } else return;
+  skyDuelScoredMatches.add(session.id);
+}
+
+/** Complete trades already in flight before removing dead-life projectiles. */
+function finishSkyDuelCombatStep(now: number): void {
+  for (const id of skyDuelCombatDeaths) removePlayerProjectiles(id);
+  skyDuelCombatDeaths.clear();
+  for (const id of skyDuelScoredMatches) {
+    const session = skyDuelSessions.get(id);
+    if (!session) continue;
+    const outcome = duelScoreWinner(session.scoreA, session.scoreB);
+    if (outcome) skyDuelFinish(session, outcome, now);
   }
+  skyDuelScoredMatches.clear();
 }
 
 function sendSkyDuelScore(session: SkyDuelSession): void {
@@ -765,6 +789,7 @@ function skyDuelTick(now: number): void {
     startSkyDuelHumanMatch(playerId, opponent.playerId, now);
   }
   for (const session of skyDuelSessions.values()) {
+    if (skyDuelScoredMatches.has(session.id)) continue; // The combat step owns pending terminal trades.
     const aConnected = !session.disconnectedA && hasOpenPlayerSocket(session.playerA);
     const bConnected = session.aiOpponent || !session.disconnectedB && hasOpenPlayerSocket(session.playerB);
     if (session.disconnectedA && now - session.disconnectedA >= 15_000 ||
@@ -784,7 +809,7 @@ function skyDuelTick(now: number): void {
       session.countdownEndsAt = now + 5_000;
       for (const participantId of [session.playerA, session.playerB]) {
         const participant = players.get(participantId);
-        if (participant) participant.spawnProtectedUntil = session.countdownEndsAt + 2_000;
+        if (participant) participant.spawnProtectedUntil = session.countdownEndsAt + competitiveModes.skyDuel.protectionMs;
       }
       sendSkyDuel(session, { type: 'skyDuelFound', matchId: session.id, practice: session.practice === true,
         aiOpponent: session.aiOpponent === true,
@@ -798,7 +823,7 @@ function skyDuelTick(now: number): void {
         avatarA: skyDuelCardDetails(players.get(session.playerA)).avatar,
         avatarB: skyDuelCardDetails(players.get(session.playerB)).avatar,
         countdownEndsAt: session.countdownEndsAt, entry: competitiveModes.skyDuel.entryCredits,
-        prize: competitiveModes.skyDuel.prizeCredits, protectedUntil: session.countdownEndsAt + 2_000 });
+        prize: competitiveModes.skyDuel.prizeCredits, protectedUntil: session.countdownEndsAt + competitiveModes.skyDuel.protectionMs });
     }
     if (session.phase === 'countdown') {
       if (now < session.countdownEndsAt || !aConnected || !bConnected) continue;
@@ -809,7 +834,7 @@ function skyDuelTick(now: number): void {
       session.lastStateAt = 0;
       for (const participantId of [session.playerA, session.playerB]) {
         const participant = players.get(participantId);
-        if (participant) participant.spawnProtectedUntil = session.launchEndsAt + 2_000;
+        if (participant) participant.spawnProtectedUntil = session.launchEndsAt + competitiveModes.skyDuel.protectionMs;
         sendSkyDuelPeerState(participantId);
       }
     }
@@ -817,6 +842,10 @@ function skyDuelTick(now: number): void {
       session.phase = 'active';
       session.startedAt = now;
       session.lastStateAt = 0;
+      for (const id of [session.playerA, session.playerB]) {
+        const participant = players.get(id);
+        if (participant) participant.spawnProtectedUntil = now + competitiveModes.skyDuel.protectionMs;
+      }
       if (!session.practice) skyDuelStore.start(session.id, now);
     }
     if (session.phase === 'active' && now >= session.startedAt + competitiveModes.skyDuel.durationMs) {
@@ -2759,7 +2788,7 @@ function refreshCityLocks(cityId: CityId, now: number): void {
     // Bot locks are refreshed by updateBots from botFireSolution; only human
     // assisted locks use currentLockedTarget and assistedAim samples.
     if (player.cityId !== cityId || player.isBot || !player.lockedTargetId) continue;
-    if (!validFortressLock(playerId, player, now) && !currentLockedTarget(playerId, player, player.lockedTargetId, now)) setServerLock(playerId, player);
+    if (!validFortressLock(playerId, player, now) && !validMonsterLock(playerId,player,now) && !currentLockedTarget(playerId, player, player.lockedTargetId, now)) setServerLock(playerId, player);
   }
 }
 
@@ -4941,10 +4970,11 @@ function removePlayerProjectiles(playerId: string): void {
 function updateRespawningPlayers(now: number): void {
   for (const [playerId, player] of players) {
     if (pausedJourneyPlayers.has(playerId) || pausedTrainingPlayers.has(playerId)) continue;
+    if (player.skyDuelMatchId && skyDuelSessions.get(player.skyDuelMatchId)?.phase !== 'active') continue;
     if (
       player.lifeState !== 'respawning' ||
       !player.hasRespawnTransform ||
-      now < player.spawnProtectedUntil
+      now < player.spawnProtectedUntil && !player.skyDuelMode
     ) continue;
     player.lifeState = 'alive';
     const stateMessage = {
@@ -5200,6 +5230,34 @@ function fortressLockSolution(ownerId: string, owner: PlayerState, now: number, 
   return {id:prefix+target.component,local,origin,position:impact.point,end:target.position};
 }
 
+// Displayed M19–M24. Acquiring a target never mutates Titan health.
+function monsterLockSolution(ownerId:string,owner:PlayerState,now:number){
+  const attemptId=playerJourneyAttempts.get(ownerId),encounter=attemptId?monsterEncounters.get(attemptId):undefined;
+  if(!encounter || encounter.playerId!==ownerId || owner.cityId!=='dallas' || owner.lifeState!=='alive' ||
+      now-owner.lastStateAt>combatTransformFreshMs || runwayCombatProtected(ownerId,owner))return undefined;
+  const attempt=journeyStore.get(owner.pilotId,attemptId!);
+  if(!attempt || !isMonsterJourneyMission(attempt.missionId) || attempt.status!=='RACING' || attempt.pausedAt!==null ||
+      attempt.deadlineAt===null || now>=attempt.deadlineAt || !(Number(attempt.monsterHealth)>0))return undefined;
+  let best: {position:Vector3;local:Vector3}|undefined,score=Infinity;
+  for(const region of encounter.engine.species.regions){
+    const position=encounter.frame.limbs[region.joint];if(!position)continue;
+    const local=targetInAircraftSpace(owner,{position}),distance=Math.hypot(local.x,local.y,local.z);
+    const angle=Math.atan2(Math.hypot(local.x,local.y),-local.z);
+    if(local.z>=0 || distance>COMBAT_RANGE || angle>AIM_ENVELOPE)continue;
+    const rank=aimTargetScore(angle,distance);
+    if(rank<score){best={position,local};score=rank;}
+  }
+  if(!best)return undefined;
+  const origin=muzzleTransform(owner).position,impact=encounter.engine.hitTest(origin,best.position);
+  if(!impact)return undefined;
+  return {id:`monster:${attemptId}`,local:best.local,position:impact};
+}
+function validMonsterLock(ownerId:string,owner:PlayerState,now:number):boolean{
+  if(!owner.lockedTargetId?.startsWith('monster:') || owner.assistedAim?.targetId!==owner.lockedTargetId || now-owner.assistedAim.updatedAt>500)return false;
+  const target=monsterLockSolution(ownerId,owner,now);
+  return !!target && target.id===owner.lockedTargetId && insideDynamicLock(target.local.x,target.local.y,target.local.z,owner.assistedAim);
+}
+
 function validFortressLock(ownerId: string, owner: PlayerState, now: number): boolean {
   if (!owner.lockedTargetId?.startsWith('transport:') || owner.assistedAim?.targetId !== owner.lockedTargetId || now-owner.assistedAim.updatedAt > 500) return false;
   const target = fortressLockSolution(ownerId,owner,now,owner.lockedTargetId);
@@ -5212,7 +5270,7 @@ function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, man
   let candidate = (!transport || transport.missionId===journeyDallas08.id || transport.missionId===journeyDallas09.id ||
     transport.missionId===journeyDallas10.id || transport.missionId===journeyDallas12.id) && owner.lifeState==='alive' && now-owner.lastStateAt<=combatTransformFreshMs
     ? closestLockTarget(ownerId,owner,forwardDirection(owner),now) : undefined;
-  let component = transport ? fortressLockSolution(ownerId,owner,now,undefined,manualHorizontal,manualVertical) : undefined;
+  let component = transport ? fortressLockSolution(ownerId,owner,now,undefined,manualHorizontal,manualVertical) : monsterLockSolution(ownerId,owner,now);
   if (component && candidate) {
     const local=targetInAircraftSpace(owner,candidate[1]);
     const score=(point:Vector3,id:string)=>aimTargetScore(Math.atan2(Math.hypot(point.x,point.y),-point.z),Math.hypot(point.x,point.y,point.z))-
@@ -5267,6 +5325,11 @@ function currentLockedTarget(
 
 /** Ground safety comes from accepted flight state and runway geometry, never client claims. */
 function runwayCombatProtected(playerId: string | undefined, player: PlayerState): boolean {
+  if (player.skyDuelMatchId) {
+    const session = skyDuelSessions.get(player.skyDuelMatchId);
+    return !session || session.phase !== 'active' || Date.now() < player.spawnProtectedUntil;
+  }
+  if (player.skyDuelPractice) return Date.now() < player.spawnProtectedUntil;
   return (!player.isBot && playerId !== undefined && landingFlightState.get(playerId)?.airborne === false) ||
     Boolean(runwayOrTaxiSpawnArea(player));
 }
@@ -5277,6 +5340,11 @@ function canFire(player: PlayerState, now: number, playerId?: string): boolean {
 
 function fireBlockReason(player: PlayerState, now: number, playerId?: string): 'lifecycle' | 'cooldown' | undefined {
   if(player.soloExploreMode||player.portalTransit)return 'lifecycle';
+  if (player.skyDuelMode) {
+    const session = player.skyDuelMatchId ? skyDuelSessions.get(player.skyDuelMatchId) : undefined;
+    if (now < player.spawnProtectedUntil || session?.phase === 'active' &&
+      (now >= session.startedAt + competitiveModes.skyDuel.durationMs || duelScoreWinner(session.scoreA,session.scoreB))) return 'lifecycle';
+  }
   if (player.entityType !== 'player' || player.lifeState !== 'alive' || runwayCombatProtected(playerId, player)) return 'lifecycle';
   if(player.airAssaultId&&!airAssaultEncounters.get(player.airAssaultOwnerId!)?.canFight())return 'lifecycle';
   if (player.skyDuelMode && !player.skyDuelPractice &&
@@ -5471,7 +5539,8 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   }
   if (owner.skyDuelMatchId) {
     const session = skyDuelSessions.get(owner.skyDuelMatchId);
-    if (!session) return false;
+    if (!session || session.phase !== 'active' || now >= session.startedAt + competitiveModes.skyDuel.durationMs ||
+      now < owner.spawnProtectedUntil) return false;
     const dealt = Math.min(victim.health, damage);
     victim.health -= dealt;
     sendSkyDuel(session, { type: 'damage', playerId: victimId, shooterId: ownerId,
@@ -5718,11 +5787,13 @@ function markPlayerDestroyed(victimId: string, victim: PlayerState, now: number)
     return;
   }
   if (victim.skyDuelMode) {
+    if (victim.lifeState === 'destroyed') return;
     victim.lifeState = 'destroyed';
     victim.health = 0;
     setServerLock(victimId, victim);
     clearLocksForTarget(victimId);
-    removePlayerProjectiles(victimId);
+    if (skyDuelCombatStep && victim.skyDuelMatchId) skyDuelCombatDeaths.add(victimId);
+    else removePlayerProjectiles(victimId);
     return;
   }
   // Mark destruction before another shot/collision can inspect this player.
@@ -5769,7 +5840,7 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
       now < first.spawnProtectedUntil || now < second.spawnProtectedUntil ||
       now - first.lastStateAt > combatTransformFreshMs || now - second.lastStateAt > combatTransformFreshMs) return false;
   // Parked pilots cannot collide while taxiing or taking off.
-  if (runwayOrTaxiSpawnArea(first) || runwayOrTaxiSpawnArea(second)) return false;
+  if (!first.skyDuelMatchId && (runwayOrTaxiSpawnArea(first) || runwayOrTaxiSpawnArea(second))) return false;
   const relativeAllowance = Math.min(30, (Math.hypot(first.velocity.x, first.velocity.y, first.velocity.z) +
     Math.hypot(second.velocity.x, second.velocity.y, second.velocity.z)) * 0.1);
   const distance = Math.hypot(first.position.x - second.position.x, first.position.y - second.position.y, first.position.z - second.position.z);
@@ -5778,7 +5849,7 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
   if(first.airAssaultId){markPlayerDestroyed(firstId,first,now);markPlayerDestroyed(secondId,second,now);return true;}
   if (first.skyDuelMatchId) {
     const session = skyDuelSessions.get(first.skyDuelMatchId);
-    if (!session) return false;
+    if (!session || session.phase !== 'active' || now >= session.startedAt + competitiveModes.skyDuel.durationMs) return false;
     markPlayerDestroyed(firstId, first, now);
     markPlayerDestroyed(secondId, second, now);
     skyDuelScoreDestruction(session, firstId, now);
@@ -5936,6 +6007,7 @@ function updateMonsterEncounters(now:number):void {
   if(pausedJourneyAttempts.has(encounter.attemptId))continue;
   const pilot=players.get(encounter.playerId),attempt=pilot&&journeyStore.get(pilot.pilotId,encounter.attemptId);
   if(!pilot||((attempt?.missionId!==journeyDallas19.id&&attempt?.missionId!==journeyDallas25.id&&attempt?.missionId!==journeyDallas21.id&&attempt?.missionId!==journeyDallas22.id&&attempt?.missionId!==journeyDallas23.id)&&attempt?.missionId!==journeyDallas20.id)||attempt.status!=='RACING'||attempt.deadlineAt===null||now>=attempt.deadlineAt)continue;
+  if((attempt.missionId===journeyDallas21.id||attempt.missionId===journeyDallas22.id||attempt.missionId===journeyDallas23.id||attempt.missionId===journeyDallas19.id)&&playerJourneyRunwayPrep.has(encounter.playerId))continue;
   const threats=[];
   for(const id of encounter.projectileIds){const shot=projectiles.get(id);if(shot&&threats.length<32)threats.push({id:shot.projectileId,encounterId:encounter.attemptId,position:shot.position,velocity:{x:shot.direction.x*shot.speed,y:shot.direction.y*shot.speed,z:shot.direction.z*shot.speed},radius:1});}
   stepM19(encounter,pilot.position,pilot.velocity,aircraftHitRadii[pilot.aircraftType],now,threats);
@@ -5983,7 +6055,10 @@ function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: n
     e.hitSequence++;
     e.hitPosition = hit;
     if (result.missionId === journeyDallas09.id) beginReinforcementWave(result, now);
-    if((result.missionId===journeyDallas08.id||result.missionId===journeyDallas09.id||result.missionId===journeyDallas10.id)&&a.monsterHealth!==0&&result.monsterHealth===0&&result.status!=='COMPLETED')
+    const armoredGiantDestroyed = result.missionId===journeyDallas12.id && result.monsterHealth===0 &&
+      result.fortressLeftHealth===0 && result.fortressRightHealth===0 &&
+      (a.monsterHealth!==0 || a.fortressLeftHealth!==0 || a.fortressRightHealth!==0);
+    if((((result.missionId===journeyDallas08.id||result.missionId===journeyDallas09.id||result.missionId===journeyDallas10.id)&&a.monsterHealth!==0&&result.monsterHealth===0) || armoredGiantDestroyed) && result.status!=='COMPLETED')
       sendToPlayer(ownerId,{type:'transportFinal',attemptId:e.attemptId,kind:'defeat',at:now});
     sendJourneyState(ownerId, result);
     if (result.status === 'COMPLETED') {
@@ -6000,7 +6075,8 @@ function updateTransportEncounters(now: number): void {
         const pilot = players.get(e.playerId), a = pilot && journeyStore.get(pilot.pilotId, e.attemptId);
         if (!pilot || a?.status !== 'RACING' || a.deadlineAt === null || now >= a.deadlineAt)
             continue;
-        if((a.missionId===journeyDallas08.id||a.missionId===journeyDallas09.id||a.missionId===journeyDallas10.id)&&a.monsterHealth===0)continue;
+        if(a.monsterHealth===0 && (a.missionId===journeyDallas08.id || a.missionId===journeyDallas09.id || a.missionId===journeyDallas10.id ||
+          a.missionId===journeyDallas12.id && a.fortressLeftHealth===0 && a.fortressRightHealth===0))continue;
         const previousTickAt=e.lastTickAt;
         const dt = Math.max(0, Math.min(.1, (now - previousTickAt) / 1000));
         const pose = stepTransportEncounter(e, pilot.position, pilot.velocity, transportBuildings, now);
@@ -6032,7 +6108,7 @@ function updateTransportEncounters(now: number): void {
             if (sweptProjectileHit(pilot, before.x, before.y, before.z, shot.position, dt)) {
                 e.shots.splice(i, 1);
                 if (pilot.lifeState === 'alive' && now >= pilot.spawnProtectedUntil) {
-                    const shotDamage = e.fortressTurrets ? journeyDallas11.gunShotDamage : e.crossfire ? journeyDallas10.gunShotDamage : transportTuning.shotDamage;
+                    const shotDamage = e.missionId===journeyDallas10.id ? journeyDallas10.gunShotDamage : e.fortressTurrets ? journeyDallas11.gunShotDamage : transportTuning.shotDamage;
                     pilot.health = Math.max(0, pilot.health - shotDamage);
                     sendToPlayer(e.playerId, { type: 'damage', playerId: e.playerId, shooterId: `transport:${e.attemptId}`, health: pilot.health, maxHealth: maxHealthForAircraft(pilot.aircraftType), damage: shotDamage });
                     if (!pilot.health) {
@@ -6069,10 +6145,16 @@ function updateProjectiles(deltaSeconds: number): void {
   for (const projectile of projectiles.values()) {
     const owner = players.get(projectile.ownerId);
     if (pausedJourneyAttempts.has(projectile.privateAttemptId ?? owner?.bot?.journeyAttemptId ?? playerJourneyAttempts.get(projectile.ownerId) ?? '')) continue;
-    if (!owner || owner.entityType !== 'player' || owner.lifeState !== 'alive' ||
+    if (!owner || owner.entityType !== 'player' || owner.lifeState !== 'alive' && !(projectile.skyDuelMatchId && skyDuelCombatDeaths.has(projectile.ownerId)) ||
       projectile.skyDuelMatchId && owner.skyDuelMatchId !== projectile.skyDuelMatchId) {
       removeProjectile(projectile.projectileId);
       continue;
+    }
+    if (projectile.skyDuelMatchId) {
+      const session = skyDuelSessions.get(projectile.skyDuelMatchId);
+      if (!session || session.phase !== 'active' || now >= session.startedAt + competitiveModes.skyDuel.durationMs || now < owner.spawnProtectedUntil) {
+        removeProjectile(projectile.projectileId); continue;
+      }
     }
     if(projectile.airAssaultId&&!airAssaultEncounters.get(owner.airAssaultOwnerId!)?.canFight()){removeProjectile(projectile.projectileId);continue;}
     if(projectile.privateAttemptId){
@@ -7283,7 +7365,9 @@ function runwayOrTaxiSpawnArea(player: PlayerState): { id: string } | undefined 
 function safeRespawnTransform(playerId: string, player: PlayerState, now: number): { position: Vector3; heading: number } {
   const activeAttemptId = playerJourneyAttempts.get(playerId);
   const activeAttempt = activeAttemptId ? journeyStore.get(player.pilotId, activeAttemptId) : undefined;
-  const missionAirportId = activeAttempt?.missionId === journeyDallas23.id ? journeyDallas23.startAirportId
+  const missionAirportId = activeAttempt?.missionId === journeyDallas19.id ? journeyDallas19.startAirportId
+    : activeAttempt?.missionId === journeyDallas23.id ? journeyDallas23.startAirportId
+    : activeAttempt?.missionId === journeyDallas22.id ? journeyDallas22.startAirportId
     : activeAttempt?.missionId === journeyDallas21.id ? journeyDallas21.startAirportId
     : activeAttempt?.missionId === journeyDallas20.id ? undefined
     : activeAttempt?.missionId === journeyDallas18.id ? journeyDallas18.startAirportId
@@ -7571,7 +7655,9 @@ setInterval(() => {
   const now = Date.now();
   const deltaSeconds = Math.min(0.1, (now - lastProjectileUpdate) / 1000);
   lastProjectileUpdate = now;
-  updateProjectiles(deltaSeconds);
+  skyDuelCombatStep = true;
+  try { updateProjectiles(deltaSeconds); }
+  finally { skyDuelCombatStep = false; finishSkyDuelCombatStep(now); }
 }, 50);
 
 setInterval(() => updateDynamicEvents(Date.now()), eventTickMs);
@@ -8063,9 +8149,12 @@ server.on('connection', (socket, request) => {
   const spawnSlot = airAssaultMode || soloExploreMode ? 0 : restoringPausedJourney || restoringPausedTraining ? players.get(playerId)?.spawnSlot ?? 0 : reserveSpawnSlot(cityId);
   const spawnPosition = { x: 0, y: 1.2, z: 45 + spawnSlot * 15 };
   const spawnAirportId = soloExploreMode ? 'dfw' : journeyAttempt?.missionId === journeyDallas24.id ? journeyDallas24.startAirportId
+    : journeyAttempt?.missionId === journeyDallas19.id ? journeyDallas19.startAirportId
     : journeyAttempt?.missionId === journeyDallas23.id ? journeyDallas23.startAirportId
+    : journeyAttempt?.missionId === journeyDallas22.id ? journeyDallas22.startAirportId
     : journeyAttempt?.missionId === journeyDallas21.id ? journeyDallas21.startAirportId
-    : journeyAttempt?.missionId === journeyDallas20.id ? undefined
+    : journeyAttempt?.missionId === journeyDallas25.id ? journeyDallas25.startAirportId
+    : journeyAttempt?.missionId === journeyDallas20.id ? journeyDallas20.startAirportId
     : journeyAttempt?.missionId === journeyDallas18.id ? journeyDallas18.startAirportId
     : journeyAttempt?.missionId === journeyDallas16.id ? journeyDallas16.startAirportId
     : journeyAttempt?.missionId === journeyDallas17.id ? journeyDallas17.startAirportId
@@ -8160,7 +8249,7 @@ server.on('connection', (socket, request) => {
         session.lastStateAt = 0;
         for (const participantId of [session.playerA, session.playerB]) {
           const participant = players.get(participantId);
-          if (participant) participant.spawnProtectedUntil = session.countdownEndsAt + 2_000;
+          if (participant) participant.spawnProtectedUntil = session.countdownEndsAt + competitiveModes.skyDuel.protectionMs;
         }
         sendToPlayer(skyDuelPeer(playerId) ?? '', { type: 'skyDuelState', matchId: session.id,
           phase: 'countdown', scoreA: session.scoreA, scoreB: session.scoreB,
@@ -8296,6 +8385,7 @@ server.on('connection', (socket, request) => {
     const session = participant.skyDuelMatchId && skyDuelSessions.get(participant.skyDuelMatchId);
     if (session) {
       if (session.phase === 'loading') skyDuelSpawn(playerId, session, Date.now());
+      else sendSkyDuelPeerState(playerId, playerId);
       const opponent = players.get(session.playerA === playerId ? session.playerB : session.playerA);
       if (opponent) sendToPlayer(playerId, {
         type: 'playerState', playerId: session.playerA === playerId ? session.playerB : session.playerA,
@@ -8534,6 +8624,12 @@ server.on('connection', (socket, request) => {
           if (player.lifeState !== 'alive' || !player.hasRespawnTransform ||
             !session && !player.skyDuelPractice) return;
           const now = Date.now();
+          if (now < player.spawnProtectedUntil || session && (session.phase !== 'active' || now >= session.startedAt + competitiveModes.skyDuel.durationMs) ||
+            player.position.y > botTerrainHeight(player.cityId, player.position.x, player.position.z) + aircraftGroundOffset + Math.min(25,Math.max(5,Math.abs(player.velocity.y)*.15))) return;
+          const envelope = aircraftFlightEnvelope[player.aircraftType];
+          const speed = Math.hypot(player.velocity.x, player.velocity.z);
+          if (speed <= envelope.safeLandingSpeed && player.velocity.y >= -envelope.safeDescentRate &&
+            Math.abs(player.rotation.z) <= envelope.landingTilt && (groundedAtAirport(player) || speed <= 1)) return;
           markPlayerDestroyed(playerId, player, now);
           const destroyed = { type: 'destroyed', cause: 'collision', playerId, position: player.position,
             aircraftType: player.aircraftType, killerId: '', killerDisplayName: '',
@@ -9252,9 +9348,9 @@ server.on('connection', (socket, request) => {
         if (journeyAttemptId && departure?.id === journeyDallas24.finishAirportId &&
           journeyStore.get(player.pilotId, journeyAttemptId)?.legendaryPhase === 'LANDING')
           landingReceipts.delete(`${playerId}:${journeyDallas24.finishAirportId}`);
-        if (journeyAttemptId && (departure?.id === journeyDallas08.startAirportId || departure?.id === journeyDallas14.startAirportId || departure?.id === journeyDallas16.startAirportId || departure?.id === journeyDallas20.startAirportId || departure?.id === journeyDallas21.startAirportId || departure?.id === journeyDallas24.startAirportId)) {
+        if (journeyAttemptId && (departure?.id === journeyDallas08.startAirportId || departure?.id === journeyDallas14.startAirportId || departure?.id === journeyDallas16.startAirportId || departure?.id === journeyDallas25.startAirportId || departure?.id === journeyDallas20.startAirportId || departure?.id === journeyDallas21.startAirportId || departure?.id === journeyDallas22.startAirportId || departure?.id === journeyDallas19.startAirportId || departure?.id === journeyDallas24.startAirportId)) {
           const active = journeyStore.get(player.pilotId, journeyAttemptId);
-          if (active?.missionId === journeyDallas08.id || active?.missionId === journeyDallas14.id || active?.missionId === journeyDallas16.id || active?.missionId === journeyDallas20.id || active?.missionId === journeyDallas21.id || active?.missionId === journeyDallas23.id || active?.missionId === journeyDallas24.id) {
+          if (active?.missionId === journeyDallas08.id || active?.missionId === journeyDallas14.id || active?.missionId === journeyDallas16.id || active?.missionId === journeyDallas25.id || active?.missionId === journeyDallas20.id || active?.missionId === journeyDallas21.id || active?.missionId === journeyDallas22.id || active?.missionId === journeyDallas23.id || active?.missionId === journeyDallas19.id || active?.missionId === journeyDallas24.id) {
             playerJourneyLoveTakeoff.add(playerId);
             playerJourneyRunwayPrep.delete(playerId);
           }
