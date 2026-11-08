@@ -247,9 +247,9 @@ export function transportGunMuzzle(p: TransportPose, gun: number, yaw = 0, pitch
     return { x: p.x + (c * lx + s * z) * (p.scale ?? transportTuning.scale), y: p.y + ly * (p.scale ?? transportTuning.scale),
         z: p.z + (-s * lx + c * z) * (p.scale ?? transportTuning.scale) };
 }
-export function transportFortressTarget(p: TransportPose, component:'left'|'right'|'core'):Point {
-    const x=component==='left'?-11:component==='right'?11:journeyDallas11.coreLocal.x,
-      y=component==='core'?journeyDallas11.coreLocal.y:4.7,z=component==='core'?journeyDallas11.coreLocal.z:0;
+export function transportFortressTarget(p: TransportPose, component:'body'|'left'|'right'|'core'):Point {
+    const x=component==='left'?-11:component==='right'?11:component==='body'?0:journeyDallas11.coreLocal.x,
+      y=component==='body'?12/(p.scale ?? transportTuning.scale):component==='core'?journeyDallas11.coreLocal.y:4.7,z=component==='core'?journeyDallas11.coreLocal.z:0;
     const cr=Math.cos(p.roll),sr=Math.sin(p.roll),lx=cr*x-sr*y,ly=sr*x+cr*y,c=Math.cos(p.yaw),s=Math.sin(p.yaw);
     return {x:p.x+(c*lx+s*z)*(p.scale ?? transportTuning.scale),y:p.y+ly*(p.scale ?? transportTuning.scale),
       z:p.z+(-s*lx+c*z)*(p.scale ?? transportTuning.scale)};

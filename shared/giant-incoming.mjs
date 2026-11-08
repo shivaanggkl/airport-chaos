@@ -6,6 +6,18 @@ import { territoriesForCity } from './city-territories.mjs';
 const territories = territoriesForCity('dallas');
 const metroplex = territories.find(t => t.id === 'dfw');
 const whiteRock = territories.find(t => t.id === 'white-rock');
+const bodyLockParts = Object.freeze(['body']);
+const fortressLockParts = Object.freeze(['left', 'right', 'core']);
+const noLockParts = Object.freeze([]);
+// Displayed M13–M18 use the historic internal mission IDs 07–12.
+export function transportLockParts(missionId) {
+    switch (missionId) {
+        case 'journey-dallas-07': case 'journey-dallas-08':
+        case 'journey-dallas-09': case 'journey-dallas-10': return bodyLockParts;
+        case 'journey-dallas-11': case 'journey-dallas-12': return fortressLockParts;
+        default: return noLockParts;
+    }
+}
 const scale = 32;
 export function transportScaleForMission(missionId) { return scale; }
 export function transportFootprintForMission(missionId) { return Math.hypot(24, 22) * transportScaleForMission(missionId); }

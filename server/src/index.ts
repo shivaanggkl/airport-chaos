@@ -20,7 +20,7 @@ import { assaultObservedTurn, assaultShotDirection, AirAssaultEncounter, AirAssa
 import { type AssaultEnemy, type AssaultSnapshot } from '../../shared/air-assault.mjs';
 import { CombatSpatialIndex } from './combat-spatial-index.js';
 import { CombatProjectileBudget } from './combat-projectile-budget.js';
-import {transportPose,transportTuning,transportFootprintRadius} from '../../shared/giant-incoming.mjs';
+import {transportPose,transportTuning,transportFootprintRadius,transportLockParts} from '../../shared/giant-incoming.mjs';
 import { aircraftHitRadii, remoteAircraftCollisionRadius, remoteAircraftContactRadius, remoteAircraftScale, remoteAircraftVisualScale } from '../../shared/remote-aircraft-visual-rules.mjs';
 import {createTransportEncounter,transportBuildingCoverage,transportAltitude,transportImpact,transportAircraftImpact,transportHullImpact,transportFortressImpact,transportFortressTarget,transportFortressAimTarget,transportProjectileDisposition,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -5162,35 +5162,41 @@ function targetInAircraftSpace(transform: Transform, target: Pick<PlayerState,'p
   };
 }
 
-// M17 uses the same server-confirmed assisted-shot contract as aircraft combat.
+// M13–M18 use the same server-confirmed assisted-shot contract as aircraft combat.
 // Component locks additionally require a clear hit on the actual authored mesh.
 function fortressLockSolution(ownerId: string, owner: PlayerState, now: number, targetId?: string,
     manualHorizontal?: unknown, manualVertical?: unknown, fireTransform: Transform = owner) {
   const attemptId = playerJourneyAttempts.get(ownerId);
   const encounter = attemptId ? transportEncounters.get(attemptId) : undefined;
-  if (!encounter || encounter.missionId !== journeyDallas11.id || encounter.playerId !== ownerId ||
+  if (!encounter || !transportLockParts(encounter.missionId).length || encounter.playerId !== ownerId ||
       owner.cityId !== 'dallas' || owner.lifeState !== 'alive' || now-owner.lastStateAt > combatTransformFreshMs ||
       encounter.fortressGunsEnabled === false) return undefined;
   const attempt = journeyStore.get(owner.pilotId, encounter.attemptId);
-  if (attempt?.status !== 'RACING' || attempt.pausedAt !== null || attempt.deadlineAt === null || now >= attempt.deadlineAt) return undefined;
+  if (attempt?.status !== 'RACING' || attempt.missionId !== encounter.missionId || attempt.pausedAt !== null || attempt.deadlineAt === null || now >= attempt.deadlineAt) return undefined;
   const prefix = `transport:${attemptId}:`;
-  const health = { left: attempt.fortressLeftHealth ?? 0, right: attempt.fortressRightHealth ?? 0, core: attempt.monsterHealth ?? 0 };
+  const parts = transportLockParts(encounter.missionId);
+  const fortress = encounter.missionId===journeyDallas11.id || encounter.missionId===journeyDallas12.id;
+  const health = { body: attempt.monsterHealth ?? 0, left: attempt.fortressLeftHealth ?? 0, right: attempt.fortressRightHealth ?? 0, core: attempt.monsterHealth ?? 0 };
   if (targetId) {
-    if (!(['left','right','core'] as const).some(side => targetId === prefix+side && health[side] > 0)) return undefined;
-    for (const side of ['left','right','core'] as const) if (targetId !== prefix+side) health[side] = 0;
+    if (!parts.some(side => targetId === prefix+side && health[side] > 0)) return undefined;
+    for (const side of ['body','left','right','core'] as const) if (targetId !== prefix+side) health[side] = 0;
   }
   const pose = transportPose(now-encounter.startedAt,encounter.altitude,encounter.durationMs,encounter.missionId);
   const manual = { x: 0, y: 0 };
   biasAim(manual,manualHorizontal,manualVertical);
   const direction = rotateLocalYxz({x:manual.x,y:manual.y,z:-1},owner.rotation);
-  const target = transportFortressAimTarget(pose,owner.position,direction,health);
+  const target = fortress ? transportFortressAimTarget(pose,owner.position,direction,health)
+    : health.body>0 ? {component:'body' as const,position:transportFortressTarget(pose,'body')} : undefined;
   if (!target) return undefined;
+  const local=targetInAircraftSpace(fireTransform,{position:target.position});
+  if (Math.hypot(local.x,local.y,local.z)>COMBAT_RANGE || local.z>=0 || Math.atan2(Math.hypot(local.x,local.y),-local.z)>AIM_ENVELOPE) return undefined;
   const collisionPose = {...pose,gunYaw:encounter.gunYaw,gunPitch:encounter.gunPitch,sideGuns:encounter.crossfire?.guns.slice(1)};
   const origin = muzzleTransform(fireTransform).position;
-  const impact = transportFortressImpact(origin,target.position,collisionPose,collisionPose,true);
+  const bodyImpact = fortress ? undefined : transportImpact(origin,target.position,collisionPose,collisionPose);
+  const impact = fortress ? transportFortressImpact(origin,target.position,collisionPose,collisionPose,true)
+    : bodyImpact ? {component:'body' as const,point:bodyImpact} : undefined;
   if (!impact || impact.component !== target.component || segmentBlockedByBuildings(origin,impact.point,transportBuildings) ||
       impact.point.y <= dallasTerrain.elevationAt(impact.point.x,impact.point.z)) return undefined;
-  const local=targetInAircraftSpace(fireTransform,{position:target.position});
   return {id:prefix+target.component,local,origin,position:impact.point,end:target.position};
 }
 
@@ -5203,37 +5209,23 @@ function validFortressLock(ownerId: string, owner: PlayerState, now: number): bo
 function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, manualHorizontal: unknown, manualVertical: unknown): void {
   const aim = owner.assistedAim ??= { x: 0, y: 0, updatedAt: now };
   const transportId = playerJourneyAttempts.get(ownerId), transport = transportId ? transportEncounters.get(transportId) : undefined;
-  const candidate = transport?.missionId !== journeyDallas11.id && (!transport || transport.durationMs === journeyDallas08.timeLimitMs || transport.durationMs === journeyDallas09.timeLimitMs || transport.durationMs === journeyDallas12.timeLimitMs && transport.fortressGunsEnabled === false) && owner.lifeState === 'alive' && now - owner.lastStateAt <= combatTransformFreshMs
-    ? closestLockTarget(ownerId, owner, forwardDirection(owner), now) : undefined;
+  let candidate = (!transport || transport.missionId===journeyDallas08.id || transport.missionId===journeyDallas09.id ||
+    transport.missionId===journeyDallas10.id || transport.missionId===journeyDallas12.id) && owner.lifeState==='alive' && now-owner.lastStateAt<=combatTransformFreshMs
+    ? closestLockTarget(ownerId,owner,forwardDirection(owner),now) : undefined;
+  let component = transport ? fortressLockSolution(ownerId,owner,now,undefined,manualHorizontal,manualVertical) : undefined;
+  if (component && candidate) {
+    const local=targetInAircraftSpace(owner,candidate[1]);
+    const score=(point:Vector3,id:string)=>aimTargetScore(Math.atan2(Math.hypot(point.x,point.y),-point.z),Math.hypot(point.x,point.y,point.z))-
+      (aim.targetId===id ? AIM_SWITCH_MARGIN : 0);
+    if (score(component.local,component.id)<score(local,candidate[0])) candidate=undefined;
+    else component=undefined;
+  }
   const goal = { x: 0, y: 0 };
   aim.targetId = candidate?.[0];
   if (candidate) {
-    const local = targetInAircraftSpace(owner, candidate[1]);
-    aimGoal(local.x, local.y, local.z, goal);
+    const local=targetInAircraftSpace(owner,candidate[1]);
+    aimGoal(local.x,local.y,local.z,goal);
   }
-  if(transport && transport.missionId !== journeyDallas11.id && !candidate && transport.fortressGunsEnabled !== false && transport.playerId===ownerId && owner.lifeState==='alive' && now-transport.startedAt<transport.durationMs){
-    const pose=transportPose(now-transport.startedAt,transport.altitude,transport.durationMs,transport.missionId);
-    const fortress=transport.fortressTurrets;
-    const possible:('left'|'right'|'core')[]=fortress
-      ? [fortress[0]>0?'left':null,fortress[1]>0?'right':null,(journeyStore.get(owner.pilotId,transport.attemptId)?.monsterHealth??0)>0?'core':null].filter((side):side is 'left'|'right'|'core'=>side!==null)
-      : [];
-    const forward=forwardDirection(owner);
-    const point=possible.length ? possible.map(side=>transportFortressTarget(pose,side)).sort((a,b)=>
-      dot({x:b.x-owner.position.x,y:b.y-owner.position.y,z:b.z-owner.position.z},forward)/Math.hypot(b.x-owner.position.x,b.y-owner.position.y,b.z-owner.position.z)
-      -dot({x:a.x-owner.position.x,y:a.y-owner.position.y,z:a.z-owner.position.z},forward)/Math.hypot(a.x-owner.position.x,a.y-owner.position.y,a.z-owner.position.z))[0]!
-      : {x:pose.x,y:pose.y+12,z:pose.z};
-    const offset={x:point.x-owner.position.x,y:point.y-owner.position.y,z:point.z-owner.position.z};
-    const distance=Math.hypot(offset.x,offset.y,offset.z);
-    if(distance>0 && distance<=COMBAT_RANGE){
-      const direction={x:offset.x/distance,y:offset.y/distance,z:offset.z/distance},speed=ballisticShotSpeed(owner.velocity,direction),v=pose.velocity;
-      const qa=v.x*v.x+v.y*v.y+v.z*v.z-speed*speed,qb=2*(offset.x*v.x+offset.y*v.y+offset.z*v.z),qc=distance*distance,disc=qb*qb-4*qa*qc;
-      const lead=disc>=0 && qa<0?Math.min(COMBAT_RANGE/speed,Math.max(0,(-qb-Math.sqrt(disc))/(2*qa))):0;
-      const local=targetInAircraftSpace(owner,{position:{x:point.x+v.x*lead,y:point.y,z:point.z+v.z*lead}});
-      if(aimGoal(local.x,local.y,local.z,goal))aim.targetId=`transport:${transport.attemptId}`;
-    }
-  }
-  const component = transport?.missionId === journeyDallas11.id
-    ? fortressLockSolution(ownerId,owner,now,undefined,manualHorizontal,manualVertical) : undefined;
   if (component && aimGoal(component.local.x,component.local.y,component.local.z,goal)) aim.targetId=component.id;
   if (owner.lifeState === 'alive') biasAim(goal, manualHorizontal, manualVertical);
   stepAim(aim, goal, (now - aim.updatedAt) / 1000, AIM_ENVELOPE);

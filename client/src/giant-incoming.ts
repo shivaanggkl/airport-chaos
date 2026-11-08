@@ -200,9 +200,9 @@ export class GiantIncomingView {
         this.fortressComponentPosition(side,this.fortressTargetPosition);
         return side;
     }
-    fortressComponentPosition(side:'left'|'right'|'core',out:THREE.Vector3,secondsAhead=0):THREE.Vector3 {
-        out.set(side==='left'?-11:side==='right'?11:journeyDallas11.coreLocal.x,
-            side==='core'?journeyDallas11.coreLocal.y:4.7,side==='core'?journeyDallas11.coreLocal.z:0);
+    fortressComponentPosition(side:'body'|'left'|'right'|'core',out:THREE.Vector3,secondsAhead=0):THREE.Vector3 {
+        out.set(side==='left'?-11:side==='right'?11:side==='body'?0:journeyDallas11.coreLocal.x,
+            side==='body'?12/this.root.scale.x:side==='core'?journeyDallas11.coreLocal.y:4.7,side==='core'?journeyDallas11.coreLocal.z:0);
         this.root.localToWorld(out);
         const velocity=this.state?.pose.velocity;
         if(velocity){out.x+=velocity.x*secondsAhead;out.y+=velocity.y*secondsAhead;out.z+=velocity.z*secondsAhead;}
