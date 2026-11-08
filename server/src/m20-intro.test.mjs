@@ -76,7 +76,7 @@ test('M20 integration is isolated, replays on retry and keeps countdown after th
  assert(main.includes('const strikingIntro=journeyAttempt.missionId===journeyDallas20.id'));assert(main.includes('if(strikingIntro)view.prepareStrikingIntro()'));
  const retry=main.slice(main.indexOf('async function retryJourneyMission'),main.indexOf("window.addEventListener('airport-chaos-city-exit'"));assert(retry.includes('const retryGateIntro = journeyAttempt.missionId === journeyDallas20.id'));assert(retry.includes('if(journeyAttempt.missionId===journeyDallas20.id)clearFlightLaunchPresentation()'));
  const completion=main.slice(main.indexOf('function completeFlightLaunchCinematic'),main.indexOf('function abortFlightLaunchCinematic'));assert(completion.includes('clearFlightLaunchPresentation()'));assert(completion.includes('beginMissionStartCountdown()'));
- assert.equal(journeyDallas20.bossHealth,700);assert.equal(journeyDallas20.firstClearCredits,2700);assert.equal(journeyDallas20.startAirportId,'dfw');assert.equal(strikingWarlordSpecies.level,'EASY');
+ assert.equal(journeyDallas20.bossHealth,700);assert.equal(journeyDallas20.firstClearCredits,2700);assert.equal(journeyDallas20.startAirportId,'love');assert.equal(strikingWarlordSpecies.level,'EASY');
  assert.equal(strikingWarlordSpecies.abilities.find(a=>a.id==='hand-strike').damage,15);assert.equal(strikingWarlordSpecies.abilities.find(a=>a.id==='hand-strike').cooldown,4);
  assert.equal(strikingWarlordSpecies.abilities.find(a=>a.id==='fireball-barrage').damage,10);assert.equal(strikingWarlordSpecies.abilities.find(a=>a.id==='fireball-barrage').cooldown,8);
 });

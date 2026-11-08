@@ -151,8 +151,8 @@ test('the single projectile leaves a genuine dodge opportunity and disposed enco
  disposeM19(e);disposeM19(e);assert(e.disposed);assert.equal(e.engine.snapshot().projectiles.length,0);
 });
 
-test('M20 starts on the DFW runway and shares the monster intro without changing city lighting',()=>{
- assert.equal(journeyDallas20.startAirportId,'dfw');assert.equal(journeyDallas20.runwayStart,true);
+test('M20 starts on the Love Field runway and shares the monster intro without changing city lighting',()=>{
+ assert.equal(journeyDallas20.startAirportId,'love');assert.equal(journeyDallas20.runwayStart,true);
  assert.equal(authorizedJourneyAirborneSpawn({missionId:journeyDallas20.id,status:'APPROACH'},journeyDallas20,()=>135),undefined);
  const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
  assert(main.includes('[journeyDallas25.id,journeyDallas20.id,journeyDallas21.id,journeyDallas22.id,journeyDallas23.id,journeyDallas19.id].includes'));

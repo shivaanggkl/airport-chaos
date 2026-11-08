@@ -317,15 +317,15 @@ const baseJourneyDallas19 = Object.freeze({
 
 // Visible M19 keeps its approved beginner settings independently of the finale.
 const baseJourneyDallas25 = Object.freeze({...baseJourneyDallas19,id:'journey-dallas-25',
- name:'MONSTER ARRIVAL',chapter:'CITY DEFENDERS',firstClearCredits:2550,timeLimitMs:240000,bossHealth:500,
+ name:'MONSTER ARRIVAL',chapter:'CITY DEFENDERS',firstClearCredits:2550,startAirportId:'love',timeLimitMs:300000,bossHealth:500,
  monster:Object.freeze({...baseJourneyDallas19.monster,height:960}),
 });
 
 const baseJourneyDallas20 = Object.freeze({
   id:'journey-dallas-20',cityId:'dallas',name:'MONSTER STRIKES',chapter:'LEGENDARY SKIES',firstClearCredits:2700,
-  prepareMs:0,timeLimitMs:240000,bossHealth:700,monster:Object.freeze({...baseJourneyDallas19.monster,height:1920}),airborneSpawn:baseJourneyDallas19.airborneSpawn,
+  prepareMs:0,timeLimitMs:330000,bossHealth:700,monster:Object.freeze({...baseJourneyDallas19.monster,height:1920}),airborneSpawn:baseJourneyDallas19.airborneSpawn,
   // Empty compatibility field: no gate can complete this boss mission.
-  gates:Object.freeze([]),startAirportId:'dfw',runwayStart:true,
+  gates:Object.freeze([]),startAirportId:'love',runwayStart:true,
 });
 
 const baseJourneyDallas21 = Object.freeze({
@@ -370,7 +370,8 @@ const baseJourneyDallas24 = Object.freeze({
 // Keep aircraft speed, handling, and model-local geometry unchanged.
 const scaleDallasJourney = mission => Object.freeze({
   ...mission,
-  ...(mission.timeLimitMs === undefined || mission.id === 'journey-dallas-07' ? {} : { timeLimitMs: mission.timeLimitMs * DALLAS_WORLD_SCALE }),
+  // M19/M20 deadlines are real milliseconds, independent of world scale.
+  ...(mission.timeLimitMs === undefined || mission.id === 'journey-dallas-07' || mission.id === baseJourneyDallas25.id || mission.id === baseJourneyDallas20.id ? {} : { timeLimitMs: mission.timeLimitMs * DALLAS_WORLD_SCALE }),
   ...(mission.airborneSpawn ? { airborneSpawn: Object.freeze({ ...scaleDallasPoint(mission.airborneSpawn), altitude: mission.airborneSpawn.altitude * DALLAS_WORLD_SCALE }) } : {}),
   ...(mission.gates ? { gates: Object.freeze(mission.gates.map(gate => Object.freeze({ ...scaleDallasPoint(gate), altitude: gate.altitude * DALLAS_WORLD_SCALE, radius: gate.radius * DALLAS_WORLD_SCALE }))) } : {}),
   ...(mission.leaderRoute ? { leaderRoute: Object.freeze(mission.leaderRoute.map(scaleDallasPoint)) } : {}),

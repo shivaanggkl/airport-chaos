@@ -8065,7 +8065,8 @@ server.on('connection', (socket, request) => {
   const spawnAirportId = soloExploreMode ? 'dfw' : journeyAttempt?.missionId === journeyDallas24.id ? journeyDallas24.startAirportId
     : journeyAttempt?.missionId === journeyDallas23.id ? journeyDallas23.startAirportId
     : journeyAttempt?.missionId === journeyDallas21.id ? journeyDallas21.startAirportId
-    : journeyAttempt?.missionId === journeyDallas20.id ? undefined
+    : journeyAttempt?.missionId === journeyDallas25.id ? journeyDallas25.startAirportId
+    : journeyAttempt?.missionId === journeyDallas20.id ? journeyDallas20.startAirportId
     : journeyAttempt?.missionId === journeyDallas18.id ? journeyDallas18.startAirportId
     : journeyAttempt?.missionId === journeyDallas16.id ? journeyDallas16.startAirportId
     : journeyAttempt?.missionId === journeyDallas17.id ? journeyDallas17.startAirportId
@@ -9252,9 +9253,9 @@ server.on('connection', (socket, request) => {
         if (journeyAttemptId && departure?.id === journeyDallas24.finishAirportId &&
           journeyStore.get(player.pilotId, journeyAttemptId)?.legendaryPhase === 'LANDING')
           landingReceipts.delete(`${playerId}:${journeyDallas24.finishAirportId}`);
-        if (journeyAttemptId && (departure?.id === journeyDallas08.startAirportId || departure?.id === journeyDallas14.startAirportId || departure?.id === journeyDallas16.startAirportId || departure?.id === journeyDallas20.startAirportId || departure?.id === journeyDallas21.startAirportId || departure?.id === journeyDallas24.startAirportId)) {
+        if (journeyAttemptId && (departure?.id === journeyDallas08.startAirportId || departure?.id === journeyDallas14.startAirportId || departure?.id === journeyDallas16.startAirportId || departure?.id === journeyDallas25.startAirportId || departure?.id === journeyDallas20.startAirportId || departure?.id === journeyDallas21.startAirportId || departure?.id === journeyDallas24.startAirportId)) {
           const active = journeyStore.get(player.pilotId, journeyAttemptId);
-          if (active?.missionId === journeyDallas08.id || active?.missionId === journeyDallas14.id || active?.missionId === journeyDallas16.id || active?.missionId === journeyDallas20.id || active?.missionId === journeyDallas21.id || active?.missionId === journeyDallas23.id || active?.missionId === journeyDallas24.id) {
+          if (active?.missionId === journeyDallas08.id || active?.missionId === journeyDallas14.id || active?.missionId === journeyDallas16.id || active?.missionId === journeyDallas25.id || active?.missionId === journeyDallas20.id || active?.missionId === journeyDallas21.id || active?.missionId === journeyDallas23.id || active?.missionId === journeyDallas24.id) {
             playerJourneyLoveTakeoff.add(playerId);
             playerJourneyRunwayPrep.delete(playerId);
           }
