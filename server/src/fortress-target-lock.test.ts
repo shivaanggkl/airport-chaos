@@ -246,3 +246,44 @@ test('escort and giant compete by aim alignment; destroying the giant leaves esc
     f.step();assert.equal(f.locked,'escort');
   }
 });
+
+test('an aimed giant outside weapon range shows GET CLOSER feedback without granting a lock',()=>{
+  const feedback:any[]=[];
+  const context=vm.createContext({
+    journeyAttempt:{status:'RACING',missionId:journeyDallas07.id,attemptId:'range-test',monsterHealth:2000},
+    transportLockParts,COMBAT_RANGE,insideDynamicLock,visualAim:{x:0,y:0},
+    airplane:{position:new THREE.Vector3(),rotation:{y:0},quaternion:new THREE.Quaternion()},
+    combatOffset:new THREE.Vector3(),combatInverseQuaternion:new THREE.Quaternion(),
+    transportView:{hasState:true,fortressTargetPosition:new THREE.Vector3(0,0,-6000),fortressComponentPosition:()=>{}},
+    showTargetRangeFeedback:(...args:unknown[])=>feedback.push(args),
+  });
+  const code=client.slice(client.indexOf('function showTransportRangeFeedback('),client.indexOf('function validateServerLock('));
+  vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+  assert.equal(vm.runInContext('showTransportRangeFeedback()',context),true);
+  assert.equal(feedback[0][0].displayName,'GIANT PLANE');assert.equal(feedback[0][1],6000);
+  assert.equal(feedback[0][2],false);assert.equal(feedback[0][3],false);
+  context.transportView.fortressTargetPosition.set(0,0,-4000);
+  assert.equal(vm.runInContext('showTransportRangeFeedback()',context),false,'in-range acquisition stays server-owned');
+  context.transportView.fortressTargetPosition.set(0,0,6000);
+  assert.equal(vm.runInContext('showTransportRangeFeedback()',context),false,'behind-camera targets do not show a false cue');
+  context.journeyAttempt.status='FAILED';
+  assert.equal(vm.runInContext('showTransportRangeFeedback()',context),false);
+  assert.match(client,/if \(candidate \|\| !showTransportRangeFeedback\(\)\) showTargetRangeFeedback/);
+});
+
+
+test('a fresh validated fire pose can hit when the previous movement packet is just outside range',()=>{
+  for(const mission of [journeyDallas07,journeyDallas11,journeyDallas12]){
+    const f=fixture(mission.id),side=mission===journeyDallas07?'body':'left';
+    for(let i=0;i<15;i++){f.aimAt(side);f.step();}
+    const target=f.point(side),direction=new THREE.Vector3().copy(target).sub(f.owner.position).normalize();
+    f.owner.position.copy(target).addScaledVector(direction,-(COMBAT_RANGE+20));
+    f.aimAt(side);
+    f.owner.velocity={x:direction.x*1000,y:direction.y*1000,z:direction.z*1000};
+    const fireTransform={...f.owner,position:f.owner.position.clone().addScaledVector(direction,80)};
+    assert.equal(f.valid(),false,'old movement pose is outside range');
+    f.context.fireTransform=fireTransform;f.context.targetId=f.locked;f.context.shotAim=f.owner.assistedAim;
+    assert.equal(vm.runInContext("createAssistedShot('pilot',owner,targetId,'fresh-fire',fireTransform,shotAim)",f.context),true);
+    assert.equal(side==='body'?f.attempt.monsterHealth:f.attempt.fortressLeftHealth,side==='body'?1475:225);
+  }
+});

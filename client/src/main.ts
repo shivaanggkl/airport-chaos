@@ -8793,6 +8793,22 @@ function showTargetRangeFeedback(remote: Pick<RemotePlayer, 'playerId' | 'displa
   targetFeedbackElement.classList.toggle('in-range', transition === 'in');
 }
 
+function showTransportRangeFeedback(): boolean {
+  if (journeyAttempt?.status!=='RACING' || !transportView?.hasState) return false;
+  const parts=transportLockParts(journeyAttempt.missionId);
+  if (!parts.length) return false;
+  const side=parts[0]==='body' ? 'body' : transportView.updateFortressTarget(airplane.position,airplane.rotation.y,airplane.quaternion);
+  const health=side==='body'||side==='core' ? journeyAttempt.monsterHealth : side==='left' ? journeyAttempt.fortressLeftHealth : journeyAttempt.fortressRightHealth;
+  if (!(Number(health)>0)) return false;
+  transportView.fortressComponentPosition(side,transportView.fortressTargetPosition);
+  combatOffset.copy(transportView.fortressTargetPosition).sub(airplane.position).applyQuaternion(combatInverseQuaternion);
+  const distance=combatOffset.length();
+  if (distance<=COMBAT_RANGE || distance>COMBAT_RANGE*2 || !insideDynamicLock(combatOffset.x,combatOffset.y,combatOffset.z,visualAim)) return false;
+  showTargetRangeFeedback({playerId:`transport:${journeyAttempt.attemptId}:${side}`,
+    displayName:side==='body'?'GIANT PLANE':side==='core'?'ENGINE':`${side.toUpperCase()} WING`,isBot:true},distance,false,false);
+  return true;
+}
+
 function validateServerLock(targetId: string | null, delta: number): void {
   const manualAimX = Number(heldActions.has('aimRight')) - Number(heldActions.has('aimLeft'));
   const manualAimY = Number(heldActions.has('aimUp')) - Number(heldActions.has('aimDown'));
@@ -8912,7 +8928,7 @@ function updateCombatTarget(delta = 0): void {
     updateLockCircle();
     combatLockState = 'SEARCHING';
     acquisitionCircleElement.classList.remove('target-near', 'locked');
-    showTargetRangeFeedback(candidate ? null : outOfRangeCandidate, outOfRangeDistance, false, false);
+    if (candidate || !showTransportRangeFeedback()) showTargetRangeFeedback(candidate ? null : outOfRangeCandidate, outOfRangeDistance, false, false);
     if (combatQaElement) combatQaElement.textContent = `COMBAT QA\ntarget: none\nlock: ${serverLockedTargetId ?? 'none'}\n${combatQaDetail}`;
     return;
   }
