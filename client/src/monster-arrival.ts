@@ -161,7 +161,7 @@ export class MonsterArrivalView {
   }
   private clearStrikingIntro():void {
     if(!this.strikingIntroEnabled)return;
-    const shotCount=this.huntingIntroEnabled&&!this.pursuitIntroEnabled?3:1;
+    const shotCount=this.huntingIntroEnabled?3:1;
     this.strikingIntroEnabled=false;this.huntingIntroEnabled=false;this.showdownIntroEnabled=false;this.pursuitIntroEnabled=false;this.finalIntroEnabled=false;this.introFootstepTime=-Infinity;this.mouthFire.visible=false;if(this.castingHand)this.castingHand.visible=false;
     for(let i=0;i<shotCount;i++){
       const shot=this.pool[i]!;shot.group.visible=false;shot.group.scale.setScalar(1);
@@ -171,7 +171,7 @@ export class MonsterArrivalView {
   }
   private updateStrikingIntro():void {
     const timing=this.finalIntroEnabled?M24_INTRO:this.pursuitIntroEnabled?M23_INTRO:this.showdownIntroEnabled?M22_INTRO:this.huntingIntroEnabled?M21_INTRO:M20_INTRO;
-    const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!,shotCount=this.huntingIntroEnabled&&!this.pursuitIntroEnabled?3:1;
+    const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!,shotCount=this.huntingIntroEnabled?3:1;
     actor.handPosition('left',this.introFistWorld);
     if(!this.huntingIntroEnabled&&t>=M20_INTRO.land&&!this.introLanded){this.introLanded=true;this.particles.emit(actor.root.position.x,actor.root.position.y,actor.root.position.z,true,14,95,1.5);this.onFootfall?.();}
     if(this.huntingIntroEnabled&&t>=timing.punch&&!this.introPunchWarned){this.introPunchWarned=true;this.onWarning?.();}
@@ -185,10 +185,9 @@ export class MonsterArrivalView {
     if(this.castingHand){this.castingHand.visible=casting;actor.handPosition('left',this.mouthWorld);this.castingHand.position.copy(this.mouthWorld);this.castingHand.scale.setScalar(this.mouthFire.scale.x);}
     if(t>=timing.release&&t<timing.runway&&!this.introReleased){
       this.introReleased=true;actor.handPosition('right',this.introShotOrigin);shot.id=null;shot.spawnPending=false;shot.direction.set(0,1,0);
-      // M21/M22 demonstrations follow the firing pose, not a world-up ray.
+      // M21–M24 demonstrations follow the firing pose, not a world-up ray.
       // Capture the world direction once so camera tracking cannot steer it.
-      if(this.huntingIntroEnabled&&!this.pursuitIntroEnabled)shot.direction.set(0,.18,1).applyQuaternion(actor.root.quaternion).normalize();
-      if(this.pursuitIntroEnabled)shot.direction.set(Math.sin(actor.root.rotation.y+.12)*.55,.835,Math.cos(actor.root.rotation.y+.12)*.55).normalize();
+      if(this.huntingIntroEnabled)shot.direction.set(0,.18,1).applyQuaternion(actor.root.quaternion).normalize();
       for(let i=0;i<shotCount;i++){
         const visual=this.pool[i]!;
         visual.id=null;visual.spawnPending=false;

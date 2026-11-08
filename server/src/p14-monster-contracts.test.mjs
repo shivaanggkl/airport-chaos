@@ -18,7 +18,7 @@ const begin=server.indexOf('  const spawnAirportId = soloExploreMode'),selection
 let takeoff;
 function visit(node){if(ts.isIfStatement(node)&&node.getText(ast).startsWith('if (journeyAttemptId && (departure?.id === journeyDallas08.startAirportId'))takeoff=node.getText(ast);ts.forEachChild(node,visit);}
 visit(ast);
-for(const [mission,reward] of [[missions.journeyDallas21,2850],[missions.journeyDallas22,3000]]){
+export function monsterMissionContracts(mission,reward){
  test(`${mission.name}: Love Field spawn and genuine departure release runway protection`,()=>{
   assert.equal(mission.timeLimitMs,360000);assert.equal(mission.firstClearCredits,reward);
   assert.equal(missionJourneyDetails.find(m=>m.id===mission.id).timeLimit,'6:00');
@@ -50,8 +50,8 @@ for(const [mission,reward] of [[missions.journeyDallas21,2850],[missions.journey
   db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");
   try{
    const store=new JourneyAttemptStore(path,true);
-   const next=mission.id===missions.journeyDallas21.id?missions.journeyDallas22.id:missions.journeyDallas23.id;
-   assert.equal(new JourneyAttemptStore(path,false).canAccessMission('pilot',next),false);
+   const next=missions.journeyMissionOrder[missions.journeyMissionSlot(mission.id)];
+   if(next)assert.equal(new JourneyAttemptStore(path,false).canAccessMission('pilot',next),false);
    for(const [index,epoch] of [1000,1000000].entries()){
     const launch=store.launch('pilot','trainer',epoch,mission.id);store.approach('pilot',launch.attemptId,epoch+1);
     assert.equal(store.get('pilot',launch.attemptId).deadlineAt,null);
@@ -65,7 +65,7 @@ for(const [mission,reward] of [[missions.journeyDallas21,2850],[missions.journey
     assert.equal(restored.hitMonster('other',launch.attemptId,epoch+34000,25),undefined);
     const result=restored.hitMonster('pilot',launch.attemptId,epoch+34000,mission.bossHealth);
     assert.equal(result.status,'COMPLETED');assert.equal(result.firstClearCredits,index===0?reward:0);
-    assert.equal(new JourneyAttemptStore(path,false).canAccessMission('pilot',next),true);
+    if(next)assert.equal(new JourneyAttemptStore(path,false).canAccessMission('pilot',next),true);
     assert.equal(restored.hitMonster('pilot',launch.attemptId,epoch+34001,25),undefined);
    }
    assert.equal(db.prepare("SELECT credits FROM player_profiles WHERE pilot_id='pilot'").get().credits,reward);
@@ -77,3 +77,5 @@ for(const [mission,reward] of [[missions.journeyDallas21,2850],[missions.journey
   }finally{db.close();rmSync(dir,{recursive:true,force:true});}
  });
 }
+
+for(const [mission,reward] of [[missions.journeyDallas21,2850],[missions.journeyDallas22,3000]])monsterMissionContracts(mission,reward);

@@ -309,8 +309,8 @@ const baseJourneyDallas18 = Object.freeze({
 
 const baseJourneyDallas19 = Object.freeze({
   id: 'journey-dallas-19', cityId: 'dallas', name: 'FINAL MONSTER BATTLE',
-  chapter: 'LEGENDARY SKIES', firstClearCredits: 4_000, startAirportId:'dfw', runwayStart:true,
-  prepareMs: 0, timeLimitMs: 300_000, bossHealth: 1_500,
+  chapter: 'LEGENDARY SKIES', firstClearCredits: 4_000, startAirportId:'love', runwayStart:true,
+  prepareMs: 0, timeLimitMs: 120_000, bossHealth: 1_500,
   monster: Object.freeze({ x: -5_500, z: -2_400, height: 1920 }),
   airborneSpawn: Object.freeze({ x: -7_500, z: -3_555, altitude: 850, heading: -2.094, speed: 110 }),
 });
@@ -348,7 +348,7 @@ const baseJourneyDallas22 = Object.freeze({
 const baseJourneyDallas23 = Object.freeze({
   id: 'journey-dallas-23', cityId: 'dallas', name: 'MONSTER PURSUIT',
   chapter: 'LEGENDARY SKIES', firstClearCredits: 3_150, startAirportId: 'love',
-  prepareMs:0,timeLimitMs:240000,bossHealth:1000,monster:baseJourneyDallas20.monster,airborneSpawn:baseJourneyDallas20.airborneSpawn,
+  prepareMs:0,timeLimitMs:120000,bossHealth:1000,monster:baseJourneyDallas20.monster,airborneSpawn:baseJourneyDallas20.airborneSpawn,
   // Compatibility metadata only; no aircraft or repair-heart objectives remain.
   hunterHealth: 200, heartId: 'mission-23-repair-heart', heartRadius: 115,
   hunterTwoDelayMs: 2_500,
