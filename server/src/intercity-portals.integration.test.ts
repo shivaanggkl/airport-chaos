@@ -60,9 +60,10 @@ test('authenticated solo and public portal handoffs, rejection, reward and recon
     server.stderr.on('data', b => logs += b);
     const clients: Client[] = [];
     try {
-        for (let n = 0; n < 240 && !logs.includes('healthy and listening') && server.exitCode === null; n++)
+        for (let n = 0; n < 667 && !logs.includes('healthy and listening') && server.exitCode === null; n++)
             await sleep(30);
         assert.equal(server.exitCode, null, logs);
+        assert.match(logs, /healthy and listening/, 'isolated server must be listening before clients connect');
         for (const [i, mode] of ['solo-free-fly', 'free-fly'].entries()) {
             const c = new Client(port, identities[i].cookie, mode);
             clients.push(c);

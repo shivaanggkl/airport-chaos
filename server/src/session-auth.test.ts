@@ -142,9 +142,9 @@ test('guest signup links the existing authoritative profile and rotates the sess
   const guest = sessions.issue(undefined, false, 1_000);
   profiles.getOrCreate(guest.pilotId, 'Cloud Pilot');
   profiles.awardServerReward(guest.pilotId, 425);
-  profiles.awardServerReward(guest.pilotId, 1_000);
-  assert.equal(profiles.purchaseCosmetic(guest.pilotId, 'bluejay-classic', 'CREDITS').ok, true);
-  assert.equal(profiles.purchaseCosmetic(guest.pilotId, 'bluejay-classic', 'CREDITS').ok, false, 'a duplicate guest purchase does not spend again');
+  profiles.awardServerReward(guest.pilotId, 1_750);
+  assert.equal(profiles.purchaseCosmetic(guest.pilotId, 'bluejay-aurora', 'CREDITS').ok, true);
+  assert.equal(profiles.purchaseCosmetic(guest.pilotId, 'bluejay-aurora', 'CREDITS').ok, false, 'a duplicate guest purchase does not spend again');
   profiles.awardScore(guest.pilotId, 1_250);
   profiles.grantAircraftEntitlements(guest.pilotId, ['fighter'], 'test:purchase');
   const restartedGuest = new PilotSessionStore(databasePath).resolveSession(`airport_chaos_session=${guest.cookie}`, 1_500)!;
@@ -161,7 +161,7 @@ test('guest signup links the existing authoritative profile and rotates the sess
   const profile = profiles.getOrCreate(linked.pilotId, 'Ignored');
   assert.equal(profile.credits, 675);
   assert.equal(profile.score, 1_250);
-  assert.ok(profile.cosmetics.ownedIds.includes('bluejay-classic'));
+  assert.ok(profile.cosmetics.ownedIds.includes('bluejay-aurora'));
   assert.equal(profile.unlockedAircraft.includes('fighter'), true);
   const replay = await sessions.signUp(identity, 'second@example.com', 'another strong password', 5_000);
   assert.equal(replay.ok, false, 'a double-submit cannot create a second account link');

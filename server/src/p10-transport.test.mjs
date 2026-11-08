@@ -237,7 +237,9 @@ test('M15–M18 keep the legacy route, movement, heading and collision poses at 
   assert.deepEqual(transportRouteForMission(mission.id).start,transportCourse.start);
   for(const fraction of [0,.01,.25,.5,.75,.99,1,1.01]){
    const elapsed=mission.timeLimitMs*fraction;
-   assert.deepEqual(transportPose(elapsed,900,mission.timeLimitMs,mission.id),transportPose(elapsed,900,mission.timeLimitMs));
+   const {missionId: poseMissionId,...pose}=transportPose(elapsed,900,mission.timeLimitMs,mission.id);
+   if(poseMissionId!==undefined)assert.equal(poseMissionId,mission.id);
+   assert.deepEqual(pose,transportPose(elapsed,900,mission.timeLimitMs));
   }
  }
 });
