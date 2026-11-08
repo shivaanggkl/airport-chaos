@@ -43,7 +43,7 @@ export class AircraftVictory {
   private elapsed = 0;
   complete = false;
 
-  constructor(readonly attemptId: string, readonly targetId: string, private readonly pilotId: string, readonly mission: {readonly enemyAircraft: 'trainer' | 'privateJet' | 'cargo' | 'fighter'; readonly enemyLivery: string} = journeyDallas13) {}
+  constructor(readonly attemptId: string, readonly targetId: string, private readonly pilotId: string, readonly mission: {readonly enemyAircraft: 'trainer' | 'privateJet' | 'cargo' | 'fighter'; readonly enemyLivery: string; readonly fromGameplayCamera?: boolean} = journeyDallas13) {}
 
   get pending(): boolean { return this.resultConfirmed && !this.complete; }
   get hasCamera(): boolean { return this.replayStarted || this.sequence !== null; }

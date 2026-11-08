@@ -161,7 +161,7 @@ export class MonsterArrivalView {
   }
   private clearStrikingIntro():void {
     if(!this.strikingIntroEnabled)return;
-    const shotCount=this.huntingIntroEnabled?3:1;
+    const shotCount=3;
     this.strikingIntroEnabled=false;this.huntingIntroEnabled=false;this.showdownIntroEnabled=false;this.pursuitIntroEnabled=false;this.finalIntroEnabled=false;this.introFootstepTime=-Infinity;this.mouthFire.visible=false;if(this.castingHand)this.castingHand.visible=false;
     for(let i=0;i<shotCount;i++){
       const shot=this.pool[i]!;shot.group.visible=false;shot.group.scale.setScalar(1);
@@ -171,7 +171,7 @@ export class MonsterArrivalView {
   }
   private updateStrikingIntro():void {
     const timing=this.finalIntroEnabled?M24_INTRO:this.pursuitIntroEnabled?M23_INTRO:this.showdownIntroEnabled?M22_INTRO:this.huntingIntroEnabled?M21_INTRO:M20_INTRO;
-    const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!,shotCount=this.huntingIntroEnabled?3:1;
+    const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!,shotCount=3;
     actor.handPosition('left',this.introFistWorld);
     if(!this.huntingIntroEnabled&&t>=M20_INTRO.land&&!this.introLanded){this.introLanded=true;this.particles.emit(actor.root.position.x,actor.root.position.y,actor.root.position.z,true,14,95,1.5);this.onFootfall?.();}
     if(this.huntingIntroEnabled&&t>=timing.punch&&!this.introPunchWarned){this.introPunchWarned=true;this.onWarning?.();}
@@ -185,14 +185,14 @@ export class MonsterArrivalView {
     if(this.castingHand){this.castingHand.visible=casting;actor.handPosition('left',this.mouthWorld);this.castingHand.position.copy(this.mouthWorld);this.castingHand.scale.setScalar(this.mouthFire.scale.x);}
     if(t>=timing.release&&t<timing.runway&&!this.introReleased){
       this.introReleased=true;actor.handPosition('right',this.introShotOrigin);shot.id=null;shot.spawnPending=false;shot.direction.set(0,1,0);
-      // M21–M24 demonstrations follow the firing pose, not a world-up ray.
+      // M20–M24 demonstrations follow the firing pose, not a world-up ray.
       // Capture the world direction once so camera tracking cannot steer it.
-      if(this.huntingIntroEnabled)shot.direction.set(0,.18,1).applyQuaternion(actor.root.quaternion).normalize();
+      shot.direction.set(0,.18,1).applyQuaternion(actor.root.quaternion).normalize();
       for(let i=0;i<shotCount;i++){
         const visual=this.pool[i]!;
         visual.id=null;visual.spawnPending=false;
         // Keep slot zero centered for the existing camera-follow path. The
-        // outer rounds use the same ±0.03-radian spread as their existing combat volleys.
+        // outer rounds use the same ±0.03-radian spread as M20–M24 combat.
         if(i>0){
           const angle=i===1?-.03:.03,c=Math.cos(angle),s=Math.sin(angle),d=shot.direction;
           visual.direction.set(d.x*c+d.z*s,d.y,d.z*c-d.x*s);
@@ -223,6 +223,7 @@ export class MonsterArrivalView {
   private readonly wave=new THREE.Mesh(this.waveGeometry,this.waveMaterial);
   private rubble:THREE.Mesh[]=[];
   private readonly titanEvents=new Set<string>();
+  private lastStationaryRoarStart:number|null=null;
   private readonly roarGeometry=new THREE.RingGeometry(.92,1,48,1,-.9,1.8);
   private readonly roar=new THREE.Mesh(this.roarGeometry,this.waveMaterial);
 
@@ -350,8 +351,14 @@ export class MonsterArrivalView {
     const area=a&&['ground-smash','giant-leap','charging-rampage'].includes(a.id);
     this.wave.visible=Boolean(area&&(active||warning));
     if(area&&a){const radius=a.radius??(a.id==='roaring-shockwave'?1000:a.id==='ground-smash'?450:300);const center=a.landing??(a.id==='ground-smash'?a.origin:f.position);const impact=active&&(!a.landing||a.landed);this.wave.position.set(center.x,(this.creature.groundAt?.(center.x,center.z)??f.position.y)+8,center.z);this.wave.rotation.x=Math.PI/2;this.wave.scale.setScalar(radius*(impact ? .4+.6*a.progress : 1));this.waveMaterial.opacity=impact ? .6*(1-a.progress) : .3;}
+    if(this.stationary && f.animation?.clip===ashenWarlordModel.clips.roar!.name){
+      const started=f.time-f.animation.time;
+      if(this.lastStationaryRoarStart===null || Math.abs(started-this.lastStationaryRoarStart)>.5){
+        this.lastStationaryRoarStart=started;this.onRoar?.();
+      }
+    }
     for(const event of f.events??[]){if(this.titanEvents.has(event.id))continue;this.titanEvents.add(event.id);if(this.titanEvents.size>128)this.titanEvents.delete(this.titanEvents.values().next().value!);
-      if((this.stationary||this.striking)&&event.kind==='animation'&&event.type==='roar')this.onRoar?.();
+      if(this.striking&&event.kind==='animation'&&event.type==='roar')this.onRoar?.();
       if(this.striking&&event.kind==='animation'&&event.type==='land'){const p=event.position;this.particles.emit(p.x,p.y,p.z,true,14,95,1.5);this.onFootfall?.();}
       if(event.kind==='environment'){if(this.environmentDamage&&event.type==='destroy-approved-block'){this.damagedDowntown=true;setDowntownMonsterDamage(true);this.onDestruction?.();}const p=event.position;this.particles.emit(p.x,p.y,p.z,true,8,event.type==='landing'?160:65);}
     }
@@ -393,6 +400,12 @@ export class MonsterArrivalView {
       this.introDamage=false;this.introImpacts=0;
       if(this.introOrigin){this.creature.root.position.copy(this.introOrigin.position);this.creature.root.rotation.y=this.introOrigin.yaw;this.introOrigin=undefined;}
     }
+  }
+  get combatTargetPoints(){return this.renderedTitan?.limbs;}
+  private readonly combatPosition=new THREE.Vector3();
+  get combatTargetPosition():THREE.Vector3 {
+    if(!('corePosition' in this.creature) || !this.creature.corePosition(this.combatPosition))this.combatPosition.copy(this.creature.root.position);
+    return this.combatPosition;
   }
   get introRoot():THREE.Group {return this.creature.root;}
 

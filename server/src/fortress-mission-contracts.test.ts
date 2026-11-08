@@ -21,7 +21,7 @@ for (const mission of [journeyDallas11, journeyDallas12]) {
     assert.equal(mission.startAirportId, 'dfw');
     assert.equal(mission.turretHealth, 250);
     assert.equal(mission.coreHealth, mission === journeyDallas11 ? 1500 : 1750);
-    assert.equal(mission.timeLimitMs, 180000);
+    assert.equal(mission.timeLimitMs, 260000);
     assert.equal(mission.firstClearCredits, mission === journeyDallas11 ? 1250 : 1500);
     assert.equal('gates' in mission, false);
     if ('escortAircraft' in mission) {

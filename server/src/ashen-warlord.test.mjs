@@ -51,7 +51,7 @@ test('authoritative source geometry, 65-bone finger rig, texture and all 13 supp
     assert.deepEqual(ashenWarlordSpecies.abilities.map(a=>a.id).sort(),['charging-rampage','fireball-barrage','hand-strike']);
     assert.equal(ashenWarlordSpecies.movement.traversalLeap,false);
     assert.equal(ashenWarlordSpecies.health, 2500);
-    assert.equal(journeyDallas19.timeLimitMs, 300000*S);
+    assert.equal(journeyDallas19.timeLimitMs, 360000);
     assert.equal(journeyDallas19.firstClearCredits, 4000);
 });
 test('authoritative skeletal sampler matches real glTF animation mixer for every supplied clip and cross-fade', async () => {

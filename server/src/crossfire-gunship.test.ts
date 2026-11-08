@@ -14,12 +14,12 @@ import { createTransportEncounter, stepCrossfireGunCycle, stepTransportEncounter
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { createRearGuardFireState, rearGuardShotResolved, rearGuardShooter, rearGuardTakeoff } from './rear-guard-fire.js';
 
-test('Crossfire uses the 3:00 Dallas transport course and four specified escorts', () => {
+test('Crossfire uses the 4:20 Dallas transport course and four specified escorts', () => {
   assert.equal(journeyDallas10.id, 'journey-dallas-10');
   assert.equal(journeyDallas10.name, 'GIANT PLANE & FOUR ESCORTS');
   assert.equal(journeyDallas10.firstClearCredits, 1_150);
   assert.equal(journeyDallas10.bossHealth, 2_000);
-  assert.equal(journeyDallas10.timeLimitMs, 180_000);
+  assert.equal(journeyDallas10.timeLimitMs, 260_000);
   assert.equal(journeyDallas10.escortCount, 4);
   assert.deepEqual(journeyDallas10.escortAircraft, ['privateJet', 'cargo', 'privateJet', 'cargo']);
   assert.deepEqual(journeyDallas10.escortHealth, [175, 225, 175, 225]);
@@ -134,7 +134,7 @@ test('Crossfire unlock, result, replay and exactly-once reward remain server-own
     assert.ok(missionFocusForAttempt(store.get('pilot', first.attemptId)));
     assert.equal(store.acceptGate('pilot', first.attemptId, 0, 1_500), undefined);
     assert.equal(store.hitTransport('pilot', first.attemptId, 1_500, 25), undefined);
-    assert.equal(store.startGiantIncoming('pilot', first.attemptId, 2_000)?.deadlineAt, 182_000);
+    assert.equal(store.startGiantIncoming('pilot', first.attemptId, 2_000)?.deadlineAt, 262_000);
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'nightowl', 1)?.targetId, 'nightowl');
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'duplicate', 1), undefined);
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'firehawk', 2)?.secondaryTargetId, 'firehawk');

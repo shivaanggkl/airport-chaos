@@ -124,7 +124,7 @@ test('Fortress projectile sweep separates wing turrets, armor, and exposed rear 
   }
   assert.equal(segmentedHit,'core');
   assert.equal(transportFortressImpact({x:1000,y:100,z:30*transportTuning.scale},{x:1000,y:100,z:-8*transportTuning.scale},pose,pose,true),undefined);
-  assert.equal(journeyDallas11.timeLimitMs,180_000);
+  assert.equal(journeyDallas11.timeLimitMs,260_000);
 });
 
 test('Fortress side guns alternate two-shot turns, warn first, and skip a dead gun',()=>{
@@ -233,7 +233,7 @@ test('M13-M18 doubled footprints clear Dallas only at their existing deadlines',
  assert.equal(before.scale,32);assert(before.x-footprint<transportCourse.exitX);
  assert(end.x-footprint>=transportCourse.exitX-1e-6);
  }
- assert.equal(journeyDallas07.timeLimitMs,180000);assert.equal(journeyDallas07.bossHealth,2000);
+ assert.equal(journeyDallas07.timeLimitMs,260000);assert.equal(journeyDallas07.bossHealth,2000);
 });
 
 test('M13-M18 cruise altitude is exactly 50 percent above the previous safe height, applied once',()=>{

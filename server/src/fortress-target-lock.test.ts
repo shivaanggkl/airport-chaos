@@ -268,7 +268,7 @@ test('an aimed giant outside weapon range shows GET CLOSER feedback without gran
   assert.equal(vm.runInContext('showTransportRangeFeedback()',context),false,'behind-camera targets do not show a false cue');
   context.journeyAttempt.status='FAILED';
   assert.equal(vm.runInContext('showTransportRangeFeedback()',context),false);
-  assert.match(client,/if \(candidate \|\| !showTransportRangeFeedback\(\)\) showTargetRangeFeedback/);
+  assert.match(client,/if \(candidate \|\| !showMonsterRangeFeedback\(\) && !showTransportRangeFeedback\(\)\) showTargetRangeFeedback/);
 });
 
 

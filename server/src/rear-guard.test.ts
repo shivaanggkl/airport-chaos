@@ -11,10 +11,10 @@ import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { createRearGuardFireState, finalInterceptEscortsCleared, rearGuardShooter, rearGuardShotResolved, rearGuardTakeoff } from './rear-guard-fire.js';
 
-test('Rear Guard uses the compact transport corridor and a true three-minute escape', () => {
+test('Rear Guard uses the compact transport corridor and a true 4:20 escape', () => {
   assert.equal(journeyDallas08.name, 'GIANT PLANE & TWO ESCORTS');
   assert.equal(journeyDallas08.startAirportId, journeyDallas07.startAirportId);
-  assert.equal(journeyDallas08.timeLimitMs, 180_000);
+  assert.equal(journeyDallas08.timeLimitMs, 260_000);
   assert.equal(journeyDallas08.bossHealth, 2_000);
   assert.equal(journeyDallas08.escortCount, 2);
   assert.equal(journeyDallas08.escortHealth, 1_000);
@@ -114,7 +114,7 @@ test('Mission 8 unlock, two assigned escorts, transport defeat, timeout and firs
     assert.equal(store.approach('pilot', first.attemptId)?.status, 'APPROACH');
     assert.ok(missionFocusForAttempt(store.get('pilot', first.attemptId)));
     assert.equal(store.hitTransport('pilot', first.attemptId, 1_500, 25), undefined);
-    assert.equal(store.startGiantIncoming('pilot', first.attemptId, 2_000)?.deadlineAt, 182_000);
+    assert.equal(store.startGiantIncoming('pilot', first.attemptId, 2_000)?.deadlineAt, 262_000);
     assert.equal(store.assignRearGuardEscort('other', first.attemptId, 'escort-1', 1), undefined);
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'escort-1', 1)?.targetId, 'escort-1');
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'replacement', 1), undefined);

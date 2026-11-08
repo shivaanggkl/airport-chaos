@@ -29,7 +29,7 @@ test('M19 has an isolated EASY profile; M24 retains its existing battle', () => 
     assert.deepEqual(stationaryWarlordSpecies.abilities.map(a => a.id), ['hand-strike']);
     assert.equal(stationaryWarlordSpecies.abilities[0].damage, 15);
     assert.equal(stationaryWarlordSpecies.abilities[0].cooldown, 4);
-    assert.equal(stationaryWarlordSpecies.contactDamage ?? 0, 0);
+    assert.equal(stationaryWarlordSpecies.contactDamage, 25);
     assert.equal(ashenWarlordSpecies.health, 2500);
     assert(ashenWarlordSpecies.abilities.some(a => a.mechanism === 'projectile'));
 });
@@ -43,10 +43,10 @@ test('stationary server pose stays fixed, uses only authored Idle/Punch/Roar, an
         assert(!e.events.some(v => v.kind === 'damage'));
         clips.add(e.frame.animation.clip);
     }
-    assert.deepEqual([...clips].sort(), [model.clips.idle.name, model.clips.roar.name].sort());
+    assert.deepEqual([...clips].sort(), [model.clips.idle.name, model.clips.roar.name, model.clips.punch.name].sort());
     disposeM19(e);
 });
-test('only swept authored fist contact hurts; attacks and damage events are deduplicated', () => {
+test('swept authored punches retain separate timing and damage-event deduplication', () => {
     const e = encounter();
     const limbs = {}, feet = {}, axes = {};
     createAshenPose(500, true)(limbs, feet, e.frame.position, e.frame.yaw, axes, { time: .7, health: 500, gait: 0, velocity: zero, yawVelocity: 0, airborne: false, ability: { id: 'hand-strike', stage: 'ACTIVE', progress: .5, elapsed: .7, active: .3, warning: .35, windup: .2, recovery: 1.4 } });
@@ -56,7 +56,7 @@ test('only swept authored fist contact hurts; attacks and damage events are dedu
     for (let ms = 50; ms <= 18000; ms += 50) {
         stepM19(e, target, zero, 20, ms);
         for (const event of e.events)
-            if (event.kind === 'damage') {
+            if (event.kind === 'damage' && event.type !== 'contact') {
                 assert.equal(e.frame.ability?.stage, 'ACTIVE');
                 assert.equal(event.ability, 'hand-strike');
                 assert.equal(event.amount, 15);

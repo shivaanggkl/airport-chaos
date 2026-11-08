@@ -111,7 +111,7 @@ test('all 24 mission details use live titles, rewards, objectives and clocks', (
   assert.equal(missionJourneyDetails[18].description,'Destroy The MONSTER Before Time Runs Out.');
   assert(missionJourneyDetails.slice(19).every(d=>d.description==='DEFEAT THE MONSTER'));
   assert.deepEqual(missionJourneyDetails.slice(18).map(d=>d.title),['MONSTER ARRIVAL','MONSTER STRIKES','MONSTER HUNT','MONSTER SHOWDOWN','MONSTER PURSUIT','FINAL MONSTER BATTLE']);
-  assert.equal(missionJourneyDetails[20].timeLimit,'12:00');
+  assert.equal(missionJourneyDetails[20].timeLimit,'6:00');
   assert.doesNotMatch(view, /mission-journey-detail-image|>OBJECTIVE</);
   assert.match(view, /context-action context-action--gold mission-journey-play/);
   assert.match(view, /\/media\/hub\/credits\.avif/);

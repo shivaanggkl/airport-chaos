@@ -14,7 +14,7 @@ export type MissionJourneyStatus = 'completed' | 'current' | 'available' | 'lock
 // moves right and slightly upward, including the chapter transitions.
 const missionXs = Array.from({ length: 24 }, (_, index) => 2.5 + index * 95 / 23);
 const missionYs = Array.from({ length: 24 }, (_, index) => 74 - index * 40 / 23);
-export const chapterNames = ['TAKE OFF', 'SKY HUNTERS', 'CITY SKIES', 'FINAL APPROACH'] as const;
+export const chapterNames = ['GOLDEN GATES', 'SKY BATTLES', 'GIANT PLANE BATTLES', 'DR. BOSS RISING'] as const;
 
 export const missionJourneyStages: readonly MissionJourneyStage[] = missionXs.map((x, index) => ({
   id: journeyMissionOrder[index]!,

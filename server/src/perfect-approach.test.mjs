@@ -54,7 +54,7 @@ test('M22 victory, timeout, replay, mission migration, and first-clear credits r
         rmSync(dir, { recursive: true, force: true });
     }
 });
-test('M22 uses only its eight clips, walks physically, turns smoothly, and casts one authorized shot', async () => {
+test('M22 uses only its eight clips, walks physically, turns smoothly, and casts an authorized three-fireball volley', async () => {
  const e=encounter(),spawn={...e.frame.position},initialYaw=e.frame.yaw;
  const actor=new AshenWarlordModel(source,false,true,true);await actor.ready;
  const allowed=new Set(timing.motions.map(k=>model.clips[k].name));
@@ -63,7 +63,7 @@ test('M22 uses only its eight clips, walks physically, turns smoothly, and casts
  assert.equal(journeyDallas22.name,'MONSTER SHOWDOWN');assert.equal(journeyDallas22.bossHealth,1100);
  assert.equal(showdownWarlordSpecies.level,'HARD');
  const punch=showdownWarlordSpecies.abilities.find(a=>a.mechanism==='sweep'),shot=showdownWarlordSpecies.abilities.find(a=>a.mechanism==='projectile');
- assert.equal(punch.damage,25);assert.equal(punch.cooldown,3.5);assert.equal(shot.damage,20);assert.equal(shot.cooldown,6);assert.equal(shot.count,1);
+ assert.equal(punch.damage,25);assert.equal(punch.cooldown,3.5);assert.equal(shot.damage,25);assert.equal(shot.cooldown,6);assert.equal(shot.count,3);
  const seen=new Set(),roars=[],releases=[],shots=new Map();let traveled=0,lastPosition={...spawn},lastYaw=initialYaw,maxAnchorError=0,projectileHits=0;
  for(let i=1;i<=2400;i++){
   const now=100000+i*50,angle=initialYaw+(i>600?2:1);
@@ -83,11 +83,11 @@ test('M22 uses only its eight clips, walks physically, turns smoothly, and casts
    assert(!['jump','land','shockwave','contact'].includes(event.type));
    if(event.type==='roar')roars.push(now);
    if(event.type==='release'){
-    assert.equal(event.ability,'fireball-barrage');assert.equal(f.animation.clip,model.clips.shoot.name);releases.push(now);
+    assert.equal(event.ability,'fireball-barrage');assert.equal(f.animation.clip,model.clips.shoot.name);if(releases.at(-1)!==now)releases.push(now);
     const hand=f.limbs['hand-right'];assert(Math.hypot(event.position.x-hand.x,event.position.y-hand.y,event.position.z-hand.z)<5);
     shots.set(event.attackId??f.ability.eventId,(shots.get(event.attackId??f.ability.eventId)??0)+1);
    }
-   if(event.kind==='damage'){projectileHits++;assert.equal(event.type,'projectile');assert.equal(event.amount,20);const damage=permittedM19Damage(e,event,now);assert.equal(damage,20);assert.equal(permittedM19Damage(e,event,now),0);}
+   if(event.kind==='damage'){projectileHits++;assert.equal(event.type,'projectile');assert.equal(event.amount,25);const damage=permittedM19Damage(e,event,now);assert.equal(damage,25);assert.equal(permittedM19Damage(e,event,now),0);}
   }
   if(i%10===0){
    actor.root.position.set(f.position.x,f.position.y,f.position.z);actor.root.rotation.y=f.yaw;actor.setTitanPose(f);actor.update(.05,0,0);
@@ -98,7 +98,7 @@ test('M22 uses only its eight clips, walks physically, turns smoothly, and casts
  assert(traveled>300&&roars.length>=2&&shots.size>=2);assert(projectileHits>0);
  for(let i=1;i<roars.length;i++)assert(roars[i]-roars[i-1]>=18000);
  for(let i=1;i<releases.length;i++)assert(releases[i]-releases[i-1]>=6000);
- assert([...shots.values()].every(n=>n===1));assert(maxAnchorError<1);
+ assert([...shots.values()].every(n=>n===3));assert(maxAnchorError<1);
  actor.dispose();disposeM19(e);
 });
 test('M22 punch needs actual fist collision, respects cooldown, and missed punches do no damage',()=>{
@@ -223,7 +223,7 @@ test('Hard shooting leads moving aircraft more accurately than Medium without pe
   for(let i=1;i<=360&&fraction===undefined;i++){
    const p={x:root.x+forward.x*6000+velocity.x*i*.05,y:root.y+1100,z:root.z+forward.z*6000+velocity.z*i*.05};
    stepM19(e,p,velocity,20,100000+i*50);
-   const release=e.events.find(v=>v.type==='release'),shot=e.frame.projectiles[0];
+   const release=e.events.find(v=>v.type==='release'),shot=e.frame.projectiles.find(p=>p.id.endsWith(':1'));
    if(release&&shot){
     const relative={x:p.x-release.position.x,y:p.y-release.position.y,z:p.z-release.position.z};
     const distance=Math.hypot(relative.x,relative.y,relative.z),directSide=(relative.x*right.x+relative.z*right.z)/distance;

@@ -50,7 +50,7 @@ test('M20 victory, timeout, replay, mission migration, and first-clear credits r
         rmSync(dir, { recursive: true, force: true });
     }
 });
-test('M20 uses only its nine clips, turns without horizontal travel, jumps into Land, and casts one authorized shot', async () => {
+test('M20 uses only its nine clips, turns without horizontal travel, jumps into Land, and casts an authorized three-fireball volley', async () => {
  const e=encounter(),spawn={...e.frame.position},initialYaw=e.frame.yaw;
  const actor=new AshenWarlordModel(source,false,true);await actor.ready;
  const allowed=new Set(timing.motions.map(k=>model.clips[k].name));
@@ -74,11 +74,11 @@ test('M20 uses only its nine clips, turns without horizontal travel, jumps into 
    if(event.type==='land')lands.push(now);
    if(event.type==='roar')roars.push(now);
    if(event.type==='release'){
-    assert.equal(event.ability,'fireball-barrage');assert.equal(f.animation.clip,model.clips.shoot.name);releases.push(now);
+    assert.equal(event.ability,'fireball-barrage');assert.equal(f.animation.clip,model.clips.shoot.name);if(releases.at(-1)!==now)releases.push(now);
     const hand=f.limbs['hand-right'];assert(Math.hypot(event.position.x-hand.x,event.position.y-hand.y,event.position.z-hand.z)<5);
     shots.set(event.attackId??f.ability.eventId,(shots.get(event.attackId??f.ability.eventId)??0)+1);
    }
-   if(event.kind==='damage'){assert.equal(event.type,'projectile');assert.equal(event.amount,10);const damage=permittedM19Damage(e,event,now);assert.equal(damage,10);assert.equal(permittedM19Damage(e,event,now),0);}
+   if(event.kind==='damage'){assert.equal(event.type,'projectile');assert.equal(event.amount,25);const damage=permittedM19Damage(e,event,now);assert.equal(damage,25);assert.equal(permittedM19Damage(e,event,now),0);}
   }
   if(i%10===0){
    actor.root.position.set(f.position.x,f.position.y,f.position.z);actor.root.rotation.y=f.yaw;actor.setTitanPose(f);actor.update(.05,0,0);
@@ -90,7 +90,7 @@ test('M20 uses only its nine clips, turns without horizontal travel, jumps into 
  assert.equal(lands.length,jumps.length);for(let i=1;i<jumps.length;i++)assert(jumps[i]-jumps[i-1]>=18000);
  for(let i=1;i<roars.length;i++)assert(roars[i]-roars[i-1]>=20000);
  for(let i=1;i<releases.length;i++)assert(releases[i]-releases[i-1]>=8000);
- assert([...shots.values()].every(n=>n===1));assert(Math.abs(peak-timing.jumpHeight)<2);assert(maxAnchorError<1);
+ assert([...shots.values()].every(n=>n===3));assert(Math.abs(peak-timing.jumpHeight)<2);assert(maxAnchorError<1);
  actor.dispose();disposeM19(e);
 });
 test('M20 punch needs actual fist collision, respects cooldown, and missed punches do no damage',()=>{
@@ -100,7 +100,7 @@ test('M20 punch needs actual fist collision, respects cooldown, and missed punch
  for(let i=1;i<=330;i++){
   const p=contact;
   stepM19(e,p,zero,25,100000+i*50);
-  for(const event of e.events)if(event.kind==='damage'){
+  for(const event of e.events)if(event.kind==='damage'&&event.type==='sweep'){
    assert.equal(event.type,'sweep');assert.equal(event.amount,15);hits.push(100000+i*50);
    assert.equal(permittedM19Damage(e,event,100000+i*50),15);assert.equal(permittedM19Damage(e,event,100000+i*50),0);
   }

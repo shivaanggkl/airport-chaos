@@ -44,9 +44,10 @@ export function createAshenPose(initialHealth = 2500, stationary = false, striki
             return {clip:clip.name,time:['idle','walk','run','turn'].includes(key)?(time%clip.duration+clip.duration)%clip.duration:clamp(time,0,clip.duration),blend:1,offsetY:0};
         }
         if(stationary){
-            const key=c.ability?.id==='hand-strike'&&c.ability.stage!=='COOLDOWN'?'punch':c.roarElapsed!==undefined?'roar':'idle';
+            const attacking=c.ability?.id==='hand-strike'&&c.ability.stage!=='COOLDOWN';
+            const key=attacking||c.stationaryPunchElapsed!==undefined?'punch':c.roarElapsed!==undefined?'roar':'idle';
             const clip=model.clips[key]!;
-            return {clip:clip.name,time:key==='punch'?Math.min(clip.duration,c.ability!.elapsed):key==='roar'?Math.min(clip.duration,c.roarElapsed!):c.time%clip.duration,blend:1,offsetY:0};
+            return {clip:clip.name,time:key==='punch'?Math.min(clip.duration,attacking?c.ability!.elapsed:c.stationaryPunchElapsed!):key==='roar'?Math.min(clip.duration,c.roarElapsed!):c.time%clip.duration,blend:1,offsetY:0};
         }
         const dt = clamp(c.time - lastTime, 0, .1), distance = lastRoot ? Math.hypot(root.x - lastRoot.x, root.z - lastRoot.z) / H : 0;
         lastRoot = { x: root.x, z: root.z };

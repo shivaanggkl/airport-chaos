@@ -1,4 +1,4 @@
-import { transportTuning } from './giant-incoming.mjs';
+import { transportTuning, transportLockParts } from './giant-incoming.mjs';
 import { remoteAircraftScale } from './remote-aircraft-visual-rules.mjs';
 import { addisonClimbGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
@@ -65,7 +65,7 @@ const ascentApproachZ = 1 * Math.sqrt(rookieRushOpeningDistance ** 2 - 20300 ** 
 
 const baseJourneyDallas03 = Object.freeze({
   id: 'journey-dallas-03', cityId: 'dallas', name: 'GOLDEN ASCENT',
-  objective: 'Fly through 10 Golden Gates while climbing and descending before time runs out.',
+  objective: 'Fly through 10 Golden Gates before time runs out.',
   courseRevision: 2,
   chapter: 'GOLDEN GATES', timeLimitMs: 60_000, firstClearCredits: 450, // 3:00 after Dallas scaling.
   airborneSpawn: Object.freeze({ x: -24500, z: -20000 + ascentApproachZ, altitude: 700, heading: Math.atan2(-20300, ascentApproachZ), speed: 650 }),
@@ -89,7 +89,7 @@ const slalomApproachZ = -1 * Math.sqrt(rookieRushOpeningDistance ** 2 - 12200 **
 
 const baseJourneyDallas04 = Object.freeze({
   id: 'journey-dallas-04', cityId: 'dallas', name: 'DOWNTOWN SLALOM',
-  objective: 'Fly through 10 Golden Gates while making alternating turns before time runs out.',
+  objective: 'Fly through 10 Golden Gates before time runs out.',
   courseRevision: 2,
   chapter: 'GOLDEN GATES', firstClearCredits: 500, timeLimitMs: 60_000, // 3:00 after Dallas scaling.
   airborneSpawn: Object.freeze({ x: -24500, z: 1000 + slalomApproachZ, altitude: 850, heading: Math.atan2(-12200, slalomApproachZ), speed: 650 }),
@@ -113,7 +113,7 @@ const needleApproachZ = 1 * Math.sqrt(rookieRushOpeningDistance ** 2 - 10000 ** 
 
 const baseJourneyDallas05 = Object.freeze({
   id: 'journey-dallas-05', cityId: 'dallas', name: 'NEEDLE RUSH',
-  objective: 'Fly through 10 increasingly precise Golden Gates before time runs out.',
+  objective: 'Fly through 10 Golden Gates before time runs out.',
   courseRevision: 2,
   chapter: 'GOLDEN GATES', timeLimitMs: 60_000, firstClearCredits: 600, // 3:00 after Dallas scaling.
   airborneSpawn: Object.freeze({ x: -24500, z: -11500 + needleApproachZ, altitude: 730, heading: Math.atan2(-10000, needleApproachZ), speed: 650 }),
@@ -158,14 +158,14 @@ const baseJourneyDallas06 = Object.freeze({
 
 const baseJourneyDallas07 = Object.freeze({
   id: 'journey-dallas-07', cityId: 'dallas', name: 'GIANT PLANE',
-  chapter: 'SKY SIEGE', timeLimitMs: 180_000, firstClearCredits: 850,
+  chapter: 'SKY SIEGE', timeLimitMs: 260_000, firstClearCredits: 850,
   startAirportId: 'dfw', gates: Object.freeze([]), bossHealth: transportTuning.health,
 });
 
 const baseJourneyDallas08 = Object.freeze({
   id: 'journey-dallas-08', cityId: 'dallas', name: 'GIANT PLANE & TWO ESCORTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 950,
-  startAirportId: 'dfw', timeLimitMs: 60_000, bossHealth: transportTuning.health,
+  startAirportId: 'dfw', timeLimitMs: 260_000, bossHealth: transportTuning.health,
   escortHealth: 1_000, escortCount: 2, escortScale: remoteAircraftScale, escortFireDelayMs: 5_000,
   escortAircraft: Object.freeze(['trainer', 'trainer']),
   escortLiveries: Object.freeze(['bluejay-skybolt', 'bluejay-aurora']),
@@ -189,7 +189,7 @@ const baseJourneyDallas08 = Object.freeze({
 const baseJourneyDallas09 = Object.freeze({
   id: 'journey-dallas-09', cityId: 'dallas', name: 'GIANT PLANE & THREE ESCORTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 1_050,
-  startAirportId: 'dfw', timeLimitMs: 60_000, bossHealth: transportTuning.health,
+  startAirportId: 'dfw', timeLimitMs: 260_000, bossHealth: transportTuning.health,
   escortCount: 3, initialEscortCount: 3, escortScale: remoteAircraftScale,
   escortHealth: Object.freeze([75, 125, 175]),
   escortAircraft: Object.freeze(['trainer', 'cargo', 'privateJet']),
@@ -201,7 +201,7 @@ const baseJourneyDallas09 = Object.freeze({
 
 const baseJourneyDallas10 = Object.freeze({
   id: 'journey-dallas-10', cityId: 'dallas', name: 'GIANT PLANE & FOUR ESCORTS',
-  chapter: 'SKY ADVENTURES', timeLimitMs: 60_000, firstClearCredits: 1_150,
+  chapter: 'SKY ADVENTURES', timeLimitMs: 260_000, firstClearCredits: 1_150,
   startAirportId: 'dfw', bossHealth: transportTuning.health,
   escortCount: 4, escortScale: remoteAircraftScale,
   escortHealth: Object.freeze([175, 225, 175, 225]),
@@ -210,12 +210,12 @@ const baseJourneyDallas10 = Object.freeze({
   escortFireDelayMs: 5_000, escortBurstIntervalMs: 6_000,
   escortShotSpacingMs: 250, escortShotDamage: 10,
   gunBurstIntervalMs: 3_000, gunWarningMs: 1_000,
-  gunShotSpacingMs: 250, gunShotDamage: 10,
+  gunShotSpacingMs: 250, gunShotDamage: 20, gunProjectileSpeed: 6_000, gunTrackingRate: 3.2,
 });
 
 const baseJourneyDallas11 = Object.freeze({
   id: 'journey-dallas-11', cityId: 'dallas', name: 'ARMORED GIANT PLANE',
-  chapter: 'SKY ADVENTURES', timeLimitMs: 60_000, firstClearCredits: 1_250,
+  chapter: 'SKY ADVENTURES', timeLimitMs: 260_000, firstClearCredits: 1_250,
   startAirportId: 'dfw', turretHealth: 250, coreHealth: 1_500,
   hatch: Object.freeze({ z: 22.05, bottom: -0.45, width: 3.85, height: 3.35 }),
   coreLocal: Object.freeze({ x: 0, y: 1.2, z: 21.2 }), coreRadius: 0.9,
@@ -225,7 +225,7 @@ const baseJourneyDallas11 = Object.freeze({
 
 const baseJourneyDallas12 = Object.freeze({
   id: 'journey-dallas-12', cityId: 'dallas', name: 'ARMORED GIANT PLANE & TWO ESCORTS',
-  chapter: 'SKY ADVENTURES', timeLimitMs: 60_000, firstClearCredits: 1_500,
+  chapter: 'SKY ADVENTURES', timeLimitMs: 260_000, firstClearCredits: 1_500,
   startAirportId: 'dfw', turretHealth: baseJourneyDallas11.turretHealth, coreHealth: 1_750,
   escortCount: 2, escortScale: baseJourneyDallas10.escortScale,
   escortHealth: Object.freeze([175, 225]),
@@ -307,6 +307,7 @@ const baseJourneyDallas18 = Object.freeze({
   enemyDamage: 20, shotIntervalMs: 750, burstShots: 2, burstPauseMs: 2_000,
 });
 
+// Monster timers resolve to 6:00; M19/M20 use real milliseconds below.
 const baseJourneyDallas19 = Object.freeze({
   id: 'journey-dallas-19', cityId: 'dallas', name: 'FINAL MONSTER BATTLE',
   chapter: 'LEGENDARY SKIES', firstClearCredits: 4_000, startAirportId:'love', runwayStart:true,
@@ -317,13 +318,13 @@ const baseJourneyDallas19 = Object.freeze({
 
 // Visible M19 keeps its approved beginner settings independently of the finale.
 const baseJourneyDallas25 = Object.freeze({...baseJourneyDallas19,id:'journey-dallas-25',
- name:'MONSTER ARRIVAL',chapter:'CITY DEFENDERS',firstClearCredits:2550,startAirportId:'love',timeLimitMs:300000,bossHealth:500,
+ name:'MONSTER ARRIVAL',chapter:'CITY DEFENDERS',firstClearCredits:2550,startAirportId:'love',timeLimitMs:360000,bossHealth:500,
  monster:Object.freeze({...baseJourneyDallas19.monster,height:960}),
 });
 
 const baseJourneyDallas20 = Object.freeze({
   id:'journey-dallas-20',cityId:'dallas',name:'MONSTER STRIKES',chapter:'LEGENDARY SKIES',firstClearCredits:2700,
-  prepareMs:0,timeLimitMs:330000,bossHealth:700,monster:Object.freeze({...baseJourneyDallas19.monster,height:1920}),airborneSpawn:baseJourneyDallas19.airborneSpawn,
+  prepareMs:0,timeLimitMs:360000,bossHealth:700,monster:Object.freeze({...baseJourneyDallas19.monster,height:1920}),airborneSpawn:baseJourneyDallas19.airborneSpawn,
   // Empty compatibility field: no gate can complete this boss mission.
   gates:Object.freeze([]),startAirportId:'love',runwayStart:true,
 });
@@ -368,10 +369,11 @@ const baseJourneyDallas24 = Object.freeze({
 
 // Mission coordinates are authored against the unscaled Dallas source map.
 // Keep aircraft speed, handling, and model-local geometry unchanged.
+// M13–M18 combat deadlines are already real milliseconds, independent of map scale.
 const scaleDallasJourney = mission => Object.freeze({
   ...mission,
   // M19/M20 deadlines are real milliseconds, independent of world scale.
-  ...(mission.timeLimitMs === undefined || mission.id === 'journey-dallas-07' || mission.id === baseJourneyDallas25.id || mission.id === baseJourneyDallas20.id ? {} : { timeLimitMs: mission.timeLimitMs * DALLAS_WORLD_SCALE }),
+  ...(mission.timeLimitMs === undefined || transportLockParts(mission.id).length > 0 || mission.id === baseJourneyDallas25.id || mission.id === baseJourneyDallas20.id ? {} : { timeLimitMs: mission.timeLimitMs * DALLAS_WORLD_SCALE }),
   ...(mission.airborneSpawn ? { airborneSpawn: Object.freeze({ ...scaleDallasPoint(mission.airborneSpawn), altitude: mission.airborneSpawn.altitude * DALLAS_WORLD_SCALE }) } : {}),
   ...(mission.gates ? { gates: Object.freeze(mission.gates.map(gate => Object.freeze({ ...scaleDallasPoint(gate), altitude: gate.altitude * DALLAS_WORLD_SCALE, radius: gate.radius * DALLAS_WORLD_SCALE }))) } : {}),
   ...(mission.leaderRoute ? { leaderRoute: Object.freeze(mission.leaderRoute.map(scaleDallasPoint)) } : {}),
@@ -464,3 +466,6 @@ export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
 // Journey slots can change without renaming persisted mission identities or reward receipts.
 export const journeyMissionOrder = Object.freeze([1,2,3,4,5,6,13,14,15,16,17,18,7,8,9,10,11,12,25,20,21,22,23,19].map(number => `journey-dallas-${String(number).padStart(2,'0')}`));
 export function journeyMissionSlot(missionId) { return journeyMissionOrder.indexOf(missionId) + 1; }
+
+// Displayed M19–M24 retain their historical internal mission IDs.
+export function isMonsterJourneyMission(id) { return id==='journey-dallas-25' || id==='journey-dallas-20' || id==='journey-dallas-21' || id==='journey-dallas-22' || id==='journey-dallas-23' || id==='journey-dallas-19'; }

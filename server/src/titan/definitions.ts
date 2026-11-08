@@ -29,6 +29,8 @@ export type Ability = TitanTiming & {
     arcEnd?: number;
     projectileSpeed?: number;
     count?: number;
+    /** Release the full volley together; omitted abilities retain their staggered cadence. */
+    simultaneous?: boolean;
     spread?: number;
     tracking?: number;
     directional?: boolean;
@@ -64,7 +66,7 @@ export type Species = {
         foot?: boolean;
         mirror?: boolean;
     }>>;
-    stationary?: {roarDuration:number;roarInterval:number};
+    stationary?: {roarDuration:number;roarInterval:number;firstRoarAfter?:number;idlePunchDuration?:number;actionRestSeconds?:number};
     hunting?: {roarInterval:number;roarSeconds:number;combatDistance:number;roamRadius:number;decisionInterval?:number;restSeconds?:number;restVariation?:number;flankDistance?:number;repositionSeconds?:number;runSeconds?:number;runCooldown?:number;runDistance?:number;approachBeforeShot?:boolean};
     anchored?: {jumpInterval:number;jumpBend:number;jumpSeconds:number;landSeconds:number;jumpHeight:number;roarInterval:number;roarSeconds:number};
     director?: { combatDistance?: number; commitment: number; retreatMin: number; retreatMax: number; retreatDuration: number; reengageDuration: number; attackSpacing: number; pressureThreshold: number; facing: number };
@@ -137,7 +139,7 @@ export class SpeciesRegistry {
             throw Error('Invalid species');
         if(s.hunting&&Object.values(s.hunting).some(n=>typeof n==='number'&&(!Number.isFinite(n)||n<=0)))throw Error('Invalid hunting profile');
         if(s.anchored&&([s.movement.walk,s.movement.run,s.movement.chargeSpeed].some(n=>n!==0)||Object.values(s.anchored).some(n=>typeof n==='number'&&(!Number.isFinite(n)||n<=0))))throw Error('Invalid anchored profile');
-        if(s.stationary&&(!Number.isFinite(s.stationary.roarDuration)||s.stationary.roarDuration<=0||!Number.isFinite(s.stationary.roarInterval)||s.stationary.roarInterval<s.stationary.roarDuration||[s.movement.walk,s.movement.run,s.movement.turnRate,s.movement.turnAcceleration].some(n=>n!==0)))throw Error('Invalid stationary profile');
+        if(s.stationary&&(!Number.isFinite(s.stationary.roarDuration)||s.stationary.roarDuration<=0||!Number.isFinite(s.stationary.roarInterval)||s.stationary.roarInterval<s.stationary.roarDuration||s.stationary.firstRoarAfter!==undefined&&(!Number.isFinite(s.stationary.firstRoarAfter)||s.stationary.firstRoarAfter<0)||[s.stationary.idlePunchDuration,s.stationary.actionRestSeconds].some(n=>n!==undefined&&(!Number.isFinite(n)||n<=0))||[s.movement.walk,s.movement.run,s.movement.turnRate,s.movement.turnAcceleration].some(n=>n!==0)))throw Error('Invalid stationary profile');
         if(s.movement.runOnly!==undefined&&typeof s.movement.runOnly!=='boolean')throw Error('Invalid run-only locomotion');
         if ([s.movement.runStride, s.movement.reverseStride, s.movement.lateralStride, s.movement.turnStrideRadius, s.movement.repositionDistance, s.movement.intentDuration, s.movement.idleBetweenActions].some(n => n !== undefined && (!finite(n) || n <= 0)))
             throw Error('Invalid gait limits');

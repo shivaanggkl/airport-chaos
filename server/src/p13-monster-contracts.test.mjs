@@ -19,9 +19,9 @@ function visit(node){if(ts.isIfStatement(node)&&node.getText(ast).startsWith('if
 visit(ast);assert(takeoff);
 const transform=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='expectedInitialTransform').getText(ast);
 const compile=code=>ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
-for(const [mission,duration,reward] of [[missions.journeyDallas25,300000,2550],[missions.journeyDallas20,330000,2700]]){
+for(const [mission,duration,reward] of [[missions.journeyDallas25,360000,2550],[missions.journeyDallas20,360000,2700]]){
  test(`${mission.name}: actual server spawn and takeoff handoff use Love Field`,()=>{
-  assert.equal(missionJourneyDetails.find(m=>m.id===mission.id).timeLimit,mission===missions.journeyDallas25?'5:00':'5:30');
+  assert.equal(missionJourneyDetails.find(m=>m.id===mission.id).timeLimit,'6:00');
   const ctx=vm.createContext({...missions,soloExploreMode:false,journeyAttempt:{missionId:mission.id},cityAirports,
    dallasAirportElevations:new Map(cityAirports.dallas.map(a=>[a.id,dallasElevationAt(a.x,a.z)]))});
   vm.runInContext(compile(selection+transform+"\nspawn=expectedInitialTransform('dallas',0,{x:0,y:0,z:0},spawnAirportId);airportId=spawnAirportId;"),ctx);

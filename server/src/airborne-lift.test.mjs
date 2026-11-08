@@ -90,19 +90,15 @@ test('idle braking cannot hold a stalled aircraft up by braking its vertical fal
   }
 });
 
-test('idle and stall descent keep a neutral nose level while explicit dives and climb recovery work', () => {
+test('pitch commands stay independent of engine power and stall descent', () => {
   for (const type of aircraftTypes) {
     const aircraft = aircraftDefinitions[type];
-    const cruise = aircraft.maxSpeed * 0.45;
-    const powered = airbornePitchTarget(0, cruise, 0.8, aircraft);
-    const idleGlide = airbornePitchTarget(0, cruise, 0, aircraft);
-    const stalled = airbornePitchTarget(0, 0, 0, aircraft);
-    assert.equal(powered, 0, `${type} pitches down while powered`);
-    assert.equal(idleGlide, 0, `${type} automatically dips its nose at idle`);
-    assert.equal(stalled, 0, `${type} automatically dips its nose in a stall`);
-    assert.ok(airbornePitchTarget(-0.5, cruise, 0, aircraft) < 0, `${type} cannot follow an explicit dive command`);
-    assert.ok(airbornePitchTarget(1, 0, 0, aircraft) <= 0.01, `${type} can hold a full climb through a stall`);
-    assert.ok(airbornePitchTarget(1, aircraft.takeoffSpeed, 0.8, aircraft) > 0,
-      `${type} cannot recover its climb attitude after gaining speed`);
+    assert.equal(airbornePitchTarget(0, aircraft), 0, `${type} automatically changes a neutral nose`);
+    assert.equal(airbornePitchTarget(-0.5, aircraft), -aircraft.maxDivePitch * 0.5);
+    assert.equal(airbornePitchTarget(1, aircraft), aircraft.maxClimbPitch);
+    assert.equal(airbornePitchTarget(-2, aircraft), -aircraft.maxDivePitch);
+    assert.equal(airbornePitchTarget(2, aircraft), aircraft.maxClimbPitch);
+    // Keeping a commanded nose-up attitude does not supply lift at idle/stall.
+    assert.ok(airborneLiftFactor(0, aircraft.maxClimbPitch, 0, .18, aircraft) < 1);
   }
 });

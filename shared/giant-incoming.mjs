@@ -18,6 +18,18 @@ export function transportLockParts(missionId) {
         default: return noLockParts;
     }
 }
+const legacyGunMounts = Object.freeze([
+    Object.freeze({x:0,y:4.699999809265137,z:18.600000381469727,yaw:0}),
+    Object.freeze({x:-11,y:4.699999809265137,z:0,yaw:-Math.PI/2}),
+    Object.freeze({x:11,y:4.699999809265137,z:0,yaw:Math.PI/2}),
+]);
+const m16GunMounts = Object.freeze([
+    legacyGunMounts[0],
+    Object.freeze({...legacyGunMounts[1],yaw:0}),
+    Object.freeze({...legacyGunMounts[2],yaw:0}),
+    Object.freeze({x:0,y:4.699999809265137,z:-12,yaw:Math.PI}),
+]);
+export function transportGunMounts(missionId) { return missionId==='journey-dallas-10' ? m16GunMounts : legacyGunMounts; }
 const scale = 32;
 export function transportScaleForMission(missionId) { return scale; }
 export function transportFootprintForMission(missionId) { return Math.hypot(24, 22) * transportScaleForMission(missionId); }
@@ -52,12 +64,12 @@ export function transportPose(elapsedMs, altitude = 900, durationMs = transportT
     if(route === compactRoute){
         const travelSpeed=route.length/(durationMs/1000);
         const distance=Math.max(0,Math.min(route.length,elapsedMs/1000*travelSpeed));
-        return {scale:transportScaleForMission(missionId),x:route.start.x+dx/norm*distance,y:altitude,z:route.start.z+dz/norm*distance,
+        return {...(missionId==='journey-dallas-10'?{missionId}:{}),scale:transportScaleForMission(missionId),x:route.start.x+dx/norm*distance,y:altitude,z:route.start.z+dz/norm*distance,
             yaw:Math.atan2(-dx,-dz),roll:0,velocity:{x:dx/norm*travelSpeed,y:0,z:dz/norm*travelSpeed}};
     }
     const travelSpeed = durationMs === transportTuning.durationMs ? speed : transportRouteLength / (durationMs / 1000);
     const distance = Math.max(0, Math.min(transportRouteLength, elapsedMs / 1000 * travelSpeed));
-    return { scale: transportScaleForMission(missionId), x: start.x + dx / norm * distance, y: altitude, z: start.z + dz / norm * distance,
+    return { ...(missionId==='journey-dallas-10'?{missionId}:{}), scale: transportScaleForMission(missionId), x: start.x + dx / norm * distance, y: altitude, z: start.z + dz / norm * distance,
         yaw: Math.atan2(-dx, -dz), roll: 0,
         velocity: { x: dx / norm * travelSpeed, y: 0, z: dz / norm * travelSpeed } };
 }

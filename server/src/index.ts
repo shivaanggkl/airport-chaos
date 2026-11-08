@@ -12,7 +12,7 @@ import { createOpponent, hasClientOpponentOverride, opponentAim, opponentReactio
 import { enemyAiLevels } from '../../shared/enemy-ai.mjs';
 import { ambushApproach, ambushCanFire, ambushCruiseSpeed, type AmbushState } from './surprise-attack.js';
 import { advanceHunterFlight, hunterFlightIntercept, hunterBallisticSolution, hunterObservedPosition } from './hunter-flight.js';
-import { journeyMissionSlot } from '../../shared/journey-mission.mjs';
+import { journeyMissionSlot, isMonsterJourneyMission } from '../../shared/journey-mission.mjs';
 import {milwaukeeTerrainHeight} from '../../shared/milwaukee-terrain.mjs';
 import {PortalTransitionStore,type PortalFlight} from './portal-transitions.js';
 import {portalForCity,portalExit,sweptPortalCrossing,portalModeAllowed,portalRules,type PortalPose,type PortalGate} from '../../shared/intercity-portals.mjs';
@@ -2788,7 +2788,7 @@ function refreshCityLocks(cityId: CityId, now: number): void {
     // Bot locks are refreshed by updateBots from botFireSolution; only human
     // assisted locks use currentLockedTarget and assistedAim samples.
     if (player.cityId !== cityId || player.isBot || !player.lockedTargetId) continue;
-    if (!validFortressLock(playerId, player, now) && !currentLockedTarget(playerId, player, player.lockedTargetId, now)) setServerLock(playerId, player);
+    if (!validFortressLock(playerId, player, now) && !validMonsterLock(playerId,player,now) && !currentLockedTarget(playerId, player, player.lockedTargetId, now)) setServerLock(playerId, player);
   }
 }
 
@@ -5230,6 +5230,34 @@ function fortressLockSolution(ownerId: string, owner: PlayerState, now: number, 
   return {id:prefix+target.component,local,origin,position:impact.point,end:target.position};
 }
 
+// Displayed M19–M24. Acquiring a target never mutates Titan health.
+function monsterLockSolution(ownerId:string,owner:PlayerState,now:number){
+  const attemptId=playerJourneyAttempts.get(ownerId),encounter=attemptId?monsterEncounters.get(attemptId):undefined;
+  if(!encounter || encounter.playerId!==ownerId || owner.cityId!=='dallas' || owner.lifeState!=='alive' ||
+      now-owner.lastStateAt>combatTransformFreshMs || runwayCombatProtected(ownerId,owner))return undefined;
+  const attempt=journeyStore.get(owner.pilotId,attemptId!);
+  if(!attempt || !isMonsterJourneyMission(attempt.missionId) || attempt.status!=='RACING' || attempt.pausedAt!==null ||
+      attempt.deadlineAt===null || now>=attempt.deadlineAt || !(Number(attempt.monsterHealth)>0))return undefined;
+  let best: {position:Vector3;local:Vector3}|undefined,score=Infinity;
+  for(const region of encounter.engine.species.regions){
+    const position=encounter.frame.limbs[region.joint];if(!position)continue;
+    const local=targetInAircraftSpace(owner,{position}),distance=Math.hypot(local.x,local.y,local.z);
+    const angle=Math.atan2(Math.hypot(local.x,local.y),-local.z);
+    if(local.z>=0 || distance>COMBAT_RANGE || angle>AIM_ENVELOPE)continue;
+    const rank=aimTargetScore(angle,distance);
+    if(rank<score){best={position,local};score=rank;}
+  }
+  if(!best)return undefined;
+  const origin=muzzleTransform(owner).position,impact=encounter.engine.hitTest(origin,best.position);
+  if(!impact)return undefined;
+  return {id:`monster:${attemptId}`,local:best.local,position:impact};
+}
+function validMonsterLock(ownerId:string,owner:PlayerState,now:number):boolean{
+  if(!owner.lockedTargetId?.startsWith('monster:') || owner.assistedAim?.targetId!==owner.lockedTargetId || now-owner.assistedAim.updatedAt>500)return false;
+  const target=monsterLockSolution(ownerId,owner,now);
+  return !!target && target.id===owner.lockedTargetId && insideDynamicLock(target.local.x,target.local.y,target.local.z,owner.assistedAim);
+}
+
 function validFortressLock(ownerId: string, owner: PlayerState, now: number): boolean {
   if (!owner.lockedTargetId?.startsWith('transport:') || owner.assistedAim?.targetId !== owner.lockedTargetId || now-owner.assistedAim.updatedAt > 500) return false;
   const target = fortressLockSolution(ownerId,owner,now,owner.lockedTargetId);
@@ -5242,7 +5270,7 @@ function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, man
   let candidate = (!transport || transport.missionId===journeyDallas08.id || transport.missionId===journeyDallas09.id ||
     transport.missionId===journeyDallas10.id || transport.missionId===journeyDallas12.id) && owner.lifeState==='alive' && now-owner.lastStateAt<=combatTransformFreshMs
     ? closestLockTarget(ownerId,owner,forwardDirection(owner),now) : undefined;
-  let component = transport ? fortressLockSolution(ownerId,owner,now,undefined,manualHorizontal,manualVertical) : undefined;
+  let component = transport ? fortressLockSolution(ownerId,owner,now,undefined,manualHorizontal,manualVertical) : monsterLockSolution(ownerId,owner,now);
   if (component && candidate) {
     const local=targetInAircraftSpace(owner,candidate[1]);
     const score=(point:Vector3,id:string)=>aimTargetScore(Math.atan2(Math.hypot(point.x,point.y),-point.z),Math.hypot(point.x,point.y,point.z))-
@@ -6027,7 +6055,10 @@ function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: n
     e.hitSequence++;
     e.hitPosition = hit;
     if (result.missionId === journeyDallas09.id) beginReinforcementWave(result, now);
-    if((result.missionId===journeyDallas08.id||result.missionId===journeyDallas09.id||result.missionId===journeyDallas10.id)&&a.monsterHealth!==0&&result.monsterHealth===0&&result.status!=='COMPLETED')
+    const armoredGiantDestroyed = result.missionId===journeyDallas12.id && result.monsterHealth===0 &&
+      result.fortressLeftHealth===0 && result.fortressRightHealth===0 &&
+      (a.monsterHealth!==0 || a.fortressLeftHealth!==0 || a.fortressRightHealth!==0);
+    if((((result.missionId===journeyDallas08.id||result.missionId===journeyDallas09.id||result.missionId===journeyDallas10.id)&&a.monsterHealth!==0&&result.monsterHealth===0) || armoredGiantDestroyed) && result.status!=='COMPLETED')
       sendToPlayer(ownerId,{type:'transportFinal',attemptId:e.attemptId,kind:'defeat',at:now});
     sendJourneyState(ownerId, result);
     if (result.status === 'COMPLETED') {
@@ -6044,7 +6075,8 @@ function updateTransportEncounters(now: number): void {
         const pilot = players.get(e.playerId), a = pilot && journeyStore.get(pilot.pilotId, e.attemptId);
         if (!pilot || a?.status !== 'RACING' || a.deadlineAt === null || now >= a.deadlineAt)
             continue;
-        if((a.missionId===journeyDallas08.id||a.missionId===journeyDallas09.id||a.missionId===journeyDallas10.id)&&a.monsterHealth===0)continue;
+        if(a.monsterHealth===0 && (a.missionId===journeyDallas08.id || a.missionId===journeyDallas09.id || a.missionId===journeyDallas10.id ||
+          a.missionId===journeyDallas12.id && a.fortressLeftHealth===0 && a.fortressRightHealth===0))continue;
         const previousTickAt=e.lastTickAt;
         const dt = Math.max(0, Math.min(.1, (now - previousTickAt) / 1000));
         const pose = stepTransportEncounter(e, pilot.position, pilot.velocity, transportBuildings, now);
@@ -6076,7 +6108,7 @@ function updateTransportEncounters(now: number): void {
             if (sweptProjectileHit(pilot, before.x, before.y, before.z, shot.position, dt)) {
                 e.shots.splice(i, 1);
                 if (pilot.lifeState === 'alive' && now >= pilot.spawnProtectedUntil) {
-                    const shotDamage = e.fortressTurrets ? journeyDallas11.gunShotDamage : e.crossfire ? journeyDallas10.gunShotDamage : transportTuning.shotDamage;
+                    const shotDamage = e.missionId===journeyDallas10.id ? journeyDallas10.gunShotDamage : e.fortressTurrets ? journeyDallas11.gunShotDamage : transportTuning.shotDamage;
                     pilot.health = Math.max(0, pilot.health - shotDamage);
                     sendToPlayer(e.playerId, { type: 'damage', playerId: e.playerId, shooterId: `transport:${e.attemptId}`, health: pilot.health, maxHealth: maxHealthForAircraft(pilot.aircraftType), damage: shotDamage });
                     if (!pilot.health) {

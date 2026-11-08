@@ -231,7 +231,7 @@ export class MobileInputControls {
   }
 
   syncFlightState(throttle: number, boostMeter: number, boostActive: boolean, keyboardThrottleActive = false) {
-    if (keyboardThrottleActive && this.root.classList.contains('desktop-throttle-only')) {
+    if (keyboardThrottleActive) {
       this.throttleTarget = undefined;
     }
     const lever = this.root.querySelector<HTMLElement>('[data-touch-throttle]');
