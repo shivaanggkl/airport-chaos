@@ -5184,8 +5184,8 @@ function fortressLockSolution(ownerId: string, owner: PlayerState, now: number, 
   const pose = transportPose(now-encounter.startedAt,encounter.altitude,encounter.durationMs,encounter.missionId);
   const manual = { x: 0, y: 0 };
   biasAim(manual,manualHorizontal,manualVertical);
-  const direction = rotateLocalYxz({x:manual.x,y:manual.y,z:-1},owner.rotation);
-  const target = fortress ? transportFortressAimTarget(pose,owner.position,direction,health)
+  const direction = rotateLocalYxz({x:manual.x,y:manual.y,z:-1},fireTransform.rotation);
+  const target = fortress ? transportFortressAimTarget(pose,fireTransform.position,direction,health)
     : health.body>0 ? {component:'body' as const,position:transportFortressTarget(pose,'body')} : undefined;
   if (!target) return undefined;
   const local=targetInAircraftSpace(fireTransform,{position:target.position});
@@ -5806,7 +5806,10 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
 function createFortressAssistedShot(playerId: string, player: PlayerState, targetId: string,
     clientShotId: string | undefined, fireTransform: Transform | undefined, shotAim: {x:number;y:number}): boolean {
   const now = Date.now();
-  if (player.lockedTargetId !== targetId || !validFortressLock(playerId,player,now) || !canFire(player,now,playerId)) return false;
+  // Match aircraft combat: validate the bounded fire pose, not an additional
+  // older transform that can cross the range boundary between state packets.
+  if (player.lockedTargetId !== targetId || player.assistedAim?.targetId !== targetId ||
+      now-player.assistedAim.updatedAt>500 || !canFire(player,now,playerId)) return false;
   const target = fortressLockSolution(playerId,player,now,targetId,undefined,undefined,fireTransform ?? player);
   if (!target || !insideDynamicLock(target.local.x,target.local.y,target.local.z,shotAim)) return false;
   player.lastFireAt = now;

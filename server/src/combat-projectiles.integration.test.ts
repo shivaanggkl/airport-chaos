@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { dallasElevationAt } from './dallas-elevation.js';
 import { aircraftPresentationMuzzleSockets } from '../../shared/aircraft-presentation-scale.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -13,7 +14,7 @@ import { PilotSessionStore } from './session-auth.js';
 import { randomUUID } from 'node:crypto';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
-import { journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
+import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
 import { PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { combatShotAimSample, combatAimBlend, combatLockReady } from '../../shared/combat-aim.mjs';
 type Vec = {
@@ -67,7 +68,9 @@ class Client {
                 this.pose = { ...m.spawnPosition };
                 if (city === 'dallas') {
                     const airport = cityAirports.dallas.find(a => a.id === m.spawnAirportId)!;
-                    this.pose = { x: airport.x, y: ground(airport.x, airport.z), z: airport.z + Math.min(airport.runwayLength * .32, airport.runwayLength * .5 - 120) };
+                    const along=Math.min(airport.runwayLength*.32,airport.runwayLength*.5-120);
+                    this.pose = { x: airport.x+Math.sin(airport.heading)*along, y: dallasElevationAt(airport.x,airport.z)+1.2, z: airport.z+Math.cos(airport.heading)*along };
+                    this.yaw=this.goalYaw=airport.heading;
                 }
                 this.goal = { ...this.pose! };
             }
@@ -127,4 +130,44 @@ test('restored lock gives one authoritative assisted hit; unlocked shots remain 
   await wait(()=>shooter.messages.some(m=>m.type==='shotRejected'&&m.clientShotId==='invalid-sample'),'invalid server-sample reference rejected');
   assert.equal(hits().length,1);
  }finally{if(timer)clearInterval(timer);a?.socket.close();b?.socket.close();child.kill('SIGTERM');await delay(200);rmSync(dir,{recursive:true,force:true})}
+});
+
+test('M13 real Bluejay socket acquires transport lock and inflicts an assisted hit',{timeout:100000},async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'airport-m13-lock-')),db='/private/tmp/airport-chaos-m13-'+randomUUID()+'.sqlite';
+ const profiles=new PlayerProfileStore(db,true,true),sessions=new PilotSessionStore(db),identity=sessions.issue(undefined,false);
+ profiles.getOrCreate(identity.pilotId,'M13 QA');
+ const journeys=new JourneyAttemptStore(db,true); const p=await port();
+ const child=spawn(process.execPath,['--import','tsx','server/src/index.ts'],{cwd:resolve(import.meta.dirname,'../..'),env:{...process.env,PORT:String(p),AIRPORT_CHAOS_PROFILE_DB:db,AIRPORT_CHAOS_DEV_QA:'1',AIRPORT_CHAOS_LOCAL_QA_UNLOCK_ALL:'true',NODE_ENV:'test'},stdio:['ignore','pipe','pipe']});
+ let output='';child.stdout.on('data',d=>output+=String(d));child.stderr.on('data',d=>output+=String(d));
+ let a:Client|undefined,timer:ReturnType<typeof setInterval>|undefined;
+ try{
+  await wait(()=>output.includes('listening'),'isolated server startup',20000);
+  const attempt=journeys.launch(identity.pilotId,'trainer',Date.now(),journeyDallas07.id);
+  a=new Client(p,identity.cookie,'dallas',attempt.attemptId);
+  await wait(()=>!!a?.pose,'mission welcome');
+  a.send({type:'transportReady',attemptId:attempt.attemptId});a.send({type:'journeyCountdownComplete',attemptId:attempt.attemptId});
+  a.send({type:'state',position:a.pose,rotation:{x:0,y:a.yaw,z:0},boostActive:false});
+  timer=setInterval(()=>a!.send({type:'state',position:a!.pose,rotation:{x:0,y:a!.yaw,z:0},boostActive:false}),80);
+  await wait(()=>journeys.get(identity.pilotId,attempt.attemptId)?.status==='RACING','mission RACING after real countdown and accepted transform',8000);
+  clearInterval(timer);
+  timer=setInterval(()=>{
+   const state=a!.messages.filter(m=>m.type==='transportState').at(-1);
+   if(state){
+    const ahead=Math.min(.2,Math.max(0,(Date.now()-state.serverNow)/1000)),pose=state.pose;
+    a!.goal={x:pose.x+pose.velocity.x*ahead+Math.sin(pose.yaw)*2800,y:pose.y+180,z:pose.z+pose.velocity.z*ahead+Math.cos(pose.yaw)*2800};
+    const dx=pose.x-a!.pose!.x,dy=pose.y+12-a!.pose!.y,dz=pose.z-a!.pose!.z;
+    a!.goalYaw=Math.atan2(-dx,-dz);a!.goalPitch=Math.atan2(dy,Math.hypot(dx,dz));
+   }
+   a!.step();a!.send({type:'lock',targetId:`transport:${attempt.attemptId}`,aimHorizontal:0,aimVertical:0});
+  },80);
+  await wait(()=>a!.messages.some(m=>m.type==='lockState'&&m.targetId===`transport:${attempt.attemptId}:body`),'M13 Bluejay acquired body lock; '+JSON.stringify({attempt:journeys.get(identity.pilotId,attempt.attemptId)}),65000);
+  const aim=a.messages.filter(m=>m.type==='lockState'&&m.targetId).at(-1)!;
+  const live=a.messages.filter(m=>m.type==='transportState').at(-1)!.pose;
+  const forward=new THREE.Vector3(live.x-a.pose!.x,live.y+12-a.pose!.y,live.z-a.pose!.z).normalize();
+  const firePosition=new THREE.Vector3().copy(a.pose!).addScaledVector(forward,40); // A current frame between 80ms movement packets.
+  a.send({type:'fire',targetId:aim.targetId,clientShotId:'m13-real-hit',aimSample:{from:aim.aimId,to:aim.aimId,blend:1},transform:{position:firePosition,rotation:{x:a.pitch,y:a.yaw,z:a.roll},aircraftType:'trainer'}});
+  await wait(()=>a!.messages.some(m=>m.type==='assistedShot'&&m.clientShotId==='m13-real-hit'),'M13 assisted shot');
+  await wait(()=>journeys.get(identity.pilotId,attempt.attemptId)!.monsterHealth===journeyDallas07.bossHealth-25,'M13 authoritative 25 HP damage');
+ }catch(e){console.log('M13_NETWORK_DIAGNOSTICS',JSON.stringify({pose:a?.pose,latestTransport:a?.messages.filter(m=>m.type==='transportState').at(-1),latestJourney:a?.messages.filter(m=>m.type==='journeyAttempt').at(-1),tail:a?.messages.slice(-3),output:output.slice(0,2000)+output.slice(-1500)}));throw e;}
+ finally{if(timer)clearInterval(timer);a?.socket.close();child.kill('SIGTERM');await delay(200);rmSync(dir,{recursive:true,force:true});for(const suffix of ['', '-wal','-shm'])rmSync(db+suffix,{force:true});}
 });
