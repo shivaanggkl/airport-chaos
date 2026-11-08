@@ -169,7 +169,7 @@ test('retired gate and landing events cannot advance M22; pause, migration, retr
   assert.equal(store.resetPerfectApproach('p',a.attemptId,0,null,50000),undefined);
   assert.equal(store.recordPerfectApproachLanding('p',a.attemptId,'dfw',1000,0,50000),undefined);
   assert.equal(store.acceptGate('p',a.attemptId,0,50000),undefined);
-  assert.equal(journeyDallas22.gates.length,0);assert.equal(journeyDallas22.startAirportId,'dfw');
+  assert.equal(journeyDallas22.gates.length,0);assert.equal(journeyDallas22.startAirportId,'love');
   assert.equal(authorizedJourneyAirborneSpawn({missionId:journeyDallas22.id,status:'APPROACH'},journeyDallas22,()=>135),undefined);
   db.prepare('UPDATE journey_attempts SET definition_revision=0 WHERE attempt_id=?').run(a.attemptId);
   db.prepare("INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES('p',?,'historical',0,12345)").run(journeyDallas22.id);

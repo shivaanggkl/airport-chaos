@@ -331,7 +331,7 @@ const baseJourneyDallas20 = Object.freeze({
 const baseJourneyDallas21 = Object.freeze({
   id: 'journey-dallas-21', cityId: 'dallas', name: 'MONSTER HUNT',
   chapter: 'LEGENDARY SKIES', firstClearCredits: 2_850,
-  startAirportId: 'love', prepareMs:0,timeLimitMs:240000,bossHealth:900,monster:baseJourneyDallas20.monster,airborneSpawn:baseJourneyDallas20.airborneSpawn,
+  startAirportId: 'love', prepareMs:0,timeLimitMs:120000,bossHealth:900,monster:baseJourneyDallas20.monster,airborneSpawn:baseJourneyDallas20.airborneSpawn,
   // Compatibility metadata for historical territory records only.
   alphaTerritoryId: 'addison', bravoTerritoryId: 'dallas-executive',
   captureMs: 6_000, transferMs: 120_000,
@@ -339,7 +339,7 @@ const baseJourneyDallas21 = Object.freeze({
 
 const baseJourneyDallas22 = Object.freeze({
   id:'journey-dallas-22',cityId:'dallas',name:'MONSTER SHOWDOWN',chapter:'LEGENDARY SKIES',firstClearCredits:3000,
-  startAirportId:'dfw',runwayStart:true,prepareMs:0,timeLimitMs:240000,bossHealth:1100,
+  startAirportId:'love',runwayStart:true,prepareMs:0,timeLimitMs:120000,bossHealth:1100,
   monster:baseJourneyDallas20.monster,airborneSpawn:baseJourneyDallas19.airborneSpawn,
   // Compatibility fields never advance the retired landing objective.
   finishAirportId:'dfw',approachRestartZ:-23400,gates:Object.freeze([]),

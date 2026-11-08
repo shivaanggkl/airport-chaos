@@ -28,7 +28,7 @@ const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8'),serverAs
 const client=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8'),clientAst=ts.createSourceFile('main.ts',client,ts.ScriptTarget.Latest,true);
 const no=()=>{},clientGround=(x,z)=>getTerrainHeight(x/3,z/3)*3,buildings=loadDallasCombatBuildings([monsterBuildingCoverage(),transportBuildingCoverage()]);
 indexBuildingsForOcclusion(buildings);
-function simulate(mission){
+export function simulate(mission,createEncounter=mission.id===missions.journeyDallas25.id?createStationaryWarlordEncounter:createStrikingWarlordEncounter){
  const directory=mkdtempSync(join(tmpdir(),'p13-boss-')),path=join(directory,'profiles.sqlite'),db=new DatabaseSync(path);
  db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");
  const store=new JourneyAttemptStore(path,true),epoch=100000,dt=1/60;
@@ -42,7 +42,7 @@ function simulate(mission){
  const attempt=store.launch('pilot','trainer',epoch,mission.id);store.approach('pilot',attempt.attemptId,epoch);
  assert.equal(store.get('pilot',attempt.attemptId).deadlineAt,null,'intro has no gameplay deadline');
  store.startMonsterArrival('pilot',attempt.attemptId,epoch);
- const encounter=(mission.id===missions.journeyDallas25.id?createStationaryWarlordEncounter:createStrikingWarlordEncounter)(attempt.attemptId,'owner',epoch,ground,buildings);
+ const encounter=createEncounter(attempt.attemptId,'owner',epoch,ground,buildings);
  const combat=vm.createContext({...missions,players:new Map([['owner',{pilotId:'pilot',cityId:'dallas',isBot:false}]]),playerJourneyAttempts:new Map([['owner',attempt.attemptId]]),monsterEncounters:new Map([[attempt.attemptId,encounter]]),journeyStore:store,disposeM19,sendJourneyState:no,sendToPlayer:no,removeJourneyHunter:no,sendProfile:no,profileStore:{getOrCreate:()=>({})}});
  const hitHandler=serverAst.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='applyMonsterHit');
  vm.runInContext(ts.transpileModule(hitHandler.getText(serverAst),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,combat);

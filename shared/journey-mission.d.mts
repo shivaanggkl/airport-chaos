@@ -152,13 +152,13 @@ export const journeyDallas20: Readonly<{
 }>;
 export const journeyDallas21: Readonly<{
   id: 'journey-dallas-21'; cityId: 'dallas'; name: 'MONSTER HUNT'; chapter: 'LEGENDARY SKIES';
-  prepareMs:0;timeLimitMs:240000;bossHealth:900;monster:typeof journeyDallas20.monster;airborneSpawn:typeof journeyDallas20.airborneSpawn;
+  prepareMs:0;timeLimitMs:360000;bossHealth:900;monster:typeof journeyDallas20.monster;airborneSpawn:typeof journeyDallas20.airborneSpawn;
   firstClearCredits: 2850; startAirportId: 'love'; alphaTerritoryId: 'addison';
   bravoTerritoryId: 'dallas-executive'; captureMs: 6000; transferMs: 120000;
 }>;
 export const journeyDallas22: Readonly<{
   id: 'journey-dallas-22'; cityId: 'dallas'; name: 'MONSTER SHOWDOWN'; chapter: 'LEGENDARY SKIES';
-  startAirportId:'dfw';runwayStart:true;timeLimitMs:240000;bossHealth:1100;monster:typeof journeyDallas20.monster;
+  startAirportId:'love';runwayStart:true;timeLimitMs:360000;bossHealth:1100;monster:typeof journeyDallas20.monster;
   firstClearCredits: 3000; prepareMs: 0; finishAirportId: 'dfw'; approachRestartZ: number;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number;

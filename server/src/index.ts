@@ -5936,6 +5936,7 @@ function updateMonsterEncounters(now:number):void {
   if(pausedJourneyAttempts.has(encounter.attemptId))continue;
   const pilot=players.get(encounter.playerId),attempt=pilot&&journeyStore.get(pilot.pilotId,encounter.attemptId);
   if(!pilot||((attempt?.missionId!==journeyDallas19.id&&attempt?.missionId!==journeyDallas25.id&&attempt?.missionId!==journeyDallas21.id&&attempt?.missionId!==journeyDallas22.id&&attempt?.missionId!==journeyDallas23.id)&&attempt?.missionId!==journeyDallas20.id)||attempt.status!=='RACING'||attempt.deadlineAt===null||now>=attempt.deadlineAt)continue;
+  if((attempt.missionId===journeyDallas21.id||attempt.missionId===journeyDallas22.id)&&playerJourneyRunwayPrep.has(encounter.playerId))continue;
   const threats=[];
   for(const id of encounter.projectileIds){const shot=projectiles.get(id);if(shot&&threats.length<32)threats.push({id:shot.projectileId,encounterId:encounter.attemptId,position:shot.position,velocity:{x:shot.direction.x*shot.speed,y:shot.direction.y*shot.speed,z:shot.direction.z*shot.speed},radius:1});}
   stepM19(encounter,pilot.position,pilot.velocity,aircraftHitRadii[pilot.aircraftType],now,threats);
@@ -7284,6 +7285,7 @@ function safeRespawnTransform(playerId: string, player: PlayerState, now: number
   const activeAttemptId = playerJourneyAttempts.get(playerId);
   const activeAttempt = activeAttemptId ? journeyStore.get(player.pilotId, activeAttemptId) : undefined;
   const missionAirportId = activeAttempt?.missionId === journeyDallas23.id ? journeyDallas23.startAirportId
+    : activeAttempt?.missionId === journeyDallas22.id ? journeyDallas22.startAirportId
     : activeAttempt?.missionId === journeyDallas21.id ? journeyDallas21.startAirportId
     : activeAttempt?.missionId === journeyDallas20.id ? undefined
     : activeAttempt?.missionId === journeyDallas18.id ? journeyDallas18.startAirportId
@@ -8064,6 +8066,7 @@ server.on('connection', (socket, request) => {
   const spawnPosition = { x: 0, y: 1.2, z: 45 + spawnSlot * 15 };
   const spawnAirportId = soloExploreMode ? 'dfw' : journeyAttempt?.missionId === journeyDallas24.id ? journeyDallas24.startAirportId
     : journeyAttempt?.missionId === journeyDallas23.id ? journeyDallas23.startAirportId
+    : journeyAttempt?.missionId === journeyDallas22.id ? journeyDallas22.startAirportId
     : journeyAttempt?.missionId === journeyDallas21.id ? journeyDallas21.startAirportId
     : journeyAttempt?.missionId === journeyDallas25.id ? journeyDallas25.startAirportId
     : journeyAttempt?.missionId === journeyDallas20.id ? journeyDallas20.startAirportId
@@ -9253,9 +9256,9 @@ server.on('connection', (socket, request) => {
         if (journeyAttemptId && departure?.id === journeyDallas24.finishAirportId &&
           journeyStore.get(player.pilotId, journeyAttemptId)?.legendaryPhase === 'LANDING')
           landingReceipts.delete(`${playerId}:${journeyDallas24.finishAirportId}`);
-        if (journeyAttemptId && (departure?.id === journeyDallas08.startAirportId || departure?.id === journeyDallas14.startAirportId || departure?.id === journeyDallas16.startAirportId || departure?.id === journeyDallas25.startAirportId || departure?.id === journeyDallas20.startAirportId || departure?.id === journeyDallas21.startAirportId || departure?.id === journeyDallas24.startAirportId)) {
+        if (journeyAttemptId && (departure?.id === journeyDallas08.startAirportId || departure?.id === journeyDallas14.startAirportId || departure?.id === journeyDallas16.startAirportId || departure?.id === journeyDallas25.startAirportId || departure?.id === journeyDallas20.startAirportId || departure?.id === journeyDallas21.startAirportId || departure?.id === journeyDallas22.startAirportId || departure?.id === journeyDallas24.startAirportId)) {
           const active = journeyStore.get(player.pilotId, journeyAttemptId);
-          if (active?.missionId === journeyDallas08.id || active?.missionId === journeyDallas14.id || active?.missionId === journeyDallas16.id || active?.missionId === journeyDallas25.id || active?.missionId === journeyDallas20.id || active?.missionId === journeyDallas21.id || active?.missionId === journeyDallas23.id || active?.missionId === journeyDallas24.id) {
+          if (active?.missionId === journeyDallas08.id || active?.missionId === journeyDallas14.id || active?.missionId === journeyDallas16.id || active?.missionId === journeyDallas25.id || active?.missionId === journeyDallas20.id || active?.missionId === journeyDallas21.id || active?.missionId === journeyDallas22.id || active?.missionId === journeyDallas23.id || active?.missionId === journeyDallas24.id) {
             playerJourneyLoveTakeoff.add(playerId);
             playerJourneyRunwayPrep.delete(playerId);
           }
