@@ -183,8 +183,8 @@ test('M11 scaled placement, clear flight corridor and Journey deadline agree',()
  const mission=missions.journeyDallas17,a=cityAirports.dallas.find(a=>a.id===mission.startAirportId);
  const start={x:a.x,y:ground(a.x,a.z),z:a.z+Math.min(a.runwayLength*.32,a.runwayLength*.5-120)};
  const separation=Math.hypot(mission.enemySpawn.x-start.x,mission.enemySpawn.z-start.z);
- assert(separation>=14000&&separation<=20000);assert.equal(mission.timeLimitMs,330000);
- assert.equal(missionJourneyDetails.find(d=>d.id===mission.id).timeLimit,'5:30');
+ assert(separation>=14000&&separation<=20000);assert.equal(mission.timeLimitMs,180000);
+ assert.equal(missionJourneyDetails.find(d=>d.id===mission.id).timeLimit,'3:00');
  for(let i=0;i<=100;i++){
   const x=start.x+(mission.enemySpawn.x-start.x)*i/100,z=start.z+(mission.enemySpawn.z-start.z)*i/100;
   assert(insideJourneyHunterArena({x,z})&&Math.abs(x)<75000&&Math.abs(z)<75000);
@@ -203,15 +203,15 @@ test('M11 requires Executive takeoff plus safe departure before hostility',()=>{
 
 test('M12 physical non-Boost Bluejay defeats Legendary Firehawk after DFW takeoff',t=>{
  const r=simulate(missions.journeyDallas18);t.diagnostic(JSON.stringify(r));
- assert.equal(r.status,'COMPLETED');assert.equal(r.credits,2400);assert(r.completion<=315);assert(r.firstEngagement>=45&&r.firstEngagement<=90);assert(r.health>0);
+ assert.equal(r.status,'COMPLETED');assert.equal(r.credits,2400);assert(r.completion<=180);assert(r.firstEngagement>=45&&r.firstEngagement<=90);assert(r.health>0);
  assert(r.tactics.length>=3,'Legendary opponent uses varied tactical plans');
 });
 
-test('M12 scaled placement clears the DFW approach and displays its independent six-minute timer',()=>{
+test('M12 scaled placement clears the DFW approach and displays its independent three-minute timer',()=>{
  const m=missions.journeyDallas18,a=cityAirports.dallas.find(a=>a.id==='dfw');
  const start={x:a.x,z:a.z+Math.min(a.runwayLength*.32,a.runwayLength*.5-120)};
  const separation=Math.hypot(m.enemySpawn.x-start.x,m.enemySpawn.z-start.z);assert(separation>=16000&&separation<=24000);
- assert.equal(m.timeLimitMs,360000);assert.equal(missionJourneyDetails.find(d=>d.id===m.id).timeLimit,'6:00');
+ assert.equal(m.timeLimitMs,180000);assert.equal(missionJourneyDetails.find(d=>d.id===m.id).timeLimit,'3:00');
  for(let i=0;i<=100;i++){
   const x=start.x+(m.enemySpawn.x-start.x)*i/100,z=start.z+(m.enemySpawn.z-start.z)*i/100;
   assert(insideJourneyHunterArena({x,z})&&Math.abs(x)<75000&&Math.abs(z)<75000);

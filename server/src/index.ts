@@ -22,7 +22,7 @@ import { CombatSpatialIndex } from './combat-spatial-index.js';
 import { CombatProjectileBudget } from './combat-projectile-budget.js';
 import {transportPose,transportTuning,transportFootprintRadius} from '../../shared/giant-incoming.mjs';
 import { aircraftHitRadii, remoteAircraftCollisionRadius, remoteAircraftContactRadius, remoteAircraftScale, remoteAircraftVisualScale } from '../../shared/remote-aircraft-visual-rules.mjs';
-import {createTransportEncounter,transportBuildingCoverage,transportAltitude,transportImpact,transportAircraftImpact,transportHullImpact,transportFortressImpact,transportFortressTarget,transportProjectileDisposition,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
+import {createTransportEncounter,transportBuildingCoverage,transportAltitude,transportImpact,transportAircraftImpact,transportHullImpact,transportFortressImpact,transportFortressTarget,transportFortressAimTarget,transportProjectileDisposition,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createReadStream, readFileSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
@@ -2759,7 +2759,7 @@ function refreshCityLocks(cityId: CityId, now: number): void {
     // Bot locks are refreshed by updateBots from botFireSolution; only human
     // assisted locks use currentLockedTarget and assistedAim samples.
     if (player.cityId !== cityId || player.isBot || !player.lockedTargetId) continue;
-    if (!currentLockedTarget(playerId, player, player.lockedTargetId, now)) setServerLock(playerId, player);
+    if (!validFortressLock(playerId, player, now) && !currentLockedTarget(playerId, player, player.lockedTargetId, now)) setServerLock(playerId, player);
   }
 }
 
@@ -5162,10 +5162,48 @@ function targetInAircraftSpace(transform: Transform, target: Pick<PlayerState,'p
   };
 }
 
+// M17 uses the same server-confirmed assisted-shot contract as aircraft combat.
+// Component locks additionally require a clear hit on the actual authored mesh.
+function fortressLockSolution(ownerId: string, owner: PlayerState, now: number, targetId?: string,
+    manualHorizontal?: unknown, manualVertical?: unknown, fireTransform: Transform = owner) {
+  const attemptId = playerJourneyAttempts.get(ownerId);
+  const encounter = attemptId ? transportEncounters.get(attemptId) : undefined;
+  if (!encounter || encounter.missionId !== journeyDallas11.id || encounter.playerId !== ownerId ||
+      owner.cityId !== 'dallas' || owner.lifeState !== 'alive' || now-owner.lastStateAt > combatTransformFreshMs ||
+      encounter.fortressGunsEnabled === false) return undefined;
+  const attempt = journeyStore.get(owner.pilotId, encounter.attemptId);
+  if (attempt?.status !== 'RACING' || attempt.pausedAt !== null || attempt.deadlineAt === null || now >= attempt.deadlineAt) return undefined;
+  const prefix = `transport:${attemptId}:`;
+  const health = { left: attempt.fortressLeftHealth ?? 0, right: attempt.fortressRightHealth ?? 0, core: attempt.monsterHealth ?? 0 };
+  if (targetId) {
+    if (!(['left','right','core'] as const).some(side => targetId === prefix+side && health[side] > 0)) return undefined;
+    for (const side of ['left','right','core'] as const) if (targetId !== prefix+side) health[side] = 0;
+  }
+  const pose = transportPose(now-encounter.startedAt,encounter.altitude,encounter.durationMs,encounter.missionId);
+  const manual = { x: 0, y: 0 };
+  biasAim(manual,manualHorizontal,manualVertical);
+  const direction = rotateLocalYxz({x:manual.x,y:manual.y,z:-1},owner.rotation);
+  const target = transportFortressAimTarget(pose,owner.position,direction,health);
+  if (!target) return undefined;
+  const collisionPose = {...pose,gunYaw:encounter.gunYaw,gunPitch:encounter.gunPitch,sideGuns:encounter.crossfire?.guns.slice(1)};
+  const origin = muzzleTransform(fireTransform).position;
+  const impact = transportFortressImpact(origin,target.position,collisionPose,collisionPose,true);
+  if (!impact || impact.component !== target.component || segmentBlockedByBuildings(origin,impact.point,transportBuildings) ||
+      impact.point.y <= dallasTerrain.elevationAt(impact.point.x,impact.point.z)) return undefined;
+  const local=targetInAircraftSpace(fireTransform,{position:target.position});
+  return {id:prefix+target.component,local,origin,position:impact.point,end:target.position};
+}
+
+function validFortressLock(ownerId: string, owner: PlayerState, now: number): boolean {
+  if (!owner.lockedTargetId?.startsWith('transport:') || owner.assistedAim?.targetId !== owner.lockedTargetId || now-owner.assistedAim.updatedAt > 500) return false;
+  const target = fortressLockSolution(ownerId,owner,now,owner.lockedTargetId);
+  return Boolean(target && insideDynamicLock(target.local.x,target.local.y,target.local.z,owner.assistedAim));
+}
+
 function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, manualHorizontal: unknown, manualVertical: unknown): void {
   const aim = owner.assistedAim ??= { x: 0, y: 0, updatedAt: now };
   const transportId = playerJourneyAttempts.get(ownerId), transport = transportId ? transportEncounters.get(transportId) : undefined;
-  const candidate = (!transport || transport.durationMs === journeyDallas08.timeLimitMs || transport.durationMs === journeyDallas09.timeLimitMs || transport.durationMs === journeyDallas12.timeLimitMs && transport.fortressGunsEnabled === false) && owner.lifeState === 'alive' && now - owner.lastStateAt <= combatTransformFreshMs
+  const candidate = transport?.missionId !== journeyDallas11.id && (!transport || transport.durationMs === journeyDallas08.timeLimitMs || transport.durationMs === journeyDallas09.timeLimitMs || transport.durationMs === journeyDallas12.timeLimitMs && transport.fortressGunsEnabled === false) && owner.lifeState === 'alive' && now - owner.lastStateAt <= combatTransformFreshMs
     ? closestLockTarget(ownerId, owner, forwardDirection(owner), now) : undefined;
   const goal = { x: 0, y: 0 };
   aim.targetId = candidate?.[0];
@@ -5173,7 +5211,7 @@ function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, man
     const local = targetInAircraftSpace(owner, candidate[1]);
     aimGoal(local.x, local.y, local.z, goal);
   }
-  if(transport && !candidate && transport.fortressGunsEnabled !== false && transport.playerId===ownerId && owner.lifeState==='alive' && now-transport.startedAt<transport.durationMs){
+  if(transport && transport.missionId !== journeyDallas11.id && !candidate && transport.fortressGunsEnabled !== false && transport.playerId===ownerId && owner.lifeState==='alive' && now-transport.startedAt<transport.durationMs){
     const pose=transportPose(now-transport.startedAt,transport.altitude,transport.durationMs,transport.missionId);
     const fortress=transport.fortressTurrets;
     const possible:('left'|'right'|'core')[]=fortress
@@ -5194,10 +5232,14 @@ function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, man
       if(aimGoal(local.x,local.y,local.z,goal))aim.targetId=`transport:${transport.attemptId}`;
     }
   }
+  const component = transport?.missionId === journeyDallas11.id
+    ? fortressLockSolution(ownerId,owner,now,undefined,manualHorizontal,manualVertical) : undefined;
+  if (component && aimGoal(component.local.x,component.local.y,component.local.z,goal)) aim.targetId=component.id;
   if (owner.lifeState === 'alive') biasAim(goal, manualHorizontal, manualVertical);
   stepAim(aim, goal, (now - aim.updatedAt) / 1000, AIM_ENVELOPE);
   aim.updatedAt = now;
-  const targetId = candidate && validDynamicTarget(ownerId, owner, candidate[0], now) ? candidate[0] : undefined;
+  const targetId = component && aim.targetId === component.id && insideDynamicLock(component.local.x,component.local.y,component.local.z,aim)
+    ? component.id : candidate && validDynamicTarget(ownerId, owner, candidate[0], now) ? candidate[0] : undefined;
   setServerLock(ownerId, owner, targetId, true);
 }
 
@@ -5769,6 +5811,21 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
   return true;
 }
 
+function createFortressAssistedShot(playerId: string, player: PlayerState, targetId: string,
+    clientShotId: string | undefined, fireTransform: Transform | undefined, shotAim: {x:number;y:number}): boolean {
+  const now = Date.now();
+  if (player.lockedTargetId !== targetId || !validFortressLock(playerId,player,now) || !canFire(player,now,playerId)) return false;
+  const target = fortressLockSolution(playerId,player,now,targetId,undefined,undefined,fireTransform ?? player);
+  if (!target || !insideDynamicLock(target.local.x,target.local.y,target.local.z,shotAim)) return false;
+  player.lastFireAt = now;
+  sendToPlayer(playerId,{type:'assistedShot',shotId:randomUUID(),ownerId:playerId,targetId,
+    origin:target.origin,targetPosition:target.position,clientShotId});
+  // Reuse the exact component collision, damage, mission and reward path.
+  // No client-provided target point or health change is accepted.
+  applyTransportHit(playerId,target.origin,target.end,now,0,projectileDamageForAircraft(player.aircraftType));
+  return true;
+}
+
 function createAssistedShot(
   playerId: string,
   player: PlayerState,
@@ -5777,6 +5834,7 @@ function createAssistedShot(
   fireTransform: Transform | undefined,
   shotAim: { x: number; y: number },
 ): boolean {
+  if (targetId.startsWith('transport:')) return createFortressAssistedShot(playerId,player,targetId,clientShotId,fireTransform,shotAim);
   const now = Date.now();
   const target = currentLockedTarget(playerId, player, targetId, now, fireTransform);
   if (!target || !canFire(player, now, playerId)) return false;
@@ -6960,6 +7018,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     enemy: player, target: targetPlayer, targetId: target[0], speed: bot.speed, now,
     supportSide:bot.journeyCrossfire&&(crossfireDefeatedHunters.get(bot.journeyAttemptId!)?.size??0)===0&&crossfireFireCoordinators.get(bot.journeyAttemptId!)?.activeShooterId!==botId ? bot.journeyCrossfireSide : undefined,
     roaming: Boolean(player.skyDuelPracticeOwnerId || !bot.journeyAttemptId && !bot.defenseTerritoryId),
+    committedPasses: bot.journeyFinalShowdown === true,
     firingSolution: !botFireSolution(player, targetPlayer, Boolean(bot.defenseTerritoryId)).reason,
     lockedByTarget: targetPlayer.lockedTargetId === botId, bullets,
     cruise: bot.journeySurpriseAttack ? ambushCruiseSpeed(targetPlayer.velocity)

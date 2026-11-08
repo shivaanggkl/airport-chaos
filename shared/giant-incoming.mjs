@@ -6,7 +6,9 @@ import { territoriesForCity } from './city-territories.mjs';
 const territories = territoriesForCity('dallas');
 const metroplex = territories.find(t => t.id === 'dfw');
 const whiteRock = territories.find(t => t.id === 'white-rock');
-const scale = 16;
+const scale = 32;
+export function transportScaleForMission(missionId) { return scale; }
+export function transportFootprintForMission(missionId) { return Math.hypot(24, 22) * transportScaleForMission(missionId); }
 export const transportFootprintRadius = Math.hypot(24, 22) * scale;
 const start = Object.freeze({ x: metroplex.bounds.minX, z: metroplex.center.z });
 const dx = whiteRock.center.x - start.x, dz = whiteRock.center.z - start.z;
@@ -29,7 +31,7 @@ export function transportRouteForMission(missionId) {
 
 const speed = .9 * .65 * throttleSpeedTarget(.5, aircraftFlightEnvelope.trainer);
 // Failure is tied to the complete airframe clearing Dallas, not the former fixed timer.
-export const transportTuning = Object.freeze({ scale, health: 2000,
+export const transportTuning = Object.freeze({ scale, health: 2000, altitudeMultiplier: 1.5,
     durationMs: Math.ceil(transportRouteLength / speed * 1000), speed,
     separation: 1200, warningMs: 1000, burstIntervalMs: 6000, shotSpacingMs: 250,
     shotDamage: 10, yawArc: 70 * Math.PI / 180, pitchArc: 45 * Math.PI / 180 });
@@ -38,12 +40,12 @@ export function transportPose(elapsedMs, altitude = 900, durationMs = transportT
     if(route === compactRoute){
         const travelSpeed=route.length/(durationMs/1000);
         const distance=Math.max(0,Math.min(route.length,elapsedMs/1000*travelSpeed));
-        return {x:route.start.x+dx/norm*distance,y:altitude,z:route.start.z+dz/norm*distance,
+        return {scale:transportScaleForMission(missionId),x:route.start.x+dx/norm*distance,y:altitude,z:route.start.z+dz/norm*distance,
             yaw:Math.atan2(-dx,-dz),roll:0,velocity:{x:dx/norm*travelSpeed,y:0,z:dz/norm*travelSpeed}};
     }
     const travelSpeed = durationMs === transportTuning.durationMs ? speed : transportRouteLength / (durationMs / 1000);
     const distance = Math.max(0, Math.min(transportRouteLength, elapsedMs / 1000 * travelSpeed));
-    return { x: start.x + dx / norm * distance, y: altitude, z: start.z + dz / norm * distance,
+    return { scale: transportScaleForMission(missionId), x: start.x + dx / norm * distance, y: altitude, z: start.z + dz / norm * distance,
         yaw: Math.atan2(-dx, -dz), roll: 0,
         velocity: { x: dx / norm * travelSpeed, y: 0, z: dz / norm * travelSpeed } };
 }

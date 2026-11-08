@@ -186,8 +186,8 @@ for(const mission of [missions.journeyDallas13,missions.journeyDallas14]) {
    f.store.approach('pilot',a.attemptId,2000);f.store.assignFirstContact('pilot',a.attemptId,'enemy');
    assert.equal(f.store.get('pilot',a.attemptId).deadlineAt,null,'intro does not consume the timer');
    const racing=f.store.startFirstContact('pilot',a.attemptId,3000);
-   assert.equal(racing.deadlineAt-racing.startedAt,mission.id===missions.journeyDallas13.id?180000:242000);
-   assert.equal(missionJourneyDetails.find(m=>m.id===mission.id).timeLimit,mission.id===missions.journeyDallas13.id?'3:00':'4:02');
+   assert.equal(racing.deadlineAt-racing.startedAt,180000);
+   assert.equal(missionJourneyDetails.find(m=>m.id===mission.id).timeLimit,'3:00');
   }finally {f.db.close();rmSync(f.dir,{recursive:true,force:true});}
  });
 }

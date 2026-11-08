@@ -4,6 +4,7 @@ export type TransportPoint = {
     z: number;
 };
 export type TransportPose = TransportPoint & {
+    scale?: number;
     yaw: number;
     gunYaw?: number;
     gunPitch?: number;
@@ -12,6 +13,7 @@ export type TransportPose = TransportPoint & {
 };
 export const transportTuning: Readonly<{
     scale: number;
+    altitudeMultiplier: number;
     health: number;
     durationMs: number;
     speed: number;
@@ -23,6 +25,8 @@ export const transportTuning: Readonly<{
     yawArc: number;
     pitchArc: number;
 }>;
+export function transportScaleForMission(missionId?: string): number;
+export function transportFootprintForMission(missionId?: string): number;
 export const transportRouteLength: number;
 export const transportFootprintRadius: number;
 export const transportCourse: Readonly<{ start: {x:number;z:number}; whiteRock: {x:number;z:number}; end: {x:number;z:number}; exitX:number }>;

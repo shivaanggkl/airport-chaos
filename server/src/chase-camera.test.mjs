@@ -15,7 +15,7 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
             airplane.add(new THREE.Mesh(new THREE.BoxGeometry(definition.wingSpan, definition.bodyRadius * 3, definition.bodyLength + definition.noseLength)));
             airplane.position.y = 1000;
             const camera = new THREE.PerspectiveCamera(58, aspect, .1, 10000);
-            const state = { THREE, airplane, camera, currentAircraft: definition, CAMERA_CHASE_FOV: 58, CAMERA_TARGET_WIDTH_FRACTION: .305,
+            const state = { THREE, airplane, camera, aircraftVictory:null, currentAircraft: definition, CAMERA_CHASE_FOV: 58, CAMERA_TARGET_WIDTH_FRACTION: .305,
                 cameraFramingKey: '', defaultChaseDistance: 0, defaultChaseHeight: 0, cameraFocusAhead: 1.5, smoothedChaseDistance: 0, cameraDistanceMultiplier: 1,
                 currentSpeed: 0, boostActive: false, boostVisualStrength: 0, cameraOrbitRadiusTarget: 0, cameraOrbitDragging: false, cameraOrbitRecenterAt: null,
                 cameraWorldUp: new THREE.Vector3(0, 1, 0),cameraPitchAxis:new THREE.Vector3(1,0,0), cameraFrameLocalBounds: new THREE.Box3(), cameraFrameMeshBounds: new THREE.Box3(),
@@ -30,6 +30,23 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
             state.currentSpeed = definition.maxSpeed * (boosted ? definition.boostMaxSpeed : 1);
             state.boostActive = boosted;
             state.boostVisualStrength = boosted ? 1 : 0;
+            let levelView;
+            const fovStart=source.indexOf('  // Keep throttle changes',source.indexOf('function updateCamera('));
+            const fov=source.slice(fovStart,source.indexOf('  const cinematicFrame',fovStart));
+            for(const fraction of [0,.25,.5,.75,1]) {
+                state.currentSpeed=definition.maxSpeed*fraction;
+                airplane.rotation.set(0,.5,0,'YXZ');state.updateCamera(1);
+                const fovContext={CAMERA_CHASE_FOV:58,boostVisualStrength:boosted?1:0,currentSpeed:state.currentSpeed};
+                vm.createContext(fovContext);vm.runInContext(fov+'\nglobalThis.fovValue=targetFov;',fovContext);
+                camera.fov=fovContext.fovValue;camera.updateProjectionMatrix();
+                camera.position.copy(state.chaseCameraPosition);camera.lookAt(state.chaseLookTarget);camera.updateMatrixWorld();
+                const planeScreen=airplane.position.clone().project(camera);
+                const aimScreen=new THREE.Vector3(0,0,-1000).applyQuaternion(airplane.quaternion).add(airplane.position).project(camera);
+                if(levelView) {
+                    assert(planeScreen.distanceTo(levelView.plane)<1e-6,'W/S speed changes cannot shift the airframe on screen');
+                    assert(aimScreen.distanceTo(levelView.aim)<1e-6,'W/S speed changes cannot shift the aim circle');
+                } else levelView={plane:planeScreen,aim:aimScreen};
+            }
             const offsets=new Map(),looks=new Map();
             for (const [pitch, bank] of [[0,0],[0,.65],[0,-.65],[.3,0],[.3,.65],[-.28,0],[-.28,-.65]]) {
                 airplane.rotation.set(pitch, .5, bank, 'YXZ');
@@ -38,8 +55,7 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
                 const elevation = offset.y / Math.hypot(offset.x, offset.z);
                 assert.ok(Number.isFinite(elevation));
                 const localOffset=offset.clone().applyQuaternion(state.cameraChaseQuaternion.clone().invert());
-                const oldHeight=state.defaultChaseHeight + (7.2+(boosted?2.35:0))*.05;
-                assert(Math.abs(localOffset.y-oldHeight)<1e-5,'only the physical rear viewing height uses the older framing');
+                assert(Math.abs(localOffset.y-state.defaultChaseHeight)<1e-5,'viewing height stays independent of throttle');
                 const lookOffset = state.chaseLookTarget.clone().sub(airplane.position);
                 if(looks.has(pitch))assert(lookOffset.distanceTo(looks.get(pitch))<1e-5,'bank cannot swing the aim');
                 else looks.set(pitch,lookOffset);
@@ -60,7 +76,7 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
 
 test('manual orbit keeps its captured world heading while the aircraft turns',()=>{
     const start=source.indexOf('  if (cameraOrbitBlend > 0) {',source.indexOf('function updateCamera('));
-    const block=source.slice(start,source.indexOf('  // Use absolute airspeed',start));
+    const block=source.slice(start,source.indexOf('  // Keep throttle changes',start));
     const state={delta:1/60,cameraOrbitBlend:1,cameraOrbitRadius:25,cameraOrbitPitch:.2,cameraOrbitYaw:.8,airplane:new THREE.Group(),groundPlaneY:()=>-1000,
         cameraOrbitReferenceQuaternion:new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),.4),cameraOrbitYawQuaternion:new THREE.Quaternion()};
     for(const k of ['orbitCameraPosition','orbitLookTarget','cameraOrbitFocusLocal','targetCameraPosition','lookTarget','chaseCameraPosition','chaseLookTarget'])state[k]=new THREE.Vector3();

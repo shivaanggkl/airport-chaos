@@ -2,7 +2,7 @@ import { TransportArrivalSequence } from './transport-arrival.ts';
 import * as THREE from 'three';
 import { TransportDefeatSequence } from './transport-defeat';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { transportTuning, type TransportStateMessage, type TransportPoint } from '../../shared/giant-incoming.mjs';
+import { transportTuning, transportScaleForMission, type TransportStateMessage, type TransportPoint } from '../../shared/giant-incoming.mjs';
 import { journeyDallas11 } from '../../shared/journey-mission.mjs';
 export type { TransportStateMessage } from '../../shared/giant-incoming.mjs';
 function roundedBayShape(width: number, height: number): THREE.Shape {
@@ -55,6 +55,7 @@ export class GiantIncomingView {
     readonly position = new THREE.Vector3();
     readonly fortressTargetPosition = new THREE.Vector3();
     private readonly fortressTargetScratch = new THREE.Vector3();
+    private readonly fortressAimForward = new THREE.Vector3();
     private levels: THREE.Group[] = [];
     private state?: TransportStateMessage;
     private receivedAt = 0;
@@ -66,6 +67,7 @@ export class GiantIncomingView {
     get arrivalShowsPlayer():boolean{return this.arrival?.showsPlayer??false;}
     skipArrival():void{this.arrival?.skip();}
     beginArrival(escorts: readonly THREE.Group[] = [], missionName?: string, missionId?: string, durationMs?: number):Promise<void>{
+        this.root.scale.setScalar(transportScaleForMission(missionId));
         this.levels.forEach((level,index)=>{level.visible=index===0;});
         this.arrival=new TransportArrivalSequence(this.root,this.terrain,this.scene,escorts,missionName,missionId,durationMs);
         return new Promise(resolve=>{this.arrivalResolve=resolve;});
@@ -179,25 +181,35 @@ export class GiantIncomingView {
         }
         return best;
     }
-    updateFortressTarget(player:THREE.Vector3,heading:number):'left'|'right'|'core'{
+    updateFortressTarget(player:THREE.Vector3,heading:number,orientation?:THREE.Quaternion,aimTargetId?:string|null):'left'|'right'|'core'{
         const phase=this.state?.fortress;
         let side:'left'|'right'|'core'='core',score=-Infinity;
-        const forward=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
+        const forward=this.fortressAimForward.set(0,0,-1);
+        if(orientation)forward.applyQuaternion(orientation);
+        else forward.set(-Math.sin(heading),0,-Math.cos(heading));
+        const authoritativeSide=aimTargetId?.startsWith('transport:')?aimTargetId.split(':').at(-1):undefined;
         for(const [part,health,x,y,z] of [
             ['left',phase?.leftHealth??0,-11,4.7,0],['right',phase?.rightHealth??0,11,4.7,0],
             ['core',phase?.coreHealth??0,journeyDallas11.coreLocal.x,journeyDallas11.coreLocal.y,journeyDallas11.coreLocal.z]] as const){
             if(health<=0)continue;
             this.fortressTargetScratch.set(x,y,z);this.root.localToWorld(this.fortressTargetScratch);
             const dot=this.fortressTargetScratch.sub(player).normalize().dot(forward);
+            if(part===authoritativeSide){side=part;break;}
             if(dot>score){score=dot;side=part;}
         }
-        this.fortressTargetPosition.set(side==='left'?-11:side==='right'?11:journeyDallas11.coreLocal.x,
-            side==='core'?journeyDallas11.coreLocal.y:4.7,side==='core'?journeyDallas11.coreLocal.z:0);
-        this.root.localToWorld(this.fortressTargetPosition);
+        this.fortressComponentPosition(side,this.fortressTargetPosition);
         return side;
     }
+    fortressComponentPosition(side:'left'|'right'|'core',out:THREE.Vector3,secondsAhead=0):THREE.Vector3 {
+        out.set(side==='left'?-11:side==='right'?11:journeyDallas11.coreLocal.x,
+            side==='core'?journeyDallas11.coreLocal.y:4.7,side==='core'?journeyDallas11.coreLocal.z:0);
+        this.root.localToWorld(out);
+        const velocity=this.state?.pose.velocity;
+        if(velocity){out.x+=velocity.x*secondsAhead;out.y+=velocity.y*secondsAhead;out.z+=velocity.z*secondsAhead;}
+        return out;
+    }
     setState(state: TransportStateMessage) { if (this.disposed || this.final)
-        return; if (!this.state)
+        return; this.root.scale.setScalar(state.pose.scale ?? transportTuning.scale); if (!this.state)
         this.root.rotation.y = state.pose.yaw; this.state = state; this.receivedAt = performance.now(); this.position.set(state.pose.x, state.pose.y, state.pose.z); if (state.hitSequence > this.hitSequence) {
         this.hitSequence = state.hitSequence;
         if (state.hitPosition)

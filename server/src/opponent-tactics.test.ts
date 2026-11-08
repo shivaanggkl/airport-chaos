@@ -13,7 +13,7 @@ function aircraft(type:OpponentAircraft='trainer',z=0):TacticalAircraft { return
 function opponent(level:EnemyAiLevel='HARD',type:OpponentAircraft='trainer') {
  return createOpponent({aircraft:type,level,cityId:'dallas',position:{x:-14000,y:1000,z:0},rotation:{x:0,y:0,z:0},speed:400,health:150,behavior:'pursuit'});
 }
-function scenario(level:EnemyAiLevel,kind:'straight'|'circle'|'evasive',type:OpponentAircraft='trainer',seconds=90) {
+function scenario(level:EnemyAiLevel,kind:'straight'|'circle'|'evasive',type:OpponentAircraft='trainer',seconds=90,committedPasses=false) {
  const runtime=opponent(level,type),p=aircraft(type),target=aircraft('trainer',-1800);
  const motion={speed:400,bankControl:0,combatTurnSign:1,expertControl:runtime.profile.tactics.expert},targetMotion={speed:400,bankControl:0,combatTurnSign:1};
  const bullets:{position:{x:number;y:number;z:number};direction:{x:number;y:number;z:number};speed:number;distance:number}[]=[];
@@ -29,7 +29,7 @@ function scenario(level:EnemyAiLevel,kind:'straight'|'circle'|'evasive',type:Opp
   const pitchError=shot?Math.abs(Math.asin(shot.direction.y)-p.rotation.x):Infinity;
   const valid=Boolean(shot)&&yawError<.2&&pitchError<.2;
   const before=performance.now();
-  const plan=planOpponentTactics(runtime,{enemy:p,target,targetId:'player',speed:motion.speed,now,cruise:450,firingSolution:valid,floorAt:floor});
+  const plan=planOpponentTactics(runtime,{enemy:p,target,targetId:'player',speed:motion.speed,now,committedPasses,cruise:committedPasses?600:450,firingSolution:valid,floorAt:floor});
   costs.push(performance.now()-before);tactics.add(plan.tactic);motion.combatTurnSign=plan.turnSign;
   const yaw=p.rotation.y;
   advanceHunterFlight(p,motion,plan.waypoint,plan.cruise,.05,floor);
@@ -283,4 +283,47 @@ test('a locked departure breaks the firing line and still creates distance from 
  assert.ok(reacted&&brokeLine,'physical motion must move out of the pursuer firing cone');
  assert.ok(leftRange,'evasion must retain useful outbound progress');
  assert.equal(runtime.tactics!.travelUntil,deadline,'no endlessly renewed escape timer');
+});
+
+for(const kind of ['straight','circle','evasive'] as const)test(`M12 committed passes retain Legendary physical combat against a ${kind} pilot`,t=>{
+ const result=scenario('LEGENDARY',kind,'fighter',90,true);
+ t.diagnostic(JSON.stringify({...result,runtime:undefined}));
+ assert.equal(result.runtime.profile,enemyAiLevels.LEGENDARY);
+ assert(result.tactics.includes('attackPass'),'must attack rather than only evade');
+ assert(result.tactics.includes('extendAway'),'must fly away after its pass');
+ assert(result.tactics.includes('wideReposition'),'must make a broad return turn');
+ assert(result.shots>0,'must retain real firing opportunities');
+ assert(result.maxCloseNoShot<10,'must not remain trapped circling close to the player');
+ const envelope=aircraftFlightEnvelope.fighter;
+ assert(result.maxYaw <= .92*envelope.yawRate/envelope.inertia+Math.sin(.82)*envelope.bankTurn+1e-6,'turns remain aircraft-envelope bounded');
+});
+
+test('M12 separates, commits to a broad return, and re-engages even when the pilot is faster',()=>{
+ const runtime=opponent('LEGENDARY','fighter'),enemy=aircraft('fighter'),target=aircraft('trainer',-1800);
+ enemy.velocity.z=-600;target.velocity.z=-900;target.rotation.y=Math.PI/2;
+ const input={enemy,target,targetId:'player',speed:600,now:0,cruise:600,committedPasses:true,firingSolution:true,floorAt:floor};
+ planOpponentTactics(runtime,input);
+ const pass=planOpponentTactics(runtime,{...input,now:100});assert.equal(pass.tactic,'attackPass');
+ assert.equal(pass.cruise,600,'do not slow into a close pursuit while making a pass');
+ target.position.z=500;
+ const extension=planOpponentTactics(runtime,{...input,now:200,firingSolution:false});assert.equal(extension.tactic,'extendAway');
+ const separation=tacticalFlightSpace('fighter',600,0,1.5).separation;
+ target.position.z=separation+100;
+ const turn=planOpponentTactics(runtime,{...input,now:400,firingSolution:false});assert.equal(turn.tactic,'wideReposition');
+ assert(turn.until>1600,'broad return has time to bank and turn');
+ assert.equal(planOpponentTactics(runtime,{...input,now:600,firingSolution:true}).tactic,'wideReposition','no instant reversal back into pursuit');
+ const rejoin=planOpponentTactics(runtime,{...input,now:turn.until+100,firingSolution:false});assert.equal(rejoin.tactic,'directIntercept');
+});
+
+test('M12 Legendary lock response interrupts a pass with a physical break and retains cooldown',()=>{
+ const runtime=opponent('LEGENDARY','fighter'),enemy=aircraft('fighter'),target=aircraft('trainer',-1800);
+ const input={enemy,target,targetId:'player',speed:600,now:0,cruise:600,committedPasses:true,firingSolution:true,floorAt:floor};
+ planOpponentTactics(runtime,input);planOpponentTactics(runtime,{...input,now:100});
+ const position={...enemy.position},rotation={...enemy.rotation};
+ planOpponentTactics(runtime,{...input,now:200,lockedByTarget:true});
+ const defensive=planOpponentTactics(runtime,{...input,now:300,lockedByTarget:true});
+ assert.equal(defensive.tactic,'defensiveBreak');assert.notEqual(defensive.waypoint.x,enemy.position.x);
+ assert.deepEqual(enemy.position,position,'planner cannot teleport the aircraft');assert.deepEqual(enemy.rotation,rotation,'planner cannot snap its heading');
+ const dodgeAt=runtime.dodgeAt;planOpponentTactics(runtime,{...input,now:400,lockedByTarget:true});assert.equal(runtime.dodgeAt,dodgeAt);
+ assert.equal(runtime.profile,enemyAiLevels.LEGENDARY);
 });

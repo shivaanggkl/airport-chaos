@@ -25,17 +25,17 @@ export class TransportArrivalSequence {
     this.alert.className='transport-arrival-alert';
     this.alert.setAttribute('role','status');
     this.alert.innerHTML=missionName === 'GIANT PLANE & TWO ESCORTS'
-      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & TWO ESCORTS</strong><p>Shoot down the GIANT PLANE and both escorts before time runs out.</p>'
+      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & TWO ESCORTS</strong><p>Shoot Down the GIANT PLANE And Both ESCORT Planes Before Time Runs Out.</p>'
       : missionName === 'GIANT PLANE & THREE ESCORTS'
-      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & THREE ESCORTS</strong><p>Shoot down the GIANT PLANE and all three escorts before time runs out.</p>'
+      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & THREE ESCORTS</strong><p>Shoot Down the GIANT PLANE And All Three ESCORT Planes Before Time Runs Out.</p>'
       : missionName === 'GIANT PLANE & FOUR ESCORTS'
-      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & FOUR ESCORTS</strong><p>Shoot down the GIANT PLANE and all four escorts before time runs out.</p>'
-      : escorts.length
-      ? missionName === 'ARMORED GIANT PLANE & TWO ESCORTS'
-        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Destroy both escort planes and the GIANT PLANE’s two wings and engine in any order.</p>'
-        : `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'GIANT PLANE & FOUR ESCORTS' : missionName === 'GIANT PLANE & THREE ESCORTS' ? 'GIANT PLANE & THREE ESCORTS' : 'GIANT PLANE & TWO ESCORTS'}</strong><p>Destroy the ${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'gunship' : 'transport'} to win. Escorts are optional.</p>`
+      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & FOUR ESCORTS</strong><p>Shoot Down the GIANT PLANE And All Four ESCORT Planes Before Time Runs Out.</p>'
+      : missionName === 'ARMORED GIANT PLANE & TWO ESCORTS'
+        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Shoot Down Both ESCORT Planes And Destroy the GIANT PLANE’s Two WINGS And ENGINE Before Time Runs Out.</p>'
       : missionName === 'ARMORED GIANT PLANE'
-        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Destroy the GIANT PLANE’s two wings and engine in any order.</p>'
+        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Destroy the GIANT PLANE’s Two WINGS And Its ENGINE Before Time Runs Out.</p>'
+      : escorts.length
+        ? `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'GIANT PLANE & FOUR ESCORTS' : missionName === 'GIANT PLANE & THREE ESCORTS' ? 'GIANT PLANE & THREE ESCORTS' : 'GIANT PLANE & TWO ESCORTS'}</strong><p>Destroy the ${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'gunship' : 'transport'} to win. Escorts are optional.</p>`
         : '<strong>GIANT PLANE</strong><p>SHOOT IT DOWN</p>';
     document.body.append(this.alert);
     if (escorts.length) this.scene.add(...escorts);
@@ -47,7 +47,7 @@ export class TransportArrivalSequence {
   update(delta:number):void{
     this.elapsed=Math.min(TransportArrivalSequence.totalSeconds,this.elapsed+delta);
     const pose=transportPose(this.elapsed*1000,900,this.durationMs,this.missionId);
-    this.aircraft.position.set(pose.x,Math.max(pose.y,this.terrain(pose.x,pose.z)+350),pose.z);
+    this.aircraft.position.set(pose.x,Math.max(pose.y,this.terrain(pose.x,pose.z)+350)*transportTuning.altitudeMultiplier,pose.z);
     this.aircraft.rotation.set(0,pose.yaw,0);this.aircraft.visible=true;
     const sideX=Math.cos(pose.yaw),sideZ=-Math.sin(pose.yaw);
     const forwardX=-Math.sin(pose.yaw),forwardZ=-Math.cos(pose.yaw);
