@@ -7735,6 +7735,7 @@ function localFireBlockReason(): FireBlockedReason | undefined {
   if (flightTutorial.isOpen()) return 'menu';
   if (crashed || !runStarted || !localPlayerId) return 'invalid_state';
   if (localLifeState !== 'alive') return localLifeState === 'respawning' ? 'protection' : 'lifecycle';
+  if (skyDuelMode && skyDuelUi?.combatProtected()) return 'protection';
   if (!connectionReady()) return 'socket';
   if (fireCooldown > 0) return 'cooldown';
   return undefined;
