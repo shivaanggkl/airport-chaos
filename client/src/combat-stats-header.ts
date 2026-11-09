@@ -7,6 +7,7 @@ export class CombatStatsHeader {
   readonly element: HTMLElement;
   private readonly localHud: HTMLElement;
   private readonly opponentHud: HTMLElement;
+  private readonly opponentGuidance = document.createElement('span');
   readonly localScore: HTMLElement;
   readonly opponentScore: HTMLElement;
   readonly clock: HTMLElement;
@@ -18,6 +19,9 @@ export class CombatStatsHeader {
     this.element.setAttribute('aria-label', label);
     this.localHud = this.hudPilot('local');
     this.opponentHud = this.hudPilot('opponent');
+    this.opponentGuidance.className = 'sky-duel-hud-altitude-guidance';
+    this.opponentGuidance.hidden = true;
+    this.opponentHud.querySelector('.sky-duel-hud-altitude')!.append(this.opponentGuidance);
     const scoreboard = document.createElement('div'); scoreboard.className = 'sky-duel-hud-scoreboard';
     this.localScore = document.createElement('strong'); this.localScore.className = 'sky-duel-hud-score';
     this.clock = document.createElement('time'); this.clock.className = 'sky-duel-hud-clock';
@@ -57,6 +61,12 @@ export class CombatStatsHeader {
       helmet.replaceChildren();
       if (pilot && pilot.helmetVerified !== false) helmet.append(createRankHelmet(rankHelmetForLevel(pilot.level), 'small'));
     }
+  }
+
+  setOpponentGuidance(text: string): void {
+    if (this.opponentGuidance.textContent === text) return;
+    this.opponentGuidance.textContent = text;
+    this.opponentGuidance.hidden = !text;
   }
 
   updateTelemetry(localHealth: number, localAltitudeFeet: number, opponentHealth?: number, opponentAltitudeFeet?: number): void {

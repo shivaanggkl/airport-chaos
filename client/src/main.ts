@@ -1,5 +1,6 @@
 import { missionJourneyDetails } from './mission-journey-content';
 import { CombatStatsHeader } from './combat-stats-header';
+import { horizontalDistanceSquared, isFiniteGuidancePosition, opponentAltitudeGuidance } from './opponent-altitude-guidance';
 import { AircraftVictory } from './aircraft-victory';
 import { MissionOneAircraftPreview } from './mission-one-aircraft-preview';
 import {M24_INTRO,m24IntroText} from './m24-intro';
@@ -1802,6 +1803,24 @@ journeyCombatHeader.element.classList.add('journey-combat-header');
 journeyCombatHeader.localScore.hidden = true;
 journeyCombatHeader.opponentScore.hidden = true;
 flightGameRoot.append(journeyCombatHeader.element);
+function guidanceOpponent(remote?: RemotePlayer): remote is RemotePlayer {
+  return !!remote && remote.cityId === cityId && remote.entityType === 'player' &&
+    remote.lifeState === 'alive' && remote.health > 0 && remote.timeSinceUpdate < remoteStateStaleSeconds &&
+    isFiniteGuidancePosition(remote.targetPosition);
+}
+
+function combatGuidanceAvailable(): boolean {
+  return connectionReady() && !crashed && localLifeState === 'alive' && !flightExitPending &&
+    !tutorialMenuOpen() && !flightDialogOpen() && !launchCinematicBlocksInput() && !aircraftVictory?.hasCamera;
+}
+
+function nearestGuidanceOpponent(primary?: RemotePlayer, secondary?: RemotePlayer): RemotePlayer | undefined {
+  if (!guidanceOpponent(secondary)) return guidanceOpponent(primary) ? primary : undefined;
+  if (!guidanceOpponent(primary)) return secondary;
+  return horizontalDistanceSquared(airplane.position, secondary.targetPosition) <
+    horizontalDistanceSquared(airplane.position, primary.targetPosition) ? secondary : primary;
+}
+
 let nextJourneyCombatHudUpdateAt = 0;
 function updateJourneyCombatHeader(): void {
   const mission = journeyCombatMissions.find(definition => definition.id === journeyAttempt?.missionId);
@@ -1810,13 +1829,24 @@ function updateJourneyCombatHeader(): void {
     !crashed && (!launchCinematicBlocksInput() || countdownVisible));
   journeyCombatHeader.element.hidden = !visible;
   flightGameRoot.classList.toggle('journey-combat-header-active', visible);
+  const guidanceActive = visible && journeyAttempt?.status === 'RACING' && !journeyPaused &&
+    !countdownVisible && !missionStartCountdownPending && combatGuidanceAvailable();
+  if (!guidanceActive) journeyCombatHeader.setOpponentGuidance('');
   if (!visible || !journeyAttempt || !mission || performance.now() < nextJourneyCombatHudUpdateAt) return;
   nextJourneyCombatHudUpdateAt = performance.now() + 100;
-  const ids = [journeyAttempt.targetId, journeyAttempt.secondaryTargetId];
+  const { targetId, secondaryTargetId } = journeyAttempt;
+  const primary = targetId ? remotePlayers.get(targetId) : undefined;
+  const secondary = mission === journeyDallas16 && secondaryTargetId ? remotePlayers.get(secondaryTargetId) : undefined;
   const selected = selectedCombatTarget?.remote;
-  const opponent = selected && ids.includes(selected.playerId) && selected.lifeState === 'alive' ? selected
-    : ids.map(id => id ? remotePlayers.get(id) : undefined).find(remote => remote?.lifeState === 'alive');
-  const index = opponent ? ids.indexOf(opponent.playerId) : -1;
+  const selectedAssigned = selected === primary || selected === secondary ? selected : undefined;
+  const guidanceTarget = guidanceActive
+    ? guidanceOpponent(selectedAssigned) ? selectedAssigned : nearestGuidanceOpponent(primary, secondary)
+    : undefined;
+  const opponent = guidanceTarget ?? (selectedAssigned?.lifeState === 'alive' ? selectedAssigned
+    : primary?.lifeState === 'alive' ? primary : secondary?.lifeState === 'alive' ? secondary : undefined);
+  if (guidanceActive) journeyCombatHeader.setOpponentGuidance(opponentAltitudeGuidance(
+    airplane.position, guidanceTarget?.targetPosition, WORLD_METERS_PER_UNIT, METERS_TO_FEET));
+  const index = opponent ? opponent.playerId === targetId ? 0 : 1 : -1;
   const opponentHealth = index < 0 ? undefined : mission === journeyDallas16
     ? journeyAttempt.enemyHealths?.[index] ?? opponent?.health
     : journeyAttempt.targetHealth;
@@ -1830,6 +1860,14 @@ function updateJourneyCombatHeader(): void {
   const clock = remaining === null ? '—:—' : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
   if (journeyCombatHeader.clock.textContent !== clock) journeyCombatHeader.clock.textContent = clock;
 }
+function skyDuelOpponentGuidance(opponent?: RemotePlayer): string {
+  if (!skyDuelUi?.canGuideOpponent() || !combatGuidanceAvailable() || !guidanceOpponent(opponent)) return '';
+  const position = opponent.targetPosition;
+  if (performance.now() < (opponent.duelSpawnProtectedUntil ?? 0) &&
+      (position.y - groundPlaneY(position.x, position.z)) * WORLD_METERS_PER_UNIT <= 8) return '';
+  return opponentAltitudeGuidance(airplane.position, position, WORLD_METERS_PER_UNIT, METERS_TO_FEET);
+}
+
 let nextSkyDuelHudUpdateAt = 0;
 function updateFlightHud(): void {
   updateJourneyCombatHeader();
@@ -1841,7 +1879,8 @@ function updateFlightHud(): void {
     nextSkyDuelHudUpdateAt = performance.now() + 100;
     const opponent = remotePlayers.get(skyDuelUi.opponentEntityId());
     skyDuelUi.updateTelemetry(health, altitudeAboveTerrain() * METERS_TO_FEET,
-      opponent?.health, opponent?.altitudeMeters === undefined ? undefined : opponent.altitudeMeters * METERS_TO_FEET);
+      opponent?.health, opponent?.altitudeMeters === undefined ? undefined : opponent.altitudeMeters * METERS_TO_FEET,
+      skyDuelOpponentGuidance(opponent));
   }
   // Guidance must remain visible when the pilot is misaligned and assist is
   // unavailable. It observes the same touchdown predicate, not a new envelope.
@@ -5485,6 +5524,7 @@ type RemotePlayer = {
   nearMissActive: boolean;
   aircraftType: AircraftType;
   lifeState: PlayerLifeState;
+  duelSpawnProtectedUntil?: number;
   heatLevel: number;
   boostActive: boolean;
   health: number;
@@ -8485,6 +8525,8 @@ function updateRemotePlayer(player: NetworkPlayer): void {
   const lifeState = networkLifeState(player.lifeState);
   remoteEuler.set(player.rotation.x, player.rotation.y, player.rotation.z, 'YXZ');
   let remote = remotePlayers.get(player.playerId);
+  const duelSpawn = skyDuelMode && lifeState === 'respawning' && remote?.lifeState !== 'respawning';
+  const duelSpawnProtectedUntil = duelSpawn ? performance.now() + competitiveModes.skyDuel.protectionMs : remote?.duelSpawnProtectedUntil;
 
   if (!remote) {
     const targetPosition = new THREE.Vector3(player.position.x, player.position.y, player.position.z);
@@ -8533,6 +8575,7 @@ function updateRemotePlayer(player: NetworkPlayer): void {
       nearMissActive: false,
       aircraftType: player.aircraftType,
       lifeState,
+      duelSpawnProtectedUntil,
       heatLevel: 0,
       boostActive: Boolean(player.boostActive),
       health: player.health ?? maxHealthForAircraft(player.aircraftType),
@@ -8602,6 +8645,7 @@ function updateRemotePlayer(player: NetworkPlayer): void {
   remote.timeSinceUpdate = 0;
   const lifeStateChanged = remote.lifeState !== lifeState;
   remote.lifeState = lifeState;
+  remote.duelSpawnProtectedUntil = duelSpawnProtectedUntil;
   if (lifeStateChanged && lifeState === 'alive') {
     // The aircraft was hidden while destroyed/respawning. Reveal it at its
     // authoritative spawn, not along a false cross-city interpolation path.
@@ -11005,6 +11049,7 @@ function setJourneyPaused(paused: boolean, deadlineAt?: number, resumeConfirmed 
   if (paused) journeyPauseRequestPendingUntil = 0;
   const wasPaused = journeyPaused;
   journeyPaused = paused;
+  if (paused) journeyCombatHeader.setOpponentGuidance('');
   journeyPauseButtonElement.hidden = paused || !journeyPauseSupported || !journeyAttempt ||
     !['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status);
   if (paused) {

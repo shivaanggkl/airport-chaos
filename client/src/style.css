@@ -6943,6 +6943,8 @@ body:has(.sky-duel-ui.is-presentation)::before { opacity: 0; }
 .sky-duel-hud-opponent .sky-duel-hud-vital:first-child { border-left: 0; padding-left: 0; }
 .sky-duel-hud-vital img { width: clamp(15px, 2.15vw, 29px); height: clamp(15px, 2.15vw, 29px); object-fit: contain; }
 .sky-duel-hud-altitude-value { font-size: .9em; }
+.sky-duel-hud-opponent .sky-duel-hud-altitude { position: relative; }
+.sky-duel-hud-altitude-guidance { position: absolute; inset-block-start: 100%; inset-inline-start: 0; color: #ffd36c; font-size: clamp(9px, .8vw, 12px); white-space: nowrap; }
 .sky-duel-hud-scoreboard { justify-content: space-around; gap: 3px; }
 .sky-duel-hud-score { color: #ffd45e; font: 900 clamp(21px, 2.4vw, 34px)/1 var(--font-display); text-shadow: 0 2px 3px #07244d; }
 .sky-duel-hud-clock { flex: none; padding: 3px 5px; border-radius: 5px; color: #fff; background: rgb(2 29 67 / 38%); font: 900 clamp(14px, 1.75vw, 23px)/1 var(--font-display); white-space: nowrap; }
