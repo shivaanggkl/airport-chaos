@@ -44,7 +44,7 @@ function fixture(missionId: string=journeyDallas11.id) {
   vm.runInContext(ts.transpileModule(muzzle,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
   const start=server.indexOf('function targetInAircraftSpace('),end=server.indexOf('function validDynamicTarget(',start);
   vm.runInContext(ts.transpileModule(server.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
-  for(const [start,end] of [['function createFortressAssistedShot(','function applyEventAircraftHit('],['function applyTransportHit(','function updateTransportEncounters(']]) {
+  for(const [start,end] of [['function assistedTracerSpeed(','function applyEventAircraftHit('],['function applyTransportHit(','function updateTransportEncounters(']]) {
     vm.runInContext(ts.transpileModule(server.slice(server.indexOf(start!),server.indexOf(end!)),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
   }
   return {owner,encounter,attempt,context,packets,reinforcementChecks,get locked(){return locked;},
@@ -124,11 +124,11 @@ test('client presents server-selected component locks and fires the identical va
   assert.match(client,/selectedCombatTarget\?\.locked \? selectedCombatTarget.remote.playerId : componentLock \? serverLockedTargetId/);
   assert.match(server,/targetId.startsWith\('transport:'\)\) return createFortressAssistedShot/);
   assert.match(client,/const locked = serverLockedTargetId === componentTarget/);
-  assert.match(client,/if \(locked\) \{ visualAimBlend=1; visualAim.x=serverAim.x; visualAim.y=serverAim.y; \}/);
+  assert.match(client,/combatAimBlend\(previousAimReceivedAt, serverAimReceivedAt, performance.now\(\),\s*freshAim && serverAimTargetId !== null && serverAimTargetId === serverLockedTargetId\)/);
   assert.match(client,/side==='core'\?'ENGINE':`\$\{side.toUpperCase\(\)\} WING`/);
-  assert.match(client,/aimSample: visualAimToId \? \{ from: visualAimFromId, to: visualAimToId, blend: visualAimBlend \}/);
+  assert.match(client,/aimSample: visualAimToId \? combatShotAimSample\(visualAimFromId, visualAimToId, visualAimBlend\)/);
   assert.match(view,/if\(orientation\)forward.applyQuaternion\(orientation\)/);
-  assert.match(client,/transportView.fortressComponentPosition\(component, targetPosition\)/);
+  assert.match(client,/transportView.fortressComponentPosition\(side,transportView.fortressTargetPosition\)/);
   assert.match(view,/if\(part===authoritativeSide\)\{side=part;break;\}/);
   // Component locking never substitutes a client target ID for server mesh collision.
   assert.match(server,/transportFortressImpact\(/);

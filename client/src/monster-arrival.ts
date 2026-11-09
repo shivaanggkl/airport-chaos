@@ -364,13 +364,10 @@ export class MonsterArrivalView {
     }
   }
 
-  showBulletImpact(hit:{position:{x:number;y:number;z:number};bodyPosition:{x:number;y:number;z:number};yaw:number;sequence:number}):void {
+  showBulletImpact(hit:{position:{x:number;y:number;z:number};sequence:number}):void {
     if(hit.sequence<=this.lastHitSequence)return;
     this.lastHitSequence=hit.sequence;this.hitPulse=.28;this.creature.hit();this.onHit?.();
-    // Keep a confirmed surface hit attached to the currently interpolated body.
-    this.mouthWorld.set(hit.position.x-hit.bodyPosition.x,hit.position.y-hit.bodyPosition.y,hit.position.z-hit.bodyPosition.z)
-      .applyAxisAngle(THREE.Object3D.DEFAULT_UP,this.creature.root.rotation.y-hit.yaw).add(this.creature.root.position);
-    const p=this.mouthWorld;
+    const p = hit.position;
     this.particles.emit(p.x,p.y,p.z,false,8,28);
     this.particles.emit(p.x,p.y,p.z,true,8,100,.18);
   }
