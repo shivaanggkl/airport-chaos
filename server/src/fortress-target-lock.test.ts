@@ -126,9 +126,9 @@ test('client presents server-selected component locks and fires the identical va
   assert.match(client,/const locked = serverLockedTargetId === componentTarget/);
   assert.match(client,/if \(locked\) \{ visualAimBlend=1; visualAim.x=serverAim.x; visualAim.y=serverAim.y; \}/);
   assert.match(client,/side==='core'\?'ENGINE':`\$\{side.toUpperCase\(\)\} WING`/);
-  assert.match(client,/aimSample: \{ from: previousAimId, to: serverAimId, blend: visualAimBlend \}/);
+  assert.match(client,/aimSample: visualAimToId \? \{ from: visualAimFromId, to: visualAimToId, blend: visualAimBlend \}/);
   assert.match(view,/if\(orientation\)forward.applyQuaternion\(orientation\)/);
-  assert.match(client,/transportView.fortressComponentPosition\(component,targetPosition,duration\)/);
+  assert.match(client,/transportView.fortressComponentPosition\(component, targetPosition\)/);
   assert.match(view,/if\(part===authoritativeSide\)\{side=part;break;\}/);
   // Component locking never substitutes a client target ID for server mesh collision.
   assert.match(server,/transportFortressImpact\(/);

@@ -36,7 +36,7 @@ const scenes: Record<(typeof trainingSlideIds)[number], { instruction: string; s
   ], control: 'landing', motion: 'down' },
 };
 
-const highlightedControls = /(SPEED LEVER|FIRE BUTTON|ONE FINGER|TWO FINGERS|JOYSTICK|RADAR|MAP)/g;
+const highlightedControls = /(SPEED LEVER|FIRE BUTTON|ONE FINGER|TWO FINGERS|TRACKPAD|MOUSE WHEEL|JOYSTICK|RADAR|MAP)/g;
 function renderInstruction(element: HTMLElement, instruction: string): void {
   element.replaceChildren(...instruction.split(highlightedControls).map((part, index) => {
     if (index % 2 === 0) return document.createTextNode(part);
@@ -266,7 +266,10 @@ export class TrainingSlides {
     this.completing = false;
     this.saving = false;
     this.saveRetries = 0;
-    renderInstruction(this.detail, scene.instruction);
+    const instruction = step === 'cameraZoom' && matchMedia('(pointer: fine)').matches
+      ? 'Pinch or scroll on your TRACKPAD, or use the MOUSE WHEEL over the flight view to zoom.'
+      : scene.instruction;
+    renderInstruction(this.detail, instruction);
     this.instructions.hidden=!scene.steps;
     this.instructions.replaceChildren(...(scene.steps??[]).map(text=>{const item=document.createElement('li');renderInstruction(item,text);return item;}));
     this.guidance = '';
@@ -307,7 +310,10 @@ export class TrainingSlides {
 
   private positionHand(control: string, motion: string): void {
     if (this.suspended) { this.hand.hidden = true; return; }
-    if(!control||control==='landing'){this.hand.hidden=true;return;}
+    if (!control || control === 'landing' || (motion === 'pinch' && matchMedia('(pointer: fine)').matches)) {
+      this.hand.hidden = true;
+      return;
+    }
     const selector = control === 'task' ? '.training-screenplay' : control === 'view' ? '#game-root canvas'
       : control === 'radar' ? '#radar-panel'
       : control === 'landing' ? '[data-touch-control="throttle"]'

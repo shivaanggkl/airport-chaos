@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { aircraftDefinitions } from '../../client/src/aircraft.ts';
 import { keyboardActionBindings } from '../../client/src/flight-input.ts';
 import { missionJourneyDetails } from '../../client/src/mission-journey-content.ts';
-import { airbornePitchTarget, normalizedPitchCommand, stepCoordinatedBank, COORDINATED_BANK_CAP } from '../../shared/flight-control-rules.mjs';
+import { airbornePitchTarget, normalizedPitchCommand, stepCoordinatedBank, COORDINATED_BANK_CAP, COORDINATED_BANK_STRONG_TARGET } from '../../shared/flight-control-rules.mjs';
 
 const source = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
 const flight = source.slice(source.indexOf('function updateFlight('), source.indexOf('function updateCamera('));
@@ -72,14 +72,15 @@ for (const [slot, mission] of missionJourneyDetails.entries()) {
           const heldActions = new Set([keyboardActionBindings[key]]);
           if (pitchCommand) heldActions.add(keyboardActionBindings[pitchCommand > 0 ? 'ArrowUp' : 'ArrowDown']);
           const state = {
-            THREE, airbornePitchTarget, normalizedPitchCommand, stepCoordinatedBank, COORDINATED_BANK_CAP,
+            THREE, airbornePitchTarget, normalizedPitchCommand, stepCoordinatedBank, COORDINATED_BANK_CAP, COORDINATED_BANK_STRONG_TARGET,
             journeyAttempt: { missionId: mission.id, status: 'RACING' }, aircraftType: type,
             delta: 1 / 60, heldActions, mobileInput: { getThrottleTarget: () => undefined, getPitchInverted: () => false },
             currentAircraft: aircraft, throttle: .5, onGround: false,
             moveToward: (value, target, amount) => value < target ? Math.min(target, value + amount) : Math.max(target, value - amount),
             currentSpeed: aircraft.maxSpeed * .5, touchSteering: { x: 0, y: 0 },
             pitchControlStrength: 0, pitch: 0, heading: .3, roll: 0,
-            turnInput: 0, yawInput: 0, yawControlStrength: 0, landingAssistActive: false,
+            keyboardTurnInput: 0, touchTurnInput: 0, turnInput: 0, yawInput: 0,
+            yawControlStrength: 0, bankControlStrength: 0, landingAssistActive: false,
             airplane: new THREE.Group(), forward: new THREE.Vector3(0, 0, -1), liftDirection: new THREE.Vector3(),
           };
           vm.createContext(state);
