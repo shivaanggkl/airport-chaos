@@ -25,7 +25,7 @@ test('solo firing reuses muzzle ballistics without sending a network combat pack
  let shots=0,sounds=0;
  const context={soloExploreMode:true,localPlayerId:'pilot',localLifeState:'alive',connectionReady:()=>true,transportView:undefined,
   projectileOrigin:new THREE.Vector3(),projectileDirection:new THREE.Vector3(),
-  getCurrentMuzzleTransform(origin:THREE.Vector3,direction:THREE.Vector3){origin.set(4,5,6);direction.set(0,0,-1);},
+  getCurrentFiringRay(origin:THREE.Vector3,direction:THREE.Vector3){origin.set(4,5,6);direction.set(0,0,-1);},
   spawnMuzzleFeedback(origin:THREE.Vector3,direction:THREE.Vector3){assert.deepEqual(origin.toArray(),[4,5,6]);assert.deepEqual(direction.toArray(),[0,0,-1]);shots++;},
   createClientShotId:()=> 'cosmetic',playFireSound(){sounds++;},socket:{send(){throw new Error('solo bullets must not reach combat');}},result:false};
  runInNewContext(functionCode('sendFireIntent')+'\nresult=sendFireIntent();',context);

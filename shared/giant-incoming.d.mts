@@ -59,6 +59,7 @@ export type TransportStateMessage = {
     activeGun?: number | null;
     hitSequence: number;
     hitPosition?: TransportPoint;
+    hitShotId?: string;
     health: number;
     fortress?: { leftHealth: number; rightHealth: number; coreHealth: number; phase?: 'ESCORTS' | 'TURRETS' | 'CORE' | null };
     shots: TransportShotState[];

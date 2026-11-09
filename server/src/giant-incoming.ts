@@ -225,6 +225,7 @@ export type TransportEncounter = {
     sequence: number;
     hitSequence: number;
     hitPosition?: Point;
+    hitShotId?: string;
     gunYaw: number;
     gunPitch: number;
     shots: TransportShot[];

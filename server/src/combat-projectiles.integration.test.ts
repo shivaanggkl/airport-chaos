@@ -115,6 +115,8 @@ test('restored lock gives one authoritative assisted hit; unlocked shots remain 
   const hits=()=>shooter.messages.filter(m=>m.type==='damage'&&m.playerId===target.id);
   assert.equal(hits().length,1);assert.equal(hits()[0]!.damage,25,'client damage cannot change weapon balance');
   assert.equal(hits()[0]!.health,75);
+  assert.equal(hits()[0]!.impactId,event.shotId);
+  assert.deepEqual(hits()[0]!.impactPosition,event.targetPosition);
   assert.equal(shooter.messages.some(m=>m.type==='projectileSpawn'&&m.clientShotId==='restored-assisted'),false,'no second ballistic damage path');
   await delay(400);shooter.send(fire);await delay(150);
   assert.equal(hits().length,1,'duplicate intent cannot apply another reward or hit');

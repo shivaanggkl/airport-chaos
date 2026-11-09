@@ -14,7 +14,7 @@ const code=ts.transpileModule(fn.getText(ast).replaceAll('import.meta.env.DEV','
 export function flight(type,mobile=false){
  const airplane=new THREE.Group(),currentAircraft=aircraftDefinitions[type],heldActions=new Set(mobile?[]:['throttleUp']);airplane.position.set(0,527,3900);
  const no=()=>{},fail=()=>assert.fail(`${type}: unexpected takeoff crash/landing`);
- const ctx=vm.createContext({...controls,THREE,mobileIdleBrakeRequested,airplane,currentAircraft,aircraftType:type,velocity:new THREE.Vector3(),forward:new THREE.Vector3(),liftDirection:new THREE.Vector3(),sideSlip:new THREE.Vector3(),heldActions,throttle:0,currentSpeed:0,verticalSpeed:0,heading:0,pitch:0,roll:0,onGround:true,crashed:false,portalInTransit:false,guidedTutorialActive:false,activeWeatherZone:undefined,cityEvent:undefined,combatLockState:'NONE',speedBrakeStrength:0,boostActive:false,boostMeter:100,boostVisualStrength:0,smoothedTouchSteering:{x:0,y:0},yawControlStrength:0,pitchControlStrength:0,takeoffThrustBlend:1,takeoffRollMeters:0,resetRegionsOnNextTakeoff:false,cameraShakeTime:0,landedFeedbackTime:0,speedBonus:0,flightState:'TAXI',landingStatus:{},performance:{now:()=>0},groundPlaneY:()=>527,getLandingAssistAirport:()=>null,getAirportAtPosition:()=>({id:'dfw',heading:0}),updateLocalWeather:no,updateAirborneProgress:no,hitsWorldObstacle:()=>false,beginCrashPresentation:fail,endRun:fail,evaluateLanding:fail,setFlightState:no,beginFlightRecap:no,handleContractTakeoff:no,contextualHints:{trigger:no},mobileInput:{getThrottleTarget:()=>mobile?1:undefined,getSteeringInput:()=>({x:0,y:mobile&&ctx.currentSpeed>=currentAircraft.takeoffSpeed*.8?-1:0}),getPitchInverted:()=>false},moveToward:(x,y,d)=>x<y?Math.min(y,x+d):Math.max(y,x-d),smoothstep01:x=>x*x*(3-2*x)});
+ const ctx=vm.createContext({...controls,THREE,mobileIdleBrakeRequested,airplane,currentAircraft,aircraftType:type,velocity:new THREE.Vector3(),forward:new THREE.Vector3(),liftDirection:new THREE.Vector3(),sideSlip:new THREE.Vector3(),heldActions,throttle:0,currentSpeed:0,verticalSpeed:0,heading:0,pitch:0,roll:0,onGround:true,crashed:false,portalInTransit:false,guidedTutorialActive:false,activeWeatherZone:undefined,cityEvent:undefined,combatLockState:'NONE',speedBrakeStrength:0,boostActive:false,boostMeter:100,boostVisualStrength:0,smoothedTouchSteering:{x:0,y:0},yawControlStrength:0,bankControlStrength:0,pitchControlStrength:0,takeoffThrustBlend:1,takeoffRollMeters:0,resetRegionsOnNextTakeoff:false,cameraShakeTime:0,landedFeedbackTime:0,speedBonus:0,flightState:'TAXI',landingStatus:{},performance:{now:()=>0},groundPlaneY:()=>527,getLandingAssistAirport:()=>null,getAirportAtPosition:()=>({id:'dfw',heading:0}),updateLocalWeather:no,updateAirborneProgress:no,hitsWorldObstacle:()=>false,beginCrashPresentation:fail,endRun:fail,evaluateLanding:fail,setFlightState:no,beginFlightRecap:no,handleContractTakeoff:no,contextualHints:{trigger:no},mobileInput:{getThrottleTarget:()=>mobile?1:undefined,getSteeringInput:()=>({x:0,y:mobile&&ctx.currentSpeed>=currentAircraft.takeoffSpeed*.8?-1:0}),getPitchInverted:()=>false},moveToward:(x,y,d)=>x<y?Math.min(y,x+d):Math.max(y,x-d),smoothstep01:x=>x*x*(3-2*x)});
  vm.runInContext(code,ctx);return ctx;
 }
 
@@ -49,5 +49,57 @@ test('full runway power continues accelerating above the old ground cap, while b
   for(let i=0;i<stopSeconds/dt;i++)c.updateFlight(dt);
   assert(Math.abs(c.currentSpeed)<=10,'braking stops forward motion before slow reverse');
   c.heldActions.clear();for(let i=0;i<2/dt;i++)c.updateFlight(dt);assert.equal(c.currentSpeed,0);
+ }
+});
+
+test('airborne turns ease in, reverse through level, and settle symmetrically', () => {
+ for (const type of Object.keys(aircraftDefinitions)) for (const hz of [30, 60, 120]) for (const touch of [false, true]) {
+  const dt = 1 / hz;
+  function simulate(direction) {
+   const c = flight(type);
+   c.heldActions.clear();
+   c.onGround = false;
+   c.airplane.position.y += 4000;
+   c.throttle = 0.6;
+   c.currentSpeed = c.currentAircraft.maxSpeed * 0.5;
+   c.velocity.z = -c.currentSpeed;
+   let input = 0;
+   c.mobileInput.getSteeringInput = () => ({ x: touch ? -input : 0, y: 0 });
+   function command(value) {
+    input = value;
+    c.heldActions.clear();
+    if (!touch && value !== 0) c.heldActions.add(value > 0 ? 'yawLeft' : 'yawRight');
+   }
+   const trace = [];
+   function step() {
+    const previousHeading = c.heading;
+    c.updateFlight(dt);
+    const yaw = c.heading - previousHeading;
+    if (!touch) {
+     assert.ok(yaw * c.roll >= -1e-9, `${type}: nose turned against the bank`);
+     assert.ok(Math.abs(yaw) / dt < 75 * Math.PI / 180, `${type}: keyboard turn too sharp`);
+    }
+    trace.push([c.roll, yaw]);
+   }
+   command(direction);
+   step();
+   const firstBank = Math.abs(c.roll);
+   for (let frame = 1; frame < 3 * hz; frame++) step();
+   const immediateBank = controls.stepCoordinatedBank(0, 0.9, dt, c.currentAircraft);
+   if (!touch) assert.ok(firstBank < immediateBank * 0.9, `${type}: bank snapped in`);
+   assert.ok(c.roll * direction > 0.6, `${type}: turn never established`);
+   command(-direction);
+   for (let frame = 0; frame < 5 * hz; frame++) step();
+   assert.ok(c.roll * direction < -0.6, `${type}: reversal never established`);
+   command(0);
+   for (let frame = 0; frame < 6 * hz; frame++) step();
+   assert.ok(Math.abs(c.roll) < 0.01, `${type}: turn did not level out`);
+   return trace;
+  }
+  const left = simulate(1), right = simulate(-1);
+  for (let frame = 0; frame < left.length; frame++) {
+   assert.ok(Math.abs(left[frame][0] + right[frame][0]) < 1e-8, `${type}: left and right bank diverged`);
+   assert.ok(Math.abs(left[frame][1] + right[frame][1]) < 1e-8, `${type}: left and right yaw diverged`);
+  }
  }
 });

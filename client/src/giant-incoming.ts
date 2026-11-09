@@ -208,13 +208,18 @@ export class GiantIncomingView {
         if(velocity){out.x+=velocity.x*secondsAhead;out.y+=velocity.y*secondsAhead;out.z+=velocity.z*secondsAhead;}
         return out;
     }
-    setState(state: TransportStateMessage) { if (this.disposed || this.final)
+    get velocity(): TransportPoint | undefined { return this.state?.pose.velocity; }
+    showHit(position?: TransportPoint) {
+        if (this.disposed || this.final) return;
+        if (position) this.emit(position, 8, 30, .35);
+        this.onHit?.();
+    }
+    setState(state: TransportStateMessage, deferHit?: () => void) { if (this.disposed || this.final)
         return; this.root.scale.setScalar(state.pose.scale ?? transportTuning.scale); if (!this.state)
         this.root.rotation.y = state.pose.yaw; this.state = state; this.receivedAt = performance.now(); this.position.set(state.pose.x, state.pose.y, state.pose.z); if (state.hitSequence > this.hitSequence) {
         this.hitSequence = state.hitSequence;
-        if (state.hitPosition)
-            this.emit(state.hitPosition, 8, 30, .35);
-        this.onHit?.();
+        if (deferHit) deferHit();
+        else this.showHit(state.hitPosition);
     } }
     finish(kind: 'defeat' | 'timeout') {
         if (this.final || this.disposed) return;

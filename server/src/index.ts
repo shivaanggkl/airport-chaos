@@ -3281,7 +3281,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
   if((attempt.missionId===journeyDallas07.id || attempt.missionId===journeyDallas08.id || attempt.missionId===journeyDallas09.id || attempt.missionId===journeyDallas10.id || attempt.missionId===journeyDallas11.id || attempt.missionId===journeyDallas12.id) && (attempt.status==='APPROACH'||attempt.status==='RACING')){
     const e=transportEncounters.get(attempt.attemptId),now=attempt.pausedAt ?? Date.now();
     sendToPlayer(playerId,{type:'transportState',attemptId:attempt.attemptId,fortress:attempt.missionId===journeyDallas11.id || attempt.missionId===journeyDallas12.id ? {leftHealth:attempt.fortressLeftHealth??0,rightHealth:attempt.fortressRightHealth??0,coreHealth:attempt.monsterHealth??0,phase:attempt.finalPhase}:undefined,pose:transportPose(attempt.startedAt===null?0:now-attempt.startedAt,transportFlightAltitude,
-      attempt.missionId===journeyDallas12.id ? journeyDallas12.timeLimitMs : attempt.missionId===journeyDallas11.id ? journeyDallas11.timeLimitMs : attempt.missionId===journeyDallas10.id ? journeyDallas10.timeLimitMs : attempt.missionId===journeyDallas09.id ? journeyDallas09.timeLimitMs : attempt.missionId===journeyDallas08.id ? journeyDallas08.timeLimitMs : journeyDallas07.timeLimitMs,attempt.missionId),gunYaw:e?.gunYaw??0,gunPitch:e?.gunPitch??0,warningUntil:e?.warningUntil??0,crossfireGuns:e?.crossfire?.guns,activeGun:e?.crossfire?.activeGun,hitSequence:e?.hitSequence??0,hitPosition:e?.hitPosition,health:attempt.monsterHealth??2000,shots:e?.shots??[],serverNow:now});
+      attempt.missionId===journeyDallas12.id ? journeyDallas12.timeLimitMs : attempt.missionId===journeyDallas11.id ? journeyDallas11.timeLimitMs : attempt.missionId===journeyDallas10.id ? journeyDallas10.timeLimitMs : attempt.missionId===journeyDallas09.id ? journeyDallas09.timeLimitMs : attempt.missionId===journeyDallas08.id ? journeyDallas08.timeLimitMs : journeyDallas07.timeLimitMs,attempt.missionId),gunYaw:e?.gunYaw??0,gunPitch:e?.gunPitch??0,warningUntil:e?.warningUntil??0,crossfireGuns:e?.crossfire?.guns,activeGun:e?.crossfire?.activeGun,hitSequence:e?.hitSequence??0,hitPosition:e?.hitPosition,hitShotId:e?.hitShotId,health:attempt.monsterHealth??2000,shots:e?.shots??[],serverNow:now});
   }
 }
 function removeJourneyHunter(attempt: JourneyAttempt): void {
@@ -5884,11 +5884,12 @@ function createFortressAssistedShot(playerId: string, player: PlayerState, targe
   const target = fortressLockSolution(playerId,player,now,targetId,undefined,undefined,fireTransform ?? player);
   if (!target || !insideDynamicLock(target.local.x,target.local.y,target.local.z,shotAim)) return false;
   player.lastFireAt = now;
-  sendToPlayer(playerId,{type:'assistedShot',shotId:randomUUID(),ownerId:playerId,targetId,
+  const shotId = randomUUID();
+  sendToPlayer(playerId,{type:'assistedShot',shotId,ownerId:playerId,targetId,
     origin:target.origin,targetPosition:target.position,clientShotId});
   // Reuse the exact component collision, damage, mission and reward path.
   // No client-provided target point or health change is accepted.
-  applyTransportHit(playerId,target.origin,target.end,now,0,projectileDamageForAircraft(player.aircraftType));
+  applyTransportHit(playerId,target.origin,target.end,now,0,projectileDamageForAircraft(player.aircraftType),shotId);
   return true;
 }
 
@@ -5927,7 +5928,8 @@ function createAssistedShot(
   // A server-valid lock is an assisted hit.  Damage can only fail here if a
   // concurrent lifecycle transition made the target invalid after validation;
   // do not turn that already-emitted assisted shot into a second ballistic one.
-  if (!applyCombatHit(playerId, targetId, player.cityId, now, projectileDamageForAircraft(player.aircraftType), Math.hypot(local.x, local.y, local.z))) {
+  if (!applyCombatHit(playerId, targetId, player.cityId, now, projectileDamageForAircraft(player.aircraftType), Math.hypot(local.x, local.y, local.z),
+    { impactId: assistedShot.shotId, impactPosition: assistedShot.targetPosition })) {
     logLockShotReject(playerId, player, targetId, fireTransform, 'damage_state_changed', now);
   }
   return true;
@@ -6022,7 +6024,7 @@ function updateMonsterEncounters(now:number):void {
  }
 }
 
-function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: number, delta: number, damage: number): boolean {
+function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: number, delta: number, damage: number, hitShotId?: string): boolean {
     const owner = players.get(ownerId), id = playerJourneyAttempts.get(ownerId), e = id ? transportEncounters.get(id) : undefined;
     if (!owner || owner.isBot || owner.cityId !== 'dallas' || !e || e.playerId !== ownerId)
         return false;
@@ -6054,6 +6056,7 @@ function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: n
     }
     e.hitSequence++;
     e.hitPosition = hit;
+    e.hitShotId = hitShotId;
     if (result.missionId === journeyDallas09.id) beginReinforcementWave(result, now);
     const armoredGiantDestroyed = result.missionId===journeyDallas12.id && result.monsterHealth===0 &&
       result.fortressLeftHealth===0 && result.fortressRightHealth===0 &&
@@ -6122,7 +6125,7 @@ function updateTransportEncounters(now: number): void {
         }
         if (now - e.lastBroadcastAt >= 100) {
             e.lastBroadcastAt = now;
-            sendToPlayer(e.playerId, { type: 'transportState', attemptId: e.attemptId, fortress: a.missionId===journeyDallas11.id || a.missionId===journeyDallas12.id ? {leftHealth:a.fortressLeftHealth??0,rightHealth:a.fortressRightHealth??0,coreHealth:a.monsterHealth??0,phase:a.finalPhase}:undefined, pose, gunYaw: e.gunYaw, gunPitch: e.gunPitch, warningUntil: e.warningUntil, crossfireGuns:e.crossfire?.guns, activeGun:e.crossfire?.activeGun, hitSequence:e.hitSequence, hitPosition:e.hitPosition, health:a.monsterHealth, shots:e.shots, serverNow:now });
+            sendToPlayer(e.playerId, { type: 'transportState', attemptId: e.attemptId, fortress: a.missionId===journeyDallas11.id || a.missionId===journeyDallas12.id ? {leftHealth:a.fortressLeftHealth??0,rightHealth:a.fortressRightHealth??0,coreHealth:a.monsterHealth??0,phase:a.finalPhase}:undefined, pose, gunYaw: e.gunYaw, gunPitch: e.gunPitch, warningUntil: e.warningUntil, crossfireGuns:e.crossfire?.guns, activeGun:e.crossfire?.activeGun, hitSequence:e.hitSequence, hitPosition:e.hitPosition, hitShotId:e.hitShotId, health:a.monsterHealth, shots:e.shots, serverNow:now });
         }
     }
 }
