@@ -40,6 +40,7 @@ import { getSponsorCatalog } from './sponsorship-catalog';
 import { flushSponsorMeasurements, setSponsorMeasurementCatalog } from './sponsorship-measurement';
 import { aircraftDefinitions, aircraftDisplayName, aircraftEffectAnchors, aircraftGroundContacts, aircraftPresentationDimensions, type AircraftDefinition, type AircraftType } from './aircraft';
 import { aircraftPresentationMuzzleSockets, aircraftPresentationScale } from '../../shared/aircraft-presentation-scale.mjs';
+import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
 import { AircraftGarage } from './garage';
 import { AmbientTrafficSystem } from './ambient-traffic';
 import { attachAircraftAsset, preloadAircraftAssets } from './assets';
@@ -1175,13 +1176,12 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
   plane.userData.entityType = 'player';
   plane.userData.visuals = visuals;
   plane.userData.airframeRoot = airframeRoot;
-  // The fallback and normalized GLB share a nose-facing local -Z axis. This
-  // render-frame anchor is the client counterpart to the server spawn point.
-  const muzzle = aircraftPresentationMuzzleSockets[type];
+  // Follow the visible airframe, including its runway and lift-off offset.
+  const muzzle = aircraftMuzzleSockets[type];
   const muzzleAnchor = new THREE.Object3D();
   muzzleAnchor.name = 'aircraft-muzzle-anchor';
   muzzleAnchor.position.set(muzzle.position.x, muzzle.position.y, muzzle.position.z);
-  plane.add(muzzleAnchor);
+  airframeRoot.add(muzzleAnchor);
   plane.userData.muzzleAnchor = muzzleAnchor;
   plane.userData.assetReady = attachAircraftAsset(plane, fallback, type, definition.bodyLength + definition.noseLength, definition.wingSpan, (model) => {
     if (!fighterExhaustSocket) return;
@@ -3349,6 +3349,7 @@ function updateAircraftVictory(delta: number): void {
   if (aircraftVictoryReplay) {
     aircraftVictoryReplay.root.visible = ending.replaying;
     aircraftVictoryReplay.tracer.position.copy(ending.bulletPosition);
+    fitProjectileTrail(aircraftVictoryReplay.tracer, ending.bulletPosition.distanceTo(ending.shotOrigin));
     aircraftVictoryReplay.pilot.position.copy(ending.pilotMuzzlePosition).sub(aircraftVictoryReplay.muzzle);
     aircraftVictoryReplay.enemy.position.copy(ending.enemyPosition);
   }
@@ -7705,92 +7706,27 @@ renderer.domElement.addEventListener('gesturechange', (event) => {
   trackpadGestureScale = scale;
 }, { passive: false });
 renderer.domElement.addEventListener('gestureend', () => { trackpadGestureScale = 0; });
-// The mesh origin is the round's tip. Positive local Z trails behind its -Z flight direction.
-// Geometry is one unit wide and long. The moving tip is at the mesh origin.
-function createTracerGeometry(tailRadius: number): THREE.BufferGeometry {
-  return new THREE.CylinderGeometry(tailRadius, 0.5, 1, 8)
-    .rotateX(Math.PI / 2).translate(0, 0, 0.5);
-}
-const projectileGeometry = createTracerGeometry(0.12);
-const projectileMaterial = new THREE.ShaderMaterial({
-  transparent: true,
-  depthWrite: false,
-  toneMapped: false,
-  uniforms: {
-    tracerFade: { value: 1 },
-    tracerColor: { value: new THREE.Color(0xdc143c) },
-    tipColor: { value: new THREE.Color(0xffb0bb) },
-  },
-  vertexShader: `
-    varying float tail;
-    void main() {
-      tail = clamp(position.z, 0.0, 1.0);
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    varying float tail;
-    uniform float tracerFade;
-    uniform vec3 tracerColor;
-    uniform vec3 tipColor;
-    void main() {
-      vec3 color = mix(tipColor, tracerColor, smoothstep(0.0, 0.38, tail));
-      gl_FragColor = vec4(color, tracerFade * (1.0 - smoothstep(0.12, 1.0, tail)));
-      #include <colorspace_fragment>
-    }
-  `,
-});
-const localTracerColor = new THREE.Color(0xdc143c);
-const localTracerTip = new THREE.Color(0xffb0bb);
-const incomingTracerColor = new THREE.Color(0xf37c26);
-const incomingTracerTip = new THREE.Color(0xffe6a3);
-const freeFlyRoundGeometry = createTracerGeometry(0);
-const freeFlyRoundMaterial = new THREE.MeshBasicMaterial({
-  color: localTracerColor,
+// The projectile position is the round's tip. Positive local Z trails behind it.
+const projectileGeometry = new THREE.CylinderGeometry(0, 0.5, 1, 8)
+  .rotateX(Math.PI / 2).translate(0, 0, 0.5);
+const projectileMaterial = new THREE.MeshBasicMaterial({
+  color: 0xdc143c,
   transparent: true,
   blending: THREE.AdditiveBlending,
   depthWrite: false,
   toneMapped: false,
 });
-// Monster shots keep a subtle crimson halo on the same pooled tracer.
-const monsterTracerGlowMaterial = new THREE.MeshBasicMaterial({
-  color: 0xdc143c, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending,
-  depthWrite: false, toneMapped: false,
-});
-const monsterTracerGlowGeometry = createTracerGeometry(0.2);
-function styleMissionProjectile(mesh: THREE.Group, local: boolean): void {
-  const freeFlyRound = local && soloExploreMode;
-  const core = mesh.children[1] as THREE.Mesh;
-  core.geometry = freeFlyRound ? freeFlyRoundGeometry : projectileGeometry;
-  core.material = freeFlyRound ? freeFlyRoundMaterial : projectileMaterial;
-  mesh.userData.freeFlyRound = freeFlyRound;
-  mesh.userData.localTracer = local;
-  mesh.userData.tracerFade = 1;
-  mesh.children[0]!.visible = local && isMonsterJourneyMission(journeyAttempt?.missionId) && journeyAttempt?.status === 'RACING';
-}
 function tracerWorldPerPixel(point: THREE.Vector3): number {
   const inverse = camera.matrixWorldInverse.elements;
   const depth = -(inverse[2]! * point.x + inverse[6]! * point.y + inverse[10]! * point.z + inverse[14]!);
   const focalPixels = Math.max(1, camera.projectionMatrix.elements[5]! * window.innerHeight / 2);
   return Math.max(camera.near, depth) / focalPixels;
 }
-function fitProjectileTrail(mesh: THREE.Group, distance: number, age = 0, direction?: THREE.Vector3): void {
-  if (mesh.userData.freeFlyRound) {
-    // Match the original round's apparent size, with its trail behind the moving tip.
-    const focalPixels = Math.max(1, camera.projectionMatrix.elements[5]! * window.innerHeight / 2);
-    const worldPerPixel = Math.max(camera.near, camera.position.distanceTo(mesh.position)) / focalPixels;
-    const width = Math.max(1.2, worldPerPixel * 16);
-    mesh.scale.set(width, width, Math.max(0, Math.min(distance, worldPerPixel * 64, 320)));
-    return;
-  }
-  const worldPerPixel = tracerWorldPerPixel(mesh.position);
-  const local = mesh.userData.localTracer === true;
-  const width = worldPerPixel * (local ? 4 : 5);
-  const length = Math.max(0, Math.min(distance, worldPerPixel * (local ? 18 : 22)));
-  mesh.scale.set(width, width, length);
-  const offAim = local && direction
-    ? THREE.MathUtils.smoothstep(1 - direction.dot(combatAimForward), 0.002, 0.045) : 0;
-  mesh.userData.tracerFade = 1 - offAim * 0.84 * THREE.MathUtils.smoothstep(age, 0.10, 0.46);
+function fitProjectileTrail(mesh: THREE.Group, distance: number): void {
+  const focalPixels = Math.max(1, camera.projectionMatrix.elements[5]! * window.innerHeight / 2);
+  const worldPerPixel = Math.max(camera.near, camera.position.distanceTo(mesh.position)) / focalPixels;
+  const width = Math.max(1.2, worldPerPixel * 16);
+  mesh.scale.set(width, width, Math.max(0, Math.min(distance, worldPerPixel * 64, 320)));
 }
 const projectileForward = new THREE.Vector3(0, 0, -1);
 const projectileZeroVelocity = new THREE.Vector3();
@@ -7994,21 +7930,9 @@ if (visualQaMode && cityWorld.visualQaPresets) {
 
 function createProjectileMesh(): THREE.Group {
   const mesh = new THREE.Group();
-  const glow = new THREE.Mesh(monsterTracerGlowGeometry, monsterTracerGlowMaterial);
-  glow.visible = false;
   const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
-  glow.renderOrder = 2;
   core.renderOrder = 3;
-  core.onBeforeRender = () => {
-    if (core.material !== projectileMaterial) return;
-    const local = mesh.userData.localTracer === true;
-    projectileMaterial.uniforms.tracerFade!.value = mesh.userData.tracerFade;
-    projectileMaterial.uniforms.tracerColor!.value = local ? localTracerColor : incomingTracerColor;
-    projectileMaterial.uniforms.tipColor!.value = local ? localTracerTip : incomingTracerTip;
-    projectileMaterial.uniformsNeedUpdate = true;
-  };
-  glow.scale.set(1.3, 1.3, 1);
-  mesh.add(glow, core);
+  mesh.add(core);
   return mesh;
 }
 function createProjectileVisual(): ClientProjectile {
@@ -8149,7 +8073,6 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
   predicted.predictedTargetId = targetId;
   predicted.spawnedAt = performance.now();
   predicted.local = true;
-  styleMissionProjectile(predicted.mesh, true);
   predicted.ownerId = localPlayerId ?? '';
   // Render the first short segment immediately, with its tail at the muzzle.
   // The offset is counted toward normal travel and stays on the firing ray.
@@ -8225,7 +8148,6 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
   // A delayed acknowledgement can shorten the remaining trail but cannot
   // rewind or rotate the visible round. Impact feedback has its own world point.
   if (!predictedProjectile) {
-    styleMissionProjectile(mesh, local);
     mesh.position.copy(origin);
     mesh.quaternion.setFromUnitVectors(projectileForward, direction);
     mesh.rotateZ(bank);
@@ -8282,20 +8204,13 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
   if (!keepFiringRay) projectile.speed = message.speed;
   projectile.predictedTargetId = undefined;
   projectile.local = message.ownerId === localPlayerId;
-  styleMissionProjectile(projectile.mesh, projectile.local);
   projectile.ownerIsBot = ownerIsBot;
   projectile.ownerId = message.ownerId;
   projectile.authoritativePosition.set(message.position.x, message.position.y, message.position.z);
   if (!keepFiringRay) projectile.pendingAge = 0;
   projectile.lastAuthoritativeAt = performance.now();
   if (!keepFiringRay) projectile.spawnedAt = projectile.lastAuthoritativeAt;
-  // Keep the render-frame muzzle visible when the server adopts a local shot.
-  // A late authoritative origin is allowed to advance this tracer, never pull
-  // it backwards through a fast-moving Fighter.
-  if (keepFiringRay) {
-    projectileOrigin.subVectors(projectile.authoritativePosition, projectile.mesh.position);
-    if (projectileOrigin.dot(projectile.direction) < 0) projectile.authoritativePosition.copy(projectile.mesh.position);
-  } else {
+  if (!keepFiringRay) {
     projectile.firingOrigin.copy(projectile.authoritativePosition);
     projectile.mesh.position.copy(projectile.authoritativePosition);
     fitProjectileTrail(projectile.mesh, 0);
@@ -8344,7 +8259,7 @@ function updateProjectiles(delta: number): void {
       projectile.pendingAge += delta;
       projectile.mesh.position.addScaledVector(projectile.direction, step);
       const traveled = projectileOrigin.subVectors(projectile.mesh.position, projectile.firingOrigin).dot(projectile.direction);
-      fitProjectileTrail(projectile.mesh, traveled, projectile.pendingAge, projectile.direction);
+      fitProjectileTrail(projectile.mesh, traveled);
       if (projectile.impactTravel === 0) {
         projectile.onImpact?.();
         removeClientProjectile(projectileId);
@@ -8361,20 +8276,22 @@ function updateProjectiles(delta: number): void {
     }
     const step = projectile.speed * delta;
     projectile.pendingAge += delta;
-    projectileOrigin.subVectors(projectile.authoritativePosition, projectile.mesh.position);
-    // Reconcile on the original ray at a bounded rate, even if a packet arrives late.
-    const correction = THREE.MathUtils.clamp(projectileOrigin.dot(projectile.direction) * positionBlend,
-      projectile.local ? 0 : -step * 0.15, step * 0.15);
+    // Local rounds retain their launch speed. Server positions smooth remote
+    // rounds while the server continues to own local hits and removal.
+    const correction = projectile.local ? 0 : THREE.MathUtils.clamp(
+      projectileOrigin.subVectors(projectile.authoritativePosition, projectile.mesh.position).dot(projectile.direction) * positionBlend,
+      -step * 0.15, step * 0.15,
+    );
     projectile.mesh.position.addScaledVector(projectile.direction, step + correction);
     projectile.authoritativePosition.addScaledVector(projectile.direction, step);
     const traveled = projectileOrigin.subVectors(projectile.mesh.position, projectile.firingOrigin).dot(projectile.direction);
-    fitProjectileTrail(projectile.mesh, traveled, projectile.pendingAge, projectile.direction);
+    fitProjectileTrail(projectile.mesh, traveled);
   }
   for (const [clientShotId, projectile] of predictedProjectiles) {
     projectile.pendingAge += delta;
     const step = delta * projectile.speed;
     projectile.mesh.position.addScaledVector(projectile.direction, step);
-    fitProjectileTrail(projectile.mesh, projectile.pendingAge * projectile.speed, projectile.pendingAge, projectile.direction);
+    fitProjectileTrail(projectile.mesh, projectile.pendingAge * projectile.speed);
     if (projectile.pendingAge < (projectile.predictedTargetId ? 0.8 : pendingTracerLifetime)) continue;
     rememberProjectileId(retiredPredictedShots, clientShotId);
     predictedProjectiles.delete(clientShotId);
@@ -8385,7 +8302,7 @@ function updateProjectiles(delta: number): void {
     shot.mesh.visible = true;
     shot.elapsed = Math.min(shot.duration, shot.elapsed + delta);
     shot.mesh.position.copy(shot.origin).addScaledVector(shot.direction, shot.elapsed * shot.speed);
-    fitProjectileTrail(shot.mesh, shot.elapsed * shot.speed, shot.elapsed, shot.direction);
+    fitProjectileTrail(shot.mesh, shot.elapsed * shot.speed);
     if (shot.elapsed < shot.duration) continue;
     shot.onImpact?.();
     releaseAssistedShot(shot);
@@ -8886,9 +8803,11 @@ function updateLockCircle(): void {
   const lockedPosition = combatLockState === 'LOCKED' && (selectedCombatTarget?.locked || transportTarget)
     ? targetPosition : undefined;
   getCurrentFiringRay(origin, combatAimForward, lockedPosition);
+  // Project along the ray near the fresh rounds in chase view. At combat
+  // range the same ray projects much closer to its vanishing point.
   const depth = lockedPosition
     ? Math.max(1, transportReticleDirection.copy(lockedPosition).sub(origin).dot(combatAimForward))
-    : COMBAT_RANGE;
+    : 120;
   lockBoresightPoint.copy(origin).addScaledVector(combatAimForward, depth);
   lockProjectedCenter.copy(lockBoresightPoint).project(camera);
   lockCameraRight.set(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
@@ -10594,8 +10513,8 @@ function animate(): void {
     }
   }
   giantTransportAssetPreview?.update(delta, airplane, !journeyMode, camera);
-  updateLockCircle();
   updateProjectiles(delta);
+  updateLockCircle();
   updateWeapons(delta);
   syncAceObjective();
   syncLegendaryObjective();

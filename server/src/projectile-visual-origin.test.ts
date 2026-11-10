@@ -7,6 +7,8 @@ import * as THREE from 'three';
 import { ballisticShotSpeed, COMBAT_RANGE, insideDynamicLock, localFiringDirection, projectileDamageForAircraft } from '../../shared/protocol.mjs';
 
 import { combatShotAimSample } from '../../shared/combat-aim.mjs';
+import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
+import { aircraftPresentationScale } from '../../shared/aircraft-presentation-scale.mjs';
 
 const source = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
 const ast = ts.createSourceFile('main.ts', source, ts.ScriptTarget.Latest, true);
@@ -27,7 +29,7 @@ function fixture(airAssaultMode = false) {
     remotePlayers: new Map([['enemy', { plane: target, velocity: new THREE.Vector3() }]]),
     projectilePool: [predicted], createProjectileVisual: () => predicted,
     scene: new THREE.Scene(), performance: { now: () => 1200 }, ballisticShotSpeed, COMBAT_RANGE, insideDynamicLock, projectileDamageForAircraft,
-    styleMissionProjectile() {}, fitProjectileTrail() {}, tracerWorldPerPixel: () => 0.5, spawnFlash() {}, muzzleFlashes: [], muzzleFlashPool: [],
+    fitProjectileTrail() {}, tracerWorldPerPixel: () => 0.5, spawnFlash() {}, muzzleFlashes: [], muzzleFlashPool: [],
     recentAssistedShotIds: new Map(), assistedShotVisuals: [] as Array<{origin: THREE.Vector3; mesh: THREE.Group; bank: number}>, maxAssistedShotVisuals: 24,
     assistedShotPool: [], createAssistedShotMesh: () => new THREE.Group(), releaseAssistedShot() {},
     clearLocalPredictedShot(id: string): void { context.predictedProjectiles.delete(id); },
@@ -132,66 +134,37 @@ test('Classic Air Assault locked shots validate the circle, apply one weapon hit
   assert.deepEqual(hits,[25]);assert.equal(sent.length,1);
 });
 
-test('pooled tracers stay compact, clip at the muzzle, and fade older off-axis rounds', () => {
-  const start = source.indexOf('function createTracerGeometry(');
+test('pooled aircraft rounds share the original crimson color, size and muzzle clipping', () => {
+  const start = source.indexOf('const projectileGeometry =');
   const end = source.indexOf('const projectileForward =', start);
   const setup = ts.transpileModule(source.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.1);
-  const context = {
-    THREE, camera, window: { innerHeight: 1080 }, soloExploreMode: false,
-    combatAimForward: new THREE.Vector3(0, 0, -1),
-    isMonsterJourneyMission: (id?: string) => id === 'monster',
-    journeyAttempt: undefined as { missionId: string; status: string } | undefined,
-  };
+  const context = { THREE, camera, window: { innerHeight: 1080 } };
   const mesh = runInNewContext(`${setup}; ${code('createProjectileMesh')}; globalThis.mesh=createProjectileMesh(); mesh;`, context) as THREE.Group;
-  const glow = mesh.children[0] as THREE.Mesh, core = mesh.children[1] as THREE.Mesh;
+  const core = mesh.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
   core.geometry.computeBoundingBox();
   assert.ok(Math.abs(core.geometry.boundingBox!.min.z) < 1e-6, 'tip at the projectile position');
   assert.ok(Math.abs(core.geometry.boundingBox!.max.z - 1) < 1e-6, 'tail extends behind the tip');
-  for (const [local, width, length] of [[true, 4, 18], [false, 5, 22]] as const) {
-    runInNewContext(`styleMissionProjectile(mesh,${local});`, context);
-    for (const range of [12, 60, 500, 2500, 4500]) {
-      camera.position.set(0, 0, range);
-      camera.updateMatrixWorld(true);
-      runInNewContext('fitProjectileTrail(mesh, 400, 0.6, new THREE.Vector3(1, 0, 0));', context);
-      const pixelsPerMeter = camera.projectionMatrix.elements[5]! * 540 / range;
-      assert.ok(Math.abs(mesh.scale.x * pixelsPerMeter - width) < 0.01);
-      assert.ok(Math.abs(mesh.scale.z * pixelsPerMeter - length) < 0.01);
-      assert.ok(Math.abs(mesh.userData.tracerFade - (local ? 0.16 : 1)) < 1e-9);
-    }
-  }
-  context.journeyAttempt = { missionId: 'monster', status: 'RACING' };
-  runInNewContext('styleMissionProjectile(mesh,true); fitProjectileTrail(mesh, 1);', context);
-  assert.equal(mesh.scale.z, 1, 'the trail cannot extend behind the firing point');
-  assert.equal(glow.visible, true);
-  context.journeyAttempt = undefined;
-  runInNewContext('styleMissionProjectile(mesh,false);', context);
-  assert.equal(glow.visible, false);
-  assert.equal(mesh.userData.tracerFade, 1);
-
-  const combatMaterial = core.material;
-  const combatGeometry = core.geometry;
-  context.soloExploreMode = true;
-  runInNewContext('styleMissionProjectile(mesh,true); fitProjectileTrail(mesh, 400);', context);
   assert.ok(core.material instanceof THREE.MeshBasicMaterial);
   assert.equal(core.material.color.getHex(), 0xdc143c);
   assert.equal(core.material.blending, THREE.AdditiveBlending);
-  const pixelsPerMeter = camera.projectionMatrix.elements[5]! * 540 / camera.position.z;
-  assert.ok(Math.abs(mesh.scale.x * pixelsPerMeter - 16) < 0.01);
-  assert.ok(Math.abs(mesh.scale.z * pixelsPerMeter - 64) < 0.01);
+  assert.equal(mesh.children.length, 1);
+  for (const range of [12, 60, 500, 2500, 4500, 7000]) {
+    camera.position.set(0, 0, range);
+    runInNewContext('fitProjectileTrail(mesh, 400);', context);
+    const worldPerPixel = range / (camera.projectionMatrix.elements[5]! * 540);
+    assert.equal(mesh.scale.x, Math.max(1.2, worldPerPixel * 16));
+    assert.equal(mesh.scale.z, Math.min(320, worldPerPixel * 64));
+  }
   runInNewContext('fitProjectileTrail(mesh, 1);', context);
-  assert.equal(mesh.scale.z, 1);
-
-  runInNewContext('styleMissionProjectile(mesh,false);', context);
-  assert.equal(core.material, combatMaterial);
-  assert.equal(core.geometry, combatGeometry);
+  assert.equal(mesh.scale.z, 1, 'the trail cannot extend behind the firing point');
 });
 
 test('banking aircraft and delayed acknowledgements cannot bend a released local ballistic tracer',()=>{
   const mesh=new THREE.Group(),direction=new THREE.Vector3(.3,.2,-1).normalize();
   const projectile={mesh,firingOrigin:new THREE.Vector3(10,20,-30),direction:direction.clone(),speed:1000,local:true,bank:.6,authoritativePosition:new THREE.Vector3(),spawnedAt:0,lastAuthoritativeAt:1000,pendingAge:0};
   mesh.position.set(10,20,-30);
-  const c={THREE,performance:{now:()=>1100},localPlayerId:'self',clientProjectiles:new Map(),predictedProjectiles:new Map([['shot',projectile]]),remotePlayers:new Map(),unrelatedFocusedBot:()=>false,maxClientProjectiles:256,projectilePool:[],styleMissionProjectile(){},fitProjectileTrail(){},scene:new THREE.Scene(),projectileForward:new THREE.Vector3(0,0,-1),projectileOrigin:new THREE.Vector3(),showAimQaRay(){},retiredPredictedShots:new Set(),rememberProjectileId:(ids:Set<string>,id:string)=>ids.add(id),airplane:{rotation:{z:-1.2}},
+  const c={THREE,performance:{now:()=>1100},localPlayerId:'self',clientProjectiles:new Map(),predictedProjectiles:new Map([['shot',projectile]]),remotePlayers:new Map(),unrelatedFocusedBot:()=>false,maxClientProjectiles:256,projectilePool:[],fitProjectileTrail(){},scene:new THREE.Scene(),projectileForward:new THREE.Vector3(0,0,-1),projectileOrigin:new THREE.Vector3(),showAimQaRay(){},retiredPredictedShots:new Set(),rememberProjectileId:(ids:Set<string>,id:string)=>ids.add(id),airplane:{rotation:{z:-1.2}},
     message:{projectileId:'server-shot',ownerId:'self',clientShotId:'shot',position:{x:-200,y:400,z:500},direction:{x:-1,y:0,z:0},speed:1200}};
   runInNewContext(`${code('addProjectile')};addProjectile(message);`,c);
   assert(projectile.direction.equals(direction));assert.equal(projectile.speed,1000);
@@ -203,7 +176,7 @@ test('banking aircraft and delayed acknowledgements cannot bend a released local
   for (let i = 0; i < 20; i++) {
     const before = mesh.position.clone();
     runInNewContext(`${code('updateProjectiles')};updateProjectiles(1/60);`, c);
-    assert.ok(mesh.position.distanceTo(before) <= 1000 / 60 * 1.15 + 1e-8, 'a late packet cannot launch the tracer across the view');
+    assert.ok(Math.abs(mesh.position.distanceTo(before) - 1000 / 60) < 1e-8, 'a late packet cannot change visible launch speed');
   }
   const traveled=mesh.position.clone().sub(original);
   assert(traveled.dot(direction)>0);assert(traveled.clone().cross(direction).length()<1e-6,'all visual corrections stay on the original firing ray');
@@ -232,7 +205,7 @@ test('a confirmed off-ray hit finishes on the original ray and plays feedback at
 
 test('a late ballistic spawn without a prediction keeps its historical server muzzle, never the newly turned aircraft',()=>{
   const projectile={mesh:new THREE.Group(),firingOrigin:new THREE.Vector3(),direction:new THREE.Vector3(),speed:0,local:false,bank:0,authoritativePosition:new THREE.Vector3(),spawnedAt:0,lastAuthoritativeAt:0,pendingAge:0};
-  const c={THREE,performance:{now:()=>1100},localPlayerId:'self',clientProjectiles:new Map(),predictedProjectiles:new Map(),remotePlayers:new Map(),unrelatedFocusedBot:()=>false,maxClientProjectiles:256,projectilePool:[projectile],styleMissionProjectile(){},fitProjectileTrail(){},scene:new THREE.Scene(),projectileForward:new THREE.Vector3(0,0,-1),showAimQaRay(){},retiredPredictedShots:new Set(),rememberProjectileId:(ids:Set<string>,id:string)=>ids.add(id),airplane:{rotation:{z:1}},message:{projectileId:'late',ownerId:'self',position:{x:15,y:30,z:45},direction:{x:0,y:0,z:-1},speed:900}};
+  const c={THREE,performance:{now:()=>1100},localPlayerId:'self',clientProjectiles:new Map(),predictedProjectiles:new Map(),remotePlayers:new Map(),unrelatedFocusedBot:()=>false,maxClientProjectiles:256,projectilePool:[projectile],fitProjectileTrail(){},scene:new THREE.Scene(),projectileForward:new THREE.Vector3(0,0,-1),showAimQaRay(){},retiredPredictedShots:new Set(),rememberProjectileId:(ids:Set<string>,id:string)=>ids.add(id),airplane:{rotation:{z:1}},message:{projectileId:'late',ownerId:'self',position:{x:15,y:30,z:45},direction:{x:0,y:0,z:-1},speed:900}};
   runInNewContext(`${code('addProjectile')};addProjectile(message);`,c);
   assert.deepEqual(projectile.mesh.position.toArray(),[15,30,45]);
 });
@@ -263,7 +236,11 @@ test('the banked aim circle and a new shot share the displayed firing ray and sa
   camera.lookAt(0, 0, -20);
   const airplane = new THREE.Group();
   const muzzleQuaternion = new THREE.Quaternion();
-  const muzzle = new THREE.Vector3(0, 0.5, -2);
+  const airframe = new THREE.Group();
+  const muzzle = new THREE.Object3D();
+  airplane.add(airframe);
+  airframe.add(muzzle);
+  airplane.userData.muzzleAnchor = muzzle;
   const shots: { aimSample: { from: number; to: number; blend: number } }[] = [];
   const overlay = {style: {setProperty() {}}, classList: {toggle() {}}};
   const runtime = {
@@ -286,17 +263,24 @@ test('the banked aim circle and a new shot share the displayed firing ray and sa
       'lockProjectedCenter', 'lockCameraRight', 'lockCircleEdgePoint', 'lockProjectedEdge',
       'projectileOrigin', 'projectileDirection',
     ].map(name => [name, new THREE.Vector3()])),
-    getCurrentMuzzlePosition(origin: THREE.Vector3) {
-      origin.copy(muzzle).applyQuaternion(airplane.quaternion).add(airplane.position);
-    },
     spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3) {
-      const point = origin.clone().addScaledVector(direction, COMBAT_RANGE).project(camera);
+      assert.ok(origin.distanceTo(muzzle.getWorldPosition(new THREE.Vector3())) < 1e-9);
+      const point = origin.clone().addScaledVector(direction, 120).project(camera);
+      const fresh = origin.clone().addScaledVector(direction, 70).project(camera);
+      const far = origin.clone().addScaledVector(direction, COMBAT_RANGE).project(camera);
+      assert.ok(Math.hypot(fresh.x - point.x, fresh.y - point.y) < Math.hypot(fresh.x - far.x, fresh.y - far.y));
       assert.ok(Math.abs((point.x + 1) * 800 - runtime.lockCircleCenterX) < 1e-8);
       assert.ok(Math.abs((1 - point.y) * 450 - runtime.lockCircleCenterY) < 1e-8);
     },
   };
   const banks = [-.25, -.55, -.84, .25, .55, .84];
-  for (const bank of banks) {
+  const aircraft = ['trainer', 'cargo', 'privateJet', 'fighter'] as const;
+  for (const [index, bank] of banks.entries()) {
+    const type = aircraft[index % aircraft.length]!;
+    muzzle.position.copy(aircraftMuzzleSockets[type].position);
+    airframe.scale.setScalar(aircraftPresentationScale[type]);
+    airframe.position.y = 0.7;
+    runtime.aircraftType = type;
     airplane.rotation.set(bank / 3, bank / 4, bank, 'YXZ');
     camera.position.set(2 + bank * 5, 4, 12);
     camera.lookAt(0, 0, -20);
@@ -304,7 +288,7 @@ test('the banked aim circle and a new shot share the displayed firing ray and sa
     camera.updateProjectionMatrix();
     runtime.pendingFirePress = true;
     runInNewContext([
-      code('getCurrentFiringRay'), code('updateLockCircle'), code('sendFireIntent'), code('updateWeapons'),
+      code('getCurrentMuzzlePosition'), code('getCurrentFiringRay'), code('updateLockCircle'), code('sendFireIntent'), code('updateWeapons'),
       'function fireWeaponOnce() { return sendFireIntent(); }',
       'updateLockCircle(); updateWeapons(1 / 60); updateWeapons(1 / 60);',
     ].join('\n'), runtime);
