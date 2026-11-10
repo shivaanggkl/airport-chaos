@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AirAssaultEncounter, AirAssaultRewards, incomingAssaultThreat, assaultShotDirection, assaultApproachSpeed, assaultObservedTurn, type AssaultPilot } from './air-assault.js';
-import { ballisticIntercept, ballisticShotSpeed } from '../../shared/protocol.mjs';
+import { ballisticIntercept, projectileLaunchVelocity } from '../../shared/protocol.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { PlayerProfileStore } from './player-profiles.js';
 import { airAssaultManifest, airAssaultTiers, airAssaultRules, airAssaultAirports, airAssaultQueuePosition, airAssaultHearts } from '../../shared/air-assault.mjs';
@@ -261,7 +261,8 @@ test('Air Assault leads steady crossing shots for their full flight and rejects 
   const direction=assaultShotDirection(origin,velocity,target,crossing,forward,.36)!;
   const hit=ballisticIntercept(origin,velocity,target,crossing)!;
   assert.ok(direction);assert.ok(hit.seconds>1.75);
-  assert.ok(Math.hypot(direction.x*hit.speed*hit.seconds-(target.x+crossing.x*hit.seconds),direction.z*hit.speed*hit.seconds-target.z)<.01);
+  const launch = projectileLaunchVelocity(velocity, direction);
+  assert.ok(Math.hypot(launch.x*hit.seconds-(target.x+crossing.x*hit.seconds),launch.z*hit.seconds-target.z)<.01);
   assert.equal(assaultShotDirection(origin,velocity,{...target,z:2500},crossing,forward,.36),null);
   assert.equal(assaultShotDirection(origin,velocity,target,{x:0,y:0,z:-1600},forward,.36),null);
 });
@@ -304,7 +305,7 @@ test('Observed-bank prediction hits a sustained turn with one straight shot, but
  const curved=assaultShotDirection(origin,velocity,target,v,forward,.36,rate)!;
  const linear=assaultShotDirection(origin,velocity,target,v,forward,.36)!;
  assert.ok(curved);assert.ok(linear);
- const miss=(direction:typeof curved,bank:number)=>{let best=Infinity;const speed=ballisticShotSpeed(velocity,direction);for(let t=0;t<3;t+=.001){const sine=Math.sin(bank*t),cosine=Math.cos(bank*t),x=target.x+(v.x*sine+v.z*(1-cosine))/bank,z=target.z+(v.z*sine-v.x*(1-cosine))/bank;best=Math.min(best,Math.hypot(direction.x*speed*t-x,direction.z*speed*t-z));}return best;};
+ const miss=(direction:typeof curved,bank:number)=>{let best=Infinity;const launch=projectileLaunchVelocity(velocity,direction);for(let t=0;t<3;t+=.001){const sine=Math.sin(bank*t),cosine=Math.cos(bank*t),x=target.x+(v.x*sine+v.z*(1-cosine))/bank,z=target.z+(v.z*sine-v.x*(1-cosine))/bank;best=Math.min(best,Math.hypot(launch.x*t-x,launch.z*t-z));}return best;};
  assert.ok(miss(curved,rate)<1,'launch-time forecast intersects the observed turn');
  assert.ok(miss(linear,rate)>20,'constant velocity was inaccurate for this bank');
  assert.ok(miss(curved,-rate)>30,'the bullet does not home when the target reverses its bank');

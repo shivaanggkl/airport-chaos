@@ -54,7 +54,7 @@ export const journeyDallas08: Readonly<{
   escortHealth: 1000; escortCount: 2; escortScale: 16; escortFireDelayMs: 5000;
   escortAircraft: readonly ['trainer', 'trainer'];
   escortLiveries: readonly ['bluejay-skybolt', 'bluejay-aurora'];
-  escortBurstIntervalMs: 6000; escortShotSpacingMs: 250; escortShotDamage: 10; followMs: 15000;
+  escortBurstIntervalMs: 6000; escortShotSpacingMs: 250; escortShotDamage: 25; followMs: 15000;
   minDistance: 80; maxDistance: 450; maxTailAngle: number;
   maxHeadingDifference: number; maxAltitudeDifference: 100;
   leaderCruiseFactor: 0.45;
@@ -69,7 +69,7 @@ export const journeyDallas09: Readonly<{
   escortLiveries: readonly ['bluejay-aurora', 'mammoth-sand', 'nightowl-forest'];
   reinforcementThreshold: 0.5; reinforcementWarningMs: 3000; reinforcementFireDelayMs: 3000;
   escortFireDelayMs: 5000; escortBurstIntervalMs: 4000; initialEscortBurstIntervalMs: 6000;
-  escortShotSpacingMs: 250; escortShotDamage: 10;
+  escortShotSpacingMs: 250; escortShotDamage: 25;
 }>;
 export const journeyDallas10: Readonly<{
   id: 'journey-dallas-10'; cityId: 'dallas'; name: 'GIANT PLANE & FOUR ESCORTS'; chapter: 'SKY ADVENTURES';
@@ -78,9 +78,9 @@ export const journeyDallas10: Readonly<{
   escortAircraft: readonly ['privateJet', 'cargo', 'privateJet', 'cargo'];
   escortLiveries: readonly ['nightowl-forest', 'mammoth-sand', 'nightowl-royal-violet', 'mammoth-desert-sand'];
   escortFireDelayMs: 5000; escortBurstIntervalMs: 6000;
-  escortShotSpacingMs: 250; escortShotDamage: 10;
+  escortShotSpacingMs: 250; escortShotDamage: 25;
   gunBurstIntervalMs: 3000; gunWarningMs: 1000;
-  gunShotSpacingMs: 250; gunShotDamage: 20; gunProjectileSpeed: 6000; gunTrackingRate: 3.2;
+  gunShotSpacingMs: 250; gunShotDamage: 25; gunProjectileSpeed: 520; gunTrackingRate: 3.2;
 }>;
 export const journeyDallas11: Readonly<{
   id: 'journey-dallas-11'; cityId: 'dallas'; name: 'ARMORED GIANT PLANE'; chapter: 'SKY ADVENTURES';
@@ -89,7 +89,7 @@ export const journeyDallas11: Readonly<{
   hatch: Readonly<{ z: 22.05; bottom: -0.45; width: 3.85; height: 3.35 }>;
   coreLocal: Readonly<{ x: 0; y: 1.2; z: 21.2 }>; coreRadius: 0.9;
   gunBurstIntervalMs: 3000; gunWarningMs: 1000;
-  gunShotSpacingMs: 250; gunShotDamage: 10;
+  gunShotSpacingMs: 250; gunShotDamage: 25;
 }>;
 export const journeyDallas12: Readonly<{
   id: 'journey-dallas-12'; cityId: 'dallas'; name: 'ARMORED GIANT PLANE & TWO ESCORTS'; chapter: 'SKY ADVENTURES';
@@ -97,8 +97,8 @@ export const journeyDallas12: Readonly<{
   turretHealth: 250; coreHealth: 1750;
   escortCount: 2; escortScale: number; escortHealth: readonly [175, 225];
   escortAircraft: readonly ['privateJet', 'fighter']; escortLiveries: readonly ['nightowl-forest', 'firehawk-inferno'];
-  escortFireDelayMs: 5000; escortBurstIntervalMs: 6000; escortShotSpacingMs: 250; escortShotDamage: 10;
-  gunBurstIntervalMs: 3000; gunWarningMs: 1000; gunShotSpacingMs: 250; gunShotDamage: 10;
+  escortFireDelayMs: 5000; escortBurstIntervalMs: 6000; escortShotSpacingMs: 250; escortShotDamage: 25;
+  gunBurstIntervalMs: 3000; gunWarningMs: 1000; gunShotSpacingMs: 250; gunShotDamage: 25;
 }>;
 export const journeyDallas13: Readonly<{
   id: 'journey-dallas-13'; cityId: 'dallas'; name: 'FIRST CONTACT'; chapter: 'SKY HUNTERS';
@@ -136,7 +136,7 @@ export const journeyDallas18: Readonly<{
   id: 'journey-dallas-18'; cityId: 'dallas'; name: 'FINAL SHOWDOWN'; chapter: 'SKY HUNTERS'; firstClearCredits: 2400;
   startAirportId: 'dfw'; timeLimitMs: 180000; enemyAircraft: 'fighter'; enemyLivery: 'firehawk-stealth-gray'; enemyHealth: 300;
   enemyAltitude: 2700; aggressionDistance: 8000; patrolRadius: 7500; cruiseSpeed: 600;
-  enemySpawn: Readonly<{x:number;z:number}>; enemyDamage: 20; shotIntervalMs: 750; burstShots: 2; burstPauseMs: 2000;
+  enemySpawn: Readonly<{x:number;z:number}>; enemyDamage: 25; shotIntervalMs: 750; burstShots: 2; burstPauseMs: 2000;
 }>;
 export const journeyDallas19: Readonly<{
   id: 'journey-dallas-19'; cityId: 'dallas'; name: 'FINAL MONSTER BATTLE'; chapter: 'LEGENDARY SKIES';

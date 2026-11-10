@@ -57,7 +57,7 @@ class Client {
     roll = 0;
     goalRoll = 0;
     id = '';
-    aimTargetId?: string;
+    stateSequence = 0;
     constructor(port: number, cookie: string, readonly city: 'milwaukee' | 'dallas' = 'milwaukee', attempt?: string) {
         this.socket = new WebSocket(`ws://127.0.0.1:${port}/?city=${city}&launchMode=${attempt ? 'missions' : 'free-fly'}&protocol=${PROTOCOL_VERSION}${attempt ? '&journeyAttempt=' + attempt : ''}`, { origin: `http://127.0.0.1:${port}`, headers: { Cookie: `airport_chaos_session=${cookie}` } });
         this.socket.on('message', raw => {
@@ -77,6 +77,12 @@ class Client {
         });
     }
     send(message: object) { this.socket.send(JSON.stringify(message)); }
+    fire(clientShotId: string, aimId?: number, transform = {
+      position: this.pose!, rotation: { x: this.pitch, y: this.yaw, z: this.roll }, aircraftType: 'trainer',
+    }) {
+      this.send({ type: 'fire', clientShotId, stateSequence: this.stateSequence || undefined,
+        aimSample: aimId === undefined ? undefined : { from: aimId, to: aimId, blend: 1 }, transform, damage: 999999 });
+    }
     step() {
         if (!this.pose || !this.goal || this.socket.readyState !== WebSocket.OPEN)
             return;
@@ -85,11 +91,10 @@ class Client {
         this.yaw = step(this.yaw, this.goalYaw, .04);
         this.pitch = step(this.pitch, this.goalPitch, .02);
         this.roll = step(this.roll, this.goalRoll, .04);
-        this.send({ type: 'state', position: this.pose, rotation: { x: this.pitch, y: this.yaw, z: this.roll }, boostActive: false });
+        this.send({ type: 'state', stateSequence: ++this.stateSequence, position: this.pose, rotation: { x: this.pitch, y: this.yaw, z: this.roll }, boostActive: false });
     }
 }
-// Acceptance for the explicitly restored October 28 combat contract.
-test('restored lock gives one authoritative assisted hit; unlocked shots remain ballistic and invalid samples fail closed', {timeout:45000},async()=>{
+test('locked and unlocked rounds use the same authoritative swept collision and reject invalid firing snapshots', {timeout:45000},async()=>{
  const dir=mkdtempSync(join(tmpdir(),'airport-restored-combat-')),db=join(dir,'profiles.sqlite');
  const profiles=new PlayerProfileStore(db),sessions=new PilotSessionStore(db);
  const one=sessions.issue(undefined,false),two=sessions.issue(undefined,false);
@@ -106,40 +111,38 @@ test('restored lock gives one authoritative assisted hit; unlocked shots remain 
   for(let i=0;i<8;i++){shooter.send({type:'lock',targetId:target.id,aimHorizontal:0,aimVertical:0});await delay(100)}
   const aim=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;
   assert.equal(aim.targetId,target.id,'old angular acquisition locks the airborne target');
-  const fire={type:'fire',targetId:target.id,clientShotId:'restored-assisted',aimSample:{from:aim.aimId,to:aim.aimId,blend:1},transform:{position:{x:999999,y:999999,z:999999},rotation:{x:0,y:Math.PI,z:0},aircraftType:'fighter'},damage:999999};
-  shooter.send(fire);
-  await wait(()=>shooter.messages.some(m=>m.type==='assistedShot'&&m.clientShotId==='restored-assisted'),'restored assisted-shot event');
-  await wait(()=>shooter.messages.some(m=>m.type==='damage'&&m.playerId===target.id),'authoritative assisted damage');
-  const event=shooter.messages.find(m=>m.type==='assistedShot'&&m.clientShotId==='restored-assisted')!;
-  assert.ok(Math.abs(event.origin.x-shooter.pose!.x)<10,'forged muzzle position is ignored');
+  shooter.fire('forged-pose', aim.aimId, {position:{x:999999,y:999999,z:999999},rotation:{x:0,y:Math.PI,z:0},aircraftType:'trainer'});
+  await wait(()=>shooter.messages.some(m=>m.type==='shotRejected'&&m.clientShotId==='forged-pose'),'forged pose rejected');
+  shooter.fire('locked-round', aim.aimId);
+  await wait(()=>shooter.messages.some(m=>m.type==='projectileSpawn'&&m.clientShotId==='locked-round'),'locked round spawns');
+  const event=shooter.messages.find(m=>m.type==='projectileSpawn'&&m.clientShotId==='locked-round')!;
   const hits=()=>shooter.messages.filter(m=>m.type==='damage'&&m.playerId===target.id);
-  assert.equal(hits().length,1);assert.equal(hits()[0]!.damage,25,'client damage cannot change weapon balance');
+  assert.equal(hits().length,0,'lock alone cannot damage the target');
+  assert.equal(event.firedAt,event.serverNow);
+  assert.ok(Math.abs(event.speed-Math.hypot(event.velocity.x,event.velocity.y,event.velocity.z))<1e-9);
+  await wait(()=>target.messages.some(m=>m.type==='projectileSpawn'&&m.projectileId===event.projectileId),'opponent receives the same shot');
+  assert.deepEqual(target.messages.find(m=>m.type==='projectileSpawn'&&m.projectileId===event.projectileId),event);
+  await wait(()=>hits().some(m=>m.impactId===event.projectileId),'locked round travels to authoritative collision');
+  assert.equal(hits().length,1);assert.equal(hits()[0]!.damage,25);
   assert.equal(hits()[0]!.health,75);
-  assert.equal(hits()[0]!.impactId,event.shotId);
-  assert.deepEqual(hits()[0]!.impactPosition,event.targetPosition);
-  await wait(()=>target.messages.some(m=>m.type==='assistedShot'&&m.shotId===event.shotId),'observer receives the same confirmed tracer');
-  const observed = target.messages.find(m=>m.type==='assistedShot'&&m.shotId===event.shotId)!;
-  assert.deepEqual(observed.origin,event.origin);
-  assert.deepEqual(observed.targetPosition,event.targetPosition);
-  assert.equal(observed.speed,event.speed);
-  assert.ok(event.speed>=BASE_PROJECTILE_SPEED);
-  assert.equal(shooter.messages.some(m=>m.type==='projectileSpawn'&&m.clientShotId==='restored-assisted'),false,'no second ballistic damage path');
-  await delay(400);shooter.send(fire);await delay(150);
-  assert.equal(hits().length,1,'duplicate intent cannot apply another reward or hit');
-  assert.equal(shooter.messages.filter(m=>m.type==='assistedShot'&&m.clientShotId==='restored-assisted').length,1);
+  const impact = hits()[0]!.impactPosition;
+  const offRay = new THREE.Vector3().copy(impact).sub(event.position).cross(event.direction);
+  assert.ok(offRay.length()<1e-6,'collision is on the accepted world ray');
+  shooter.fire('locked-round',aim.aimId);
+  await delay(150);
+  assert.equal(shooter.messages.filter(m=>m.type==='projectileSpawn'&&m.clientShotId==='locked-round').length,1);
   shooter.goalYaw=.8;await wait(()=>Math.abs(shooter.yaw-.8)<.001,'ordinary pilot turn');
   for(let i=0;i<5;i++){shooter.send({type:'lock',targetId:target.id});await delay(100)}
   const unlocked=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;assert.notEqual(unlocked.targetId,target.id,'turning away clears the lock');
-  shooter.send({type:'fire',clientShotId:'restored-ballistic',aimSample:{from:unlocked.aimId,to:unlocked.aimId,blend:1}});
+  shooter.fire('restored-ballistic',unlocked.aimId);
   await wait(()=>shooter.messages.some(m=>m.type==='projectileSpawn'&&m.clientShotId==='restored-ballistic'),'unlocked ballistic projectile');
-  assert.equal(shooter.messages.some(m=>m.type==='assistedShot'&&m.clientShotId==='restored-ballistic'),false);
   assert.equal(hits().length,1,'unlocked fire does not grant an assisted hit');
-  await delay(400);shooter.send({type:'fire',clientShotId:'invalid-sample',targetId:target.id,aimSample:{from:-1,to:999999,blend:1}});
+  await delay(400);shooter.fire('invalid-sample',999999);
   await wait(()=>shooter.messages.some(m=>m.type==='shotRejected'&&m.clientShotId==='invalid-sample'),'invalid server-sample reference rejected');
   assert.equal(hits().length,1);
   shooter.goalYaw=0;
   await wait(()=>shooter.yaw===0,'shooter realigns for ballistic contact');
-  shooter.send({type:'fire',clientShotId:'ballistic-contact'});
+  shooter.fire('ballistic-contact');
   await wait(()=>shooter.messages.some(m=>m.type==='projectileSpawn'&&m.clientShotId==='ballistic-contact'),'ballistic contact round spawned');
   const ballistic=shooter.messages.find(m=>m.type==='projectileSpawn'&&m.clientShotId==='ballistic-contact')!;
   await wait(()=>hits().some(hit=>hit.impactId===ballistic.projectileId),'server swept hit for the ballistic shot');
@@ -150,7 +153,7 @@ test('restored lock gives one authoritative assisted hit; unlocked shots remain 
  }finally{if(timer)clearInterval(timer);a?.socket.close();b?.socket.close();child.kill('SIGTERM');await delay(200);rmSync(dir,{recursive:true,force:true})}
 });
 
-test('M13 real Bluejay socket acquires transport lock and inflicts an assisted hit',{timeout:100000},async()=>{
+test('M13 Bluejay acquires transport lead and damages it only on contact',{timeout:100000},async()=>{
  const dir=mkdtempSync(join(tmpdir(),'airport-m13-lock-')),db='/private/tmp/airport-chaos-m13-'+randomUUID()+'.sqlite';
  const profiles=new PlayerProfileStore(db,true,true),sessions=new PilotSessionStore(db),identity=sessions.issue(undefined,false);
  profiles.getOrCreate(identity.pilotId,'M13 QA');
@@ -183,8 +186,9 @@ test('M13 real Bluejay socket acquires transport lock and inflicts an assisted h
   const live=a.messages.filter(m=>m.type==='transportState').at(-1)!.pose;
   const forward=new THREE.Vector3(live.x-a.pose!.x,live.y+12-a.pose!.y,live.z-a.pose!.z).normalize();
   const firePosition=new THREE.Vector3().copy(a.pose!).addScaledVector(forward,40); // A current frame between 80ms movement packets.
-  a.send({type:'fire',targetId:aim.targetId,clientShotId:'m13-real-hit',aimSample:{from:aim.aimId,to:aim.aimId,blend:1},transform:{position:firePosition,rotation:{x:a.pitch,y:a.yaw,z:a.roll},aircraftType:'trainer'}});
-  await wait(()=>a!.messages.some(m=>m.type==='assistedShot'&&m.clientShotId==='m13-real-hit'),'M13 assisted shot');
+  a.fire('m13-real-hit', aim.aimId, {position:firePosition,rotation:{x:a.pitch,y:a.yaw,z:a.roll},aircraftType:'trainer'});
+  await wait(()=>a!.messages.some(m=>m.type==='projectileSpawn'&&m.clientShotId==='m13-real-hit'),'M13 travelling shot');
+  assert.equal(journeys.get(identity.pilotId,attempt.attemptId)!.monsterHealth,journeyDallas07.bossHealth);
   await wait(()=>journeys.get(identity.pilotId,attempt.attemptId)!.monsterHealth===journeyDallas07.bossHealth-25,'M13 authoritative 25 HP damage');
  }catch(e){console.log('M13_NETWORK_DIAGNOSTICS',JSON.stringify({pose:a?.pose,latestTransport:a?.messages.filter(m=>m.type==='transportState').at(-1),latestJourney:a?.messages.filter(m=>m.type==='journeyAttempt').at(-1),tail:a?.messages.slice(-3),output:output.slice(0,2000)+output.slice(-1500)}));throw e;}
  finally{if(timer)clearInterval(timer);a?.socket.close();child.kill('SIGTERM');await delay(200);rmSync(dir,{recursive:true,force:true});for(const suffix of ['', '-wal','-shm'])rmSync(db+suffix,{force:true});}

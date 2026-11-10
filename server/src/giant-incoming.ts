@@ -1,7 +1,7 @@
 import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
 import { readFileSync } from 'node:fs';
 import { transportPose, transportGunMounts, transportTuning, transportFootprintRadius, transportFootprintForMission, transportScaleForMission, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
-import { AIM_ENVELOPE, COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
+import { AIM_ENVELOPE, COMBAT_RANGE, BASE_PROJECTILE_SPEED, ballisticIntercept } from '../../shared/protocol.mjs';
 import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
 import { segmentBlockedByBuildings, indexBuildingsForOcclusion } from './monster-arrival.js';
 type Building = {
@@ -338,15 +338,17 @@ export function transportInterceptTime(offset: Point, velocity: Point, speed: nu
 /** M16 aims at a reachable intercept, using the actual barrel and bullet speed. */
 export function transportGunIntercept(p:TransportPose,target:Point,velocity:Point,gun:number,yaw=0,pitch=0){
     if(p.missionId!==journeyDallas10.id)return undefined;
-    const muzzle=transportGunMuzzle(p,gun,yaw,pitch),speed=journeyDallas10.gunProjectileSpeed;
-    const offset={x:target.x-muzzle.x,y:target.y-muzzle.y,z:target.z-muzzle.z};
-    const seconds=transportInterceptTime(offset,velocity,speed);
-    if(!(seconds>0 && seconds*speed<=COMBAT_RANGE))return undefined;
-    const point={x:target.x+velocity.x*seconds,y:target.y+velocity.y*seconds,z:target.z+velocity.z*seconds};
-    const x=point.x-muzzle.x,y=point.y-muzzle.y,z=point.z-muzzle.z,length=Math.hypot(x,y,z);
-    const aim=transportGunAim(p,point,gun);
-    if(!aim.eligible || !Number.isFinite(length) || Math.abs(length-speed*seconds)>.01)return undefined;
-    return {...aim,muzzle,point,seconds,speed,direction:{x:x/length,y:y/length,z:z/length}};
+    const muzzle = transportGunMuzzle(p, gun, yaw, pitch);
+    const shot = ballisticIntercept(muzzle, p.velocity, target, velocity);
+    if (!shot) return undefined;
+    const gunPoint = { x: muzzle.x + shot.direction.x * 1000, y: muzzle.y + shot.direction.y * 1000, z: muzzle.z + shot.direction.z * 1000 };
+    const aim = transportGunAim(p, gunPoint, gun);
+    if (!aim.eligible) return undefined;
+    const relativeDistance = BASE_PROJECTILE_SPEED * shot.seconds;
+    const relativePoint = { x: muzzle.x + shot.direction.x * relativeDistance, y: muzzle.y + shot.direction.y * relativeDistance,
+      z: muzzle.z + shot.direction.z * relativeDistance };
+    return { ...aim, muzzle, point: shot.point, relativePoint, seconds: shot.seconds, speed: shot.speed,
+      direction: { x: shot.velocity.x / shot.speed, y: shot.velocity.y / shot.speed, z: shot.velocity.z / shot.speed } };
 }
 export function stepTransportEncounter(e: TransportEncounter, target: Point, velocity: Point, buildings: readonly Building[], now: number) {
     const dt = Math.max(0, Math.min(.1, (now - e.lastTickAt) / 1000));
@@ -360,21 +362,22 @@ export function stepTransportEncounter(e: TransportEncounter, target: Point, vel
         if (e.shots.length >= 9) return;
         if(e.missionId===journeyDallas10.id){
           const state=e.crossfire!.guns[gun]!,solution=transportGunIntercept(p,target,velocity,gun,state.yaw,state.pitch);
-          if(solution && !transportHullImpact(solution.muzzle,solution.point,p) && !segmentBlockedByBuildings(solution.muzzle,solution.point,buildings))
+          if(solution && !transportHullImpact(solution.muzzle,solution.relativePoint,p) && !segmentBlockedByBuildings(solution.muzzle,solution.point,buildings))
             e.shots.push({id:`${e.attemptId}:${++e.sequence}`,position:solution.muzzle,direction:solution.direction,speed:solution.speed,traveled:0});
           return;
         }
-        const distance = Math.hypot(target.x - muzzle.x, target.y - muzzle.y, target.z - muzzle.z);
-        const initial = { x: (target.x - muzzle.x) / distance, y: (target.y - muzzle.y) / distance, z: (target.z - muzzle.z) / distance };
-        const speed = ballisticShotSpeed(p.velocity, initial), offset = { x: target.x - muzzle.x, y: target.y - muzzle.y, z: target.z - muzzle.z };
-        const lead = transportInterceptTime(offset, velocity, speed);
-        const dx = target.x + velocity.x * lead - muzzle.x, dy = target.y + velocity.y * lead - muzzle.y, dz = target.z + velocity.z * lead - muzzle.z;
-        const norm = Math.hypot(dx, dy, dz), direction = { x: dx / norm, y: dy / norm, z: dz / norm };
-        const predicted = { x: muzzle.x + dx, y: muzzle.y + dy, z: muzzle.z + dz };
-        if (Number.isFinite(norm) && norm > 0 && transportGunAim(p, predicted, gun).eligible &&
-            !transportHullImpact(muzzle, predicted, p) && !segmentBlockedByBuildings(muzzle, predicted, buildings))
-            e.shots.push({ id: `${e.attemptId}:${++e.sequence}`, position: { ...muzzle }, direction,
-                speed: ballisticShotSpeed(p.velocity, direction), traveled: 0 });
+        const shot = ballisticIntercept(muzzle, p.velocity, target, velocity);
+        if (!shot) return;
+        const gunPoint = { x: muzzle.x + shot.direction.x * 1000, y: muzzle.y + shot.direction.y * 1000, z: muzzle.z + shot.direction.z * 1000 };
+        // The hull moves with the gun. Test its clearance in that frame;
+        // buildings remain fixed and use the world-space path below.
+        const relativeDistance = BASE_PROJECTILE_SPEED * shot.seconds;
+        const relativePoint = { x: muzzle.x + shot.direction.x * relativeDistance, y: muzzle.y + shot.direction.y * relativeDistance,
+          z: muzzle.z + shot.direction.z * relativeDistance };
+        if (!transportGunAim(p, gunPoint, gun).eligible || transportHullImpact(muzzle, relativePoint, p) ||
+            segmentBlockedByBuildings(muzzle, shot.point, buildings)) return;
+        const direction = { x: shot.velocity.x / shot.speed, y: shot.velocity.y / shot.speed, z: shot.velocity.z / shot.speed };
+        e.shots.push({ id: `${e.attemptId}:${++e.sequence}`, position: { ...muzzle }, direction, speed: shot.speed, traveled: 0 });
     };
     if (e.crossfire) {
         const cycle = e.crossfire;
@@ -384,7 +387,7 @@ export function stepTransportEncounter(e: TransportEncounter, target: Point, vel
             if(cycle.independent){
               const solution=transportGunIntercept(p,target,velocity,gun,state.yaw,state.pitch);
               return !!solution && Math.abs(state.yaw-solution.yaw)<.015 && Math.abs(state.pitch-solution.pitch)<.015 &&
-                !transportHullImpact(solution.muzzle,solution.point,p) && !segmentBlockedByBuildings(solution.muzzle,solution.point,buildings);
+                !transportHullImpact(solution.muzzle,solution.relativePoint,p) && !segmentBlockedByBuildings(solution.muzzle,solution.point,buildings);
             }
             const gunAim = transportGunAim(p, target, gun);
             const muzzle = transportGunMuzzle(p, gun, state.yaw, state.pitch);

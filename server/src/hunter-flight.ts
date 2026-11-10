@@ -1,5 +1,5 @@
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
-import { ballisticIntercept, ballisticShotSpeed, COMBAT_RANGE, BASE_PROJECTILE_SPEED } from '../../shared/protocol.mjs';
+import { ballisticIntercept, projectileLaunchVelocity, COMBAT_RANGE, BASE_PROJECTILE_SPEED } from '../../shared/protocol.mjs';
 
 type V = { x: number; y: number; z: number };
 type Aircraft = keyof typeof aircraftFlightEnvelope;
@@ -39,10 +39,11 @@ export function hunterBallisticSolution(origin: V, velocity: V, target: V, targe
     const sine=Math.sin(turnRate*seconds),cosine=Math.cos(turnRate*seconds);
     const point={x:target.x+(targetVelocity.x*sine+targetVelocity.z*(1-cosine))/turnRate,
       y:target.y+targetVelocity.y*seconds,z:target.z+(targetVelocity.z*sine-targetVelocity.x*(1-cosine))/turnRate};
-    const x=point.x-origin.x,y=point.y-origin.y,z=point.z-origin.z,distance=Math.hypot(x,y,z);
-    const direction=distance>.000001?{x:x/distance,y:y/distance,z:z/distance}:{x:0,y:0,z:-1};
-    const speed=ballisticShotSpeed(velocity,direction);
-    return {direction,distance,speed,point,error:distance-speed*seconds};
+    const x=point.x-origin.x-velocity.x*seconds,y=point.y-origin.y-velocity.y*seconds,z=point.z-origin.z-velocity.z*seconds,relativeDistance=Math.hypot(x,y,z);
+    const direction=relativeDistance>.000001?{x:x/relativeDistance,y:y/relativeDistance,z:z/relativeDistance}:{x:0,y:0,z:-1};
+    const launch = projectileLaunchVelocity(velocity, direction);
+    const speed = Math.hypot(launch.x, launch.y, launch.z);
+    return { direction, distance: speed * seconds, speed, point, error: relativeDistance - BASE_PROJECTILE_SPEED * seconds };
   };
   let low=0,high=0;
   for(let step=1;step<=64;step++){high=COMBAT_RANGE/BASE_PROJECTILE_SPEED*step/64;if(sample(high).error<=0)break;low=high;}
