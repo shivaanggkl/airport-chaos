@@ -8,6 +8,8 @@ import {AircraftVictory} from '../../client/src/aircraft-victory.js';
 import {aircraftPresentationMuzzleSockets,aircraftPresentationScale} from '../../shared/aircraft-presentation-scale.mjs';
 import {journeyDallas07,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas11,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,journeyMissionSlot} from '../../shared/journey-mission.mjs';
 
+import {createProjectileCore,fitProjectileRound as fitRound} from '../../client/src/projectile-visual.js';
+
 const hit={playerId:'enemy',killerId:'pilot',cause:'combat',position:{x:12345,y:2456,z:-34567},aircraftType:'privateJet'};
 for(const destructionFirst of [false,true])test(`success and destruction join safely in either event order: destruction first ${destructionFirst}`,()=>{
  const ending=new AircraftVictory('attempt','enemy','pilot');
@@ -191,11 +193,6 @@ const victoryCameraBranch = cameraFunction.body.statements[0].getText(ast);
 const victoryCameraCode = ts.transpileModule(`function updateVictoryCamera(){${victoryCameraBranch}}`, {
  compilerOptions: {target: ts.ScriptTarget.ES2022},
 }).outputText;
-const roundStart = source.indexOf('const projectileGeometry =');
-const roundEnd = source.indexOf('const projectileForward =', roundStart);
-const roundCode = ts.transpileModule(source.slice(roundStart, roundEnd), {
- compilerOptions: {target: ts.ScriptTarget.ES2022},
-}).outputText;
 const replayCases = [
  ...[journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas17,journeyDallas18].map(mission => ({mission, config: mission})),
  ...journeyDallas16.enemies.map(enemy => ({mission: journeyDallas16, config: {enemyAircraft: enemy.aircraft, enemyLivery: enemy.livery}})),
@@ -217,12 +214,12 @@ for (const {mission, config, giant} of replayCases) test(`M${journeyMissionSlot(
  camera.position.set(11700,2470,-34500);
  const transport=giant ? {root:new THREE.Group(),finishFinishingShot:()=>events.push('giant crash')} : undefined;
  const ctx=vm.createContext({THREE,aircraftVictory:ending,aircraftVictoryReplay:null,aircraftVictoryQueue:[],aircraftVictoryCandidates:[],transportView:transport,aircraftVictoryTransport:transport,airplane,scene,
-  camera,CAMERA_CHASE_FOV:58,skyDome:new THREE.Group(),window:{innerHeight:1080},aircraftType:'trainer',aircraftPresentationMuzzleSockets,serverProfile:{cosmetics:{equipped:{}}},applyEquippedLivery:(_plane,type,paint)=>liveries.push({type,paint}),
+  camera,createProjectileCore,fitRound,CAMERA_CHASE_FOV:58,skyDome:new THREE.Group(),window:{innerHeight:1080},aircraftType:'trainer',aircraftPresentationMuzzleSockets,serverProfile:{cosmetics:{equipped:{}}},applyEquippedLivery:(_plane,type,paint)=>liveries.push({type,paint}),
   createAirplane:type=>{created.push(type);const p=new THREE.Group();p.userData.airframeRoot=new THREE.Group();p.add(p.userData.airframeRoot);return p;},
   transport,audioManager:{playDestroyConfirm(){}},disposeAirplaneMaterials:()=>events.push('dispose'),
   createDestructionEffect:(position,type)=>{assert.equal(type,config.enemyAircraft);assert.deepEqual(position.toArray(),[12345,2456,-34567]);events.push('blast');},playDestructionSound(){},
   transportCrashFlash:{style:{}},flightGameRoot:{classList:{remove(){}}},journeyDallas17,journeyDallas18,journeyAttempt:{attemptId:'attempt',status:'COMPLETED'},showJourneyResult:()=>events.push('success')});
- vm.runInContext([roundCode,code('createProjectileMesh'),code('clearAircraftVictoryReplay'),code('prepareAircraftVictoryReplay'),
+ vm.runInContext([code('fitProjectileRound'),code('createProjectileMesh'),code('clearAircraftVictoryReplay'),code('prepareAircraftVictoryReplay'),
   code('updateAircraftVictory'),victoryCameraCode,
   'prepareAircraftVictoryReplay(aircraftVictory, undefined, transport);updateAircraftVictory(.3);updateVictoryCamera();'].join('\n'),ctx);
  const replay=ctx.aircraftVictoryReplay;

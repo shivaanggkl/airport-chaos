@@ -10,6 +10,11 @@ import { combatShotAimSample } from '../../shared/combat-aim.mjs';
 import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
 import { aircraftPresentationScale } from '../../shared/aircraft-presentation-scale.mjs';
 
+// Load the client source through tsx without adding it to the server's TypeScript build.
+const { createProjectileCore, fitProjectileRound: fitRound, projectileForwardStep, projectileMaterial,
+  projectileMaterialForOpponent, projectileRoundDiameter: roundDiameter } = await import(new URL('../../client/src/projectile-visual.ts', import.meta.url).href);
+const { GiantIncomingView } = await import(new URL('../../client/src/giant-incoming.ts', import.meta.url).href);
+
 const source = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
 const ast = ts.createSourceFile('main.ts', source, ts.ScriptTarget.Latest, true);
 function code(name: string, root = ast): string {
@@ -18,10 +23,11 @@ function code(name: string, root = ast): string {
 }
 function fixture(airAssaultMode = false) {
   const mesh = new THREE.Group();
+  mesh.add(createProjectileCore());
   const predicted = { mesh, firingOrigin: new THREE.Vector3(), direction: new THREE.Vector3(), visualAircraftType: 'trainer', visualStartedAt: 1000, bank: .6, pendingAge: 0, predictedTargetId: undefined as string | undefined };
   const target = new THREE.Group(); target.position.set(0, 0, -1500);
   const context = {
-    THREE, airAssaultMode, aircraftType: 'trainer', cameraShakeTime: 0,
+    THREE, projectileForwardStep, projectileMaterialForOpponent, colorServerProjectile() {}, airAssaultMode, aircraftType: 'trainer', cameraShakeTime: 0,
     localPlayerId: 'self', soloExploreMode: false, airplane: { rotation: { z: .6 }, quaternion: new THREE.Quaternion() }, velocity: new THREE.Vector3(0, 0, -300),
     projectileOrigin: new THREE.Vector3(), projectileDirection: new THREE.Vector3(), projectileForward: new THREE.Vector3(0,0,-1),
     projectileZeroVelocity: new THREE.Vector3(), retiredPredictedShots: new Set(), journeyAttempt: undefined,
@@ -77,6 +83,85 @@ test('Remote confirmed tracers keep the remote server muzzle instead of using th
   c.message.origin={x:700,y:300,z:-900};
   runInNewContext(`${code('addAssistedShot')}; addAssistedShot(message);`,c);
   assert.deepEqual(c.assistedShotVisuals[0].origin.toArray(),[700,300,-900]);
+});
+
+test('ballistic and assisted rounds color from each viewer, including private Journey ownership and pool reuse', () => {
+  const {context: c} = fixture();
+  const runtime = {
+    ...c, projectileMaterial, createProjectileCore, journeyMode: false, maxClientProjectiles: 256,
+    clientProjectiles: new Map(), projectilePool: [], focusedBotsAreSafe: () => true,
+    unrelatedFocusedBot: (id: string) => id === 'ambient-bot',
+    remotePlayers: new Map([['ambient-bot', { isBot: true }]]),
+  };
+  const result = runInNewContext([
+    ...['createProjectileMesh', 'createProjectileVisual', 'colorServerProjectile', 'addProjectile', 'removeClientProjectile',
+      'releaseProjectile', 'createAssistedShotMesh', 'addAssistedShot', 'releaseAssistedShot'].map(name => code(name)),
+    'const spawn = { projectileId: "round", ownerId: "enemy", position: origin, direction, speed: 800 };',
+    'const core = mesh => mesh.children[0];',
+    'addProjectile(spawn);',
+    'const pooledMesh = clientProjectiles.get("round").mesh;',
+    'const opponent = core(pooledMesh).material;',
+    'removeClientProjectile("round");',
+    'const reset = core(pooledMesh).material;',
+    'localPlayerId = "enemy";',
+    'addProjectile(spawn);',
+    'const reused = clientProjectiles.get("round").mesh === pooledMesh && core(pooledMesh).material === projectileMaterial;',
+    'addAssistedShot({...message, ownerId: "self"});',
+    'const assisted = assistedShotVisuals.pop();',
+    'const assistedOrange = core(assisted.mesh).material === opponent;',
+    'releaseAssistedShot(assisted);',
+    'addAssistedShot({...message, shotId: "local", ownerId: "enemy"});',
+    'const assistedRed = assistedShotVisuals[0].mesh === assisted.mesh && core(assisted.mesh).material === projectileMaterial;',
+    'journeyMode = true;',
+    'journeyAttempt = {rearGuardFourthId: "escort-four"};',
+    'colorServerProjectile(pooledMesh, "other-city-pilot");',
+    'const neutral = core(pooledMesh).material;',
+    'colorServerProjectile(pooledMesh, "ambient-bot");',
+    'const ambient = core(pooledMesh).material;',
+    'colorServerProjectile(pooledMesh, "escort-four");',
+    '({opponent, reset, reused, assistedOrange, assistedRed, neutral, ambient, escort: core(pooledMesh).material});',
+  ].join('\n'), runtime);
+  const orange = projectileMaterialForOpponent(true);
+  assert.equal(result.opponent, orange);
+  assert.equal(result.escort, orange);
+  assert.equal(result.reset, projectileMaterial);
+  assert.equal(result.neutral, projectileMaterial);
+  assert.equal(result.ambient, projectileMaterial);
+  assert.equal(result.reused, true);
+  assert.equal(result.assistedOrange, true);
+  assert.equal(result.assistedRed, true);
+  assert.equal(orange.color.getHex(), 0xff8c00);
+  assert.equal(orange.emissive.getHex(), projectileMaterial.emissive.getHex());
+  assert.equal(orange.shininess, projectileMaterial.shininess);
+  assert.equal(createProjectileCore(true).geometry, createProjectileCore().geometry);
+});
+
+test('transport shot snapshots retain the shared orange round and reconcile forward on the turret firing ray', () => {
+  const mesh = createProjectileCore(true);
+  const tracer = { mesh, traveled: 0 };
+  const view = Object.create(GiantIncomingView.prototype);
+  view.tracers = [tracer];
+  const camera = new THREE.PerspectiveCamera(58);
+  const muzzle = new THREE.Vector3(120, 80, -1000);
+  const direction = new THREE.Vector3(-0.5, 0.2, -1).normalize();
+  const snapshot = (id: string, traveled: number) => ({
+    id, direction, traveled, speed: 1000, position: muzzle.clone().addScaledVector(direction, traveled),
+  });
+  view.syncProjectileShots([snapshot('rear-turret', 30)]);
+  view.updateProjectileShots(0, 0, camera, 1080);
+  assert.ok(mesh.position.distanceTo(muzzle) < 1e-9, 'a fresh snapshot reconstructs the real turret muzzle');
+  view.updateProjectileShots(0.016, 0.016, camera, 1080);
+  assert.equal(mesh.material.color.getHex(), 0xff8c00);
+  assert.equal(mesh.geometry, createProjectileCore().geometry);
+  assert.ok(mesh.visible && mesh.position.clone().sub(muzzle).cross(direction).length() < 1e-9);
+  const prior = tracer.traveled;
+  view.syncProjectileShots([snapshot('rear-turret', 10)]);
+  view.updateProjectileShots(0.016, 0, camera, 1080);
+  assert.equal(tracer.traveled, prior, 'a delayed snapshot cannot rewind the round');
+  view.syncProjectileShots([snapshot('front-turret', 200)]);
+  assert.equal(tracer.traveled, 200, 'a reused slot resumes an older shot at its authoritative progress');
+  view.syncProjectileShots([]);
+  assert.equal(mesh.visible, false);
 });
 
 test('assisted tracers use ballistic speed and deliver feedback only on the matching shot arrival', () => {
@@ -210,11 +295,11 @@ test('Classic Air Assault locked shots validate the circle, apply one weapon hit
 });
 
 test('pooled aircraft rounds are solid crimson spheres with a consistent projected size and muzzle clearance', () => {
-  const start = source.indexOf('const projectileGeometry =');
+  const start = source.indexOf('const projectileFadeDuration =');
   const end = source.indexOf('const projectileForward =', start);
   const setup = ts.transpileModule(source.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.1);
-  const context = { THREE, camera, window: { innerHeight: 1080 } };
+  const context = { THREE, camera, createProjectileCore, projectileMaterial, roundDiameter, fitRound, window: { innerHeight: 1080 } };
   const mesh = runInNewContext(`${setup}; ${code('createProjectileMesh')}; globalThis.mesh=createProjectileMesh(); mesh;`, context) as THREE.Group;
   const core = mesh.children[0] as THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>;
   core.geometry.computeBoundingBox();
@@ -243,13 +328,13 @@ test('pooled aircraft rounds are solid crimson spheres with a consistent project
 
 test('unlocked local rounds fade after the aim pass and reset when recycled', () => {
   const { context: { fitProjectileRound, projectileRoundDiameter, ...context }, predicted } = fixture();
-  const start = source.indexOf('const projectileGeometry =');
+  const start = source.indexOf('const projectileFadeDuration =');
   const end = source.indexOf('const projectileForward =', start);
   const setup = ts.transpileModule(source.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.1);
   camera.updateMatrixWorld();
   const runtime = {
-    ...context, camera, window: { innerHeight: 1080 }, soloExploreMode: true,
+    ...context, camera, createProjectileCore, projectileMaterial, roundDiameter, fitRound, window: { innerHeight: 1080 }, soloExploreMode: true,
     maxClientProjectiles: 256, aimQaRay: null, pendingTracerLifetime: 0.65,
     clientProjectiles: new Map(), predicted,
   };
@@ -455,7 +540,7 @@ test('a confirmed off-ray hit finishes on the original ray and plays feedback at
 
 test('a late ballistic spawn without a prediction keeps its historical server muzzle, never the newly turned aircraft',()=>{
   const projectile={mesh:new THREE.Group(),firingOrigin:new THREE.Vector3(),direction:new THREE.Vector3(),speed:0,local:false,bank:0,authoritativePosition:new THREE.Vector3(),spawnedAt:0,lastAuthoritativeAt:0,pendingAge:0};
-  const c={THREE,performance:{now:()=>1100},localPlayerId:'self',clientProjectiles:new Map(),predictedProjectiles:new Map(),remotePlayers:new Map(),unrelatedFocusedBot:()=>false,maxClientProjectiles:256,projectilePool:[projectile],fitProjectileRound(){},scene:new THREE.Scene(),projectileForward:new THREE.Vector3(0,0,-1),showAimQaRay(){},retiredPredictedShots:new Set(),rememberProjectileId:(ids:Set<string>,id:string)=>ids.add(id),airplane:{rotation:{z:1}},message:{projectileId:'late',ownerId:'self',position:{x:15,y:30,z:45},direction:{x:0,y:0,z:-1},speed:900}};
+  const c={THREE,performance:{now:()=>1100},localPlayerId:'self',clientProjectiles:new Map(),predictedProjectiles:new Map(),remotePlayers:new Map(),colorServerProjectile(){},unrelatedFocusedBot:()=>false,maxClientProjectiles:256,projectilePool:[projectile],fitProjectileRound(){},scene:new THREE.Scene(),projectileForward:new THREE.Vector3(0,0,-1),showAimQaRay(){},retiredPredictedShots:new Set(),rememberProjectileId:(ids:Set<string>,id:string)=>ids.add(id),airplane:{rotation:{z:1}},message:{projectileId:'late',ownerId:'self',position:{x:15,y:30,z:45},direction:{x:0,y:0,z:-1},speed:900}};
   runInNewContext(`${code('addProjectile')};addProjectile(message);`,c);
   assert.deepEqual(projectile.mesh.position.toArray(),[15,30,45]);
 });

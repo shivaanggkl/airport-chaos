@@ -2,9 +2,17 @@ import { TransportArrivalSequence } from './transport-arrival.ts';
 import * as THREE from 'three';
 import { TransportDefeatSequence } from './transport-defeat';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { transportTuning, transportGunMounts, transportScaleForMission, type TransportStateMessage, type TransportPoint } from '../../shared/giant-incoming.mjs';
+import { transportTuning, transportGunMounts, transportScaleForMission, type TransportStateMessage, type TransportPoint, type TransportShotState } from '../../shared/giant-incoming.mjs';
+import { COMBAT_RANGE } from '../../shared/protocol.mjs';
 import { journeyDallas11 } from '../../shared/journey-mission.mjs';
+import { createProjectileCore, fitProjectileRound, projectileForwardStep } from './projectile-visual';
 export type { TransportStateMessage } from '../../shared/giant-incoming.mjs';
+const transportSnapshotHorizon = 0.15;
+type TransportProjectileVisual = {
+    mesh: ReturnType<typeof createProjectileCore>;
+    shot?: TransportShotState;
+    traveled: number;
+};
 function roundedBayShape(width: number, height: number): THREE.Shape {
     const half = width / 2, radius = .45;
     const s = new THREE.Shape();
@@ -88,7 +96,7 @@ export class GiantIncomingView {
         this.root.rotation.set(0, pose.yaw, pose.roll, 'YXZ');
         this.root.scale.setScalar(pose.scale ?? transportTuning.scale);
         this.root.visible = true;
-        this.tracers.forEach(tracer => { tracer.visible = false; });
+        this.tracers.forEach(tracer => { tracer.mesh.visible = false; });
         this.warning.visible = false;
         return true;
     }
@@ -114,9 +122,7 @@ export class GiantIncomingView {
     private fortressBays: ReturnType<typeof fortressBay>[] = [];
     private fortressMarkers: THREE.Mesh[][] = [];
     private hatchOpen = 0;
-    private tracerGeometry = new THREE.CylinderGeometry(.55, .55, 17, 5);
-    private tracerMaterial = new THREE.MeshBasicMaterial({ color: 0xffd15a, toneMapped: false });
-    private tracers = Array.from({ length: 9 }, () => new THREE.Mesh(this.tracerGeometry, this.tracerMaterial));
+    private tracers: TransportProjectileVisual[] = Array.from({ length: 9 }, () => ({ mesh: createProjectileCore(true), traveled: 0 }));
     private warningGeometry = new THREE.SphereGeometry(5, 8, 6);
     private warningMaterial = new THREE.MeshBasicMaterial({ color: 0xffce45, toneMapped: false });
     private warning = new THREE.Mesh(this.warningGeometry, this.warningMaterial);
@@ -128,8 +134,6 @@ export class GiantIncomingView {
     private velocities = new Float32Array(96 * 3);
     private life = new Float32Array(96);
     private cursor = 0;
-    private direction = new THREE.Vector3();
-    private up = new THREE.Vector3(0, 1, 0);
     onHit?: () => void;
     onWarning?: () => void;
     private wasWarning = false;
@@ -140,7 +144,7 @@ export class GiantIncomingView {
         this.root.scale.setScalar(transportTuning.scale);
         this.root.visible = false;
         scene.add(this.root);
-        this.tracers.forEach(t => { t.visible = false; scene.add(t); });
+        this.tracers.forEach(({mesh}) => { mesh.visible = false; scene.add(mesh); });
         this.warning.visible = false;
         scene.add(this.warning);
         this.positions.fill(1e8);
@@ -232,8 +236,51 @@ export class GiantIncomingView {
         if (position) this.emit(position, 8, 30, .35);
         this.onHit?.();
     }
+    private syncProjectileShots(shots: readonly TransportShotState[]): void {
+        for (const tracer of this.tracers) {
+            const id = tracer.shot?.id;
+            if (id && !shots.some(shot => shot.id === id)) {
+                tracer.shot = undefined;
+                tracer.mesh.visible = false;
+            }
+        }
+        for (const shot of shots) {
+            const existing = this.tracers.find(tracer => tracer.shot?.id === shot.id);
+            if (existing) {
+                existing.shot = shot;
+                continue;
+            }
+            const free = this.tracers.find(tracer => !tracer.shot);
+            if (!free) break;
+            free.shot = shot;
+            // Recover the muzzle from the first snapshot. On reconnect, old
+            // rounds resume at their current position instead of replaying.
+            free.traveled = shot.traveled <= shot.speed * transportSnapshotHorizon ? 0 : shot.traveled;
+        }
+    }
+
+    private updateProjectileShots(delta: number, ahead: number, camera: THREE.PerspectiveCamera, viewportHeight: number): void {
+        const blend = 1 - Math.exp(-delta * 34);
+        for (const tracer of this.tracers) {
+            const { mesh, shot } = tracer;
+            if (!shot) continue;
+            const estimatedTravel = Math.min(COMBAT_RANGE, shot.traveled + shot.speed * ahead);
+            const nominalStep = shot.speed * delta;
+            const step = projectileForwardStep(nominalStep, estimatedTravel - tracer.traveled - nominalStep, blend);
+            tracer.traveled = Math.min(COMBAT_RANGE, tracer.traveled + Math.min(step, Math.max(0, estimatedTravel - tracer.traveled)));
+            mesh.visible = !this.final && tracer.traveled < COMBAT_RANGE;
+            const offset = tracer.traveled - shot.traveled;
+            mesh.position.set(
+                shot.position.x + shot.direction.x * offset,
+                shot.position.y + shot.direction.y * offset,
+                shot.position.z + shot.direction.z * offset,
+            );
+            fitProjectileRound(mesh, tracer.traveled, camera, viewportHeight);
+        }
+    }
+
     setState(state: TransportStateMessage, deferHit?: () => void) { if (this.disposed || this.final || this.finishingShotHeld)
-        return; this.root.scale.setScalar(state.pose.scale ?? transportTuning.scale); if (!this.state)
+        return; this.syncProjectileShots(state.shots); this.root.scale.setScalar(state.pose.scale ?? transportTuning.scale); if (!this.state)
         this.root.rotation.y = state.pose.yaw; this.state = state; this.receivedAt = performance.now(); this.position.set(state.pose.x, state.pose.y, state.pose.z); if (state.hitSequence > this.hitSequence) {
         this.hitSequence = state.hitSequence;
         if (deferHit) deferHit();
@@ -244,7 +291,7 @@ export class GiantIncomingView {
         this.finishingShotHeld = false;
         this.final=kind; this.finalAt=this.elapsed;
         this.arrival?.dispose();this.arrival=undefined;this.arrivalResolve?.();this.arrivalResolve=undefined;
-        this.tracers.forEach(t=>t.visible=false);this.warning.visible=false;
+        this.tracers.forEach(t=>t.mesh.visible=false);this.warning.visible=false;
         if(kind==='defeat' && this.state && this.levels.length){
             this.levels.forEach((level,index)=>{level.visible=index===0;});
             this.root.visible=true;
@@ -264,7 +311,7 @@ export class GiantIncomingView {
         this.colors[n * 3 + 1] = smoke ? .38 : .65;
         this.colors[n * 3 + 2] = smoke ? .4 : .2;
     } }
-    update(delta: number, camera: THREE.Camera) {
+    update(delta: number, camera: THREE.PerspectiveCamera) {
         if (this.disposed || this.finishingShotHeld)
             return;
         this.elapsed += delta;
@@ -285,7 +332,7 @@ export class GiantIncomingView {
         const s = this.state;
         if (s && this.levels.length && !this.disposed && !this.defeat) {
             this.root.visible = !this.final || this.elapsed - this.finalAt < 2;
-            const ahead = Math.min(.15, (performance.now() - this.receivedAt) / 1000);
+            const ahead = Math.min(transportSnapshotHorizon, (performance.now() - this.receivedAt) / 1000);
             this.position.set(s.pose.x + s.pose.velocity.x * ahead, s.pose.y, s.pose.z + s.pose.velocity.z * ahead);
             this.root.position.copy(this.position);
             const turn = THREE.MathUtils.clamp(Math.atan2(Math.sin(s.pose.yaw - this.root.rotation.y), Math.cos(s.pose.yaw - this.root.rotation.y)), -delta * .8, delta * .8);
@@ -323,8 +370,7 @@ export class GiantIncomingView {
             this.root.updateMatrixWorld(true);
             (warningGun ? this.sideGuns[lod]?.[warningGun - 1]?.muzzle : this.levels[lod]!.getObjectByName('RearGunMuzzle'))?.getWorldPosition(this.warning.position);
             this.warning.scale.setScalar(1 + Math.sin(this.elapsed * 16) * .2);
-            this.tracers.forEach((t, i) => { const shot = s.shots[i]; t.visible = !!shot && !this.final; if (!shot)
-                return; t.position.set(shot.position.x + shot.direction.x * shot.speed * ahead, shot.position.y + shot.direction.y * shot.speed * ahead, shot.position.z + shot.direction.z * shot.speed * ahead); this.direction.set(shot.direction.x, shot.direction.y, shot.direction.z); t.quaternion.setFromUnitVectors(this.up, this.direction); });
+            this.updateProjectileShots(delta, ahead, camera, window.innerHeight);
             if (!this.final && s.health < transportTuning.health * .6 && Math.random() < delta * (s.health < transportTuning.health * .25 ? 16 : 5)) {
                 const socket = this.levels[lod]!.getObjectByName(`EngineSmoke_${Math.floor(Math.random() * 4)}`)!;
                 const p = socket.getWorldPosition(new THREE.Vector3());
@@ -356,5 +402,5 @@ export class GiantIncomingView {
     } }); geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => { t.dispose(); (t.image as ImageBitmap)?.close?.(); }); this.root.clear(); }
     dispose() { if (this.disposed)
         return; this.disposed = true; this.arrival?.dispose();this.arrival=undefined;this.arrivalResolve?.();this.arrivalResolve=undefined;
-        this.defeat?.dispose(); this.defeatEnded=true; this.resolveDefeat(); this.scene.remove(this.root, this.warning, this.particles, ...this.tracers); this.releaseModels(); this.tracerGeometry.dispose(); this.tracerMaterial.dispose(); this.warningGeometry.dispose(); this.warningMaterial.dispose(); this.particleGeometry.dispose(); this.particleMaterial.dispose(); }
+        this.defeat?.dispose(); this.defeatEnded=true; this.resolveDefeat(); this.scene.remove(this.root, this.warning, this.particles); this.tracers.forEach(({mesh}) => this.scene.remove(mesh)); this.releaseModels(); this.warningGeometry.dispose(); this.warningMaterial.dispose(); this.particleGeometry.dispose(); this.particleMaterial.dispose(); }
 }
