@@ -16,7 +16,7 @@ export const ashenWarlordSpecies = new SpeciesRegistry().register({
     director: {combatDistance:1800,commitment:2.5,retreatMin:4000,retreatMax:7000,retreatDuration:8,reengageDuration:6,attackSpacing:.6,pressureThreshold:100,facing:.65},
     movement: { runOnly:true, walk: runSpeed, run: runSpeed, chargeSpeed: runSpeed*(.65/.42)*1.15, acceleration: runSpeed/3, deceleration: runSpeed/2.4, turnRate: .5, turnAcceleration: .65, stepHeight:24,stride:height*model.clips.run!.stride!,runStride:height*model.clips.run!.stride!, jumpSpeed:120,gravity:40,sidestep:false,independentAim:true,traversalLeap:false,repositionDistance:5000,intentDuration:2.5 },
     senses: { range: 160000, fov: Math.PI * 2, pursueOccluded: true }, arena: { minWidth: 2500, maxSlope: .15 },
-    regions: [{ id: 'chest-core', joint: 'gem', radius: 48, radii: { x: 48, y: 72, z: 32 }, multiplier: 1.25, stagger: 100 }, ...regions],
+    regions: [{ id: 'chest-core', joint: 'gem', radius: 48, radii: { x: 48, y: 72, z: 32 }, multiplier: 1, stagger: 100 }, ...regions],
     abilities: standardAbilities.filter(a => ['fireball-barrage', 'hand-strike', 'charging-rampage'].includes(a.id)).map(a => {
         const b = { ...a, maxRange: 6000, maxAltitude: 5000, unlockBelow: 1 };
         if (a.id === 'fireball-barrage') {

@@ -76,12 +76,12 @@ test('interception preserves inherited speed for stationary, approaching, retrea
         for (const launchVelocity of [zero, { x: 10, y: 30, z: -600 }]) {
             const position = { x: 0, y: 0, z: -1200 };
             const hit = combatIntercept(zero, launchVelocity, position, targetVelocity);
-            if (targetVelocity.x === -600 && launchVelocity.z === 0) {
+            if (targetVelocity.x === -600) {
                 assert.equal(hit, null);
                 continue;
             }
             assert.ok(hit);
-            const traveled = new THREE.Vector3().copy(hit.direction).multiplyScalar(hit.speed * hit.seconds);
+            const traveled = new THREE.Vector3().copy(hit.velocity).multiplyScalar(hit.seconds);
             const target = new THREE.Vector3().copy(position).addScaledVector(new THREE.Vector3().copy(targetVelocity), hit.seconds);
             assert.ok(traveled.distanceTo(target) < .01);
             assert.equal(hit.speed, ballisticShotSpeed(launchVelocity, hit.direction));

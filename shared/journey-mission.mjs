@@ -1,3 +1,4 @@
+import { BASE_PROJECTILE_SPEED, ORDINARY_PROJECTILE_DAMAGE } from './protocol.mjs';
 import { transportTuning, transportLockParts } from './giant-incoming.mjs';
 import { remoteAircraftScale } from './remote-aircraft-visual-rules.mjs';
 import { addisonClimbGates } from './city-challenges.mjs';
@@ -169,7 +170,7 @@ const baseJourneyDallas08 = Object.freeze({
   escortHealth: 1_000, escortCount: 2, escortScale: remoteAircraftScale, escortFireDelayMs: 5_000,
   escortAircraft: Object.freeze(['trainer', 'trainer']),
   escortLiveries: Object.freeze(['bluejay-skybolt', 'bluejay-aurora']),
-  escortBurstIntervalMs: 6_000, escortShotSpacingMs: 250, escortShotDamage: 10,
+  escortBurstIntervalMs: 6_000, escortShotSpacingMs: 250, escortShotDamage: ORDINARY_PROJECTILE_DAMAGE,
   followMs: 15_000,
   minDistance: 80, maxDistance: 450, maxTailAngle: 40 * Math.PI / 180,
   maxHeadingDifference: 45 * Math.PI / 180, maxAltitudeDifference: 100,
@@ -196,7 +197,7 @@ const baseJourneyDallas09 = Object.freeze({
   escortLiveries: Object.freeze(['bluejay-aurora', 'mammoth-sand', 'nightowl-forest']),
   reinforcementThreshold: 0.5, reinforcementWarningMs: 3_000, reinforcementFireDelayMs: 3_000,
   escortFireDelayMs: 5_000, escortBurstIntervalMs: 4_000,
-  initialEscortBurstIntervalMs: 6_000, escortShotSpacingMs: 250, escortShotDamage: 10,
+  initialEscortBurstIntervalMs: 6_000, escortShotSpacingMs: 250, escortShotDamage: ORDINARY_PROJECTILE_DAMAGE,
 });
 
 const baseJourneyDallas10 = Object.freeze({
@@ -208,9 +209,9 @@ const baseJourneyDallas10 = Object.freeze({
   escortAircraft: Object.freeze(['privateJet', 'cargo', 'privateJet', 'cargo']),
   escortLiveries: Object.freeze(['nightowl-forest', 'mammoth-sand', 'nightowl-royal-violet', 'mammoth-desert-sand']),
   escortFireDelayMs: 5_000, escortBurstIntervalMs: 6_000,
-  escortShotSpacingMs: 250, escortShotDamage: 10,
+  escortShotSpacingMs: 250, escortShotDamage: ORDINARY_PROJECTILE_DAMAGE,
   gunBurstIntervalMs: 3_000, gunWarningMs: 1_000,
-  gunShotSpacingMs: 250, gunShotDamage: 20, gunProjectileSpeed: 6_000, gunTrackingRate: 3.2,
+  gunShotSpacingMs: 250, gunShotDamage: ORDINARY_PROJECTILE_DAMAGE, gunProjectileSpeed: BASE_PROJECTILE_SPEED, gunTrackingRate: 3.2,
 });
 
 const baseJourneyDallas11 = Object.freeze({
@@ -220,7 +221,7 @@ const baseJourneyDallas11 = Object.freeze({
   hatch: Object.freeze({ z: 22.05, bottom: -0.45, width: 3.85, height: 3.35 }),
   coreLocal: Object.freeze({ x: 0, y: 1.2, z: 21.2 }), coreRadius: 0.9,
   gunBurstIntervalMs: 3_000, gunWarningMs: 1_000,
-  gunShotSpacingMs: 250, gunShotDamage: 10,
+  gunShotSpacingMs: 250, gunShotDamage: ORDINARY_PROJECTILE_DAMAGE,
 });
 
 const baseJourneyDallas12 = Object.freeze({
@@ -304,7 +305,7 @@ const baseJourneyDallas18 = Object.freeze({
   startAirportId: 'dfw', timeLimitMs: 60_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-stealth-gray', enemyHealth: 300,
   enemyAltitude: 900, aggressionDistance: 8_000 / DALLAS_WORLD_SCALE, patrolRadius: 2_500, cruiseSpeed: 600,
   enemySpawn: Object.freeze({ x: -47_500 / DALLAS_WORLD_SCALE, z: -48_000 / DALLAS_WORLD_SCALE }),
-  enemyDamage: 20, shotIntervalMs: 750, burstShots: 2, burstPauseMs: 2_000,
+  enemyDamage: ORDINARY_PROJECTILE_DAMAGE, shotIntervalMs: 750, burstShots: 2, burstPauseMs: 2_000,
 });
 
 // Monster timers resolve to 6:00; M19/M20 use real milliseconds below.

@@ -1,3 +1,4 @@
+import { ORDINARY_PROJECTILE_DAMAGE } from './protocol.mjs';
 import { aircraftFlightEnvelope } from './aircraft-flight-envelope.mjs';
 import { throttleSpeedTarget } from './flight-control-rules.mjs';
 import { cityAirports, aircraftGroundOffset } from './city-airports.mjs';
@@ -58,7 +59,7 @@ const speed = .9 * .65 * throttleSpeedTarget(.5, aircraftFlightEnvelope.trainer)
 export const transportTuning = Object.freeze({ scale, health: 2000, altitudeMultiplier: 1.5,
     durationMs: Math.ceil(transportRouteLength / speed * 1000), speed,
     separation: 1200, warningMs: 1000, burstIntervalMs: 6000, shotSpacingMs: 250,
-    shotDamage: 10, yawArc: 70 * Math.PI / 180, pitchArc: 45 * Math.PI / 180 });
+    shotDamage: ORDINARY_PROJECTILE_DAMAGE, yawArc: 70 * Math.PI / 180, pitchArc: 45 * Math.PI / 180 });
 export function transportPose(elapsedMs, altitude = 900, durationMs = transportTuning.durationMs, missionId) {
     const route = transportRouteForMission(missionId);
     if(route === compactRoute){

@@ -1,9 +1,8 @@
 // This number is intentionally shared by the browser and the Node server.
 // Increment it whenever a websocket payload changes incompatibly.
 // M19 runway-start handoff requires matching clients; old clients freeze until its former airborne clock starts.
-export const PROTOCOL_VERSION = 36;
-// One authoritative range drives client acquisition, server assisted-hit
-// validation, unlocked projectile travel, and Hunter firing eligibility.
+export const PROTOCOL_VERSION = 37;
+// Shared acquisition and projectile travel range.
 export const COMBAT_RANGE = 4500;
 export const BASE_PROJECTILE_SPEED = 520;
 export const FIRE_RATE_PER_SECOND = Object.freeze({
@@ -15,19 +14,30 @@ export const FIRE_RATE_PER_SECOND = Object.freeze({
 export function fireIntervalMs(aircraftType) {
   return 1_000 / (FIRE_RATE_PER_SECOND[aircraftType] ?? FIRE_RATE_PER_SECOND.trainer);
 }
-export const PROJECTILE_DAMAGE_BY_AIRCRAFT = Object.freeze({
-  trainer: 25,
-  cargo: 30,
-  privateJet: 35,
-  fighter: 40,
-});
-export function projectileDamageForAircraft(aircraftType) {
-  return PROJECTILE_DAMAGE_BY_AIRCRAFT[aircraftType] ?? PROJECTILE_DAMAGE_BY_AIRCRAFT.trainer;
+export const ORDINARY_PROJECTILE_DAMAGE = 25;
+export function projectileDamageForAircraft() {
+  return ORDINARY_PROJECTILE_DAMAGE;
 }
-// Muzzle speed is relative to the firing aircraft, not a fixed world speed
-// that a boosted aircraft can overtake. Keep the validated aim unchanged.
+
+export function projectileLaunchVelocity(shooterVelocity, gunDirection, out = { x: 0, y: 0, z: 0 }) {
+  const scale = BASE_PROJECTILE_SPEED / Math.hypot(gunDirection.x, gunDirection.y, gunDirection.z);
+  out.x = shooterVelocity.x + gunDirection.x * scale;
+  out.y = shooterVelocity.y + gunDirection.y * scale;
+  out.z = shooterVelocity.z + gunDirection.z * scale;
+  return out;
+}
+
+export function advanceProjectile(position, direction, speed, traveled, delta) {
+  const step = Math.min(speed * delta, Math.max(0, COMBAT_RANGE - traveled));
+  position.x += direction.x * step;
+  position.y += direction.y * step;
+  position.z += direction.z * step;
+  return step;
+}
+
 export function ballisticShotSpeed(velocity, direction) {
-  return BASE_PROJECTILE_SPEED + Math.max(0, velocity.x * direction.x + velocity.y * direction.y + velocity.z * direction.z);
+  const launch = projectileLaunchVelocity(velocity, direction);
+  return Math.hypot(launch.x, launch.y, launch.z);
 }
 export function localFiringDirection(aim, out) {
   const inverseLength = 1 / Math.hypot(aim.x, aim.y, 1);
@@ -37,73 +47,39 @@ export function localFiringDirection(aim, out) {
   return out;
 }
 const finiteCombatVector = value => value && [value.x, value.y, value.z].every(Number.isFinite);
-// Solve the existing longitudinal launch-speed model for one straight shot.
+// Solve |targetOffset + relativeVelocity * t| = muzzleSpeed * t.
 export function ballisticIntercept(origin, shooterVelocity, targetPosition, targetVelocity) {
-  if (![origin, shooterVelocity, targetPosition, targetVelocity].every(finiteCombatVector)) return null;
+  if (!finiteCombatVector(origin) || !finiteCombatVector(shooterVelocity) ||
+      !finiteCombatVector(targetPosition) || !finiteCombatVector(targetVelocity)) return null;
   const rx = targetPosition.x - origin.x, ry = targetPosition.y - origin.y, rz = targetPosition.z - origin.z;
-  const range = Math.hypot(rx, ry, rz);
-  if (range < 0.000001 || range > COMBAT_RANGE) return null;
-  const at = seconds => {
-    const x = rx + targetVelocity.x * seconds, y = ry + targetVelocity.y * seconds, z = rz + targetVelocity.z * seconds;
-    const distance = Math.hypot(x, y, z);
-    if (distance < 0.000001) return { direction: { x: 0, y: 0, z: -1 }, distance: 0, speed: BASE_PROJECTILE_SPEED };
-    const direction = { x: x / distance, y: y / distance, z: z / distance };
-    return { direction, distance, speed: ballisticShotSpeed(shooterVelocity, direction) };
-  };
-  let low = 0, high = 0;
-  const lifetime = COMBAT_RANGE / BASE_PROJECTILE_SPEED;
-  for (let step = 1; step <= 64; step += 1) {
-    high = lifetime * step / 64;
-    const sample = at(high);
-    if (sample.distance <= sample.speed * high) break;
-    low = high;
+  const c = rx * rx + ry * ry + rz * rz;
+  if (c < 1e-12 || c > COMBAT_RANGE ** 2) return null;
+  const vx = targetVelocity.x - shooterVelocity.x, vy = targetVelocity.y - shooterVelocity.y, vz = targetVelocity.z - shooterVelocity.z;
+  const a = vx * vx + vy * vy + vz * vz - BASE_PROJECTILE_SPEED ** 2;
+  const b = 2 * (rx * vx + ry * vy + rz * vz);
+  let seconds;
+  if (Math.abs(a) < 1e-6) {
+    seconds = -c / b;
+  } else {
+    const discriminant = b * b - 4 * a * c;
+    if (discriminant < 0) return null;
+    const q = -0.5 * (b + (b < 0 ? -1 : 1) * Math.sqrt(discriminant));
+    const first = q / a, second = c / q;
+    seconds = Math.min(first > 0 ? first : Infinity, second > 0 ? second : Infinity);
   }
-  if (low === high) return null;
-  for (let step = 0; step < 26; step += 1) {
-    const middle = (low + high) / 2, sample = at(middle);
-    if (sample.distance > sample.speed * middle) low = middle; else high = middle;
-  }
-  const solution = at(high);
-  if (solution.distance > COMBAT_RANGE || Math.abs(solution.distance - solution.speed * high) > 0.01) return null;
-  return { direction: solution.direction, speed: solution.speed, seconds: high,
-    point: { x: origin.x + solution.direction.x * solution.distance,
-      y: origin.y + solution.direction.y * solution.distance, z: origin.z + solution.direction.z * solution.distance } };
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  const distance = BASE_PROJECTILE_SPEED * seconds;
+  const direction = { x: (rx + vx * seconds) / distance, y: (ry + vy * seconds) / distance, z: (rz + vz * seconds) / distance };
+  const velocity = projectileLaunchVelocity(shooterVelocity, direction);
+  const speed = Math.hypot(velocity.x, velocity.y, velocity.z);
+  if (speed < 1e-6 || speed * seconds > COMBAT_RANGE) return null;
+  return { direction, velocity, speed, seconds, point: {
+    x: origin.x + velocity.x * seconds, y: origin.y + velocity.y * seconds, z: origin.z + velocity.z * seconds,
+  } };
 }
 
-// Retain the existing direction-only API for callers that do not need lead time.
-
-// A locked moving escort still takes a real ballistic shot. Lead its current
-// velocity at launch; subsequent turns and world geometry can make it miss.
 export function ballisticInterceptDirection(origin, shooterVelocity, targetPosition, targetVelocity) {
-  const offset = { x: targetPosition.x - origin.x, y: targetPosition.y - origin.y, z: targetPosition.z - origin.z };
-  const initialDistance = Math.hypot(offset.x, offset.y, offset.z);
-  if (initialDistance < 0.000001 || initialDistance > COMBAT_RANGE) return null;
-  let direction = { x: offset.x / initialDistance, y: offset.y / initialDistance, z: offset.z / initialDistance };
-  let speed = ballisticShotSpeed(shooterVelocity, direction);
-  let travelTime = 0;
-  for (let iteration = 0; iteration < 3; iteration += 1) {
-    const a = targetVelocity.x ** 2 + targetVelocity.y ** 2 + targetVelocity.z ** 2 - speed ** 2;
-    const b = 2 * (offset.x * targetVelocity.x + offset.y * targetVelocity.y + offset.z * targetVelocity.z);
-    const c = initialDistance ** 2;
-    const discriminant = b * b - 4 * a * c;
-    if (Math.abs(a) < 0.000001) {
-      if (b >= 0) return null;
-      travelTime = -c / b;
-    } else if (discriminant >= 0) {
-      const root = Math.sqrt(discriminant);
-      const first = (-b - root) / (2 * a);
-      const second = (-b + root) / (2 * a);
-      travelTime = Math.min(first > 0 ? first : Infinity, second > 0 ? second : Infinity);
-    } else return null;
-    if (!Number.isFinite(travelTime) || travelTime <= 0) return null;
-    const x = offset.x + targetVelocity.x * travelTime;
-    const y = offset.y + targetVelocity.y * travelTime;
-    const z = offset.z + targetVelocity.z * travelTime;
-    const distance = Math.hypot(x, y, z);
-    direction = { x: x / distance, y: y / distance, z: z / distance };
-    speed = ballisticShotSpeed(shooterVelocity, direction);
-  }
-  return speed * travelTime <= COMBAT_RANGE ? direction : null;
+  return ballisticIntercept(origin, shooterVelocity, targetPosition, targetVelocity)?.direction ?? null;
 }
 // The client renders this angular lock circle; the server validates the same cone.
 // At a 590px-tall, 58° chase view it projects to about a 32px radius.
