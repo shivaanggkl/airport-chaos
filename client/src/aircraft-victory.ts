@@ -8,7 +8,7 @@ type Destruction = {
   position?: { x: number; y: number; z: number };
 };
 
-/** Presentation only: both success and the owned target's destruction come from the server. */
+/** Presents the server-confirmed destruction of an assigned aircraft. */
 export class AircraftVictory {
   readonly position = new THREE.Vector3();
   readonly shotOrigin = new THREE.Vector3();
@@ -46,7 +46,7 @@ export class AircraftVictory {
   constructor(readonly attemptId: string, readonly targetId: string, private readonly pilotId: string, readonly mission: {readonly enemyAircraft: 'trainer' | 'privateJet' | 'cargo' | 'fighter'; readonly enemyLivery: string; readonly fromGameplayCamera?: boolean} = journeyDallas13) {}
 
   get pending(): boolean { return this.resultConfirmed && !this.complete; }
-  get hasCamera(): boolean { return this.replayStarted || this.sequence !== null; }
+  get hasCamera(): boolean { return !this.complete && (this.replayStarted || this.sequence !== null); }
   get hasReplay(): boolean { return this.replayReady; }
   get replaying(): boolean { return this.replayStarted && this.replayElapsed < this.replayDuration; }
 
@@ -103,13 +103,13 @@ export class AircraftVictory {
 
   confirmSuccess(): void { this.resultConfirmed = true; }
 
-  confirmDestruction(message: Destruction, heading: number, rotation?: {x:number;y:number;z:number}, velocity?: {x:number;y:number;z:number}): boolean {
+  confirmDestruction(message: Destruction, heading: number, rotation?: {x:number;y:number;z:number}, velocity?: {x:number;y:number;z:number}, preserveShotImpact = false): boolean {
     const p = message.position;
     if (this.complete || this.destructionConfirmed || message.playerId !== this.targetId ||
       message.killerId !== this.pilotId || message.cause !== 'combat' || !p ||
       ![p.x, p.y, p.z, heading].every(Number.isFinite)) return false;
     this.position.set(p.x, p.y, p.z);
-    if (this.replayReady) {
+    if (this.replayReady && !preserveShotImpact) {
       // The authoritative projectile impact is on an enlarged collision sphere,
       // not necessarily on the visible hull. End this presentation at the
       // confirmed aircraft position so the visible bullet actually hits it.

@@ -61,6 +61,7 @@ export class GiantIncomingView {
     private receivedAt = 0;
     private disposed = false;
     private defeat?: TransportDefeatSequence;
+    private finishingShotHeld = false;
     private arrival?: TransportArrivalSequence;
     private arrivalResolve?:()=>void;
     get arrivalActive():boolean{return !!this.arrival;}
@@ -78,6 +79,23 @@ export class GiantIncomingView {
     onCrashImpact?: () => void;
     get defeatActive(): boolean { return !!this.defeat && !this.defeatEnded; }
     get defeatComplete(): boolean { return this.defeatEnded; }
+    holdForFinishingShot(pose: TransportStateMessage['pose']): boolean {
+        if (this.finishingShotHeld || this.final || this.disposed || !this.state || !this.levels.length) return false;
+        this.finishingShotHeld = true;
+        this.state = { ...this.state, pose };
+        this.position.set(pose.x, pose.y, pose.z);
+        this.root.position.copy(this.position);
+        this.root.rotation.set(0, pose.yaw, pose.roll, 'YXZ');
+        this.root.scale.setScalar(pose.scale ?? transportTuning.scale);
+        this.root.visible = true;
+        this.tracers.forEach(tracer => { tracer.visible = false; });
+        this.warning.visible = false;
+        return true;
+    }
+    finishFinishingShot(): void {
+        this.finishingShotHeld = false;
+        this.finish('defeat');
+    }
     updateDefeatCamera(camera:THREE.Camera,delta:number,player:THREE.Object3D,
         chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {
         if(this.arrival)this.arrival.frame(camera,delta,player,chasePosition,chaseTarget);
@@ -210,11 +228,11 @@ export class GiantIncomingView {
     }
     get velocity(): TransportPoint | undefined { return this.state?.pose.velocity; }
     showHit(position?: TransportPoint) {
-        if (this.disposed || this.final) return;
+        if (this.disposed || this.final || this.finishingShotHeld) return;
         if (position) this.emit(position, 8, 30, .35);
         this.onHit?.();
     }
-    setState(state: TransportStateMessage, deferHit?: () => void) { if (this.disposed || this.final)
+    setState(state: TransportStateMessage, deferHit?: () => void) { if (this.disposed || this.final || this.finishingShotHeld)
         return; this.root.scale.setScalar(state.pose.scale ?? transportTuning.scale); if (!this.state)
         this.root.rotation.y = state.pose.yaw; this.state = state; this.receivedAt = performance.now(); this.position.set(state.pose.x, state.pose.y, state.pose.z); if (state.hitSequence > this.hitSequence) {
         this.hitSequence = state.hitSequence;
@@ -222,7 +240,8 @@ export class GiantIncomingView {
         else this.showHit(state.hitPosition);
     } }
     finish(kind: 'defeat' | 'timeout') {
-        if (this.final || this.disposed) return;
+        if (this.final || this.disposed || kind === 'defeat' && this.finishingShotHeld) return;
+        this.finishingShotHeld = false;
         this.final=kind; this.finalAt=this.elapsed;
         this.arrival?.dispose();this.arrival=undefined;this.arrivalResolve?.();this.arrivalResolve=undefined;
         this.tracers.forEach(t=>t.visible=false);this.warning.visible=false;
@@ -246,7 +265,7 @@ export class GiantIncomingView {
         this.colors[n * 3 + 2] = smoke ? .4 : .2;
     } }
     update(delta: number, camera: THREE.Camera) {
-        if (this.disposed)
+        if (this.disposed || this.finishingShotHeld)
             return;
         this.elapsed += delta;
         if(this.arrival){

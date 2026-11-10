@@ -1,10 +1,13 @@
 import { cityAirports } from '../../shared/city-airports.mjs';
+import { cityRegistry } from '../../shared/city-registry.mjs';
 import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 
 type HorizontalPoint = { x: number; z: number };
 
 const turnInset = 3_000 * DALLAS_WORLD_SCALE;
 const hardInset = 20;
+const dallasOrigin = cityRegistry.dallas.worldOrigin as HorizontalPoint;
+const dallasHalfSize = Number(cityRegistry.dallas.worldSize) / 2;
 // Preserve the established Dallas Hunter envelope for later combat missions;
 // it no longer belongs to Mission 2's race definition.
 export const journeyHunterArena = { center: { x: cityAirports.dallas[0].x, z: cityAirports.dallas[0].z }, radius: 25_000 * DALLAS_WORLD_SCALE };
@@ -44,4 +47,22 @@ export function journeyHunterSteeringTarget(position: HorizontalPoint, forward: 
 
 export function keepJourneyHunterInside<T extends HorizontalPoint>(position: T): T {
   return boundJourneyHunterPoint(position, hardInset);
+}
+
+export function keepDallasEscortInside(position: HorizontalPoint, inset = hardInset): HorizontalPoint {
+  const limit = dallasHalfSize - inset;
+  return {
+    x: Math.max(dallasOrigin.x - limit, Math.min(dallasOrigin.x + limit, position.x)),
+    z: Math.max(dallasOrigin.z - limit, Math.min(dallasOrigin.z + limit, position.z)),
+  };
+}
+
+export function dallasEscortSteeringTarget(position: HorizontalPoint, forward: HorizontalPoint, waypoint: HorizontalPoint): HorizontalPoint {
+  const turnAt = dallasHalfSize - turnInset;
+  const target = keepDallasEscortInside(waypoint, turnInset);
+  const dx = position.x - dallasOrigin.x;
+  const dz = position.z - dallasOrigin.z;
+  if (Math.abs(dx) >= turnAt && dx * forward.x > 0) target.x = dallasOrigin.x;
+  if (Math.abs(dz) >= turnAt && dz * forward.z > 0) target.z = dallasOrigin.z;
+  return target;
 }

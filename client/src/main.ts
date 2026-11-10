@@ -2172,11 +2172,13 @@ function transportMissionHasLiveTarget(attempt: JourneyAttemptState | null): boo
     ((attempt.fortressLeftHealth??0)>0 || (attempt.fortressRightHealth??0)>0);
 }
 
-function transportEscortDestroyed(remote: RemotePlayer): boolean {
+function transportEscortInactive(remote: RemotePlayer): boolean {
   if (!journeyAttempt || !transportLockParts(journeyAttempt.missionId).length) return false;
   const bit=remote.playerId===journeyAttempt.targetId ? 1 : remote.playerId===journeyAttempt.secondaryTargetId ? 2
     : remote.playerId===journeyAttempt.rearGuardThirdId ? 4 : remote.playerId===journeyAttempt.rearGuardFourthId ? 8 : 0;
-  return bit!==0 && (Boolean((journeyAttempt.rearGuardKills??0)&bit) || remote.health<=0 || remote.lifeState!=='alive');
+  if (bit === 0) return journeyAttempt.missionId === journeyDallas10.id && journeyAttempt.status === 'RACING' &&
+    remote.plane.userData.rearGuardEscort === true;
+  return Boolean((journeyAttempt.rearGuardKills??0)&bit) || remote.health<=0 || remote.lifeState!=='alive';
 }
 
 function updateRadar(direction: THREE.Vector3): void {
@@ -2232,7 +2234,7 @@ function updateRadar(direction: THREE.Vector3): void {
         formatRelativeAltitude(track.altitudeMeters - altitudeAboveTerrain()));
     }
     for (const remote of remotePlayers.values()) {
-      if (transportEscortDestroyed(remote) || !remote.isBot || (missionFocus?.showAmbientAIMarkers === false && unrelatedFocusedBot(remote.playerId)) || !remoteIdentityVisible(remote)) continue;
+      if (transportEscortInactive(remote) || !remote.isBot || (missionFocus?.showAmbientAIMarkers === false && unrelatedFocusedBot(remote.playerId)) || !remoteIdentityVisible(remote)) continue;
       drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'ai', journeyAttempt?.missionId === journeyDallas18.id && journeyAttempt.targetId === remote.playerId ? 'LEGENDARY FIREHAWK' : journeyAttempt?.missionId === journeyDallas17.id && journeyAttempt.targetId === remote.playerId ? 'ARMORED MAMMOTH' : journeyAttempt?.missionId === journeyDallas13.id && journeyAttempt.targetId === remote.playerId ? 'RED NIGHTOWL' : journeyAttempt?.missionId === journeyDallas14.id && journeyAttempt.targetId === remote.playerId ? 'ATTACKING BLUEJAY' : journeyAttempt?.missionId === journeyDallas15.id && journeyAttempt.targetId === remote.playerId ? 'ESCAPING MAMMOTH' : journeyAttempt?.missionId === journeyDallas16.id && (journeyAttempt.targetId === remote.playerId || journeyAttempt.secondaryTargetId === remote.playerId) ? remote.aircraftType==='privateJet'?'RED NIGHTOWL':'BLUEJAY WINGMAN' : journeyAttempt?.missionId === journeyDallas24.id && journeyAttempt.legendaryPhase === 'ACE' && journeyAttempt.targetId === remote.playerId ? 'LEGENDARY ACE' : '', false, remote.heatLevel >= 4,
         selectedCombatTarget?.remote === remote, selectedCombatTarget?.remote === remote && selectedCombatTarget.locked,
         primaryTerritoryColorForPlayer(remote.playerId), lockingThreatIds.has(remote.playerId),
@@ -2246,7 +2248,7 @@ function updateRadar(direction: THREE.Vector3): void {
   }
   if (journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id) {
     for (const escort of remotePlayers.values()) {
-      if (escort.plane.userData.rearGuardEscort && escort.lifeState === 'alive' && !transportEscortDestroyed(escort))
+      if (escort.plane.userData.rearGuardEscort && escort.lifeState === 'alive' && !transportEscortInactive(escort))
         drawRadarMarker(direction, escort.plane.position.x, escort.plane.position.z, 'mission', 'ESCORT');
     }
   }
@@ -2393,16 +2395,19 @@ let pendingTransportResultId:string|null=null;
 let transportCollisionAttemptId: string | null = null;
 let aircraftVictory: AircraftVictory | null = null;
 const aircraftVictoryCandidates: AircraftVictory[] = [];
-let aircraftVictoryReplay: { root: THREE.Group; pilot: THREE.Group; enemy: THREE.Group; tracer: THREE.Group; muzzle: THREE.Vector3; playerWasVisible: boolean } | null = null;
+type QueuedAircraftVictory = { ending: AircraftVictory; original?: THREE.Group; transport?: GiantIncomingView };
+const aircraftVictoryQueue: QueuedAircraftVictory[] = [];
+let aircraftVictoryTransport: GiantIncomingView | undefined;
+let aircraftVictoryReplay: { root: THREE.Group; pilot: THREE.Group; enemy?: THREE.Group; tracer: THREE.Group; muzzle: THREE.Vector3; playerWasVisible: boolean } | null = null;
 function clearAircraftVictoryReplay(): void {
   if (!aircraftVictoryReplay) return;
   scene.remove(aircraftVictoryReplay.root);
   disposeAirplaneMaterials(aircraftVictoryReplay.pilot);
-  disposeAirplaneMaterials(aircraftVictoryReplay.enemy);
+  if (aircraftVictoryReplay.enemy) disposeAirplaneMaterials(aircraftVictoryReplay.enemy);
   airplane.visible = aircraftVictoryReplay.playerWasVisible;
   aircraftVictoryReplay = null;
 }
-function prepareAircraftVictoryReplay(ending: AircraftVictory, original?: THREE.Group): void {
+function prepareAircraftVictoryReplay(ending: AircraftVictory, original?: THREE.Group, transport?: GiantIncomingView): void {
   if (!ending.hasReplay || aircraftVictoryReplay) return;
   if (ending.mission === journeyDallas17 || ending.mission === journeyDallas18 || ending.mission.fromGameplayCamera) ending.beginFromGameplayCamera(camera);
   const root = new THREE.Group();
@@ -2411,17 +2416,35 @@ function prepareAircraftVictoryReplay(ending: AircraftVictory, original?: THREE.
   pilot.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),ending.shotDirection);
   const muzzle = new THREE.Vector3().copy(aircraftPresentationMuzzleSockets[aircraftType].position).applyQuaternion(pilot.quaternion);
   pilot.position.copy(ending.shotOrigin).sub(muzzle);
-  const enemy = createAirplane(ending.mission.enemyAircraft);
-  applyEquippedLivery(enemy,ending.mission.enemyAircraft,{[`livery:${ending.mission.enemyAircraft}`]:ending.mission.enemyLivery});
-  if (original?.userData.airframeRoot) (enemy.userData.airframeRoot as THREE.Group).scale.copy(original.userData.airframeRoot.scale);
-  enemy.position.copy(ending.enemyPosition); enemy.rotation.copy(ending.enemyRotation);
-  ending.setTargetRadius(new THREE.Box3().setFromObject(enemy).getSize(new THREE.Vector3()).length() / 2);
+  const enemy = transport ? undefined : createAirplane(ending.mission.enemyAircraft);
+  if (enemy) {
+    applyEquippedLivery(enemy, ending.mission.enemyAircraft, {[`livery:${ending.mission.enemyAircraft}`]: ending.mission.enemyLivery});
+    if (original?.userData.airframeRoot) (enemy.userData.airframeRoot as THREE.Group).scale.copy(original.userData.airframeRoot.scale);
+    enemy.position.copy(ending.enemyPosition);
+    enemy.rotation.copy(ending.enemyRotation);
+    root.add(enemy);
+  }
+  ending.setTargetRadius(new THREE.Box3().setFromObject(enemy ?? transport!.root).getSize(new THREE.Vector3()).length() / 2);
   const tracer = createProjectileMesh();
   tracer.position.copy(ending.shotOrigin);
   tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),ending.shotDirection);
-  root.add(pilot,enemy,tracer);root.visible=false;scene.add(root);
+  root.add(pilot,tracer);root.visible=false;scene.add(root);
   aircraftVictoryReplay={root,pilot,enemy,tracer,muzzle,playerWasVisible:airplane.visible};
   airplane.visible=false;
+}
+function playAircraftVictory(ending: AircraftVictory, original?: THREE.Group, transport?: GiantIncomingView): void {
+  ending.confirmSuccess();
+  if (transportView?.defeatActive || aircraftVictory?.pending && aircraftVictory !== ending) {
+    aircraftVictoryQueue.push({ ending, original, transport });
+    return;
+  }
+  aircraftVictory = ending;
+  aircraftVictoryTransport = transport;
+  clearHeldActions();
+  mobileInput.reset();
+  boostActive = false;
+  flightGameRoot.classList.add('aircraft-victory-active');
+  prepareAircraftVictoryReplay(ending, original, transport);
 }
 let crashSequence: CrashSequence | null = null;
 let crashPresentationStarted = false;
@@ -2433,6 +2456,8 @@ flightGameRoot.append(transportCrashFlash);
 function resetCrashPresentation(): void {
   clearAircraftVictoryReplay();
   aircraftVictory = null;
+  aircraftVictoryQueue.length = 0;
+  aircraftVictoryTransport = undefined;
   aircraftVictoryCandidates.length = 0;
   flightGameRoot.classList.remove('aircraft-victory-active');
   crashSequence = null;
@@ -3124,8 +3149,8 @@ function journeyResultMetric(label: string, value: string): HTMLElement {
 function showJourneyResult(attempt: JourneyAttemptState): void {
   if (attempt.status !== 'COMPLETED' && attempt.status !== 'FAILED' && attempt.status !== 'ABANDONED') return;
   if (attempt.status === 'FAILED' && attempt.attemptId === crashSequence?.attemptId) return;
-  if ((attempt.missionId === journeyDallas13.id || attempt.missionId === journeyDallas14.id || attempt.missionId === journeyDallas15.id || attempt.missionId === journeyDallas16.id || attempt.missionId === journeyDallas17.id || attempt.missionId === journeyDallas18.id || attempt.missionId === journeyDallas08.id || attempt.missionId === journeyDallas09.id || attempt.missionId === journeyDallas10.id || attempt.missionId === journeyDallas12.id) && attempt.status === 'COMPLETED' &&
-    aircraftVictory?.attemptId === attempt.attemptId && !aircraftVictory.complete) {
+  if (attempt.status === 'COMPLETED' && aircraftVictoryQueue.length && !aircraftVictory?.pending) return;
+  if (attempt.status === 'COMPLETED' && aircraftVictory?.attemptId === attempt.attemptId && !aircraftVictory.complete) {
     aircraftVictory.confirmSuccess();
     clearHeldActions(); mobileInput.reset(); boostActive = false; runStarted = false;
     cinematicDirector.clearPresentation();
@@ -3133,7 +3158,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
     flightGameRoot.classList.add('aircraft-victory-active');
     return;
   }
-  if((attempt.missionId===journeyDallas07.id || attempt.missionId===journeyDallas08.id || attempt.missionId===journeyDallas09.id || attempt.missionId===journeyDallas10.id || attempt.missionId===journeyDallas11.id) && attempt.status==='COMPLETED' && transportView && !transportView.defeatComplete){
+  if((attempt.missionId===journeyDallas07.id || attempt.missionId===journeyDallas08.id || attempt.missionId===journeyDallas09.id || attempt.missionId===journeyDallas10.id || attempt.missionId===journeyDallas11.id || attempt.missionId===journeyDallas12.id) && attempt.status==='COMPLETED' && transportView && !transportView.defeatComplete){
     const view=transportView;view.finish('defeat');
     if(pendingTransportResultId===attempt.attemptId)return;
     pendingTransportResultId=attempt.attemptId;clearHeldActions();boostActive=false;
@@ -3145,6 +3170,14 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
     return;
   }
   const success = attempt.status === 'COMPLETED';
+  // Displayed M16 uses the shared victory flyby after the last combat cinematic.
+  if (success && attempt.missionId === journeyDallas10.id) {
+    if (missionClearAttemptId !== attempt.attemptId) {
+      beginMissionClear(attempt);
+      return;
+    }
+    if (missionClearStartedAt !== null) return;
+  }
   flightEndResultActive = false;
   trainingResultActive = false;
   journeyResultElement.classList.remove('is-training', 'is-flight-result');
@@ -3343,18 +3376,30 @@ function beginMissionClear(attempt: JourneyAttemptState): void {
 }
 
 function updateAircraftVictory(delta: number): void {
+  if (transportView?.defeatActive) return;
   const ending = aircraftVictory;
-  if (!ending?.pending) return;
+  if (!ending?.pending) {
+    const next = aircraftVictoryQueue.shift();
+    if (next) playAircraftVictory(next.ending, next.original, next.transport);
+    return;
+  }
   const frame = ending.update(delta);
   if (aircraftVictoryReplay) {
     aircraftVictoryReplay.root.visible = ending.replaying;
     aircraftVictoryReplay.tracer.position.copy(ending.bulletPosition);
-    fitProjectileRound(aircraftVictoryReplay.tracer, ending.bulletPosition.distanceTo(ending.shotOrigin));
     aircraftVictoryReplay.pilot.position.copy(ending.pilotMuzzlePosition).sub(aircraftVictoryReplay.muzzle);
-    aircraftVictoryReplay.enemy.position.copy(ending.enemyPosition);
+    aircraftVictoryReplay.enemy?.position.copy(ending.enemyPosition);
   }
   if (frame.blast) {
     clearAircraftVictoryReplay();
+    if (aircraftVictoryTransport) {
+      aircraftVictoryTransport.finishFinishingShot();
+      aircraftVictoryTransport = undefined;
+      aircraftVictory = null;
+      flightGameRoot.classList.remove('aircraft-victory-active');
+      if (journeyAttempt?.attemptId === ending.attemptId && journeyAttempt.status === 'COMPLETED') showJourneyResult(journeyAttempt);
+      return;
+    }
     createDestructionEffect(ending.impactPosition, ending.mission.enemyAircraft, 3);
     playDestructionSound();
     audioManager.playDestroyConfirm();
@@ -3362,8 +3407,21 @@ function updateAircraftVictory(delta: number): void {
   transportCrashFlash.style.opacity = String(frame.flash);
   if (frame.complete) {
     transportCrashFlash.style.opacity = '0';
-    flightGameRoot.classList.remove('aircraft-victory-active');
     clearAircraftVictoryReplay();
+    const queued = aircraftVictoryQueue.shift();
+    if (queued) {
+      playAircraftVictory(queued.ending, queued.original, queued.transport);
+      return;
+    }
+    // The result packet can arrive before the final opponent's destruction.
+    if (journeyAttempt?.status === 'COMPLETED') {
+      const next = aircraftVictoryCandidates.find(candidate => candidate.pending);
+      if (next) {
+        aircraftVictory = next;
+        return;
+      }
+    }
+    flightGameRoot.classList.remove('aircraft-victory-active');
     if (journeyAttempt?.attemptId === ending.attemptId && journeyAttempt.status === 'COMPLETED') showJourneyResult(journeyAttempt);
   }
 }
@@ -5162,7 +5220,7 @@ type ServerMessage =
   | { type: 'missionFailed'; missionId: string; reason: string }
   | { type: 'journeyAttempt'; attempt: JourneyAttemptState; serverNow: number }
   | TransportStateMessage
-  | {type:'transportFinal';attemptId:string;kind:'defeat'|'timeout';at:number}
+  | {type:'transportFinal';attemptId:string;kind:'defeat'|'timeout';at:number;finishingShot?: {id:string;origin:NetworkVector;impact:NetworkVector;pose:TransportStateMessage['pose'];speed:number}}
   | {type:'transportCollision';attemptId:string;position:NetworkVector}
   | MonsterStateMessage
   | { type: 'monsterFinal'; attemptId: string; kind: 'defeat' | 'timeout'; at: number }
@@ -5546,8 +5604,9 @@ type ClientProjectile = {
   bank: number;
   authoritativePosition: THREE.Vector3;
   predictedTargetId?: string;
+  showFullFlight: boolean;
+  fadeStartedAt?: number;
   pendingAge: number;
-  alignLaunch?: boolean;
   speed: number;
   local: boolean;
   ownerIsBot: boolean;
@@ -5556,6 +5615,15 @@ type ClientProjectile = {
   lastAuthoritativeAt: number;
   impactTravel?: number;
   onImpact?: () => void;
+};
+
+type ProjectileAimExit = {
+  attitude: THREE.Quaternion;
+  offset: THREE.Vector3;
+  directionDelta: THREE.Vector3;
+  active: boolean;
+  turning: boolean;
+  passedAt?: number;
 };
 
 type AssistedShotVisual = {
@@ -5569,7 +5637,17 @@ type AssistedShotVisual = {
   bank: number;
   elapsed: number;
   duration: number;
-  onImpact?: () => void;
+  onImpact?: (position?: THREE.Vector3) => void;
+  impact?: {
+    plane: THREE.Object3D;
+    velocity?: NetworkVector;
+    localPoint?: THREE.Vector3;
+    start: THREE.Vector3;
+    contact: THREE.Vector3;
+    duration: number;
+    elapsed: number;
+    arrived?: boolean;
+  };
 };
 
 function paintPlayerIdentityTag(label: THREE.Sprite, name: string, type: AircraftType, king: boolean, isBot: boolean,
@@ -5741,6 +5819,9 @@ type FlashEffect = {
   glowMaterial: THREE.MeshBasicMaterial;
   elapsed: number;
   duration: number;
+  expands: boolean;
+  follow?: THREE.Object3D;
+  followOffset: THREE.Vector3;
 };
 
 type DestructionEffect = {
@@ -7714,83 +7795,27 @@ const projectileMaterial = new THREE.MeshPhongMaterial({
   shininess: 24,
   toneMapped: false,
 });
-// Share opacity levels across the pool so fading never changes another round.
-const projectileFadeSteps = 32;
-const projectileFadeMaterials = [projectileMaterial, ...Array.from({ length: projectileFadeSteps - 1 }, (_, index) => {
+const projectileFadeDuration = 0.12;
+const projectileFadeMaterials = Array.from({ length: 11 }, (_, index) => {
   const material = projectileMaterial.clone();
   material.transparent = true;
   material.depthWrite = false;
-  material.opacity = 1 - (index + 1) / projectileFadeSteps;
+  material.opacity = (11 - index) / 12;
   return material;
-})];
-const projectileFadeProjection = new THREE.Vector3();
+});
 const projectileAimPassDistance = 120;
-const projectileLaunchProjection = new THREE.Vector3();
-const projectileLaunchInverse = new THREE.Quaternion();
-
-function alignProjectileLaunch(mesh: THREE.Group, distance: number): void {
-  if (mesh.scale.x <= 0) return;
-  const launch = mesh.userData;
-  const offset = launch.aimPassOffset as THREE.Vector3;
-  const slope = launch.aimPassSlope as THREE.Vector3;
-  const previousDistance = launch.aimPassDistance as number;
-  if (launch.aimPassed) {
-    offset.addScaledVector(slope, distance - previousDistance);
-  } else if (previousDistance > 0 && distance > projectileAimPassDistance * 0.1) {
-    projectileLaunchProjection.copy(mesh.position).project(camera);
-    if (Math.abs(projectileLaunchProjection.z) <= 1 && Math.abs(lockProjectedCenter.z) <= 1) {
-      // Give the round a short straight exit from the rendered muzzle before aligning to the ring.
-      const blend = THREE.MathUtils.smoothstep(distance, projectileAimPassDistance * 0.1, projectileAimPassDistance * 0.5);
-      projectileLaunchProjection.x = THREE.MathUtils.lerp(projectileLaunchProjection.x, lockProjectedCenter.x, blend);
-      projectileLaunchProjection.y = THREE.MathUtils.lerp(projectileLaunchProjection.y, lockProjectedCenter.y, blend);
-      projectileLaunchProjection.unproject(camera).sub(mesh.position);
-      if (distance >= projectileAimPassDistance && distance > previousDistance) {
-        slope.subVectors(projectileLaunchProjection, offset).divideScalar(distance - previousDistance);
-      }
-      offset.copy(projectileLaunchProjection);
-    }
-    // Continue along the incoming visual heading after crossing. Holding only
-    // the offset would switch the sphere back to the ballistic heading here.
-    launch.aimPassed = distance >= projectileAimPassDistance;
-  }
-  launch.aimPassDistance = distance;
-  // Offset only the visible sphere. The server still owns the ballistic path and hits.
-  mesh.children[0]!.position.copy(offset)
-    .applyQuaternion(projectileLaunchInverse.copy(mesh.quaternion).invert()).divide(mesh.scale);
-}
-
-function fadeOffAimRound(mesh: THREE.Group, age: number): void {
-  const previousFade: number = mesh.userData.turnFade ?? 0;
-  if (previousFade >= 1 || age < 0.075 || Math.abs(airplane.rotation.z) < 0.08) return;
-  projectileFadeProjection.copy(mesh.position).add(mesh.userData.aimPassOffset as THREE.Vector3).project(camera);
-  const dx = (projectileFadeProjection.x + 1) * window.innerWidth * 0.5 - lockCircleCenterX;
-  const dy = (1 - projectileFadeProjection.y) * window.innerHeight * 0.5 - lockCircleCenterY;
-  const ringsFromAim = Math.hypot(dx, dy) / Math.max(1, lockCircleRadius);
-  // A fast bank can move an older round across the whole fade band in one
-  // frame. Tie opacity to its current separation and prevent a faded round
-  // from brightening if the aim circle later crosses its path.
-  const fade = projectileFadeProjection.z < -1 || projectileFadeProjection.z > 1
-    ? 1 : THREE.MathUtils.smoothstep(ringsFromAim, 1.15, 2.25);
-  if (fade <= previousFade) return;
-  mesh.userData.turnFade = fade;
-  const core = mesh.children[0] as THREE.Mesh;
-  if (fade === 1) core.visible = false;
-  else core.material = projectileFadeMaterials[Math.floor(fade * projectileFadeSteps)]!;
-}
-
-function resetProjectileFade(mesh: THREE.Group): void {
-  if (!mesh.userData.turnFade) return;
-  mesh.userData.turnFade = 0;
-  const core = mesh.children[0] as THREE.Mesh;
-  core.visible = true;
-  core.material = projectileMaterial;
-}
+const projectileSharpTurnBank = 0.45;
+const projectileAimAttitudeTolerance = 0.000001;
+const assistedAircraftMaxApproachTime = 0.24;
+const projectileRoundPixels = 16;
 
 function projectileRoundDiameter(point: THREE.Vector3): number {
+  const inverse = camera.matrixWorldInverse.elements;
+  const depth = -(inverse[2]! * point.x + inverse[6]! * point.y + inverse[10]! * point.z + inverse[14]!);
   const focalPixels = Math.max(1, camera.projectionMatrix.elements[5]! * window.innerHeight / 2);
-  const worldPerPixel = Math.max(camera.near, camera.position.distanceTo(point)) / focalPixels;
-  return Math.max(1.2, worldPerPixel * 16);
+  return Math.max(camera.near, depth) * projectileRoundPixels / focalPixels;
 }
+
 function fitProjectileRound(mesh: THREE.Group, distance: number): void {
   mesh.scale.setScalar(Math.min(projectileRoundDiameter(mesh.position), Math.max(0, distance * 2)));
 }
@@ -7813,7 +7838,7 @@ function clearProjectileVisuals(): void {
 const projectilePool: ClientProjectile[] = [];
 const predictedProjectiles = new Map<string, ClientProjectile>();
 const maxClientProjectiles = 256;
-const pendingTracerLifetime = 0.35;
+const pendingTracerLifetime = 0.65;
 const maxAuthoritativeProjectileAgeMs = (COMBAT_RANGE / BASE_PROJECTILE_SPEED + 1) * 1_000;
 const assistedShotVisuals: AssistedShotVisual[] = [];
 const assistedShotPool: THREE.Group[] = [];
@@ -7830,6 +7855,9 @@ const maxAssistedShotVisuals = 64;
 const assistedShotDirection = new THREE.Vector3();
 const muzzleFlashGeometry = new THREE.SphereGeometry(1, 8, 6);
 const impactFlashGeometry = new THREE.SphereGeometry(1, 9, 7);
+const aircraftImpactRay = new THREE.Raycaster();
+const aircraftImpactSurfaceHits: THREE.Intersection[] = [];
+const aircraftImpactAim = new THREE.Vector3();
 const muzzleFlashes: FlashEffect[] = [];
 const muzzleFlashPool: FlashEffect[] = [];
 const impactFlashes: FlashEffect[] = [];
@@ -7996,9 +8024,6 @@ if (visualQaMode && cityWorld.visualQaPresets) {
 
 function createProjectileMesh(): THREE.Group {
   const mesh = new THREE.Group();
-  mesh.userData.aimPassOffset = new THREE.Vector3();
-  mesh.userData.aimPassSlope = new THREE.Vector3();
-  mesh.userData.aimPassDistance = 0;
   const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
   core.renderOrder = 3;
   mesh.add(core);
@@ -8013,6 +8038,7 @@ function createProjectileVisual(): ClientProjectile {
     bank: 0,
     authoritativePosition: new THREE.Vector3(),
     pendingAge: 0,
+    showFullFlight: false,
     speed: 520,
     local: false,
     ownerIsBot: false,
@@ -8027,12 +8053,14 @@ function releaseProjectile(projectile: ClientProjectile): void {
   projectile.onImpact = undefined;
   scene.remove(projectile.mesh);
   projectile.mesh.visible = false;
-  resetProjectileFade(projectile.mesh);
-  (projectile.mesh.userData.aimPassOffset as THREE.Vector3).set(0, 0, 0);
-  (projectile.mesh.userData.aimPassSlope as THREE.Vector3).set(0, 0, 0);
-  projectile.mesh.userData.aimPassDistance = 0;
-  projectile.mesh.userData.aimPassed = false;
-  projectile.mesh.children[0]!.position.set(0, 0, 0);
+  const exit = projectile.mesh.userData.aimExit as ProjectileAimExit | undefined;
+  if (exit) exit.active = false;
+  const core = projectile.mesh.children[0] as THREE.Mesh;
+  core.position.set(0, 0, 0);
+  core.visible = true;
+  core.material = projectileMaterial;
+  projectile.fadeStartedAt = undefined;
+  projectile.showFullFlight = false;
   projectile.mesh.scale.set(1, 1, 1);
   projectile.predictedTargetId = undefined;
   if (projectilePool.length < maxClientProjectiles) projectilePool.push(projectile);
@@ -8059,7 +8087,7 @@ function createFlashEffect(color: number): FlashEffect {
   const glow = new THREE.Mesh(impactFlashGeometry, glowMaterial);
   const core = new THREE.Mesh(muzzleFlashGeometry, coreMaterial);
   mesh.add(glow, core);
-  return { mesh, coreMaterial, glowMaterial, elapsed: 0, duration: 0.2 };
+  return { mesh, coreMaterial, glowMaterial, elapsed: 0, duration: 0.2, expands: false, followOffset: new THREE.Vector3() };
 }
 
 function spawnFlash(
@@ -8069,6 +8097,8 @@ function spawnFlash(
   duration: number,
   startScale: number,
   direction?: THREE.Vector3,
+  expands = effects !== muzzleFlashes,
+  follow?: THREE.Object3D,
 ): void {
   if (effects.length >= maxFlashEffects) {
     const oldest = effects.shift();
@@ -8080,13 +8110,17 @@ function spawnFlash(
   const flash = pool.pop() ?? createFlashEffect(0xffa33c);
   flash.elapsed = 0;
   flash.duration = duration;
+  flash.expands = expands;
+  flash.follow = follow;
+  if (follow) follow.worldToLocal(flash.followOffset.copy(position));
   flash.mesh.position.copy(position);
   const muzzle = effects === muzzleFlashes;
   flash.mesh.scale.set(startScale, startScale, muzzle ? startScale * 2.5 : startScale);
   if (direction) flash.mesh.quaternion.setFromUnitVectors(projectileForward, direction);
   else flash.mesh.quaternion.identity();
   flash.coreMaterial.opacity = 1;
-  flash.glowMaterial.opacity = muzzle ? 0 : 0.44;
+  flash.mesh.children[0]!.scale.setScalar(follow ? 1.8 : 1);
+  flash.glowMaterial.opacity = muzzle ? 0 : follow ? 0.65 : 0.44;
   flash.mesh.visible = true;
   scene.add(flash.mesh);
   effects.push(flash);
@@ -8099,14 +8133,18 @@ function updateFlashEffects(effects: FlashEffect[], pool: FlashEffect[], delta: 
     // A compact pulse follows the gun, without growing into a nose-sized bubble.
     const muzzle = effects === muzzleFlashes;
     if (muzzle) getCurrentMuzzlePosition(flash.mesh.position);
+    else if (flash.follow?.visible && flash.follow.parent) {
+      flash.follow.localToWorld(flash.mesh.position.copy(flash.followOffset));
+    }
     flash.elapsed += delta;
     const progress = flash.elapsed / flash.duration;
-    if (!muzzle) flash.mesh.scale.multiplyScalar(1 + delta * 13);
+    if (flash.expands) flash.mesh.scale.multiplyScalar(1 + delta * 13);
     flash.coreMaterial.opacity = Math.max(0, 1 - progress);
-    flash.glowMaterial.opacity = muzzle ? 0 : Math.max(0, 0.44 * (1 - progress));
+    flash.glowMaterial.opacity = muzzle ? 0 : Math.max(0, (flash.follow ? 0.65 : 0.44) * (1 - progress));
     if (flash.elapsed < flash.duration) continue;
     scene.remove(flash.mesh);
     flash.mesh.visible = false;
+    flash.follow = undefined;
     effects.splice(index, 1);
     if (pool.length < maxFlashEffects) pool.push(flash);
   }
@@ -8137,7 +8175,8 @@ function getCurrentFiringRay(origin: THREE.Vector3, direction: THREE.Vector3, lo
   }
 }
 
-function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, clientShotId: string, targetId?: string): void {
+function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, clientShotId: string,
+  targetId?: string, showFullFlight = Boolean(targetId)): void {
   projectileOrigin.copy(origin);
   projectileDirection.copy(direction);
   spawnFlash(muzzleFlashes, muzzleFlashPool, projectileOrigin, 0.04, 0.075, projectileDirection);
@@ -8146,22 +8185,32 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
   predicted.speed = ballisticShotSpeed(velocity, predicted.direction);
   predicted.bank = airplane.rotation.z;
   predicted.predictedTargetId = targetId;
+  predicted.showFullFlight = showFullFlight;
   predicted.spawnedAt = performance.now();
   predicted.local = true;
   predicted.ownerId = localPlayerId ?? '';
   // The first visible sphere touches the muzzle at its rear surface.
   const initialTravel = Math.min(projectileRoundDiameter(projectileOrigin) * 0.5, predicted.speed * 0.008);
   predicted.pendingAge = initialTravel / predicted.speed;
-  predicted.alignLaunch = !soloExploreMode;
   predicted.firingOrigin.copy(projectileOrigin);
   predicted.mesh.position.copy(predicted.firingOrigin).addScaledVector(predicted.direction, initialTravel);
   predicted.mesh.scale.setScalar(initialTravel * 2);
   predicted.mesh.quaternion.setFromUnitVectors(projectileForward, predicted.direction);
   predicted.mesh.rotateZ(predicted.bank);
+  if (!soloExploreMode) {
+    const exit: ProjectileAimExit = predicted.mesh.userData.aimExit ??= {
+      attitude: new THREE.Quaternion(), offset: new THREE.Vector3(), directionDelta: new THREE.Vector3(),
+      active: false, turning: false,
+    };
+    exit.attitude.copy(airplane.quaternion);
+    exit.active = true;
+    exit.turning = false;
+    exit.passedAt = undefined;
+  }
   // The local tracer is immediate in either mode. Only the server confirms a hit.
   predicted.mesh.visible = true;
   scene.add(predicted.mesh);
-  if (predictedProjectiles.size >= 8) {
+  if (predictedProjectiles.size >= (soloExploreMode ? maxClientProjectiles : 8)) {
     const oldestShotId = predictedProjectiles.keys().next().value as string | undefined;
     const oldest = oldestShotId ? predictedProjectiles.get(oldestShotId) : undefined;
     if (oldestShotId) {
@@ -8182,7 +8231,6 @@ function releaseAssistedShot(shot: AssistedShotVisual): void {
   else {
     scene.remove(shot.mesh);
     shot.mesh.visible = false;
-    resetProjectileFade(shot.mesh);
     if (assistedShotPool.length < maxAssistedShotVisuals) assistedShotPool.push(shot.mesh);
   }
 }
@@ -8238,10 +8286,41 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
   });
 }
 
-function playProjectileHit(position: NetworkVector | undefined, damage: number, localShot: boolean): void {
+function placeAircraftImpactFlash(point: THREE.Vector3, aircraft: THREE.Object3D, radius: number): void {
+  const airframe = aircraft.userData.airframeRoot as THREE.Group | undefined;
+  const model = airframe?.children.find(child => child.visible &&
+    (child.name.startsWith('aircraft-asset-') || child.name.startsWith('aircraft-fallback-')));
+  if (!model) return;
+
+  // Resolve contact on the visible side of the hull.
+  model.updateWorldMatrix(true, true);
+  aircraftImpactAim.copy(point);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    aircraftImpactAim.sub(camera.position).normalize();
+    aircraftImpactRay.set(camera.position, aircraftImpactAim);
+    aircraftImpactRay.intersectObject(model, true, aircraftImpactSurfaceHits);
+    const surface = aircraftImpactSurfaceHits.find(hit => {
+      for (let part: THREE.Object3D | null = hit.object; part && part !== model; part = part.parent) {
+        if (!part.visible) return false;
+      }
+      return true;
+    });
+    aircraftImpactSurfaceHits.length = 0;
+    if (surface) {
+      point.copy(surface.point).addScaledVector(aircraftImpactAim, -radius * 0.1);
+      return;
+    }
+    // The collision volume can extend past the visible outline.
+    model.getWorldPosition(aircraftImpactAim);
+  }
+}
+
+function playProjectileHit(position: NetworkVector | undefined, damage: number, localShot: boolean, aircraftContact = false, aircraft?: THREE.Object3D, surfaceResolved = false): void {
   if (position) {
     projectileImpactPoint.copy(position);
-    spawnFlash(impactFlashes, impactFlashPool, projectileImpactPoint, 0.28, 0.7);
+    const radius = aircraftContact ? projectileRoundDiameter(projectileImpactPoint) * 0.5 : 0.7;
+    if (aircraftContact && aircraft && !surfaceResolved) placeAircraftImpactFlash(projectileImpactPoint, aircraft, radius);
+    spawnFlash(impactFlashes, impactFlashPool, projectileImpactPoint, aircraftContact ? 0.22 : 0.28, radius, undefined, !aircraftContact, aircraft);
   }
   if (localShot) {
     showCombatMessage(`HIT +${damage}`, true);
@@ -8252,6 +8331,10 @@ function playProjectileHit(position: NetworkVector | undefined, damage: number, 
 
 function pendingAssistedHit(shotId: string | undefined): AssistedShotVisual | undefined {
   return shotId ? assistedShotVisuals.find(shot => shot.shotId === shotId) : undefined;
+}
+
+function setAssistedImpact(shot: AssistedShotVisual, plane: THREE.Object3D, velocity?: NetworkVector, localPoint?: THREE.Vector3): void {
+  shot.impact = { plane, velocity, localPoint, start: new THREE.Vector3(), contact: new THREE.Vector3(), duration: 0, elapsed: 0 };
 }
 
 function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn' }>): void {
@@ -8283,10 +8366,7 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
   projectile.ownerIsBot = ownerIsBot;
   projectile.ownerId = message.ownerId;
   projectile.authoritativePosition.set(message.position.x, message.position.y, message.position.z);
-  if (!keepFiringRay) {
-    projectile.pendingAge = 0;
-    projectile.alignLaunch = false;
-  }
+  if (!keepFiringRay) projectile.pendingAge = 0;
   projectile.lastAuthoritativeAt = performance.now();
   if (!keepFiringRay) projectile.spawnedAt = projectile.lastAuthoritativeAt;
   if (!keepFiringRay) {
@@ -8324,6 +8404,52 @@ function finishProjectileAtImpact(projectile: ClientProjectile, position: Networ
   // Presentation can lag a server hit. Continue briefly along the launch ray,
   // then play feedback at the exact server point, even if the rays diverged.
   projectile.impactTravel = THREE.MathUtils.clamp(projectileImpactPoint.dot(projectile.direction), 0, projectile.speed * 0.15);
+}
+
+function advanceAssistedImpact(shot: AssistedShotVisual, delta: number): boolean {
+  const impact = shot.impact!;
+  if (impact.arrived) return true;
+  const { plane, velocity, localPoint } = impact;
+  if (!plane.visible || !plane.parent) {
+    shot.onImpact?.();
+    return true;
+  }
+  const starting = impact.elapsed === 0;
+  if (starting || impact.elapsed + delta >= impact.duration) {
+    if (localPoint) plane.localToWorld(impact.contact.copy(localPoint));
+    else impact.contact.copy(plane.position);
+  }
+  if (starting) {
+    const core = shot.mesh.children[0]!;
+    core.getWorldPosition(impact.start);
+    core.position.set(0, 0, 0);
+    // Commit to one intercept after the round clears the reticle. A target
+    // turning away cannot extend the flight or make the round chase it.
+    impact.duration = Math.min(assistedAircraftMaxApproachTime,
+      impact.start.distanceTo(impact.contact) / shot.speed);
+    if (velocity && impact.duration > delta) {
+      const leadTime = impact.duration - delta;
+      impact.contact.x += velocity.x * leadTime;
+      impact.contact.y += velocity.y * leadTime;
+      impact.contact.z += velocity.z * leadTime;
+    }
+  }
+  impact.elapsed += delta;
+  if (impact.elapsed < impact.duration) {
+    shot.mesh.position.lerpVectors(impact.start, impact.contact, impact.elapsed / impact.duration);
+    shot.mesh.scale.setScalar(projectileRoundDiameter(shot.mesh.position));
+    return false;
+  }
+  // The confirmed hit and its flash share the current hull contact.
+  if (!localPoint) placeAircraftImpactFlash(impact.contact, plane, projectileRoundDiameter(impact.contact) * 0.5);
+  shot.mesh.position.copy(impact.contact);
+  shot.mesh.scale.setScalar(projectileRoundDiameter(shot.mesh.position));
+  // Render the crimson round against the hull before returning it to the pool.
+  impact.arrived = true;
+  const onImpact = shot.onImpact;
+  shot.onImpact = undefined;
+  onImpact?.(impact.contact);
+  return false;
 }
 
 function updateProjectiles(delta: number): void {
@@ -8367,11 +8493,12 @@ function updateProjectiles(delta: number): void {
     fitProjectileRound(projectile.mesh, traveled);
   }
   for (const [clientShotId, projectile] of predictedProjectiles) {
-    projectile.pendingAge += delta;
-    const step = delta * projectile.speed;
-    projectile.mesh.position.addScaledVector(projectile.direction, step);
+    const lifetime = projectile.showFullFlight ? 0.8 : pendingTracerLifetime;
+    const stepTime = Math.min(delta, Math.max(0, lifetime - projectile.pendingAge));
+    projectile.pendingAge += stepTime;
+    projectile.mesh.position.addScaledVector(projectile.direction, stepTime * projectile.speed);
     fitProjectileRound(projectile.mesh, projectile.pendingAge * projectile.speed);
-    if (projectile.pendingAge < (projectile.predictedTargetId ? 0.8 : pendingTracerLifetime)) continue;
+    if (projectile.pendingAge < lifetime) continue;
     rememberProjectileId(retiredPredictedShots, clientShotId);
     predictedProjectiles.delete(clientShotId);
     releaseProjectile(projectile);
@@ -8379,35 +8506,108 @@ function updateProjectiles(delta: number): void {
   for (let index = assistedShotVisuals.length - 1; index >= 0; index -= 1) {
     const shot = assistedShotVisuals[index];
     shot.mesh.visible = true;
-    shot.elapsed = Math.min(shot.duration, shot.elapsed + delta);
-    shot.mesh.position.copy(shot.origin).addScaledVector(shot.direction, shot.elapsed * shot.speed);
-    fitProjectileRound(shot.mesh, shot.elapsed * shot.speed);
-    if (shot.elapsed < shot.duration) continue;
-    shot.onImpact?.();
+    const straightFlightEnd = shot.impact
+      ? Math.min(shot.duration, projectileAimPassDistance / shot.speed)
+      : shot.duration;
+    if (shot.impact && shot.elapsed >= straightFlightEnd) {
+      if (!advanceAssistedImpact(shot, delta)) continue;
+    } else {
+      shot.elapsed = Math.min(straightFlightEnd, shot.elapsed + delta);
+      shot.mesh.position.copy(shot.origin).addScaledVector(shot.direction, shot.elapsed * shot.speed);
+      fitProjectileRound(shot.mesh, shot.elapsed * shot.speed);
+      if (shot.impact || shot.elapsed < shot.duration) continue;
+      shot.onImpact?.();
+    }
     releaseAssistedShot(shot);
     assistedShotVisuals.splice(index, 1);
   }
 }
 
-function updateLocalProjectilePresentation(mesh: THREE.Group, age: number, speed: number, alignLaunch?: boolean): void {
-  if (alignLaunch) {
-    const distance = age * speed;
-    alignProjectileLaunch(mesh, distance);
-    if (distance <= projectileAimPassDistance) return;
+const projectileAimExitPoint = new THREE.Vector3();
+const projectileAimExitInverse = new THREE.Quaternion();
+
+function projectileHasLateralDrift(position: THREE.Vector3): boolean {
+  const offsetX = position.x - transportReticleOrigin.x;
+  const offsetZ = position.z - transportReticleOrigin.z;
+  return Math.abs(offsetX * combatAimForward.z - offsetZ * combatAimForward.x) > 0.5;
+}
+
+function updateProjectileAimExit(mesh: THREE.Group, origin: THREE.Vector3, direction: THREE.Vector3, age: number,
+  followMuzzleDrift = false): void {
+  const exit = mesh.userData.aimExit as ProjectileAimExit | undefined;
+  if (!exit?.active || mesh.scale.x === 0 || exit.passedAt !== undefined && !exit.turning) return;
+  const distance = projectileAimExitPoint.subVectors(mesh.position, origin).dot(direction);
+  if (exit.passedAt === undefined) {
+    const ahead = projectileAimExitPoint.subVectors(mesh.position, transportReticleOrigin).dot(combatAimForward);
+    // Sideways momentum can move the muzzle even after the airframe levels out.
+    exit.turning ||= 1 - Math.abs(exit.attitude.dot(airplane.quaternion)) > projectileAimAttitudeTolerance ||
+      followMuzzleDrift && projectileHasLateralDrift(mesh.position);
+    if (exit.turning) {
+      exit.offset.copy(transportReticleOrigin).addScaledVector(combatAimForward, Math.max(mesh.scale.x * 0.5, ahead)).sub(mesh.position);
+    }
+    const passDepth = Math.min(projectileAimPassDistance, lockBoresightPoint.distanceTo(transportReticleOrigin));
+    if (ahead >= passDepth || age >= 0.45) {
+      exit.passedAt = distance;
+      exit.directionDelta.subVectors(combatAimForward, direction);
+    }
   }
-  fadeOffAimRound(mesh, age);
+  if (!exit.turning) return;
+  // Keep the same world-space heading for the rest of the flight.
+  const visible = projectileAimExitPoint.copy(mesh.position).add(exit.offset);
+  if (exit.passedAt !== undefined) visible.addScaledVector(exit.directionDelta, distance - exit.passedAt);
+  mesh.scale.setScalar(projectileRoundDiameter(visible));
+  mesh.children[0]!.position.copy(visible).sub(mesh.position)
+    .applyQuaternion(projectileAimExitInverse.copy(mesh.quaternion).invert()).divideScalar(mesh.scale.x);
+}
+
+function presentLocalProjectile(shot: ClientProjectile): void {
+  const { mesh, pendingAge } = shot;
+  const core = mesh.children[0] as THREE.Mesh;
+  if (!core.visible) return;
+  updateProjectileAimExit(mesh, shot.firingOrigin, shot.direction, pendingAge, !shot.showFullFlight);
+  if (shot.showFullFlight) return;
+
+  const exit = mesh.userData.aimExit as ProjectileAimExit | undefined;
+  if (shot.fadeStartedAt === undefined) {
+    const passedAim = exit?.active ? exit.passedAt !== undefined : pendingAge * shot.speed >= projectileAimPassDistance;
+    if (!passedAim) return;
+    shot.fadeStartedAt = pendingAge;
+  }
+
+  // Retire rounds that have passed the reticle when the aircraft changes
+  // attitude, including a turn that starts during the fade.
+  if (exit?.active && (exit.turning ||
+      1 - Math.abs(exit.attitude.dot(airplane.quaternion)) > projectileAimAttitudeTolerance ||
+      Math.max(Math.abs(shot.bank), Math.abs(airplane.rotation.z)) >= projectileSharpTurnBank ||
+      chaseCameraHasLateralLag() || projectileHasLateralDrift(mesh.position))) {
+    core.visible = false;
+    return;
+  }
+
+  // Only the local sphere fades. Server projectile travel and hit feedback continue.
+  const progress = Math.min(1, (pendingAge - shot.fadeStartedAt) / projectileFadeDuration);
+  const step = Math.floor(progress * (projectileFadeMaterials.length + 1));
+  core.visible = progress < 1;
+  core.material = projectileFadeMaterials[step - 1] ?? projectileMaterial;
+}
+
+function chaseCameraHasLateralLag(): boolean {
+  if (!cameraRelativeOffsetInitialized || cameraOrbitBlend > 0) return false;
+  // The camera can still be sliding sideways after the airframe has leveled.
+  const errorX = smoothedCameraRelativeOffset.x - targetCameraRelativeOffset.x;
+  const errorZ = smoothedCameraRelativeOffset.z - targetCameraRelativeOffset.z;
+  const lateralError = Math.abs(errorX * cameraAircraftForward.z - errorZ * cameraAircraftForward.x);
+  return lateralError > smoothedChaseDistance * 0.008;
 }
 
 function updateLocalProjectiles(): void {
-  for (const shot of predictedProjectiles.values()) {
-    updateLocalProjectilePresentation(shot.mesh, shot.pendingAge, shot.speed, shot.alignLaunch);
-  }
+  for (const shot of predictedProjectiles.values()) presentLocalProjectile(shot);
   for (const shot of clientProjectiles.values()) {
-    if (shot.local) updateLocalProjectilePresentation(shot.mesh, shot.pendingAge, shot.speed, shot.alignLaunch);
+    if (shot.local) presentLocalProjectile(shot);
   }
   for (const shot of assistedShotVisuals) {
-    if (shot.ownerId === localPlayerId) {
-      updateLocalProjectilePresentation(shot.mesh, shot.elapsed, shot.speed, shot.predictedProjectile?.alignLaunch);
+    if (shot.ownerId === localPlayerId && !shot.impact?.elapsed) {
+      updateProjectileAimExit(shot.mesh, shot.origin, shot.direction, shot.elapsed);
     }
   }
 }
@@ -8767,7 +8967,7 @@ function syncTransportEscortObjective(): void {
   for (const id of ids) {
     const remote=id ? remotePlayers.get(id) : undefined;
     if (!remote?.isBot || remote.cityId!==cityId || remote.lifeState!=='alive' || remote.health<=0 ||
-        remote.timeSinceUpdate>remoteStateStaleSeconds || transportEscortDestroyed(remote)) continue;
+        remote.timeSinceUpdate>remoteStateStaleSeconds || transportEscortInactive(remote)) continue;
     const distance=remote.plane.position.distanceToSquared(airplane.position);
     if (remote===selected) { escort=remote;current=undefined;break; }
     if (missionObjective?.id===`${journeyAttempt.attemptId}:${remote.playerId}`) current=remote;
@@ -8824,6 +9024,7 @@ function updateRemotePlayers(delta: number): void {
     }
     const hiddenBot = remote.isBot && (
       Boolean(missionCombatIntroPath && missionCombatIntroPath.missionNumber !== 7 && flightLaunchState === 'active') ||
+      transportEscortInactive(remote) ||
       missionFocus?.showAmbientAIAircraft === false && unrelatedFocusedBot(remote.playerId));
     remote.plane.visible = remote.lifeState === 'alive' && !hiddenBot;
     if (hiddenBot) {
@@ -9884,6 +10085,10 @@ function updateCamera(delta: number): void {
     camera.fov = CAMERA_CHASE_FOV;
     camera.updateProjectionMatrix();
     aircraftVictory.updateCamera(camera);
+    if (aircraftVictoryReplay && aircraftVictory.replaying) {
+      camera.updateMatrixWorld(true);
+      fitProjectileRound(aircraftVictoryReplay.tracer, aircraftVictory.bulletPosition.distanceTo(aircraftVictory.shotOrigin));
+    }
     skyDome.position.copy(camera.position);
     return;
   }
@@ -10526,7 +10731,7 @@ function animate(): void {
   if (visualQaInspectionActive && visualQaRouteSpeed) airplane.position.addScaledVector(forward, visualQaRouteSpeed * delta);
   // Airborne encounter spawns wait for their clock; M19 instead permits
   // manual runway takeoff after the shared intro/countdown releases controls.
-  if (!crashed && runStarted && !monsterView?.timeoutCinematicActive && !visualQaInspectionActive && !screenplayFlightPaused && !journeyPreflightActive() &&
+  if (!crashed && runStarted && !aircraftVictory?.pending && !monsterView?.timeoutCinematicActive && !visualQaInspectionActive && !screenplayFlightPaused && !journeyPreflightActive() &&
     !skyDuelUi?.blocksFlightInput() && !airAssaultUi?.blocked() &&
     !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && ((journeyAttempt?.missionId===journeyDallas20.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id||journeyAttempt?.missionId===journeyDallas19.id) || journeyAttempt?.missionId === journeyDallas07.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas11.id) &&
     journeyAttempt.status === 'APPROACH')) {
@@ -10615,8 +10820,8 @@ function animate(): void {
     }
   }
   giantTransportAssetPreview?.update(delta, airplane, !journeyMode, camera);
-  updateProjectiles(delta);
   updateLockCircle();
+  updateProjectiles(delta);
   updateWeapons(delta);
   updateLocalProjectiles();
   syncAceObjective();
@@ -11680,7 +11885,7 @@ function sendFireIntent(): boolean {
     return false;
   }
   firedSinceWelcome = true;
-  spawnMuzzleFeedback(projectileOrigin, projectileDirection, clientShotId, targetId);
+  spawnMuzzleFeedback(projectileOrigin, projectileDirection, clientShotId, targetId, combatLockState === 'LOCKED');
   playFireSound();
   return true;
 }
@@ -11777,8 +11982,16 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       const projectile = message.hitShotId ? clientProjectiles.get(message.hitShotId) : undefined;
       const impact = message.hitPosition;
       view?.setState(message, (shot || projectile && impact) ? () => {
-        const onImpact = () => view.showHit(impact);
-        if (shot) shot.onImpact = onImpact;
+        const onImpact = (contact?: THREE.Vector3) => view.showHit(contact ?? impact);
+        if (shot) {
+          shot.onImpact = onImpact;
+          if (impact) {
+            const { x, y, z, yaw, roll, scale, velocity } = message.pose;
+            const localPoint = new THREE.Vector3(impact.x - x, impact.y - y, impact.z - z)
+              .applyEuler(new THREE.Euler(0, -yaw, -roll, 'ZXY')).divideScalar(scale ?? transportTuning.scale);
+            setAssistedImpact(shot, view.root, velocity, localPoint);
+          }
+        }
         else if (projectile && impact) {
           finishProjectileAtImpact(projectile, impact);
           projectile.onImpact = onImpact;
@@ -11795,7 +12008,25 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       missionObjectiveGuidance?.setObjective(missionObjective);
     }return;
   }
-  if(message.type==='transportFinal'){if(message.attemptId===journeyAttemptId)transportView?.finish(message.kind);return;}
+  if (message.type === 'transportFinal') {
+    if (message.attemptId !== journeyAttemptId || !transportView) return;
+    const shot = message.finishingShot;
+    if (message.kind === 'defeat' && shot && localPlayerId) {
+      const targetId = `transport:${message.attemptId}`;
+      const ending = new AircraftVictory(message.attemptId, targetId, localPlayerId,
+        { enemyAircraft: 'cargo', enemyLivery: '', fromGameplayCamera: true });
+      ending.recordProjectile({ projectileId: shot.id, ownerId: localPlayerId, position: shot.origin, speed: shot.speed });
+      ending.recordFatalHit({ playerId: targetId, shooterId: localPlayerId, health: 0, impactId: shot.id, impactPosition: shot.impact });
+      if (ending.hasReplay && ending.confirmDestruction({ playerId: targetId, killerId: localPlayerId,
+        cause: 'combat', position: shot.pose }, shot.pose.yaw, undefined, undefined, true) &&
+        transportView.holdForFinishingShot(shot.pose)) {
+        playAircraftVictory(ending, undefined, transportView);
+        return;
+      }
+    }
+    transportView.finish(message.kind);
+    return;
+  }
   if (message.type === 'transportCollision') {
     if (message.attemptId !== journeyAttemptId || !(journeyAttempt?.status==='RACING'||journeyAttempt?.status==='FAILED'&&journeyAttempt.failureReason==='CRASHED') || transportCollisionAttemptId === message.attemptId) return;
     transportCollisionAttemptId = message.attemptId;
@@ -11823,11 +12054,13 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     const previousHealth = journeyAttempt?.targetHealth;
     if (previousAttempt?.attemptId !== message.attempt.attemptId || ['FAILED','COMPLETED','ABANDONED'].includes(message.attempt.status)) { clearProjectileVisuals(); clearCombatTarget(); }
     journeyAttempt = message.attempt;
-    if ((message.attempt.missionId !== journeyDallas13.id && message.attempt.missionId !== journeyDallas14.id && message.attempt.missionId !== journeyDallas15.id && message.attempt.missionId !== journeyDallas16.id && message.attempt.missionId !== journeyDallas17.id && message.attempt.missionId !== journeyDallas18.id && message.attempt.missionId !== journeyDallas08.id && message.attempt.missionId !== journeyDallas09.id && message.attempt.missionId !== journeyDallas10.id && message.attempt.missionId !== journeyDallas12.id) || ['FAILED','ABANDONED'].includes(message.attempt.status) ||
+    if ((message.attempt.missionId !== journeyDallas13.id && message.attempt.missionId !== journeyDallas14.id && message.attempt.missionId !== journeyDallas15.id && message.attempt.missionId !== journeyDallas16.id && message.attempt.missionId !== journeyDallas17.id && message.attempt.missionId !== journeyDallas18.id && message.attempt.missionId !== journeyDallas08.id && message.attempt.missionId !== journeyDallas09.id && message.attempt.missionId !== journeyDallas10.id && message.attempt.missionId !== journeyDallas12.id && message.attempt.missionId !== journeyDallas07.id && message.attempt.missionId !== journeyDallas11.id) || ['FAILED','ABANDONED'].includes(message.attempt.status) ||
       aircraftVictory && aircraftVictory.attemptId !== message.attempt.attemptId ||
       aircraftVictoryCandidates.length > 0 && aircraftVictoryCandidates[0]!.attemptId !== message.attempt.attemptId) {
       clearAircraftVictoryReplay();
       aircraftVictory = null;
+      aircraftVictoryQueue.length = 0;
+      aircraftVictoryTransport = undefined;
       aircraftVictoryCandidates.length = 0;
       flightGameRoot.classList.remove('aircraft-victory-active');
       transportCrashFlash.style.opacity = '0';
@@ -11849,7 +12082,9 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       const kills = previousAttempt.rearGuardKills ?? 0;
       const ids = [message.attempt.targetId,message.attempt.secondaryTargetId,message.attempt.rearGuardThirdId,message.attempt.rearGuardFourthId];
       const finalEscort = ids.find((id,index)=>id && !(kills & (1<<index)) && (kills | (1<<index)) === requiredKills);
-      if (finalEscort) aircraftVictory=aircraftVictoryCandidates.find(ending=>ending.targetId===finalEscort) ?? null;
+      const finalEnding = aircraftVictoryCandidates.find(ending => ending.targetId === finalEscort);
+      if (finalEnding && aircraftVictory?.pending) finalEnding.confirmSuccess();
+      else if (finalEnding) aircraftVictory = finalEnding;
     }
     if ((message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas14.id || message.attempt.missionId === journeyDallas15.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas17.id || message.attempt.missionId === journeyDallas18.id) && message.attempt.targetId && localPlayerId &&
       !['FAILED','ABANDONED'].includes(message.attempt.status) && !aircraftVictory) {
@@ -11857,15 +12092,19 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         : message.attempt.missionId === journeyDallas18.id ? journeyDallas18 : message.attempt.missionId === journeyDallas17.id ? journeyDallas17 : message.attempt.missionId === journeyDallas15.id ? journeyDallas15 : message.attempt.missionId === journeyDallas14.id ? journeyDallas14 : journeyDallas13;
       aircraftVictory = new AircraftVictory(message.attempt.attemptId, message.attempt.targetId, localPlayerId, mission);
       aircraftVictoryCandidates.push(aircraftVictory);
-      if (message.attempt.missionId === journeyDallas16.id && message.attempt.secondaryTargetId) {
-        const enemy = journeyDallas16.enemies[1]!;
-        aircraftVictoryCandidates.push(new AircraftVictory(message.attempt.attemptId, message.attempt.secondaryTargetId, localPlayerId,
-          {enemyAircraft: enemy.aircraft, enemyLivery: enemy.livery}));
-      }
+    }
+    if (message.attempt.missionId === journeyDallas16.id && message.attempt.secondaryTargetId && localPlayerId &&
+        !['FAILED', 'ABANDONED'].includes(message.attempt.status) &&
+        !aircraftVictoryCandidates.some(ending => ending.targetId === message.attempt.secondaryTargetId)) {
+      const enemy = journeyDallas16.enemies[1]!;
+      aircraftVictoryCandidates.push(new AircraftVictory(message.attempt.attemptId, message.attempt.secondaryTargetId, localPlayerId,
+        {enemyAircraft: enemy.aircraft, enemyLivery: enemy.livery}));
     }
     if (message.attempt.missionId === journeyDallas16.id && message.attempt.status === 'COMPLETED') {
       const finalTarget = previousAttempt?.crossfireKills === 1 ? message.attempt.secondaryTargetId : previousAttempt?.crossfireKills === 2 ? message.attempt.targetId : aircraftVictory?.targetId;
-      aircraftVictory = aircraftVictoryCandidates.find(ending => ending.targetId === finalTarget) ?? aircraftVictory;
+      const finalEnding = aircraftVictoryCandidates.find(ending => ending.targetId === finalTarget);
+      if (finalEnding && aircraftVictory?.pending) finalEnding.confirmSuccess();
+      else if (finalEnding) aircraftVictory = finalEnding;
     }
 
     if (previousAttempt?.missionId !== message.attempt.missionId) {
@@ -12689,8 +12928,16 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         ? airplane.position : remotePlayers.get(message.playerId)?.plane.position);
       const shot = pendingAssistedHit(impactId);
       const projectile = impactId ? clientProjectiles.get(impactId) : undefined;
-      const onImpact = () => playProjectileHit(position, message.damage, localShot);
-      if (shot) shot.onImpact = onImpact;
+      const target = localShot && message.health > 0 ? remotePlayers.get(message.playerId) : undefined;
+      const onImpact = (contact?: THREE.Vector3) => {
+        const aircraft = (shot || projectile?.showFullFlight) && target?.plane.visible && target.plane.parent
+          ? target.plane : undefined;
+        playProjectileHit(contact ?? aircraft?.position ?? position, message.damage, localShot, !!aircraft, aircraft, contact !== undefined);
+      };
+      if (shot) {
+        shot.onImpact = onImpact;
+        if (target) setAssistedImpact(shot, target.plane, target.velocity);
+      }
       else if (projectile?.impactTravel !== undefined) projectile.onImpact = onImpact;
       else onImpact();
     }
@@ -12748,18 +12995,18 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       ? airplane
       : remotePlayers.get(message.playerId)?.plane;
     const destroyedType = message.aircraftType ?? (message.playerId === localPlayerId ? aircraftType : remotePlayers.get(message.playerId)?.aircraftType);
-    const finalCrossfireTarget = journeyAttempt?.missionId === journeyDallas16.id &&
-      (message.playerId === journeyAttempt.targetId ? Boolean((journeyAttempt.crossfireKills ?? 0) & 2) : message.playerId === journeyAttempt.secondaryTargetId && Boolean((journeyAttempt.crossfireKills ?? 0) & 1));
-    const transportEscortIndex = [journeyAttempt?.targetId,journeyAttempt?.secondaryTargetId,journeyAttempt?.rearGuardThirdId,journeyAttempt?.rearGuardFourthId].indexOf(message.playerId);
-    const requiredEscortKills = journeyAttempt?.missionId===journeyDallas10.id ? 15 : journeyAttempt?.missionId===journeyDallas09.id ? 7 : 3;
-    const finalTransportEscort = (journeyAttempt?.missionId===journeyDallas08.id || journeyAttempt?.missionId===journeyDallas09.id || journeyAttempt?.missionId===journeyDallas10.id || journeyAttempt?.missionId===journeyDallas12.id) && journeyAttempt.monsterHealth===0 &&
-      (journeyAttempt.missionId!==journeyDallas12.id || journeyAttempt.fortressLeftHealth===0 && journeyAttempt.fortressRightHealth===0) &&
-      transportEscortIndex>=0 && transportEscortIndex<(journeyAttempt.missionId===journeyDallas10.id ? 4 : journeyAttempt.missionId===journeyDallas09.id ? 3 : 2) &&
-      (((journeyAttempt.rearGuardKills??0) | (1<<transportEscortIndex)) & requiredEscortKills)===requiredEscortKills;
-    if (finalCrossfireTarget || finalTransportEscort) aircraftVictory = aircraftVictoryCandidates.find(ending => ending.targetId === message.playerId) ?? aircraftVictory;
-    const aircraftVictoryDestruction = (journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallas15.id || journeyAttempt?.missionId === journeyDallas17.id || journeyAttempt?.missionId === journeyDallas18.id || finalCrossfireTarget || finalTransportEscort) &&
-      aircraftVictory?.confirmDestruction(message, destroyedPlane?.rotation.y ?? 0, destroyedPlane?.rotation, remotePlayers.get(message.playerId)?.velocity) === true;
-    if (aircraftVictoryDestruction && aircraftVictory) prepareAircraftVictoryReplay(aircraftVictory, destroyedPlane);
+    const missionId = journeyAttempt?.missionId;
+    const individualReplay = missionId === journeyDallas16.id || missionId === journeyDallas08.id ||
+      missionId === journeyDallas09.id || missionId === journeyDallas10.id || missionId === journeyDallas12.id;
+    const ending = individualReplay
+      ? aircraftVictoryCandidates.find(candidate => candidate.attemptId === journeyAttempt?.attemptId && candidate.targetId === message.playerId)
+      : (missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id ||
+        missionId === journeyDallas17.id || missionId === journeyDallas18.id) ? aircraftVictory : null;
+    const aircraftVictoryDestruction = ending?.confirmDestruction(message, destroyedPlane?.rotation.y ?? 0, destroyedPlane?.rotation, remotePlayers.get(message.playerId)?.velocity) === true;
+    if (aircraftVictoryDestruction && ending) {
+      if (individualReplay) playAircraftVictory(ending, destroyedPlane);
+      else prepareAircraftVictoryReplay(ending, destroyedPlane);
+    }
 
     if (destroyedType) {
       const sourcePosition = message.position && [message.position.x, message.position.y, message.position.z].every(Number.isFinite)

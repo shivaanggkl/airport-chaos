@@ -28,7 +28,8 @@ import {createOpponent,opponentAim,opponentReactionReady} from './opponent.js';
 import {advanceHunterFlight,hunterFlightIntercept,hunterBallisticSolution,hunterObservedPosition} from './hunter-flight.js';
 import {planOpponentTactics,recordOpponentHit,recordOpponentDamage,recordOpponentShot} from './opponent-tactics.js';
 import {ambushApproach,ambushCanFire,ambushCruiseSpeed} from './surprise-attack.js';
-import {boundJourneyHunterPoint,insideJourneyHunterArena,keepJourneyHunterInside} from './journey-hunter-airspace.js';
+import {boundJourneyHunterPoint,dallasEscortSteeringTarget,insideJourneyHunterArena,keepDallasEscortInside,keepJourneyHunterInside} from './journey-hunter-airspace.js';
+import {cityRegistry} from '../../shared/city-registry.mjs';
 import {dallasElevationAt as ground} from './dallas-elevation.js';
 import {getTerrainHeight} from '../../client/src/dallas-world.js';
 const clientGround=(x,z)=>getTerrainHeight(x/3,z/3)*3;
@@ -59,6 +60,57 @@ function fixture() {
  db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");
  return {dir,db,store:new JourneyAttemptStore(path,true)};
 }
+
+test('M16 activates all four assigned escorts and removes every slot when the attempt ends',()=>{
+ const ids=['first','second','third','fourth'];
+ const attempt={missionId:missions.journeyDallas10.id,attemptId:'gunship',targetId:ids[0],secondaryTargetId:ids[1],
+  rearGuardThirdId:ids[2],rearGuardFourthId:ids[3]};
+ const players=new Map(ids.map((id,index)=>[id,{lifeState:'alive',bot:{journeyRearGuardEscort:index+1,
+  journeyAttemptId:attempt.attemptId,journeyTargetPlayerId:'owner'}}]));
+ const fire=createRearGuardFireState(missions.journeyDallas10);
+ const ctx=runtime(['activateRearGuardEscorts','removeJourneyHunter'],{
+  attempt,players,rearGuardTakeoff,rearGuardFire:new Map([[attempt.attemptId,fire]]),playerJourneyAttempts:new Map(),
+  transportEncounters:new Map(),transportReady:new Set(),reinforcementWaves:new Map(),
+  crossfireFireCoordinators:new Map(),crossfireDefeatedHunters:new Map(),crossfireHunterMotion:new Map(),
+  removeBot:id=>players.delete(id),
+ });
+ vm.runInContext("activateRearGuardEscorts('other-pilot',attempt,1000)",ctx);
+ assert.ok(ids.every(id=>!players.get(id).bot.journeyProvoked));
+ vm.runInContext("activateRearGuardEscorts('owner',attempt,1000)",ctx);
+ assert.ok(ids.every(id=>players.get(id).bot.journeyProvoked));
+ assert.equal(rearGuardShooter(fire,6000,[false,false,false,true]),4);
+ vm.runInContext('removeJourneyHunter(attempt)',ctx);
+ assert.equal(players.size,0);
+});
+
+test('M16 escort flight banks back into Dallas even when its target keeps flying out',()=>{
+ const forward=player=>({x:-Math.sin(player.rotation.y),z:-Math.cos(player.rotation.y)});
+ const ctx=runtime(['advanceBotFlight'],{
+  botRunwayHeight:()=>0,botSafeFloor:()=>300,hunterClearance:()=>300,smoothHunter:()=>true,
+  botCruiseFactor:()=>1,wrapAngle:a=>Math.atan2(Math.sin(a),Math.cos(a)),
+  dallasEscortSteeringTarget,keepDallasEscortInside,hunterForward:forward,
+ });
+ const mission=missions.journeyDallas10;
+ const {worldOrigin,worldSize}=cityRegistry.dallas;
+ const edge=worldSize/2;
+ const outwardHeadings=[-Math.PI/2,Math.PI/2,Math.PI,0];
+ for (const [index,aircraftType] of mission.escortAircraft.entries()) {
+  const heading=outwardHeadings[index];
+  const player={aircraftType,cityId:'dallas',position:{...worldOrigin,y:1800},rotation:{x:0,y:heading,z:0},velocity:{x:0,y:0,z:0}};
+  const direction=forward(player);
+  player.position.x+=direction.x*(edge-500);
+  player.position.z+=direction.z*(edge-500);
+  const bot={phase:'attackPass',journeyEscortMissionId:mission.id,speed:aircraftFlightEnvelope[aircraftType].maxSpeed,bankControl:0,combatTurnSign:1};
+  const target={x:worldOrigin.x+direction.x*(edge+76000),y:1800,z:worldOrigin.z+direction.z*(edge+76000)};
+  for(let step=0;step<250;step++){
+   ctx.advanceBotFlight(player,bot,target,.2);
+   assert.ok(Math.abs(player.position.x-worldOrigin.x)<edge && Math.abs(player.position.z-worldOrigin.z)<edge);
+  }
+  assert.ok(Math.abs(player.position.x-worldOrigin.x)<edge-1000 && Math.abs(player.position.z-worldOrigin.z)<edge-1000,
+   'the escort turns back into the city rather than sticking at the edge');
+ }
+});
+
 // Execute the production client integrator at 60 Hz and server Hunter navigation/
 // flight uses the actual client integrator at 60 Hz and projectile sweeps at 50 ms.
 // Only I/O/presentation are stubbed. A seeded
