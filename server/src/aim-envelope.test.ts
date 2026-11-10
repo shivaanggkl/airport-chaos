@@ -108,8 +108,8 @@ test('client prediction and server projectiles both derive direction from the sh
   assert.match(server, /const shotAim = validatedShotAim\(player, message\.aimSample, now\)/);
   assert.match(server, /rotateLocalYxz\(aim \? localFiringDirection\(aim, .* : socket\.forward, transform\.rotation\)/);
   assert.match(client, /if \(distance > COMBAT_RANGE\)/);
-  assert.match(client, /shot\.traveled >= COMBAT_RANGE/);
-  assert.match(server, /ballisticIntercept\(origin, velocity, target, targetVelocity\)/);
-  assert.match(server, /advanceProjectile\(projectile\.position, projectile\.direction, projectile\.speed, projectile\.traveled, shotDelta\)/);
+  assert.match(client, /maxAuthoritativeProjectileAgeMs = \(COMBAT_RANGE \/ BASE_PROJECTILE_SPEED \+ 1\) \* 1_000/);
+  assert.match(server, /Math\.hypot\(local\.x, local\.y, local\.z\) > COMBAT_RANGE/);
+  assert.match(server, /COMBAT_RANGE - projectile\.traveled/);
   assert.match(server, /projectile\.traveled >= COMBAT_RANGE/);
 });

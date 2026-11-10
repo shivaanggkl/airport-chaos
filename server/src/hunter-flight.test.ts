@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { advanceHunterFlight, hunterBallisticSolution, hunterFlightIntercept, hunterObservedPosition } from './hunter-flight.js';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
-import { projectileLaunchVelocity, localFiringDirection, ORDINARY_PROJECTILE_DAMAGE } from '../../shared/protocol.mjs';
+import { ballisticShotSpeed } from '../../shared/protocol.mjs';
 import { HunterMotionBuffer } from '../../shared/hunter-motion.mjs';
 
 const aircraft = aircraftFlightEnvelope.privateJet;
@@ -70,12 +70,12 @@ test('real ballistic shots hit straight moving targets; post-launch evasive turn
     const error = Math.sin(attempt * 2.4) * .002;
     const length = Math.hypot(shot.direction.x + error, shot.direction.y, shot.direction.z);
     const d = { x: (shot.direction.x + error) / length, y: 0, z: shot.direction.z / length };
-    const launch = projectileLaunchVelocity(velocity, d);
+    const speed = ballisticShotSpeed(velocity, d);
     const evasive = { ...target }; let vx = moving.x, vz = moving.z, straight = false, evaded = false;
     for (let time = .005; time < shot.seconds + .4; time += .005) {
       if (time > .2) { const turn = .6 * .005, x = vx * Math.cos(turn) - vz * Math.sin(turn); vz = vx * Math.sin(turn) + vz * Math.cos(turn); vx = x; }
       evasive.x += vx * .005; evasive.z += vz * .005;
-      const x = origin.x + launch.x * time, z = origin.z + launch.z * time;
+      const x = origin.x + d.x * speed * time, z = origin.z + d.z * speed * time;
       if (Math.hypot(x - target.x - moving.x * time, z - target.z - moving.z * time) < 6) straight = true;
       if (Math.hypot(x - evasive.x, z - evasive.z) < 6) evaded = true;
     }
@@ -157,6 +157,7 @@ test('common Hunter controller covers combat modes but leaves noncombat leaders 
 import { opponentAim } from './opponent.js';
 import { enemyAiLevels } from '../../shared/enemy-ai.mjs';
 import { aircraftPresentationMuzzleSockets } from '../../shared/aircraft-presentation-scale.mjs';
+import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
 import { aircraftHitRadii } from '../../shared/remote-aircraft-visual-rules.mjs';
 
@@ -167,14 +168,13 @@ test('production gun solution, muzzle, dispersed launch and swept collision genu
   smoothHunter:()=>true,hunterBallisticSolution,aircraftFlightEnvelope,normalize,
   dot:(a:any,b:any)=>a.x*b.x+a.y*b.y+a.z*b.z,hunterFireRange:COMBAT_RANGE,hunterFireCone:.2,defenderDownwardFireAngle:.3,
   aircraftPresentationMuzzleSockets,canFire:()=>true,projectileBudget:{reserve:()=>true},playerJourneyAttempts:new Map(),
-  randomUUID:()=>String(++ordinal),ORDINARY_PROJECTILE_DAMAGE,projectileLaunchVelocity,localFiringDirection,projectiles,broadcastToCity:()=>{},
-  runwayCombatProtected:()=>false,monsterEncounters:new Map(),fireIntervalMs:()=>333,
+  randomUUID:()=>String(++ordinal),projectileDamageForAircraft,ballisticShotSpeed,projectiles,broadcastToCity:()=>{},
  });
  for(const level of ['MEDIUM','HARD','VERY_HARD','LEGENDARY'] as const) {
   let straightHits=0,evasiveHits=0,seed=0x1783ad9;
   const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
   for(let attempt=0;attempt<40;attempt++) {
-   const shooter={...pilot(),aircraftType:'trainer',cityId:'dallas',isBot:true,rotation:{x:0,y:0,z:.3}};
+   const shooter={...pilot(),aircraftType:'trainer',cityId:'dallas',rotation:{x:0,y:0,z:.3}};
    const target={...pilot(),aircraftType:'trainer',position:{x:0,y:950,z:-1200},velocity:{x:60,y:0,z:-400}};
    const solution=ctx.botFireSolution(shooter,target,false);assert.equal(solution.reason,undefined);
    const aim=opponentAim(enemyAiLevels[level],solution.aimX,solution.aimY,random);
@@ -212,12 +212,12 @@ test('fast combat updates select Legendary combat only; runway, patrol and other
 import { AIM_ENVELOPE } from '../../shared/protocol.mjs';
 test('Legendary uses the existing legal weapon cone for predictive shots while lower levels keep their current cone',()=>{
  const ctx=production(['botFireSolution','rotateLocalYxz','forwardDirection','hunterForward'],{
-  smoothHunter:()=>true,hunterBallisticSolution,aircraftFlightEnvelope,AIM_ENVELOPE,runwayCombatProtected:()=>false,
+  smoothHunter:()=>true,hunterBallisticSolution,aircraftFlightEnvelope,AIM_ENVELOPE,
   muzzleTransform:(p:ReturnType<typeof pilot>)=>({position:p.position}),
   normalize:(v:{x:number;y:number;z:number})=>{const n=Math.hypot(v.x,v.y,v.z);return{x:v.x/n,y:v.y/n,z:v.z/n};},
   dot:(a:any,b:any)=>a.x*b.x+a.y*b.y+a.z*b.z,hunterFireRange:COMBAT_RANGE,hunterFireCone:.2,defenderDownwardFireAngle:.3,
  });
- const target={...pilot(),position:{x:360,y:900,z:-1200},velocity:{x:0,y:0,z:-400}};
+ const target={...pilot(),position:{x:600,y:900,z:-1200},velocity:{x:0,y:0,z:-400}};
  const shooter={...pilot(),bot:{opponent:{profile:enemyAiLevels.LEGENDARY,tactics:{targetTurnRate:0}}}};
  const expert=ctx.botFireSolution(shooter,target,false);assert.equal(expert.reason,undefined);assert.ok(expert.angle<=AIM_ENVELOPE);
  assert.equal(ctx.botFireSolution({...shooter,bot:{opponent:{profile:enemyAiLevels.HARD}}},target,false).reason,'NO_FORWARD_SOLUTION');
@@ -251,10 +251,9 @@ test('Legendary lead and swept hits share the accepted movement clock without en
   const current=hunterObservedPosition(accepted,v,1000,1000+age);
   for(const corrected of [false,true]) {
    const shot=hunterBallisticSolution(origin,shooterVelocity,corrected?current:accepted,v)!;assert.ok(shot);
-   const launch = projectileLaunchVelocity(shooterVelocity, shot.direction);
    let previous={...origin};
    for(let t=.01;t<COMBAT_RANGE/shot.speed;t+=.01) {
-    const end={x:origin.x+launch.x*t,y:origin.y+launch.y*t,z:origin.z+launch.z*t};
+    const end={x:origin.x+shot.direction.x*shot.speed*t,y:origin.y+shot.direction.y*shot.speed*t,z:origin.z+shot.direction.z*shot.speed*t};
     const now=1000+age+t*1000,sampleAt=1000+Math.floor((now-1000)/100)*100;
     const sample={x:accepted.x+v.x*(sampleAt-1000)/1000,y:900,z:accepted.z+v.z*(sampleAt-1000)/1000};
     const observed=hunterObservedPosition(sample,v,sampleAt,now);

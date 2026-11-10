@@ -102,15 +102,14 @@ test('the fatal ballistic shot replays from its recorded launch to the confirmed
  assert.equal(ending.update(1.1).complete,true);
 });
 
-test('a finishing replay requires an accepted projectile and matching owned fatal impact',()=>{
+test('assisted finishing shots retain their server muzzle and require the owned fatal damage event',()=>{
  const ending=new AircraftVictory('attempt','enemy','pilot');
- const shot={projectileId:'finish',ownerId:'pilot',position:{x:11745,y:2456,z:-34567},speed:900};
- const damage={playerId:'enemy',shooterId:'pilot',health:0,impactId:'finish',impactPosition:hit.position};
- ending.recordProjectile({...shot,ownerId:'unrelated'});
- ending.recordFatalHit(damage);assert(!ending.hasReplay);
- ending.recordProjectile(shot);
- ending.recordFatalHit({...damage,shooterId:'intruder'});assert(!ending.hasReplay);
- ending.recordFatalHit(damage);assert(ending.hasReplay);
+ const shot={shotId:'assisted',ownerId:'pilot',targetId:'enemy',origin:{x:11745,y:2456,z:-34567},targetPosition:hit.position};
+ ending.recordAssistedShot({...shot,targetId:'unrelated'});
+ ending.recordFatalHit({playerId:'enemy',shooterId:'pilot',health:0});assert(!ending.hasReplay);
+ ending.recordAssistedShot(shot);
+ ending.recordFatalHit({playerId:'enemy',shooterId:'intruder',health:0});assert(!ending.hasReplay);
+ ending.recordFatalHit({playerId:'enemy',shooterId:'pilot',health:0});assert(ending.hasReplay);
  assert.deepEqual(ending.shotOrigin.toArray(),[11745,2456,-34567]);
  assert.deepEqual(ending.impactPosition.toArray(),[12345,2456,-34567]);
 });
@@ -124,7 +123,7 @@ for(const mission of [journeyDallas08,journeyDallas09,journeyDallas10,journeyDal
  const ctx=vm.createContext({THREE,aircraftVictory:ending,aircraftVictoryReplay:null,airplane,scene,journeyDallas13,
   camera:new THREE.PerspectiveCamera(58),aircraftType:'trainer',aircraftPresentationMuzzleSockets,aircraftPresentationScale,serverProfile:{cosmetics:{equipped:{}}},applyEquippedLivery:(_plane,type,paint)=>liveries.push({type,paint}),
   createAirplane:type=>{created.push(type);const p=new THREE.Group();p.userData.airframeRoot=new THREE.Group();p.add(p.userData.airframeRoot);return p;},
-  fitProjectileTrail(){}, createProjectileMesh:()=>{const g=new THREE.Group();g.add(new THREE.Group(),new THREE.Group());return g;},audioManager:{playDestroyConfirm(){}},disposeAirplaneMaterials:()=>events.push('dispose'),
+  createProjectileMesh:()=>{const g=new THREE.Group();g.add(new THREE.Group(),new THREE.Group());return g;},audioManager:{playDestroyConfirm(){}},disposeAirplaneMaterials:()=>events.push('dispose'),
   createDestructionEffect:(position,type)=>{assert.equal(type,mission.enemyAircraft);assert.deepEqual(position.toArray(),[12345,2456,-34567]);events.push('blast');},playDestructionSound(){},
   transportCrashFlash:{style:{}},flightGameRoot:{classList:{remove(){}}},journeyDallas17,journeyDallas18,journeyAttempt:{attemptId:'attempt',status:'COMPLETED'},showJourneyResult:()=>events.push('success')});
  vm.runInContext(code('clearAircraftVictoryReplay')+'\n'+code('prepareAircraftVictoryReplay')+'\n'+code('updateAircraftVictory')+'\nprepareAircraftVictoryReplay(aircraftVictory);updateAircraftVictory(.3);',ctx);
@@ -321,8 +320,8 @@ for(const mission of [journeyDallas08,journeyDallas09,journeyDallas10,journeyDal
  state({...attempt,monsterHealth:0}); // The existing giant-plane blast has already finished.
  assert.equal(ctx.aircraftVictoryCandidates.length,ids.length);assert.equal(ctx.aircraftVictory,null);
  const ending=ctx.aircraftVictoryCandidates[finalOrdinal];
- ending.recordProjectile({projectileId:'last-bullet',ownerId:'pilot',position:{x:11745,y:2456,z:-34567},speed:900});
- ending.recordFatalHit({playerId:ids[finalOrdinal],shooterId:'pilot',health:0,impactId:'last-bullet',impactPosition:hit.position});
+ ending.recordAssistedShot({shotId:'last-bullet',ownerId:'pilot',targetId:ids[finalOrdinal],origin:{x:11745,y:2456,z:-34567},targetPosition:hit.position});
+ ending.recordFatalHit({playerId:ids[finalOrdinal],shooterId:'pilot',health:0});
  let kills=0;const expectedEffects=[];
  for(const index of ids.keys())if(index!==finalOrdinal){
    kills|=1<<index;state({...attempt,monsterHealth:0,rearGuardKills:kills});f.destroy(index);
