@@ -37,14 +37,14 @@ test('larger, slower transport crosses White Rock and fails only after its full 
 test('rear arc rejects front, beyond range and steep vertical aiming', () => { const p = transportPose(0), m = transportMuzzle(p), rear = { x: Math.sin(p.yaw), z: Math.cos(p.yaw) }; const target = { x: m.x + rear.x * 1200, y: m.y, z: m.z + rear.z * 1200 }; assert.equal(transportAim(p, target).eligible, true); assert.equal(transportAim(p, { x: m.x - rear.x * 1000, y: m.y, z: m.z - rear.z * 1000 }).eligible, false); assert.equal(transportAim(p, { ...target, y: m.y + 2000 }).eligible, false); assert.equal(transportAim(p, { x: m.x + rear.x * (COMBAT_RANGE + 1), y: m.y, z: m.z + rear.z * (COMBAT_RANGE + 1) }).eligible, false); });
 test('warning precedes three ballistic releases and articulation stays bounded', () => { const e = createTransportEncounter('owned', 'pilot', 0, 900); let firstWarning = 0; for (let ms = 0; ms < 5000; ms += 50) {
     const p = transportPose(ms), m = transportMuzzle(p), target = { x: m.x + Math.sin(p.yaw) * 1200, y: m.y, z: m.z + Math.cos(p.yaw) * 1200 };
-    stepTransportEncounter(e, target, p.velocity, [], ms);
+    stepTransportEncounter(e, target, { x: 0, y: 0, z: 0 }, [], ms);
     if (e.warningUntil && !firstWarning)
         firstWarning = ms;
     if (ms < 3000)
         assert.equal(e.shots.length, 0);
     assert.ok(Math.abs(e.gunYaw) <= transportTuning.yawArc);
     assert.ok(Math.abs(e.gunPitch) <= transportTuning.pitchArc);
-} assert.equal(firstWarning, 2000); assert.equal(e.shots.length, 3); assert.ok(e.shots.every(s => Math.abs(Math.hypot(s.direction.x * s.speed - transportPose(0).velocity.x, s.direction.y * s.speed, s.direction.z * s.speed - transportPose(0).velocity.z) - 520) < 1e-6)); });
+} assert.equal(firstWarning, 2000); assert.equal(e.shots.length, 3); assert.ok(e.shots.every(s => s.speed === 520)); });
 test('exported triangle collision excludes empty bounding-box space and detects swept fuselage', () => { const p = { ...transportPose(0), x: 0, y: 0, z: 0, yaw: 0 }; assert.ok(transportImpact({ x: 0, y: 80, z: 960 }, { x: 0, y: 80, z: -960 }, p, p)); assert.equal(transportImpact({ x: 752, y: 360, z: 960 }, { x: 752, y: 360, z: -960 }, p, p), undefined); const after = { ...p, x: 100 }; assert.ok(transportImpact({ x: 0, y: 80, z: 960 }, { x: 100, y: 80, z: -960 }, p, after)); });
 test('Mission 7–10 player bullets keep traveling until they hit the moving transport', () => {
     for (const mission of [journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10]) {
@@ -145,7 +145,7 @@ test('Fortress side guns still fire when the target is outside the tail arc',()=
   for(let ms=0;ms<=4_000;ms+=50){
     const pose=transportPose(ms,900,journeyDallas11.timeLimitMs),c=Math.cos(pose.yaw),s=Math.sin(pose.yaw);
     const target={x:pose.x+c*-1100+s*350,y:pose.y+4.7*transportTuning.scale-10,z:pose.z-s*-1100+c*350};
-    stepTransportEncounter(encounter,target,pose.velocity,[],ms);
+    stepTransportEncounter(encounter,target,{x:0,y:0,z:0},[],ms);
     if(ms<3_000)assert.equal(encounter.shots.length,0);
   }
   assert.equal(encounter.shots.length,2);
@@ -155,7 +155,7 @@ test('Fortress side guns still fire when the target is outside the tail arc',()=
   for(let ms=4_050;ms<=6_000;ms+=50){
     const pose=transportPose(ms,900,journeyDallas11.timeLimitMs),c=Math.cos(pose.yaw),s=Math.sin(pose.yaw);
     const target={x:pose.x+c*-1100+s*350,y:pose.y+4.7*transportTuning.scale-10,z:pose.z-s*-1100+c*350};
-    stepTransportEncounter(encounter,target,pose.velocity,[],ms);
+    stepTransportEncounter(encounter,target,{x:0,y:0,z:0},[],ms);
   }
   assert.equal(encounter.shots.length,previous);
 });
@@ -172,7 +172,7 @@ test('transport tail fires when a pilot is behind it in Missions 8 through 12', 
       const pose = transportPose(ms, 900, mission.timeLimitMs);
       const c = Math.cos(pose.yaw), s = Math.sin(pose.yaw);
       stepTransportEncounter(encounter, { x: pose.x + s * 1_200, y: pose.y + 4.7*transportTuning.scale-10, z: pose.z + c * 1_200 },
-        pose.velocity, [], ms);
+        { x: 0, y: 0, z: 0 }, [], ms);
     }
     assert.equal(encounter.shots.length, expectedShots, mission.name);
     if (fortress) {
@@ -189,7 +189,7 @@ test('Final Intercept fires its tail during escorts and its side guns after esco
     const pose = transportPose(ms, 900, journeyDallas12.timeLimitMs);
     const c = Math.cos(pose.yaw), s = Math.sin(pose.yaw);
     stepTransportEncounter(encounter, { x: pose.x + s * 1_200, y: pose.y + 4.7*transportTuning.scale-10,
-      z: pose.z + c * 1_200 }, pose.velocity, [], ms);
+      z: pose.z + c * 1_200 }, { x: 0, y: 0, z: 0 }, [], ms);
   }
   assert.equal(encounter.shots.length, 3);
   assert.equal(encounter.crossfire?.activeGun, null);
@@ -199,7 +199,7 @@ test('Final Intercept fires its tail during escorts and its side guns after esco
     const pose = transportPose(ms, 900, journeyDallas12.timeLimitMs);
     const c = Math.cos(pose.yaw), s = Math.sin(pose.yaw);
     stepTransportEncounter(encounter, { x: pose.x - c * 1100 + s * 350, y: pose.y + 4.7*transportTuning.scale-10,
-      z: pose.z + s * 1100 + c * 350 }, pose.velocity, [], ms);
+      z: pose.z + s * 1100 + c * 350 }, { x: 0, y: 0, z: 0 }, [], ms);
   }
   assert.equal(encounter.shots.length, 5);
   assert.equal(encounter.crossfire?.guns[0].warningUntil, 0);

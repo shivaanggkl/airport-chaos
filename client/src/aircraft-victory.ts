@@ -8,7 +8,7 @@ type Destruction = {
   position?: { x: number; y: number; z: number };
 };
 
-/** Presentation only: both success and the owned target's destruction come from the server. */
+/** Presents the server-confirmed destruction of an assigned aircraft. */
 export class AircraftVictory {
   readonly position = new THREE.Vector3();
   readonly shotOrigin = new THREE.Vector3();
@@ -21,7 +21,8 @@ export class AircraftVictory {
   private pilotTravel = 0;
   readonly shotDirection = new THREE.Vector3();
   readonly enemyRotation = new THREE.Euler(0, 0, 0, 'YXZ');
-  private readonly shots = new Map<string, { origin: THREE.Vector3; speed: number }>();
+  private readonly shots = new Map<string, { origin: THREE.Vector3; speed: number; target?: THREE.Vector3 }>();
+  private latestAssistedShot?: string;
   private replayReady = false;
   private replayElapsed = 0;
   private replayDuration = 0;
@@ -45,7 +46,7 @@ export class AircraftVictory {
   constructor(readonly attemptId: string, readonly targetId: string, private readonly pilotId: string, readonly mission: {readonly enemyAircraft: 'trainer' | 'privateJet' | 'cargo' | 'fighter'; readonly enemyLivery: string; readonly fromGameplayCamera?: boolean} = journeyDallas13) {}
 
   get pending(): boolean { return this.resultConfirmed && !this.complete; }
-  get hasCamera(): boolean { return this.replayStarted || this.sequence !== null; }
+  get hasCamera(): boolean { return !this.complete && (this.replayStarted || this.sequence !== null); }
   get hasReplay(): boolean { return this.replayReady; }
   get replaying(): boolean { return this.replayStarted && this.replayElapsed < this.replayDuration; }
 
@@ -64,6 +65,14 @@ export class AircraftVictory {
     this.recordShot(message.projectileId, message.ownerId, message.position, message.speed);
   }
 
+  recordAssistedShot(message: {shotId:string;ownerId:string;targetId:string;origin:{x:number;y:number;z:number};targetPosition:{x:number;y:number;z:number}}): void {
+    if (message.targetId !== this.targetId) return;
+    if (this.recordShot(message.shotId, message.ownerId, message.origin, BASE_PROJECTILE_SPEED)) {
+      this.shots.get(message.shotId)!.target = new THREE.Vector3().copy(message.targetPosition);
+      this.latestAssistedShot = message.shotId;
+    }
+  }
+
   private recordShot(id: string, owner: string, origin: {x:number;y:number;z:number}, speed: number): boolean {
     if (this.complete || this.replayReady || owner !== this.pilotId || !id || ![origin.x,origin.y,origin.z,speed].every(Number.isFinite) || speed <= 0) return false;
     this.shots.set(id, {origin:new THREE.Vector3().copy(origin),speed});
@@ -74,8 +83,8 @@ export class AircraftVictory {
 
   recordFatalHit(message: {playerId:string;shooterId:string;health:number;impactId?:string;impactPosition?:{x:number;y:number;z:number}}): void {
     if (this.complete || this.replayReady || message.health !== 0 || message.playerId !== this.targetId || message.shooterId !== this.pilotId) return;
-    const shot = this.shots.get(message.impactId ?? '');
-    const impact = message.impactPosition;
+    const shot = this.shots.get(message.impactId ?? this.latestAssistedShot ?? '');
+    const impact = message.impactPosition ?? shot?.target;
     if (!shot || !impact || ![impact.x,impact.y,impact.z].every(Number.isFinite)) return;
     this.shotOrigin.copy(shot.origin); this.impactPosition.copy(impact);
     this.shotDirection.subVectors(this.impactPosition,this.shotOrigin);
@@ -94,13 +103,13 @@ export class AircraftVictory {
 
   confirmSuccess(): void { this.resultConfirmed = true; }
 
-  confirmDestruction(message: Destruction, heading: number, rotation?: {x:number;y:number;z:number}, velocity?: {x:number;y:number;z:number}): boolean {
+  confirmDestruction(message: Destruction, heading: number, rotation?: {x:number;y:number;z:number}, velocity?: {x:number;y:number;z:number}, preserveShotImpact = false): boolean {
     const p = message.position;
     if (this.complete || this.destructionConfirmed || message.playerId !== this.targetId ||
       message.killerId !== this.pilotId || message.cause !== 'combat' || !p ||
       ![p.x, p.y, p.z, heading].every(Number.isFinite)) return false;
     this.position.set(p.x, p.y, p.z);
-    if (this.replayReady) {
+    if (this.replayReady && !preserveShotImpact) {
       // The authoritative projectile impact is on an enlarged collision sphere,
       // not necessarily on the visible hull. End this presentation at the
       // confirmed aircraft position so the visible bullet actually hits it.

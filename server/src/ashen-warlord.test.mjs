@@ -158,7 +158,7 @@ test('all three retained attacks warn, activate and hit with synchronized visibl
 });
 test('chest bonus and 100 ordinary Bluejay hits remain authoritative; replay and cross-encounter damage are rejected', () => {
     const e = createAshenWarlordEncounter('ashen', 'p', 0, () => 135, []), p = e.frame.limbs.gem, forward = { x: Math.sin(e.frame.yaw), z: Math.cos(e.frame.yaw) }, shot = { encounterId: 'ashen', source: 'p', sequence: 1, from: { x: p.x + forward.x * 400, y: p.y, z: p.z + forward.z * 400 }, to: p, radius: 1, amount: 25, delta: 0 };
-    assert.equal(e.engine.damage(shot), 25);
+    assert.equal(e.engine.damage(shot), 31.25);
     assert.equal(e.engine.damage(shot), 0);
     assert.equal(e.engine.damage({ ...shot, sequence: 2, encounterId: 'other' }), 0);
     disposeM19(e);
@@ -429,7 +429,7 @@ test('monster HUD keeps the common aim circle and receipt feedback stays isolate
     const rule=css.match(/\.monster-arrival-focus :is\([^}]+\}/)?.[0];assert(rule);assert(!rule.includes('#acquisition-circle'));
     const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
     assert.match(main,/monsterImpact.attemptId === journeyAttempt\?\.attemptId/);
-    assert.match(main,/monsterView\?\.showBulletImpact\(monsterImpact\)/);
+    assert.match(main,/finishProjectileAtImpact\(projectile, monsterImpact.position\)/);
 });
 
 test('confirmed M19 surface impacts use the server point, emit bounded sparks/smoke once, and dispose cleanly',async()=>{

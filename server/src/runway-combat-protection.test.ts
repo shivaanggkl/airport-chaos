@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
-import { FIRE_RATE_PER_SECOND, ORDINARY_PROJECTILE_DAMAGE, fireIntervalMs, projectileDamageForAircraft } from '../../shared/protocol.mjs';
+import { FIRE_RATE_PER_SECOND, PROJECTILE_DAMAGE_BY_AIRCRAFT, fireIntervalMs, projectileDamageForAircraft } from '../../shared/protocol.mjs';
 
 const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 const client = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
@@ -32,16 +32,16 @@ test('aircraft damage produces the approved regular-combat hit counts', () => {
   const heavyHealth = maxHealthForAircraft('fighter');
   for (const [aircraftType, damage, lightHits, heavyHits] of [
     ['trainer', 25, 4, 8],
-    ['cargo', 25, 4, 8],
-    ['privateJet', 25, 4, 8],
-    ['fighter', 25, 4, 8],
+    ['cargo', 30, 4, 7],
+    ['privateJet', 35, 3, 6],
+    ['fighter', 40, 3, 5],
   ] as const) {
-    assert.equal(ORDINARY_PROJECTILE_DAMAGE, damage);
+    assert.equal(PROJECTILE_DAMAGE_BY_AIRCRAFT[aircraftType], damage);
     assert.equal(projectileDamageForAircraft(aircraftType), damage);
     assert.equal(Math.ceil(lightHealth / damage), lightHits);
     assert.equal(Math.ceil(heavyHealth / damage), heavyHits);
   }
-  assert.match(server, /damage: ORDINARY_PROJECTILE_DAMAGE/);
+  assert.match(server, /damage: damageOverride \?\? projectileDamageForAircraft\(player\.aircraftType\)/);
   assert.match(server, /if \(owner\.skyDuelMatchId\)[\s\S]*const dealt = Math\.min\(victim\.health, damage\)/);
   assert.match(server, /applyCombatHit\(projectile\.ownerId, hitPlayerId, projectile\.cityId, now, projectile\.damage/);
 });

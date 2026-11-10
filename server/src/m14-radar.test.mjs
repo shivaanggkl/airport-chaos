@@ -17,7 +17,7 @@ function visit(node){
 }
 visit(fn('updateRadar'));
 assert.equal(snippets.length,3);
-const radarCode=ts.transpileModule(fn('transportMissionHasLiveTarget').getText(ast)+'\n'+fn('transportEscortDestroyed').getText(ast)+'\nfunction draw(){'+snippets.join('\n')+'}',{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+const radarCode=ts.transpileModule(fn('transportMissionHasLiveTarget').getText(ast)+'\n'+fn('transportEscortInactive').getText(ast)+'\nfunction draw(){'+snippets.join('\n')+'}',{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 function fixture(mask=0){
  const markers=[];
  const remotes=['a','b'].map((playerId,index)=>({playerId,cityId:'dallas',entityType:'player',isBot:true,lifeState:'alive',health:100,heatLevel:0,
@@ -47,4 +47,14 @@ test('the destroyed M14 giant disappears from radar while surviving escorts rema
 test('transport kill flags do not hide contacts in unrelated fighter missions',()=>{
  const f=fixture(3);f.ctx.journeyAttempt.missionId=missions.journeyDallas14.id;
  assert.deepEqual(f.draw(),[1,2]);
+});
+
+test('M16 radar shows only the living fourth escort after the gunship and first three are destroyed',()=>{
+ const f=fixture(7);
+ Object.assign(f.ctx.journeyAttempt,{missionId:missions.journeyDallas10.id,monsterHealth:0,rearGuardThirdId:'c',rearGuardFourthId:'d'});
+ for (const [playerId,x] of [['c',3],['d',4],['old-fourth',5]]) {
+  const remote={...f.remotes[0],playerId,plane:{...f.remotes[0].plane,position:{x,z:0}}};
+  f.ctx.remotePlayers.set(playerId,remote);
+ }
+ assert.deepEqual(f.draw(),[4]);
 });

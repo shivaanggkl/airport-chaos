@@ -78,15 +78,21 @@ test('Final Intercept advances after either escort kill order, including a remov
   assert.equal(cleared(), true);
 });
 
-test('a locked escort uses the normal projectile, swept collision and impact ID', () => {
+test('a locked Mission 8 escort uses the shared hit and confirmed tracer paths', () => {
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
-  const fire = server.slice(server.indexOf("if (message.type === 'fire')"), server.indexOf("if (message.type === 'eventJoin')"));
-  assert.match(fire, /createProjectile\(playerId, player, clientShotId, fireTransform, shotAim\)/);
-  assert.doesNotMatch(fire, /applyCombatHit|assistedShot/);
-  const travel = server.slice(server.indexOf('function updateProjectiles('), server.indexOf('function desiredBotCount('));
-  assert.match(travel, /sameCombatContext\(owner, player\)/);
-  assert.match(travel, /projectileImpactFraction\(/);
-  assert.match(travel, /impactId: projectile.projectileId/);
+  const assistedShot = server.slice(server.indexOf('function createAssistedShot('), server.indexOf('function applyEventAircraftHit('));
+  assert.doesNotMatch(assistedShot, /journeyRearGuardEscort[^\n]*return false/);
+  assert.match(assistedShot, /applyCombatHit\(playerId, targetId,/);
+  const projectile = server.slice(server.indexOf('function createProjectile('), server.indexOf('function broadcastProjectileStates('));
+  assert.match(projectile, /const direction = normalize\(rotateLocalYxz\(\{ x: aim\.x, y: aim\.y, z: -1 \}, transform\.rotation\)\)/);
+  assert.doesNotMatch(projectile, /ballisticInterceptDirection/);
+
+  const client = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const muzzleFeedback = client.slice(client.indexOf('function spawnMuzzleFeedback('), client.indexOf('function createAssistedShotMesh('));
+  assert.match(muzzleFeedback, /predicted\.mesh\.visible = !predicted\.predictedTargetId/);
+  assert.doesNotMatch(muzzleFeedback, /ballisticInterceptDirection/);
+  const confirmedVisual = client.slice(client.indexOf('function addAssistedShot('), client.indexOf('function spawnImpactFeedback('));
+  assert.match(confirmedVisual, /visibleCombatTargetPosition\(message\.targetId\)/);
 });
 
 test('Mission 8 unlock, two assigned escorts, transport defeat, timeout and first reward are authoritative', () => {

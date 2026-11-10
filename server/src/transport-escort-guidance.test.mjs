@@ -11,7 +11,7 @@ const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'u
 const ast=ts.createSourceFile('main.ts',source,ts.ScriptTarget.Latest,true);
 const declaration=name=>ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text===name).getText(ast);
 const focus=ast.statements.find(node=>ts.isVariableStatement(node)&&node.declarationList.declarations.some(d=>d.name.getText(ast)==='unrelatedFocusedBot')).getText(ast);
-const code=ts.transpileModule(['transportMissionHasLiveTarget','transportEscortDestroyed','syncTransportEscortObjective'].map(declaration).join('\n')+'\n'+focus,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+const code=ts.transpileModule(['transportMissionHasLiveTarget','transportEscortInactive','syncTransportEscortObjective'].map(declaration).join('\n')+'\n'+focus,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 function fixture(missionId=missions.journeyDallas09.id){
  const calls=[];
  const make=(playerId,type,x)=>({playerId,aircraftType:type,cityId:'dallas',isBot:true,lifeState:'alive',health:100,timeSinceUpdate:0,
@@ -63,7 +63,7 @@ test('guidance preserves living giant targets, remaining armored wings and unrel
 });
 
 test('new state packets cannot restore a dead transport objective; render loop refreshes escort guidance',()=>{
- assert.match(source,/transportView\?\.setState\(message\);\s*if \(!transportMissionHasLiveTarget\(journeyAttempt\)\) \{ syncTransportEscortObjective\(\);return; \}/);
+ assert.match(source,/view\?\.setState\(message,[\s\S]*?\);\s*if \(!transportMissionHasLiveTarget\(journeyAttempt\)\) \{ syncTransportEscortObjective\(\);return; \}/);
  assert.match(source,/missionObjective = transportMissionHasLiveTarget\(message.attempt\) && transportView\?\.hasState/);
  assert.match(source,/syncLegendaryObjective\(\);\s*syncTransportEscortObjective\(\);/);
 });

@@ -58,7 +58,9 @@ export function selectCombatTarget(state, candidates, now) {
 }
 
 const finiteVector = value => value && [value.x, value.y, value.z].every(Number.isFinite);
-// Aim and projectile simulation use the same relative-motion intercept.
+// Solve the existing longitudinal launch-speed model, including its dependence
+// on direction. This bounded root search avoids invalid quadratic roots and
+// does not approximate inherited speed using an unrelated camera vector.
 export const combatIntercept = ballisticIntercept;
 
 // Predictive bullet lead stays independent of the smaller target-acquisition area.

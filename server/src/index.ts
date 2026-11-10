@@ -52,7 +52,7 @@ import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 import { journeyFormationStatus, type FormationStatus } from '../../shared/journey-formation.mjs';
 import { excludesFocusedBotInteraction, missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { journeyInteractionExcluded } from './journey-isolation.js';
-import { boundJourneyHunterPoint, insideJourneyHunterArena, journeyHunterSteeringTarget, keepJourneyHunterInside } from './journey-hunter-airspace.js';
+import { boundJourneyHunterPoint, dallasEscortSteeringTarget, insideJourneyHunterArena, journeyHunterSteeringTarget, keepDallasEscortInside, keepJourneyHunterInside } from './journey-hunter-airspace.js';
 import { aceDamageAuthorized } from './journey-ace.js';
 import { CrossfireFireCoordinator } from './journey-crossfire.js';
 import { rearGuardShouldRejoin, createRearGuardFireState, finalInterceptEscortsCleared, rearGuardTakeoff, rearGuardShooter, rearGuardShotResolved, rearGuardReinforcementsJoined, shouldBeginReinforcements, type RearGuardFireState } from './rear-guard-fire.js';
@@ -69,7 +69,7 @@ import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, fireIntervalMs, ORDINARY_PROJECTILE_DAMAGE, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, localFiringDirection, projectileLaunchVelocity, advanceProjectile, ballisticIntercept, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, localFiringDirection, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
 import { FirehawkPayments } from './firehawk-payments.js';
@@ -278,7 +278,6 @@ type ProjectileState = {
   direction: Vector3;
   traveled: number;
   speed: number;
-  lastAdvancedAt: number;
   mode: ProjectileMode;
   clientShotId?: string;
   privateAttemptId?: string;
@@ -3302,7 +3301,7 @@ function removeJourneyHunter(attempt: JourneyAttempt): void {
     for (const id of wave?.ids ?? []) if (id) removeBot(id);
   }
   if((attempt.missionId===journeyDallas19.id||attempt.missionId===journeyDallas25.id||attempt.missionId===journeyDallas21.id||attempt.missionId===journeyDallas22.id||attempt.missionId===journeyDallas23.id)||attempt.missionId===journeyDallas20.id){const e=monsterEncounters.get(attempt.attemptId);if(e)disposeM19(e);monsterEncounters.delete(attempt.attemptId);}
-  for (const id of [attempt.targetId, attempt.secondaryTargetId]) {
+  for (const id of [attempt.targetId, attempt.secondaryTargetId, attempt.rearGuardThirdId, attempt.rearGuardFourthId]) {
     const target = id ? players.get(id) : undefined;
     if (target?.bot?.journeyAttemptId === attempt.attemptId) removeBot(id!);
   }
@@ -3429,6 +3428,18 @@ function ensureJourneyCrossfire(playerId:string,pilot:PlayerState,active:Journey
     crossfireFireCoordinators.get(active.attemptId)!.select(candidates,now);
   }
 }
+function activateRearGuardEscorts(playerId: string, attempt: JourneyAttempt, now: number): void {
+  const fire = rearGuardFire.get(attempt.attemptId);
+  if (!fire) return;
+  rearGuardTakeoff(fire, now);
+  for (const id of [attempt.targetId, attempt.secondaryTargetId, attempt.rearGuardThirdId, attempt.rearGuardFourthId]) {
+    const escort = id ? players.get(id) : undefined;
+    const bot = escort?.bot;
+    if (escort?.lifeState === 'alive' && bot?.journeyRearGuardEscort &&
+        bot.journeyAttemptId === attempt.attemptId && bot.journeyTargetPlayerId === playerId) bot.journeyProvoked = true;
+  }
+}
+
 function spawnRearGuardEscorts(playerId: string, pilot: PlayerState, attempt: JourneyAttempt, now: number): void {
   if ((attempt.missionId !== journeyDallas08.id && attempt.missionId !== journeyDallas09.id && attempt.missionId !== journeyDallas10.id && attempt.missionId !== journeyDallas12.id) || attempt.status !== 'RACING' || attempt.targetId || attempt.secondaryTargetId) return;
   const mission = attempt.missionId === journeyDallas12.id ? journeyDallas12 : attempt.missionId === journeyDallas10.id ? journeyDallas10 : attempt.missionId === journeyDallas09.id ? journeyDallas09 : journeyDallas08;
@@ -3445,6 +3456,7 @@ function spawnRearGuardEscorts(playerId: string, pilot: PlayerState, attempt: Jo
       wave.ids[ordinal-3]=escortId;reinforcementWaves.set(attempt.attemptId,wave);
     }
   }
+  if (playerJourneyDfwTakeoff.has(playerId)) activateRearGuardEscorts(playerId, attempt, now);
   sendJourneyState(playerId, attempt);
 }
 
@@ -5034,6 +5046,38 @@ function distanceToSegmentSquared(
   return dx * dx + dy * dy + dz * dz;
 }
 
+// Test both moving objects over the same server tick. At Redspear Boost speeds
+// a four-point target sample can skip a crossing between samples. Relative-
+// motion closest approach is continuous and keeps the existing hit radius.
+function sweptProjectileHit(
+  player: PlayerState,
+  startX: number,
+  startY: number,
+  startZ: number,
+  end: Vector3,
+  deltaSeconds: number,
+  visualScale = 1,
+): boolean {
+  const hitRadius = aircraftHitRadii[player.aircraftType] * visualScale * projectileHitRadiusMultiplier + projectileVisualRadius;
+  // The stored transform is the target's end-of-tick position. Rewind it to
+  // the segment start before testing relative swept motion; otherwise fast
+  // targets are offset by an extra tick of travel and clean shots can miss.
+  const relativeX = startX - (player.position.x - player.velocity.x * deltaSeconds);
+  const relativeY = startY - (player.position.y - player.velocity.y * deltaSeconds);
+  const relativeZ = startZ - (player.position.z - player.velocity.z * deltaSeconds);
+  const motionX = end.x - startX - player.velocity.x * deltaSeconds;
+  const motionY = end.y - startY - player.velocity.y * deltaSeconds;
+  const motionZ = end.z - startZ - player.velocity.z * deltaSeconds;
+  const motionSquared = motionX * motionX + motionY * motionY + motionZ * motionZ;
+  const closestTime = motionSquared > 0
+    ? Math.max(0, Math.min(1, -(relativeX * motionX + relativeY * motionY + relativeZ * motionZ) / motionSquared))
+    : 0;
+  const dx = relativeX + motionX * closestTime;
+  const dy = relativeY + motionY * closestTime;
+  const dz = relativeZ + motionZ * closestTime;
+  return dx * dx + dy * dy + dz * dz <= hitRadius * hitRadius;
+}
+
 function normalize(vector: Vector3): Vector3 {
   const length = Math.hypot(vector.x, vector.y, vector.z) || 1;
   return { x: vector.x / length, y: vector.y / length, z: vector.z / length };
@@ -5086,7 +5130,7 @@ function combatLineBlocked(owner: PlayerState, origin: Vector3, end: Vector3): b
   return segmentBlockedByBuildings(origin, end, buildings) || end.y <= dallasTerrain.elevationAt(end.x, end.z);
 }
 
-function validFireTransform(player: PlayerState, candidate: unknown, now: number): Transform | undefined {
+function validFireTransform(player: PlayerState, candidate: unknown): Transform | undefined {
   if (!candidate || typeof candidate !== 'object') return undefined;
   const value = candidate as Partial<Transform>;
   if (!value.position || !value.rotation || value.aircraftType !== player.aircraftType) return undefined;
@@ -5094,16 +5138,15 @@ function validFireTransform(player: PlayerState, candidate: unknown, now: number
   if (!values.every(Number.isFinite)) return undefined;
   const speed = Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z);
   const envelope = aircraftFlightEnvelope[player.aircraftType];
-  const stateAge = now - player.lastAcceptedTransformAt;
-  if (stateAge < 0 || stateAge > 250) return undefined;
-  const tolerance = 20 + Math.min(speed, envelope.maxSpeed * envelope.boostMaxSpeed) * Math.max(0.08, stateAge / 1000);
+  const tolerance = 20 + Math.min(speed, envelope.maxSpeed * envelope.boostMaxSpeed) * 0.35;
   const positionDelta = Math.hypot(
     value.position.x - player.position.x,
     value.position.y - player.position.y,
     value.position.z - player.position.z,
   );
   if (positionDelta > tolerance) return undefined;
-  if (!validateClientRotation(player.rotation, value.rotation, Math.max(50, stateAge), envelope).accepted) return undefined;
+  const proposed = forwardDirection(value as Transform);
+  if (dot(proposed, forwardDirection(player)) < 0.65) return undefined;
   return value as Transform;
 }
 
@@ -5225,23 +5268,13 @@ function monsterLockSolution(ownerId:string,owner:PlayerState,now:number){
 function validMonsterLock(ownerId:string,owner:PlayerState,now:number):boolean{
   if(!owner.lockedTargetId?.startsWith('monster:') || owner.assistedAim?.targetId!==owner.lockedTargetId || now-owner.assistedAim.updatedAt>500)return false;
   const target=monsterLockSolution(ownerId,owner,now);
-  return !!target && target.id===owner.lockedTargetId;
+  return !!target && target.id===owner.lockedTargetId && insideDynamicLock(target.local.x,target.local.y,target.local.z,owner.assistedAim);
 }
 
 function validFortressLock(ownerId: string, owner: PlayerState, now: number): boolean {
   if (!owner.lockedTargetId?.startsWith('transport:') || owner.assistedAim?.targetId !== owner.lockedTargetId || now-owner.assistedAim.updatedAt > 500) return false;
   const target = fortressLockSolution(ownerId,owner,now,owner.lockedTargetId);
-  return Boolean(target);
-}
-
-function ballisticAimLocal(transform: Transform, velocity: Vector3, target: Vector3, targetVelocity: Vector3): Vector3 | undefined {
-  const origin = muzzleTransform(transform).position;
-  const solution = ballisticIntercept(origin, velocity, target, targetVelocity);
-  if (!solution) return;
-  const direction = solution.direction;
-  return targetInAircraftSpace({ ...transform, position: origin }, {
-    position: { x: origin.x + direction.x * 1000, y: origin.y + direction.y * 1000, z: origin.z + direction.z * 1000 },
-  });
+  return Boolean(target && insideDynamicLock(target.local.x,target.local.y,target.local.z,owner.assistedAim));
 }
 
 function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, manualHorizontal: unknown, manualVertical: unknown): void {
@@ -5260,16 +5293,16 @@ function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, man
   }
   const goal = { x: 0, y: 0 };
   aim.targetId = candidate?.[0];
-  const target = candidate?.[1];
-  const componentVelocity = transport ? transportPose(now - transport.startedAt, transport.altitude, transport.durationMs, transport.missionId).velocity : undefined;
-  const lead = target
-    ? ballisticAimLocal(owner, owner.velocity, target.position, target.velocity)
-    : component ? ballisticAimLocal(owner, owner.velocity, component.position, componentVelocity ?? { x: 0, y: 0, z: 0 }) : undefined;
-  aim.targetId = lead && aimGoal(lead.x, lead.y, lead.z, goal) ? candidate?.[0] ?? component?.id : undefined;
+  if (candidate) {
+    const local=targetInAircraftSpace(owner,candidate[1]);
+    aimGoal(local.x,local.y,local.z,goal);
+  }
+  if (component && aimGoal(component.local.x,component.local.y,component.local.z,goal)) aim.targetId=component.id;
   if (owner.lifeState === 'alive') biasAim(goal, manualHorizontal, manualVertical);
   stepAim(aim, goal, (now - aim.updatedAt) / 1000, AIM_ENVELOPE);
   aim.updatedAt = now;
-  const targetId = lead && insideDynamicLock(lead.x, lead.y, lead.z, aim) ? aim.targetId : undefined;
+  const targetId = component && aim.targetId === component.id && insideDynamicLock(component.local.x,component.local.y,component.local.z,aim)
+    ? component.id : candidate && validDynamicTarget(ownerId, owner, candidate[0], now) ? candidate[0] : undefined;
   setServerLock(ownerId, owner, targetId, true);
 }
 
@@ -5284,8 +5317,8 @@ function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: strin
       !tutorialCombatPairAllowed(ownerId, owner, targetId, target) ||
       target.lifeState !== 'alive' || now < target.spawnProtectedUntil || runwayCombatProtected(ownerId, owner) || runwayCombatProtected(targetId, target) ||
       now - target.lastStateAt > combatTransformFreshMs) return undefined;
-  const lead = ballisticAimLocal(transform, owner.velocity, target.position, target.velocity);
-  if (!lead || !insideDynamicLock(lead.x, lead.y, lead.z, aim)) return undefined;
+  const local = targetInAircraftSpace(transform, target);
+  if (Math.hypot(local.x, local.y, local.z) > COMBAT_RANGE || !insideDynamicLock(local.x, local.y, local.z, aim)) return undefined;
   return target;
 }
 
@@ -5331,8 +5364,7 @@ function fireBlockReason(player: PlayerState, now: number, playerId?: string): '
     (!player.skyDuelMatchId || skyDuelSessions.get(player.skyDuelMatchId)?.phase !== 'active')) return 'lifecycle';
   const interval = player.bot?.journeyEscortMissionId === journeyDallas08.id || player.bot?.journeyEscortMissionId === journeyDallas09.id || player.bot?.journeyEscortMissionId === journeyDallas10.id
     ? Math.max(journeyDallas08.escortShotSpacingMs, fireIntervalMs(player.aircraftType)) : fireIntervalMs(player.aircraftType);
-  // Allow a small arrival jitter without increasing the scheduled shot rate.
-  if (now - player.lastFireAt + (player.isBot ? 0 : 18) < interval) return 'cooldown';
+  if (now - player.lastFireAt < interval) return 'cooldown';
   return undefined;
 }
 
@@ -5342,6 +5374,32 @@ function logFireBlocked(playerId: string, reason: string, now = Date.now()): voi
   if (now - (fireBlockedDebugAt.get(key) ?? 0) < 1_000) return;
   fireBlockedDebugAt.set(key, now);
   console.info(`[combat] FIRE_BLOCKED ${reason} player=${playerId.slice(0, 8)}`);
+}
+
+function logLockShotReject(
+  ownerId: string,
+  owner: PlayerState,
+  targetId: string | undefined,
+  fireTransform: Transform | undefined,
+  reason: string,
+  now = Date.now(),
+): void {
+  if (!stabilityDiagnosticsEnabled) return;
+  const key = `${ownerId}:lock-shot:${reason}`;
+  if (now - (fireBlockedDebugAt.get(key) ?? 0) < 1_000) return;
+  fireBlockedDebugAt.set(key, now);
+  const transform = fireTransform ?? owner;
+  const target = targetId ? players.get(targetId) : undefined;
+  const offset = target ? {
+    x: target.position.x - transform.position.x,
+    y: target.position.y - transform.position.y,
+    z: target.position.z - transform.position.z,
+  } : undefined;
+  const distance = offset ? Math.hypot(offset.x, offset.y, offset.z) : Number.NaN;
+  const angle = offset && distance > 0
+    ? Math.acos(Math.max(-1, Math.min(1, dot(forwardDirection(transform), normalize(offset)))))
+    : Number.NaN;
+  console.info(`[combat] LOCK_SHOT_REJECT ${reason} distance=${Number.isFinite(distance) ? distance.toFixed(1) : 'n/a'}m angle=${Number.isFinite(angle) ? (angle * 180 / Math.PI).toFixed(2) : 'n/a'}deg player=${ownerId.slice(0, 8)}`);
 }
 
 function validatedShotAim(player: PlayerState, reference: unknown, now: number): { x: number; y: number } | undefined {
@@ -5357,7 +5415,7 @@ function validatedShotAim(player: PlayerState, reference: unknown, now: number):
   return interpolateAim(from, to, ref.blend!, neutral);
 }
 
-function createProjectile(playerId: string, player: PlayerState, clientShotId?: string, fireTransform?: Transform, aim = { x: 0, y: 0 }): boolean {
+function createProjectile(playerId: string, player: PlayerState, clientShotId?: string, fireTransform?: Transform, aim = { x: 0, y: 0 }, damageOverride?: number): boolean {
   const now = Date.now();
   if (
     !canFire(player, now, playerId) ||
@@ -5365,28 +5423,21 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
   ) {
     return false;
   }
+  player.lastFireAt = now;
+
   const transform = fireTransform ?? player;
-  const muzzle = muzzleTransform(transform, aim);
-  const velocity = projectileLaunchVelocity(player.velocity, muzzle.direction);
-  const speed = Math.hypot(velocity.x, velocity.y, velocity.z);
-  if (speed < 1e-6) {
-    projectileBudget.release(playerId, player.cityId);
-    return false;
-  }
-  player.lastFireAt = player.isBot ? now : Math.max(now, player.lastFireAt + fireIntervalMs(player.aircraftType));
-  const direction = { x: velocity.x / speed, y: velocity.y / speed, z: velocity.z / speed };
+  const { position, direction } = muzzleTransform(transform, aim);
   const privateId=playerJourneyAttempts.get(playerId);
   const projectile: ProjectileState = {
     projectileId: randomUUID(),
     ownerId: playerId,
     airAssaultId: player.airAssaultId,
     cityId: player.cityId,
-    damage: ORDINARY_PROJECTILE_DAMAGE,
-    position: muzzle.position,
+    damage: damageOverride ?? projectileDamageForAircraft(player.aircraftType),
+    position,
     direction,
     traveled: 0,
-    speed,
-    lastAdvancedAt: now,
+    speed: ballisticShotSpeed(player.velocity, direction),
     mode: 'ballistic',
     privateAttemptId: privateId ?? player.bot?.journeyAttemptId,
     privateRecipientId: player.airAssaultOwnerId ?? player.bot?.journeyTargetPlayerId ?? playerId,
@@ -5403,8 +5454,6 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
     position: projectile.position,
     direction: projectile.direction,
     speed: projectile.speed,
-    velocity,
-    firedAt: now,
     serverNow: now,
     mode: projectile.mode,
     clientShotId: projectile.clientShotId,
@@ -5532,6 +5581,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
       active.deadlineAt === null || now >= active.deadlineAt || !bot.journeyProvoked ||
       owner.bot?.journeySurpriseAttack && !ambushCanFire(bot.ambush, now)) return false;
   }
+  if (owner.bot?.journeyFinalShowdown) damage = journeyDallas18.enemyDamage;
   if (((victim.bot?.journeyPursuit || victim.bot?.journeyCrossfire) && !victim.bot.journeyProvoked) ||
     ((owner.bot?.journeyPursuit || owner.bot?.journeyCrossfire) && !owner.bot.journeyProvoked)) return false;
   if (victim.bot?.journeyAce) {
@@ -5588,7 +5638,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     !profileStore.trainingTargetFireAllowed(owner.pilotId))return false;
 
   if (cityId === 'milwaukee' && !owner.isBot && victim.bot) owner.milwaukeeBotsProvoked = true;
-  const damageDealt = Math.min(victim.health, damage);
+  const damageDealt = Math.min(victim.health, victim.trainingOwnerId ? 1 : damage);
   victim.health -= damageDealt;
   recordOpponentHit(owner.bot?.opponent ?? owner.npcOpponent);
   recordOpponentDamage(victim.bot?.opponent ?? victim.npcOpponent);
@@ -5836,6 +5886,73 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
   return true;
 }
 
+function assistedTracerSpeed(velocity: Vector3, origin: Vector3, target: Vector3): number {
+  return ballisticShotSpeed(velocity, normalize({ x: target.x - origin.x, y: target.y - origin.y, z: target.z - origin.z }));
+}
+
+function createFortressAssistedShot(playerId: string, player: PlayerState, targetId: string,
+    clientShotId: string | undefined, fireTransform: Transform | undefined, shotAim: {x:number;y:number}): boolean {
+  const now = Date.now();
+  // Match aircraft combat: validate the bounded fire pose, not an additional
+  // older transform that can cross the range boundary between state packets.
+  if (player.lockedTargetId !== targetId || player.assistedAim?.targetId !== targetId ||
+      now-player.assistedAim.updatedAt>500 || !canFire(player,now,playerId)) return false;
+  const target = fortressLockSolution(playerId,player,now,targetId,undefined,undefined,fireTransform ?? player);
+  if (!target || !insideDynamicLock(target.local.x,target.local.y,target.local.z,shotAim)) return false;
+  player.lastFireAt = now;
+  const shotId = randomUUID();
+  sendToPlayer(playerId,{type:'assistedShot',shotId,ownerId:playerId,targetId,
+    origin:target.origin,targetPosition:target.position,
+    speed:assistedTracerSpeed(player.velocity,target.origin,target.position),clientShotId});
+  // Reuse the exact component collision, damage, mission and reward path.
+  // No client-provided target point or health change is accepted.
+  applyTransportHit(playerId,target.origin,target.end,now,0,projectileDamageForAircraft(player.aircraftType),shotId);
+  return true;
+}
+
+function createAssistedShot(
+  playerId: string,
+  player: PlayerState,
+  targetId: string,
+  clientShotId: string | undefined,
+  fireTransform: Transform | undefined,
+  shotAim: { x: number; y: number },
+): boolean {
+  if (targetId.startsWith('transport:')) return createFortressAssistedShot(playerId,player,targetId,clientShotId,fireTransform,shotAim);
+  const now = Date.now();
+  const target = currentLockedTarget(playerId, player, targetId, now, fireTransform);
+  if (!target || !canFire(player, now, playerId)) return false;
+  const local = targetInAircraftSpace(fireTransform ?? player, target);
+  if (!insideDynamicLock(local.x, local.y, local.z, shotAim)) return false;
+  player.lastFireAt = now;
+  sendIncomingFire(targetId, playerId);
+  const muzzle = muzzleTransform(fireTransform ?? player);
+  const assistedShot = {
+    type: 'assistedShot',
+    shotId: randomUUID(),
+    ownerId: playerId,
+    targetId,
+    origin: muzzle.position,
+    targetPosition: target.position,
+    speed: assistedTracerSpeed(player.velocity, muzzle.position, target.position),
+    clientShotId,
+  };
+  if (player.skyDuelMatchId) {
+    const session = skyDuelSessions.get(player.skyDuelMatchId);
+    if (session) sendSkyDuel(session, assistedShot);
+  } else if (player.airAssaultId) sendToPlayer(player.airAssaultOwnerId ?? playerId, assistedShot);
+  else if (target.bot?.journeyRearGuardEscort) sendToPlayer(playerId, assistedShot);
+  else broadcastToCity(player.cityId, assistedShot);
+  // A server-valid lock is an assisted hit.  Damage can only fail here if a
+  // concurrent lifecycle transition made the target invalid after validation;
+  // do not turn that already-emitted assisted shot into a second ballistic one.
+  if (!applyCombatHit(playerId, targetId, player.cityId, now, projectileDamageForAircraft(player.aircraftType), Math.hypot(local.x, local.y, local.z),
+    { impactId: assistedShot.shotId, impactPosition: assistedShot.targetPosition })) {
+    logLockShotReject(playerId, player, targetId, fireTransform, 'damage_state_changed', now);
+  }
+  return true;
+}
+
 function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number, damage: number): boolean {
   const event = cityEvents.get(cityId);
   if (!event || event.lifecycle !== 'active' || (event.type !== 'aceIntercept' && event.type !== 'vipEscort') || !event.bossHealth || event.bossHealth <= 0) return false;
@@ -5883,7 +6000,7 @@ function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: V
   const hit=journeyStore.hitMonster(owner.pilotId,attemptId,now,amount);
   if(!hit){disposeM19(encounter);monsterEncounters.delete(attemptId);return false;}
   encounter.hitSequence++;encounter.hitPosition={...(encounter.engine.damageImpact??end)};
-  onImpact?.({attemptId,position:encounter.hitPosition,bodyPosition:{...encounter.frame.position},yaw:encounter.frame.yaw,sequence:encounter.hitSequence});
+  if((attempt.missionId===journeyDallas19.id||attempt.missionId===journeyDallas25.id||attempt.missionId===journeyDallas21.id||attempt.missionId===journeyDallas22.id||attempt.missionId===journeyDallas23.id))onImpact?.({attemptId,position:encounter.hitPosition,bodyPosition:{...encounter.frame.position},yaw:encounter.frame.yaw,sequence:encounter.hitSequence});
   sendJourneyState(ownerId, hit);
   if (hit.status === 'COMPLETED') {
     sendToPlayer(ownerId, { type: 'monsterFinal', attemptId, kind: 'defeat', at: now });
@@ -5925,27 +6042,26 @@ function updateMonsterEncounters(now:number):void {
  }
 }
 
-function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: number, delta: number, damage: number, hitShotId?: string, maxTravelSquared = Infinity): Vector3 | undefined {
+function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: number, delta: number, damage: number, hitShotId?: string, projectile?: ProjectileState): boolean {
     const owner = players.get(ownerId), id = playerJourneyAttempts.get(ownerId), e = id ? transportEncounters.get(id) : undefined;
     if (!owner || owner.isBot || owner.cityId !== 'dallas' || !e || e.playerId !== ownerId)
-        return undefined;
+        return false;
     const a = journeyStore.get(owner.pilotId, e.attemptId);
     if (a?.status !== 'RACING' || a.deadlineAt === null || now >= a.deadlineAt)
-        return undefined;
+        return false;
     const sideGuns = e.crossfire?.guns.slice(1);
     const beforePose = {...transportPose(now - delta * 1000 - e.startedAt, e.altitude, e.durationMs, e.missionId),gunYaw:e.gunYaw,gunPitch:e.gunPitch,sideGuns};
     const afterPose = {...transportPose(now - e.startedAt, e.altitude, e.durationMs, e.missionId),gunYaw:e.gunYaw,gunPitch:e.gunPitch,sideGuns};
     const fortressHit = a.missionId === journeyDallas11.id || a.missionId === journeyDallas12.id ? transportFortressImpact(start, end, beforePose, afterPose,
       true) : undefined;
     const hit = fortressHit?.point ?? (a.missionId === journeyDallas11.id || a.missionId === journeyDallas12.id ? undefined : transportImpact(start, end, beforePose, afterPose));
-    if (!hit || (hit.x - start.x) ** 2 + (hit.y - start.y) ** 2 + (hit.z - start.z) ** 2 > maxTravelSquared ||
-        segmentBlockedByBuildings(start, hit, transportBuildings) || hit.y <= dallasTerrain.elevationAt(hit.x, hit.z))
-        return undefined;
+    if (!hit || segmentBlockedByBuildings(start, hit, transportBuildings) || hit.y <= dallasTerrain.elevationAt(hit.x, hit.z))
+        return false;
     // Armored hull shots are consumed but cannot mutate health or rewards.
-    if (fortressHit?.component === 'armor') return hit;
+    if (fortressHit?.component === 'armor') return true;
     const result = fortressHit ? journeyStore.hitFortressComponent(owner.pilotId, e.attemptId, fortressHit.component, now, damage)
       : journeyStore.hitTransport(owner.pilotId, e.attemptId, now, damage);
-    if (!result) return hit;
+    if (!result) return true;
     if (e.fortressTurrets) {
       e.fortressTurrets[0] = result.fortressLeftHealth ?? 0;
       e.fortressTurrets[1] = result.fortressRightHealth ?? 0;
@@ -5960,19 +6076,29 @@ function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: n
     e.hitPosition = hit;
     e.hitShotId = hitShotId;
     if (result.missionId === journeyDallas09.id) beginReinforcementWave(result, now);
-    const armoredGiantDestroyed = result.missionId===journeyDallas12.id && result.monsterHealth===0 &&
-      result.fortressLeftHealth===0 && result.fortressRightHealth===0 &&
-      (a.monsterHealth!==0 || a.fortressLeftHealth!==0 || a.fortressRightHealth!==0);
-    if((((result.missionId===journeyDallas08.id||result.missionId===journeyDallas09.id||result.missionId===journeyDallas10.id)&&a.monsterHealth!==0&&result.monsterHealth===0) || armoredGiantDestroyed) && result.status!=='COMPLETED')
-      sendToPlayer(ownerId,{type:'transportFinal',attemptId:e.attemptId,kind:'defeat',at:now});
+    const armored = result.missionId === journeyDallas11.id || result.missionId === journeyDallas12.id;
+    const giantDestroyed = result.monsterHealth === 0 &&
+      (!armored || result.fortressLeftHealth === 0 && result.fortressRightHealth === 0) &&
+      (a.monsterHealth !== 0 || armored && (a.fortressLeftHealth !== 0 || a.fortressRightHealth !== 0));
+    if (giantDestroyed || result.status === 'COMPLETED') {
+        const origin = projectile ? {
+            x: end.x - projectile.direction.x * projectile.traveled,
+            y: end.y - projectile.direction.y * projectile.traveled,
+            z: end.z - projectile.direction.z * projectile.traveled,
+        } : start;
+        const finishingShot = hitShotId ? {
+            id: hitShotId, origin, impact: hit, pose: afterPose,
+            speed: projectile?.speed ?? assistedTracerSpeed(owner.velocity, origin, hit),
+        } : undefined;
+        sendToPlayer(ownerId, { type: 'transportFinal', attemptId: e.attemptId, kind: 'defeat', at: now, finishingShot });
+    }
     sendJourneyState(ownerId, result);
     if (result.status === 'COMPLETED') {
-        sendToPlayer(ownerId, { type: 'transportFinal', attemptId: e.attemptId, kind: 'defeat', at: now });
         removeJourneyHunter(result);
         sendProfile(ownerId, profileStore.getOrCreate(owner.pilotId, owner.displayName), undefined, undefined,
           result.missionId === journeyDallas12.id ? journeyDallas12.name : result.missionId === journeyDallas11.id ? journeyDallas11.name : result.missionId === journeyDallas10.id ? journeyDallas10.name : result.missionId === journeyDallas09.id ? journeyDallas09.name : result.missionId === journeyDallas08.id ? journeyDallas08.name : journeyDallas07.name);
     }
-    return hit;
+    return true;
 }
 function updateTransportEncounters(now: number): void {
     for (const e of transportEncounters.values()) {
@@ -6001,22 +6127,21 @@ function updateTransportEncounters(now: number): void {
             continue;
         }
         for (let i = e.shots.length - 1; i >= 0; i--) {
-            const shot = e.shots[i]!, before = { ...shot.position };
-            shot.traveled += advanceProjectile(shot.position, shot.direction, shot.speed, shot.traveled, dt);
+            const shot = e.shots[i]!, before = { ...shot.position }, step = Math.min(shot.speed * dt, COMBAT_RANGE - shot.traveled);
+            shot.position.x += shot.direction.x * step;
+            shot.position.y += shot.direction.y * step;
+            shot.position.z += shot.direction.z * step;
+            shot.traveled += step;
             if (segmentBlockedByBuildings(before, shot.position, transportBuildings) || shot.position.y <= dallasTerrain.elevationAt(shot.position.x, shot.position.z)) {
                 e.shots.splice(i, 1);
                 continue;
             }
-            const radius = aircraftHitRadii[pilot.aircraftType] * projectileHitRadiusMultiplier + projectileVisualRadius;
-            const fraction = projectileImpactFraction(before, shot.position, pilot.position, pilot.velocity, dt, radius);
-            if (fraction !== null) {
+            if (sweptProjectileHit(pilot, before.x, before.y, before.z, shot.position, dt)) {
                 e.shots.splice(i, 1);
                 if (pilot.lifeState === 'alive' && now >= pilot.spawnProtectedUntil) {
-                    const shotDamage = Math.min(pilot.health, ORDINARY_PROJECTILE_DAMAGE);
+                    const shotDamage = e.missionId===journeyDallas10.id ? journeyDallas10.gunShotDamage : e.fortressTurrets ? journeyDallas11.gunShotDamage : transportTuning.shotDamage;
                     pilot.health = Math.max(0, pilot.health - shotDamage);
-                    sendToPlayer(e.playerId, { type: 'damage', playerId: e.playerId, shooterId: `transport:${e.attemptId}`, health: pilot.health, maxHealth: maxHealthForAircraft(pilot.aircraftType), damage: shotDamage, impactId: shot.id,
-                      impactPosition: { x: before.x + (shot.position.x - before.x) * fraction,
-                        y: before.y + (shot.position.y - before.y) * fraction, z: before.z + (shot.position.z - before.z) * fraction } });
+                    sendToPlayer(e.playerId, { type: 'damage', playerId: e.playerId, shooterId: `transport:${e.attemptId}`, health: pilot.health, maxHealth: maxHealthForAircraft(pilot.aircraftType), damage: shotDamage });
                     if (!pilot.health) {
                         failPlayerJourney(e.playerId, 'CRASHED', now);
                         markPlayerDestroyed(e.playerId, pilot, now);
@@ -6069,84 +6194,84 @@ function updateProjectiles(deltaSeconds: number): void {
       const a=missionPilot ? journeyStore.get(missionPilot.pilotId,projectile.privateAttemptId) : undefined;
       if(!missionPilotId || playerJourneyAttempts.get(missionPilotId)!==projectile.privateAttemptId||a?.status!=='RACING'||a.deadlineAt!==null&&now>=a.deadlineAt){removeProjectile(projectile.projectileId);continue;}
     }
-    const shotDelta = Math.min(deltaSeconds, Math.max(0, (now - projectile.lastAdvancedAt) / 1000));
-    projectile.lastAdvancedAt = now;
-    if (shotDelta === 0) continue;
     const previousX = projectile.position.x;
     const previousY = projectile.position.y;
     const previousZ = projectile.position.z;
-    projectile.traveled += advanceProjectile(projectile.position, projectile.direction, projectile.speed, projectile.traveled, shotDelta);
+    const step = Math.min(projectile.speed * deltaSeconds, COMBAT_RANGE - projectile.traveled);
+    projectile.position.x += projectile.direction.x * step;
+    projectile.position.y += projectile.direction.y * step;
+    projectile.position.z += projectile.direction.z * step;
+    projectile.traveled += step;
 
-    const start = { x: previousX, y: previousY, z: previousZ };
+    if (!projectile.airAssaultId && !projectile.skyDuelMatchId && !projectile.skyDuelPractice &&
+      !transportEncounters.has(playerJourneyAttempts.get(projectile.ownerId) ?? '') &&
+      combatLineBlocked(owner, { x: previousX, y: previousY, z: previousZ }, projectile.position)) {
+      removeProjectile(projectile.projectileId); continue;
+    }
     const missionAttemptId = playerJourneyAttempts.get(projectile.ownerId);
-    const transportMissionId = missionAttemptId ? journeyStore.get(owner.pilotId, missionAttemptId)?.missionId : undefined;
-    const transport = transportMissionId === journeyDallas07.id || transportMissionId === journeyDallas08.id ||
-      transportMissionId === journeyDallas09.id || transportMissionId === journeyDallas10.id ||
-      transportMissionId === journeyDallas11.id || transportMissionId === journeyDallas12.id;
+    if (projectile.cityId === 'dallas' && missionAttemptId && monsterEncounters.has(missionAttemptId) &&
+      (segmentBlockedByBuildings({ x: previousX, y: previousY, z: previousZ }, projectile.position, monsterDistrictBuildings) ||
+       projectile.position.y <= dallasTerrain.elevationAt(projectile.position.x, projectile.position.z))) {
+      removeProjectile(projectile.projectileId);
+      continue;
+    }
+
+    const missionAttempt = missionAttemptId ? journeyStore.get(owner.pilotId, missionAttemptId) : undefined;
+    const transportMissionId = missionAttempt?.missionId;
+    if (transportMissionId === journeyDallas07.id || transportMissionId === journeyDallas08.id || transportMissionId === journeyDallas09.id || transportMissionId === journeyDallas10.id || transportMissionId === journeyDallas11.id || transportMissionId === journeyDallas12.id) {
+      const start={x:previousX,y:previousY,z:previousZ};
+      if(applyTransportHit(projectile.ownerId,start,projectile.position,now,deltaSeconds,projectile.damage,projectile.projectileId,projectile)) {removeProjectile(projectile.projectileId);continue;}
+      const blocked = segmentBlockedByBuildings(start, projectile.position, transportBuildings) ||
+        projectile.position.y <= dallasTerrain.elevationAt(projectile.position.x, projectile.position.z);
+      const disposition = transportProjectileDisposition(transportMissionId, projectile.traveled, blocked);
+      if (disposition === 'remove') {removeProjectile(projectile.projectileId);continue;}
+      if (disposition === 'continue') continue;
+    } else if (!projectile.airAssaultId && !projectile.skyDuelMatchId && !projectile.skyDuelPractice) {
+      let monsterImpact: Parameters<typeof removeProjectile>[1];
+      if(applyMonsterHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage,deltaSeconds,impact=>{monsterImpact=impact;}) ||
+        applyEventAircraftHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage)) {
+        removeProjectile(projectile.projectileId,monsterImpact);
+        continue;
+      }
+    }
+
     let hitPlayerId: string | null = null;
     let hitFraction = Infinity;
     const expertShot=Boolean((owner.bot?.opponent??owner.npcOpponent)?.profile.tactics.expert);
-    if (!transport || transportProjectileDisposition(transportMissionId, 0, false) === 'escort') {
-      combatSpatialIndex.query(projectile.cityId, start, projectile.position, maxCombatHitRadius + (maxTargetSpeed.get(projectile.cityId) ?? 0) * (shotDelta+(expertShot ? 0.15 : 0)), combatNearbyPlayers);
-      for (const { id: playerId, player } of combatNearbyPlayers) {
-        if (
-          playerId === projectile.ownerId ||
-          player.entityType !== 'player' ||
-          player.cityId !== projectile.cityId ||
-          !sameCombatContext(owner, player) ||
-          ((transportMissionId === journeyDallas08.id || transportMissionId === journeyDallas09.id || transportMissionId === journeyDallas10.id || transportMissionId === journeyDallas12.id) && (!player.bot?.journeyRearGuardEscort || player.bot.journeyAttemptId !== missionAttemptId)) ||
-          !tutorialCombatPairAllowed(projectile.ownerId, owner, playerId, player) ||
-          player.lifeState !== 'alive' ||
-          playerJourneyRunwayPrep.has(playerId) ||
-          focusedBotInteractionExcluded(projectile.ownerId, owner, playerId, player) ||
-          now < player.spawnProtectedUntil || runwayCombatProtected(playerId, player)
-        ) {
-          continue;
-        }
-        const distance = Math.hypot(owner.position.x - player.position.x, owner.position.y - player.position.y, owner.position.z - player.position.z);
-        const targetScale = owner.isBot && !player.isBot ? 1
-          : player.bot?.journeyRearGuardEscort ? remoteAircraftScale : remoteAircraftVisualScale(distance);
-        const radius = aircraftHitRadii[player.aircraftType] * targetScale * projectileHitRadiusMultiplier + projectileVisualRadius;
-        const targetPosition=expertShot&&!player.isBot?hunterObservedPosition(player.position,player.velocity,player.lastStateAt,now):player.position;
-        const fraction = projectileImpactFraction(start, projectile.position,
-          targetPosition, player.velocity, shotDelta, radius);
-        if (fraction !== null && fraction < hitFraction) { hitPlayerId = playerId; hitFraction = fraction; }
-
-      }
-    }
-    const end = projectile.position;
-    const aircraftImpact = hitPlayerId ? { x: start.x + (end.x - start.x) * hitFraction,
-      y: start.y + (end.y - start.y) * hitFraction, z: start.z + (end.z - start.z) * hitFraction } : undefined;
-    const firstEnd = aircraftImpact ?? end;
-    if (transport) {
-      const maxTravelSquared = aircraftImpact
-        ? (firstEnd.x - start.x) ** 2 + (firstEnd.y - start.y) ** 2 + (firstEnd.z - start.z) ** 2 : Infinity;
-      const hit = applyTransportHit(projectile.ownerId, start, end, now, shotDelta, projectile.damage, projectile.projectileId, maxTravelSquared);
-      if (hit) { removeProjectile(projectile.projectileId, undefined, hit); continue; }
-      const blocked = segmentBlockedByBuildings(start, firstEnd, transportBuildings) ||
-        firstEnd.y <= dallasTerrain.elevationAt(firstEnd.x, firstEnd.z);
-      const disposition = transportProjectileDisposition(transportMissionId, aircraftImpact ? 0 : projectile.traveled, blocked);
-      if (disposition === 'remove') { removeProjectile(projectile.projectileId); continue; }
-      if (disposition === 'continue') continue;
-    } else if (!projectile.airAssaultId && !projectile.skyDuelMatchId && !projectile.skyDuelPractice) {
-      if (combatLineBlocked(owner, start, firstEnd) ||
-          (missionAttemptId && monsterEncounters.has(missionAttemptId) && segmentBlockedByBuildings(start, firstEnd, monsterDistrictBuildings))) {
-        removeProjectile(projectile.projectileId);
+    combatSpatialIndex.query(projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, maxCombatHitRadius + (maxTargetSpeed.get(projectile.cityId) ?? 0) * (deltaSeconds+(expertShot ? 0.15 : 0)), combatNearbyPlayers);
+    for (const { id: playerId, player } of combatNearbyPlayers) {
+      if (
+        playerId === projectile.ownerId ||
+        player.entityType !== 'player' ||
+        player.cityId !== projectile.cityId ||
+        !sameCombatContext(owner, player) ||
+        ((transportMissionId === journeyDallas08.id || transportMissionId === journeyDallas09.id || transportMissionId === journeyDallas10.id || transportMissionId === journeyDallas12.id) && (!player.bot?.journeyRearGuardEscort || player.bot.journeyAttemptId !== missionAttemptId)) ||
+        !tutorialCombatPairAllowed(projectile.ownerId, owner, playerId, player) ||
+        player.lifeState !== 'alive' ||
+        playerJourneyRunwayPrep.has(playerId) ||
+        focusedBotInteractionExcluded(projectile.ownerId, owner, playerId, player) ||
+        now < player.spawnProtectedUntil || runwayCombatProtected(playerId, player)
+      ) {
         continue;
       }
-      let monsterImpact: Parameters<typeof removeProjectile>[1];
-      if (applyMonsterHit(projectile.ownerId, projectile.cityId, start, firstEnd, now, projectile.damage,
-          shotDelta * Math.min(1, hitFraction), impact => { monsterImpact = impact; }) ||
-          applyEventAircraftHit(projectile.ownerId, projectile.cityId, start, firstEnd, now, projectile.damage)) {
-        removeProjectile(projectile.projectileId, monsterImpact);
-        continue;
-      }
+      const distance = Math.hypot(owner.position.x - player.position.x, owner.position.y - player.position.y, owner.position.z - player.position.z);
+      const targetScale = owner.isBot && !player.isBot ? 1
+        : player.bot?.journeyRearGuardEscort ? remoteAircraftScale : remoteAircraftVisualScale(distance);
+      const radius = aircraftHitRadii[player.aircraftType] * targetScale * projectileHitRadiusMultiplier + projectileVisualRadius;
+      const targetPosition=expertShot&&!player.isBot?hunterObservedPosition(player.position,player.velocity,player.lastStateAt,now):player.position;
+      const fraction = projectileImpactFraction({ x: previousX, y: previousY, z: previousZ }, projectile.position,
+        targetPosition, player.velocity, deltaSeconds, radius);
+      if (fraction !== null && fraction < hitFraction) { hitPlayerId = playerId; hitFraction = fraction; }
+
     }
 
-    if (hitPlayerId && aircraftImpact) {
-      removeProjectile(projectile.projectileId, undefined, aircraftImpact);
+    if (hitPlayerId) {
+      projectile.position = { x: previousX + (projectile.position.x - previousX) * hitFraction,
+        y: previousY + (projectile.position.y - previousY) * hitFraction,
+        z: previousZ + (projectile.position.z - previousZ) * hitFraction };
+      removeProjectile(projectile.projectileId, undefined, projectile.position);
       applyCombatHit(projectile.ownerId, hitPlayerId, projectile.cityId, now, projectile.damage, projectile.traveled,
-        { impactId: projectile.projectileId, impactPosition: aircraftImpact });
+        { impactId: projectile.projectileId, impactPosition: { ...projectile.position } });
       continue;
     }
 
@@ -6660,12 +6785,31 @@ function botFireSolution(shooter: PlayerState, target: PlayerState, defender: bo
       aimX: dot(direction, rotateLocalYxz({ x: 1, y: 0, z: 0 }, shooter.rotation)) / depth,
       aimY: dot(direction, rotateLocalYxz({ x: 0, y: 1, z: 0 }, shooter.rotation)) / depth };
   }
-  const solution = hunterBallisticSolution(muzzle, shooter.velocity, targetPosition,
-    { x: target.velocity.x * scale, y: target.velocity.y * scale, z: target.velocity.z * scale },
-    expert ? (shooter.bot?.opponent ?? shooter.npcOpponent)?.tactics?.targetTurnRate ?? 0 : 0);
-  if (!solution) return { distance: actualDistance, vertical: targetPosition.y - shooter.position.y,
-    angle: Infinity, aimX: 0, aimY: 0, reason: 'NO_BALLISTIC_INTERCEPT' };
-  const offset = { x: solution.direction.x * actualDistance, y: solution.direction.y * actualDistance, z: solution.direction.z * actualDistance };
+  let leadTime = 0;
+  let aimPoint = targetPosition;
+  if (smoothHunter(shooter)) {
+    const solution = hunterBallisticSolution(muzzle, shooter.velocity, targetPosition,
+      { x: target.velocity.x * scale, y: target.velocity.y * scale, z: target.velocity.z * scale },
+      (shooter.bot?.opponent ?? shooter.npcOpponent)?.profile.tactics.expert
+        ? (shooter.bot?.opponent ?? shooter.npcOpponent)?.tactics?.targetTurnRate ?? 0 : 0);
+    if (!solution) return { distance: actualDistance, vertical: targetPosition.y - shooter.position.y,
+      angle: Infinity, aimX: 0, aimY: 0, reason: 'NO_BALLISTIC_INTERCEPT' };
+    aimPoint = solution.point;
+  } else {
+    // Projectile velocity is fixed at launch. Estimate its intercept in a few
+    // bounded iterations, then use that one point for the entire ballistic shot.
+    for (let iteration = 0; iteration < 3; iteration += 1) {
+      const offset = { x: aimPoint.x - muzzle.x, y: aimPoint.y - muzzle.y, z: aimPoint.z - muzzle.z };
+      const direction = normalize(offset);
+      leadTime = Math.min(defender ? 2.5 : 1.75, Math.hypot(offset.x, offset.y, offset.z) / ballisticShotSpeed(shooter.velocity, direction));
+      aimPoint = {
+        x: targetPosition.x + target.velocity.x * scale * leadTime,
+        y: targetPosition.y + target.velocity.y * scale * leadTime,
+        z: targetPosition.z + target.velocity.z * scale * leadTime,
+      };
+    }
+  }
+  const offset = { x: aimPoint.x - muzzle.x, y: aimPoint.y - muzzle.y, z: aimPoint.z - muzzle.z };
   const local = {
     x: dot(offset, rotateLocalYxz({ x: 1, y: 0, z: 0 }, shooter.rotation)),
     y: dot(offset, rotateLocalYxz({ x: 0, y: 1, z: 0 }, shooter.rotation)),
@@ -6749,8 +6893,22 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
     const cruise = bot.journeyPursuit ? journeyDallas15.cruiseSpeed : ambushTarget ? ambushCruiseSpeed(ambushTarget.velocity) : bot.journeyFirstContact ? (bot.journeyFinalShowdown ? journeyDallas18 : bot.journeyIronHunter ? journeyDallas17 : bot.journeySurpriseAttack ? journeyDallas14 : journeyDallas13).cruiseSpeed
       : envelope.maxSpeed * (bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : botCruiseFactor(bot.personality));
     bot.expertControl = bot.opponent?.profile.tactics.expert;
-    advanceHunterFlight(player, bot, target, bot.opponent?.tactics?.plan.cruise ?? cruise, delta,
+    const boundedEscort = bot.journeyEscortMissionId === journeyDallas10.id;
+    // Formation and pursuit both go through the same Dallas boundary.
+    const waypoint = boundedEscort ? { ...target, ...dallasEscortSteeringTarget(player.position, hunterForward(player), target) } : target;
+    advanceHunterFlight(player, bot, waypoint, bot.opponent?.tactics?.plan.cruise ?? cruise, delta,
       (x, z) => botSafeFloor(player.cityId, x, z, hunterClearance(bot)));
+    if (boundedEscort) {
+      const bounded = keepDallasEscortInside(player.position);
+      if (bounded.x !== player.position.x) {
+        player.position.x = bounded.x;
+        player.velocity.x = (bounded.x - previous.x) / delta;
+      }
+      if (bounded.z !== player.position.z) {
+        player.position.z = bounded.z;
+        player.velocity.z = (bounded.z - previous.z) / delta;
+      }
+    }
     return;
   }
   const speedRatio = Math.max(0, Math.min(1, bot.speed / envelope.maxSpeed));
@@ -7139,7 +7297,8 @@ function updateBots(now: number, expertOnly = false): void {
         // Hunters use restrained independent aim error. Dedicated modes retain
         // their authored spread; every shot remains a server-owned ballistic.
         const aim = opponentAim(bot.opponent?.profile ?? enemyAiLevels.MEDIUM,solution.aimX,solution.aimY);
-        if (createProjectile(botId, player, undefined, undefined, aim)) {
+        if (createProjectile(botId, player, undefined, undefined, aim,
+          bot.journeyFinalShowdown ? journeyDallas18.enemyDamage : bot.journeyRearGuardEscort ? journeyDallas08.escortShotDamage : undefined)) {
           if (bot.finalShowdownBurst) recordFinalShowdownShot(bot.finalShowdownBurst, now);
           if (escortFire) rearGuardShotResolved(escortFire, now);
           recordOpponentShot(bot.opponent);
@@ -8956,37 +9115,56 @@ server.on('connection', (socket, request) => {
 
       if (message.type === 'fire') {
         const now = Date.now();
+        if (playerJourneyRunwayPrep.has(playerId)) return;
+        const firingAttemptId = playerJourneyAttempts.get(playerId);
+        const firingAttempt = firingAttemptId ? journeyStore.get(player.pilotId, firingAttemptId) : undefined;
+        if (((firingAttempt?.missionId===journeyDallas19.id||firingAttempt?.missionId===journeyDallas25.id||firingAttempt?.missionId===journeyDallas21.id||firingAttempt?.missionId===journeyDallas22.id||firingAttempt?.missionId===journeyDallas23.id)||firingAttempt?.missionId===journeyDallas20.id || firingAttempt?.missionId === journeyDallas07.id || firingAttempt?.missionId === journeyDallas08.id || firingAttempt?.missionId === journeyDallas09.id || firingAttempt?.missionId === journeyDallas10.id || firingAttempt?.missionId === journeyDallas11.id || firingAttempt?.missionId === journeyDallas12.id) &&
+          (firingAttempt.status !== 'RACING' || now - player.lastAcceptedTransformAt > combatTransformFreshMs)) return;
+        if((firingAttempt?.missionId===journeyDallas13.id || firingAttempt?.missionId===journeyDallas14.id || firingAttempt?.missionId===journeyDallas17.id || firingAttempt?.missionId===journeyDallas18.id || firingAttempt?.missionId===journeyDallas07.id || firingAttempt?.missionId===journeyDallas08.id || firingAttempt?.missionId===journeyDallas09.id || firingAttempt?.missionId===journeyDallas10.id || firingAttempt?.missionId===journeyDallas11.id || firingAttempt?.missionId===journeyDallas12.id) && (firingAttempt.deadlineAt===null||now>=firingAttempt.deadlineAt))return;
+        const blocked = fireBlockReason(player, now);
+        if (blocked) {
+          logFireBlocked(playerId, blocked, now);
+          return;
+        }
         const clientShotId = typeof message.clientShotId === 'string' && message.clientShotId.length <= 80
           ? message.clientShotId
           : undefined;
-        // A retry must never spawn a duplicate.
+        // Preserve current replay protection around the restored assisted-hit path.
         if (clientShotId && player.recentShotIds?.has(clientShotId)) return;
         if (clientShotId) {
           const ids = player.recentShotIds ??= new Set<string>();
           ids.add(clientShotId);
           if (ids.size > 128) ids.delete(ids.values().next().value!);
         }
-        const reject = () => {
-          if (clientShotId) sendToPlayer(playerId, { type: 'shotRejected', clientShotId });
-        };
-        if (playerJourneyRunwayPrep.has(playerId)) return reject();
-        const firingAttemptId = playerJourneyAttempts.get(playerId);
-        const firingAttempt = firingAttemptId ? journeyStore.get(player.pilotId, firingAttemptId) : undefined;
-        if (((firingAttempt?.missionId===journeyDallas19.id||firingAttempt?.missionId===journeyDallas25.id||firingAttempt?.missionId===journeyDallas21.id||firingAttempt?.missionId===journeyDallas22.id||firingAttempt?.missionId===journeyDallas23.id)||firingAttempt?.missionId===journeyDallas20.id || firingAttempt?.missionId === journeyDallas07.id || firingAttempt?.missionId === journeyDallas08.id || firingAttempt?.missionId === journeyDallas09.id || firingAttempt?.missionId === journeyDallas10.id || firingAttempt?.missionId === journeyDallas11.id || firingAttempt?.missionId === journeyDallas12.id) &&
-          (firingAttempt.status !== 'RACING' || now - player.lastAcceptedTransformAt > combatTransformFreshMs)) return reject();
-        if((firingAttempt?.missionId===journeyDallas13.id || firingAttempt?.missionId===journeyDallas14.id || firingAttempt?.missionId===journeyDallas17.id || firingAttempt?.missionId===journeyDallas18.id || firingAttempt?.missionId===journeyDallas07.id || firingAttempt?.missionId===journeyDallas08.id || firingAttempt?.missionId===journeyDallas09.id || firingAttempt?.missionId===journeyDallas10.id || firingAttempt?.missionId===journeyDallas11.id || firingAttempt?.missionId===journeyDallas12.id) && (firingAttempt.deadlineAt===null||now>=firingAttempt.deadlineAt))return reject();
-        const blocked = fireBlockReason(player, now);
-        if (blocked) {
-          logFireBlocked(playerId, blocked, now);
-          return reject();
-        }
-        const fireTransform = validFireTransform(player, message.transform, now);
+        const requestedTargetId = typeof message.targetId === 'string' ? message.targetId : undefined;
+        const fireTransform = validFireTransform(player, message.transform);
         const shotAim = validatedShotAim(player, message.aimSample, now);
-        if (!fireTransform || !shotAim || now - player.lastAcceptedTransformAt > combatTransformFreshMs ||
-            !Number.isSafeInteger(message.stateSequence) || message.stateSequence !== player.acceptedStateSequence) return reject();
-        if (!createProjectile(playerId, player, clientShotId, fireTransform, shotAim)) return reject();
-        const target = currentLockedTarget(playerId, player, player.lockedTargetId, now, fireTransform);
-        if (target && player.lockedTargetId) sendIncomingFire(player.lockedTargetId, playerId);
+        if (!shotAim || now-player.lastAcceptedTransformAt > combatTransformFreshMs) {
+          if (clientShotId) sendToPlayer(playerId,{type:'shotRejected',clientShotId});
+          return;
+        }
+        const assisted = requestedTargetId && requestedTargetId === player.lockedTargetId
+          ? createAssistedShot(playerId, player, requestedTargetId, clientShotId, fireTransform, shotAim)
+          : false;
+        if (requestedTargetId && !assisted && !players.get(requestedTargetId)?.bot?.journeyRearGuardEscort) {
+          logLockShotReject(
+            playerId,
+            player,
+            requestedTargetId,
+            fireTransform,
+            requestedTargetId === player.lockedTargetId ? 'lock_geometry' : 'stale_lock',
+            now,
+          );
+        }
+        if (!assisted) {
+          if (!createProjectile(playerId, player, clientShotId, fireTransform, shotAim)) {
+            logFireBlocked(playerId, 'invalid_state_or_projectile_cap', now);
+            if (clientShotId) sendToPlayer(playerId, { type: 'shotRejected', clientShotId });
+          } else {
+            const lockedTarget = currentLockedTarget(playerId, player, player.lockedTargetId, now, fireTransform);
+            if (lockedTarget && player.lockedTargetId) sendIncomingFire(player.lockedTargetId, playerId);
+          }
+        }
         return;
       }
 
@@ -9241,12 +9419,7 @@ server.on('connection', (socket, request) => {
         if (journeyAttemptId) {
           const active = journeyStore.get(player.pilotId, journeyAttemptId);
           if ((active?.missionId === journeyDallas08.id || active?.missionId === journeyDallas09.id || active?.missionId === journeyDallas10.id || active?.missionId === journeyDallas12.id) && active.status === 'RACING') {
-            const fire = rearGuardFire.get(journeyAttemptId);
-            if (fire) rearGuardTakeoff(fire, stateNow);
-            for (const id of [active.targetId, active.secondaryTargetId]) {
-              const escort = id ? players.get(id) : undefined;
-              if (escort?.bot?.journeyRearGuardEscort) escort.bot.journeyProvoked = true;
-            }
+            activateRearGuardEscorts(playerId, active, stateNow);
           }
         }
         missionSignal(playerId, { type: 'takeoff', at: stateNow, airportId: departure?.id });
