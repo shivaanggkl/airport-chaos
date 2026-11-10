@@ -4643,7 +4643,7 @@ async function prepareMissionCombatIntro(attemptId: string, missionId: string): 
   const along = airport.spawnOffset + (missionNumber === 8 ? 900 : 0);
   const x = (missionNumber === 9 || missionNumber === 11 || missionNumber === 12) ? singleMission.enemySpawn.x : missionNumber === 10 ? journeyDallas16.enemies[0]!.x : airport.x + Math.sin(airport.heading) * along;
   const z = (missionNumber === 9 || missionNumber === 11 || missionNumber === 12) ? singleMission.enemySpawn.z : missionNumber === 10 ? journeyDallas16.enemies[0]!.z : airport.z + Math.cos(airport.heading) * along;
-  stage.position.set(x, groundPlaneY(x, z) + (missionNumber === 7 ? PLANE_GROUND_Y : missionNumber === 8 ? 180 : (missionNumber === 9 || missionNumber === 11 || missionNumber === 12) ? singleMission.enemyAltitude : 750), z);
+  stage.position.set(x, groundPlaneY(x, z) + (missionNumber === 7 ? 0 : missionNumber === 8 ? 180 : (missionNumber === 9 || missionNumber === 11 || missionNumber === 12) ? singleMission.enemyAltitude : 750), z);
   stage.rotation.y = missionNumber === 9
     ? Math.atan2(x - journeyDallas15.escapeRoute[0]!.x, z - journeyDallas15.escapeRoute[0]!.z)
     : (missionNumber === 11 || missionNumber === 12) ? Math.atan2(x - airplane.position.x, z - airplane.position.z) : airport.heading;
@@ -4662,9 +4662,15 @@ async function prepareMissionCombatIntro(attemptId: string, missionId: string): 
     else disposeAirplaneMaterials(stage);
     return;
   }
-  for (const aircraft of stage.children) {
+  const aircraftPosition = new THREE.Vector3();
+  const aircraftOrientation = new THREE.Quaternion();
+  for (const child of stage.children) {
+    const aircraft = child as THREE.Group;
     const gear = aircraft.userData.assetGear as THREE.Object3D | undefined;
     if (gear) gear.visible = missionNumber === 7;
+    aircraft.getWorldPosition(aircraftPosition);
+    aircraft.getWorldQuaternion(aircraftOrientation);
+    applyPlaneGroundContact(aircraft, aircraftPosition.y - aircraftVisualGroundY(aircraftPosition), aircraftOrientation);
   }
   scene.add(stage);
   missionCombatIntroPath = new CombatMissionIntroPath(stage, airplane, missionNumber);
@@ -7738,6 +7744,14 @@ const localTracerColor = new THREE.Color(0xdc143c);
 const localTracerTip = new THREE.Color(0xffb0bb);
 const incomingTracerColor = new THREE.Color(0xf37c26);
 const incomingTracerTip = new THREE.Color(0xffe6a3);
+const freeFlyRoundGeometry = createTracerGeometry(0);
+const freeFlyRoundMaterial = new THREE.MeshBasicMaterial({
+  color: localTracerColor,
+  transparent: true,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  toneMapped: false,
+});
 // Monster shots keep a subtle crimson halo on the same pooled tracer.
 const monsterTracerGlowMaterial = new THREE.MeshBasicMaterial({
   color: 0xdc143c, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending,
@@ -7745,6 +7759,11 @@ const monsterTracerGlowMaterial = new THREE.MeshBasicMaterial({
 });
 const monsterTracerGlowGeometry = createTracerGeometry(0.2);
 function styleMissionProjectile(mesh: THREE.Group, local: boolean): void {
+  const freeFlyRound = local && soloExploreMode;
+  const core = mesh.children[1] as THREE.Mesh;
+  core.geometry = freeFlyRound ? freeFlyRoundGeometry : projectileGeometry;
+  core.material = freeFlyRound ? freeFlyRoundMaterial : projectileMaterial;
+  mesh.userData.freeFlyRound = freeFlyRound;
   mesh.userData.localTracer = local;
   mesh.userData.tracerFade = 1;
   mesh.children[0]!.visible = local && isMonsterJourneyMission(journeyAttempt?.missionId) && journeyAttempt?.status === 'RACING';
@@ -7756,6 +7775,14 @@ function tracerWorldPerPixel(point: THREE.Vector3): number {
   return Math.max(camera.near, depth) / focalPixels;
 }
 function fitProjectileTrail(mesh: THREE.Group, distance: number, age = 0, direction?: THREE.Vector3): void {
+  if (mesh.userData.freeFlyRound) {
+    // Match the original round's apparent size, with its trail behind the moving tip.
+    const focalPixels = Math.max(1, camera.projectionMatrix.elements[5]! * window.innerHeight / 2);
+    const worldPerPixel = Math.max(camera.near, camera.position.distanceTo(mesh.position)) / focalPixels;
+    const width = Math.max(1.2, worldPerPixel * 16);
+    mesh.scale.set(width, width, Math.max(0, Math.min(distance, worldPerPixel * 64, 320)));
+    return;
+  }
   const worldPerPixel = tracerWorldPerPixel(mesh.position);
   const local = mesh.userData.localTracer === true;
   const width = worldPerPixel * (local ? 4 : 5);
@@ -7973,6 +8000,7 @@ function createProjectileMesh(): THREE.Group {
   glow.renderOrder = 2;
   core.renderOrder = 3;
   core.onBeforeRender = () => {
+    if (core.material !== projectileMaterial) return;
     const local = mesh.userData.localTracer === true;
     projectileMaterial.uniforms.tracerFade!.value = mesh.userData.tracerFade;
     projectileMaterial.uniforms.tracerColor!.value = local ? localTracerColor : incomingTracerColor;
@@ -9200,23 +9228,25 @@ function updatePlaneEngineVisuals(plane: THREE.Group, power: number, boostStreng
   }
 }
 
-function updatePlaneVisuals(plane: THREE.Group, power: number, boostStrength: number, delta: number): void {
-  const visuals = plane.userData.visuals as AircraftVisuals | undefined;
-  if (!visuals) return;
-  const type = plane.userData.aircraftType as AircraftType;
+function applyPlaneGroundContact(
+  plane: THREE.Group,
+  rootClearance: number,
+  orientation = plane.quaternion,
+  airborneDelta?: number,
+): void {
   const airframeRoot = plane.userData.airframeRoot as THREE.Group | undefined;
+  if (!airframeRoot) return;
+  const type = plane.userData.aircraftType as AircraftType;
+  const visualScale = airframeRoot.scale.x;
+  const requiredOffset = groundContactVisualOffset(aircraftGroundContacts[type], orientation, rootClearance / visualScale) * visualScale;
+  airframeRoot.position.y = airborneDelta === undefined ? requiredOffset
+    : smoothAirborneGroundContactOffset(airframeRoot.position.y, requiredOffset, airborneDelta);
+}
+
+function updatePlaneVisuals(plane: THREE.Group, power: number, boostStrength: number, delta: number): void {
+  if (!plane.userData.visuals) return;
   const rootClearance = plane.position.y - aircraftVisualGroundY(plane.position);
-  if (airframeRoot) {
-    const visualScale = airframeRoot.scale.x;
-    const requiredOffset = groundContactVisualOffset(
-      aircraftGroundContacts[type],
-      plane.quaternion,
-      rootClearance / visualScale,
-    ) * visualScale;
-    airframeRoot.position.y = plane === airplane && !onGround
-      ? smoothAirborneGroundContactOffset(airframeRoot.position.y, requiredOffset, delta)
-      : requiredOffset;
-  }
+  applyPlaneGroundContact(plane, rootClearance, plane.quaternion, plane === airplane && !onGround ? delta : undefined);
   const assetGear = plane.userData.assetGear as THREE.Object3D | undefined;
   if (assetGear) assetGear.visible = (plane === airplane && onGround) || rootClearance < 5;
   updatePlaneEngineVisuals(plane, power, boostStrength, delta);
@@ -10881,9 +10911,7 @@ function renderSkyDuelRunwayIntro(): boolean {
   const introScale = remoteAirframe.userData.presentationScale as number;
   remoteAirframe.scale.setScalar(introScale);
   const rootClearance = opponent.plane.position.y - aircraftVisualGroundY(opponent.plane.position);
-  remoteAirframe.position.y = groundContactVisualOffset(
-    aircraftGroundContacts[opponent.aircraftType], opponent.plane.quaternion, rootClearance / introScale,
-  ) * introScale;
+  applyPlaneGroundContact(opponent.plane, rootClearance);
   const sweep = smoothstep01(Math.min(1, progress / 0.8));
   const angle = THREE.MathUtils.lerp(1.35, 0, sweep);
   const opponentDimensions = aircraftPresentationDimensions[opponent.aircraftType];
@@ -12851,7 +12879,7 @@ boundSocket.addEventListener('close', (event) => {
       clientAccount = { state: 'guest', providers: { password: false, google: false, apple: false } };
       updateAuthHudControl();
     }
-    void refreshAccountStatus(true).finally(() => scheduleRealtimeReconnect(true));
+    void refreshAccountStatus(true).finally(() => scheduleRealtimeReconnect());
     showProgressMessage(identityTransitionInProgress ? 'SWITCHING ACCOUNT…' : 'SESSION CHANGED — RECONNECTING');
     return;
   }

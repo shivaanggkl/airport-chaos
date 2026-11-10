@@ -138,7 +138,7 @@ test('pooled tracers stay compact, clip at the muzzle, and fade older off-axis r
   const setup = ts.transpileModule(source.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.1);
   const context = {
-    THREE, camera, window: { innerHeight: 1080 },
+    THREE, camera, window: { innerHeight: 1080 }, soloExploreMode: false,
     combatAimForward: new THREE.Vector3(0, 0, -1),
     isMonsterJourneyMission: (id?: string) => id === 'monster',
     journeyAttempt: undefined as { missionId: string; status: string } | undefined,
@@ -168,6 +168,23 @@ test('pooled tracers stay compact, clip at the muzzle, and fade older off-axis r
   runInNewContext('styleMissionProjectile(mesh,false);', context);
   assert.equal(glow.visible, false);
   assert.equal(mesh.userData.tracerFade, 1);
+
+  const combatMaterial = core.material;
+  const combatGeometry = core.geometry;
+  context.soloExploreMode = true;
+  runInNewContext('styleMissionProjectile(mesh,true); fitProjectileTrail(mesh, 400);', context);
+  assert.ok(core.material instanceof THREE.MeshBasicMaterial);
+  assert.equal(core.material.color.getHex(), 0xdc143c);
+  assert.equal(core.material.blending, THREE.AdditiveBlending);
+  const pixelsPerMeter = camera.projectionMatrix.elements[5]! * 540 / camera.position.z;
+  assert.ok(Math.abs(mesh.scale.x * pixelsPerMeter - 16) < 0.01);
+  assert.ok(Math.abs(mesh.scale.z * pixelsPerMeter - 64) < 0.01);
+  runInNewContext('fitProjectileTrail(mesh, 1);', context);
+  assert.equal(mesh.scale.z, 1);
+
+  runInNewContext('styleMissionProjectile(mesh,false);', context);
+  assert.equal(core.material, combatMaterial);
+  assert.equal(core.geometry, combatGeometry);
 });
 
 test('banking aircraft and delayed acknowledgements cannot bend a released local ballistic tracer',()=>{
