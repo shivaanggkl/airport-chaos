@@ -239,7 +239,7 @@ test('exit removes only the owned Firehawk, shots and targeting; armored enemy c
  assert.equal(sent[0].type,'remove');assert.equal(sent[0].playerId,'enemy');
 });
 
-test('five received Firehawk hits deal exactly 20 HP while ordinary Firehawk weapons remain 40 HP',()=>{
+test('five received Firehawk hits deal exactly 20 HP while ordinary Firehawk weapons deal 25 HP',()=>{
  const f=fixture();try{
   const a=f.store.launch('pilot','trainer',1000,mission.id);f.store.approach('pilot',a.attemptId);f.store.assignFirstContact('pilot',a.attemptId,'enemy');f.store.startFirstContact('pilot',a.attemptId,2000);
     const pilot = { pilotId: 'pilot', entityType: 'player', cityId: 'dallas', lifeState: 'alive', isBot: false, score: 0, health:100, spawnProtectedUntil:0, aircraftType: 'trainer' };
@@ -258,7 +258,7 @@ test('five received Firehawk hits deal exactly 20 HP while ordinary Firehawk wea
       handleWantedDestruction: () => {}, challengeForPlayer: () => undefined,
     });
 
-  assert.equal(projectileDamageForAircraft('fighter'),40);
+  assert.equal(projectileDamageForAircraft('fighter'),25);
   enemy.bot.journeyProvoked=false;assert.equal(ctx.applyCombatHit('enemy','owner','dallas',3000,40),false);enemy.bot.journeyProvoked=true;
   for(let n=1;n<=5;n++){
    assert.equal(ctx.applyCombatHit('enemy','owner','dallas',3000+n*750,40),true);

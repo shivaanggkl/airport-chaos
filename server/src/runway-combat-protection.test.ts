@@ -32,9 +32,9 @@ test('aircraft damage produces the approved regular-combat hit counts', () => {
   const heavyHealth = maxHealthForAircraft('fighter');
   for (const [aircraftType, damage, lightHits, heavyHits] of [
     ['trainer', 25, 4, 8],
-    ['cargo', 30, 4, 7],
-    ['privateJet', 35, 3, 6],
-    ['fighter', 40, 3, 5],
+    ['cargo', 25, 4, 8],
+    ['privateJet', 25, 4, 8],
+    ['fighter', 25, 4, 8],
   ] as const) {
     assert.equal(PROJECTILE_DAMAGE_BY_AIRCRAFT[aircraftType], damage);
     assert.equal(projectileDamageForAircraft(aircraftType), damage);
@@ -44,6 +44,9 @@ test('aircraft damage produces the approved regular-combat hit counts', () => {
   assert.match(server, /damage: damageOverride \?\? projectileDamageForAircraft\(player\.aircraftType\)/);
   assert.match(server, /if \(owner\.skyDuelMatchId\)[\s\S]*const dealt = Math\.min\(victim\.health, damage\)/);
   assert.match(server, /applyCombatHit\(projectile\.ownerId, hitPlayerId, projectile\.cityId, now, projectile\.damage/);
+  assert.match(server, /applyCombatHit\(playerId, targetId, player\.cityId, now, projectileDamageForAircraft\(player\.aircraftType\)/);
+  assert.match(server, /applyTransportHit\(playerId,target\.origin,target\.end,now,0,projectileDamageForAircraft\(player\.aircraftType\),shotId\)/);
+  assert.match(server, /applyTransportHit\(projectile\.ownerId,start,projectile\.position,now,deltaSeconds,projectile\.damage/);
 });
 
 test('runway protection is checked for locks, projectile collision and the authoritative damage boundary', () => {

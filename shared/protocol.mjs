@@ -17,9 +17,9 @@ export function fireIntervalMs(aircraftType) {
 }
 export const PROJECTILE_DAMAGE_BY_AIRCRAFT = Object.freeze({
   trainer: 25,
-  cargo: 30,
-  privateJet: 35,
-  fighter: 40,
+  cargo: 25,
+  privateJet: 25,
+  fighter: 25,
 });
 export function projectileDamageForAircraft(aircraftType) {
   return PROJECTILE_DAMAGE_BY_AIRCRAFT[aircraftType] ?? PROJECTILE_DAMAGE_BY_AIRCRAFT.trainer;
