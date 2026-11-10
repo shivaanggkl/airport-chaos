@@ -160,6 +160,52 @@ test('pooled aircraft rounds share the original crimson color, size and muzzle c
   assert.equal(mesh.scale.z, 1, 'the trail cannot extend behind the firing point');
 });
 
+test('older off-aim rounds fade during a bank and return to full crimson when pooled', () => {
+  const start = source.indexOf('const projectileGeometry =');
+  const end = source.indexOf('function tracerWorldPerPixel', start);
+  const setup = ts.transpileModule(source.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.1, 5000);
+  camera.updateMatrixWorld(true);
+  const airplane = { rotation: { z: 0 } };
+  const context = {
+    THREE, camera, airplane,
+    window: { innerWidth: 1600, innerHeight: 900 }, lockCircleCenterX: 800, lockCircleCenterY: 450, lockCircleRadius: 50,
+  };
+  const mesh = runInNewContext(`${setup}; ${code('createProjectileMesh')}; globalThis.mesh = createProjectileMesh(); mesh;`, context) as THREE.Group;
+  const core = mesh.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+  const { material, geometry } = core;
+  mesh.position.set(40, 0, -100);
+  runInNewContext('fadeOffAimRound(mesh, 0.5);', context);
+  assert.equal(core.material, material, 'a straight-flying aircraft keeps earlier rounds visible');
+  airplane.rotation.z = -0.6;
+  runInNewContext('fadeOffAimRound(mesh, 0.05);', context);
+  assert.equal(core.material, material, 'fresh rounds keep their full appearance');
+  mesh.position.x = 2;
+  runInNewContext('fadeOffAimRound(mesh, 0.5);', context);
+  assert.equal(core.material, material, 'rounds near the ring stay visible');
+  mesh.position.x = 8;
+  runInNewContext('fadeOffAimRound(mesh, 0.1);', context);
+  const firstOpacity = core.material.opacity;
+  assert.ok(firstOpacity > 0 && firstOpacity < 1);
+  assert.equal(core.material.color.getHex(), material.color.getHex());
+  assert.equal(core.geometry, geometry);
+  mesh.position.x = 12;
+  runInNewContext('fadeOffAimRound(mesh, 0.11);', context);
+  assert.ok(core.material.opacity < firstOpacity);
+  // Match the report's large separation, reached within one frame of a turn.
+  mesh.position.x = 55;
+  const originalPosition = mesh.position.clone();
+  runInNewContext('fadeOffAimRound(mesh, 0.12);', context);
+  assert.equal(core.visible, false, 'a distant round disappears as soon as it leaves the fade band');
+  assert.ok(mesh.position.equals(originalPosition));
+  mesh.position.x = 0;
+  runInNewContext('fadeOffAimRound(mesh, 0.13);', context);
+  assert.equal(core.visible, false, 'the round does not reappear as the aim crosses its path');
+  runInNewContext('resetProjectileFade(mesh);', context);
+  assert.equal(core.visible, true);
+  assert.equal(core.material, material);
+});
+
 test('banking aircraft and delayed acknowledgements cannot bend a released local ballistic tracer',()=>{
   const mesh=new THREE.Group(),direction=new THREE.Vector3(.3,.2,-1).normalize();
   const projectile={mesh,firingOrigin:new THREE.Vector3(10,20,-30),direction:direction.clone(),speed:1000,local:true,bank:.6,authoritativePosition:new THREE.Vector3(),spawnedAt:0,lastAuthoritativeAt:1000,pendingAge:0};

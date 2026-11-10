@@ -7716,6 +7716,42 @@ const projectileMaterial = new THREE.MeshBasicMaterial({
   depthWrite: false,
   toneMapped: false,
 });
+// Share opacity levels across the pool so fading never changes another round.
+const projectileFadeSteps = 32;
+const projectileFadeMaterials = [projectileMaterial, ...Array.from({ length: projectileFadeSteps - 1 }, (_, index) => {
+  const material = projectileMaterial.clone();
+  material.opacity = 1 - (index + 1) / projectileFadeSteps;
+  return material;
+})];
+const projectileFadeProjection = new THREE.Vector3();
+
+function fadeOffAimRound(mesh: THREE.Group, age: number): void {
+  const previousFade: number = mesh.userData.turnFade ?? 0;
+  if (previousFade >= 1 || age < 0.075 || Math.abs(airplane.rotation.z) < 0.08) return;
+  projectileFadeProjection.copy(mesh.position).project(camera);
+  const dx = (projectileFadeProjection.x + 1) * window.innerWidth * 0.5 - lockCircleCenterX;
+  const dy = (1 - projectileFadeProjection.y) * window.innerHeight * 0.5 - lockCircleCenterY;
+  const ringsFromAim = Math.hypot(dx, dy) / Math.max(1, lockCircleRadius);
+  // A fast bank can move an older round across the whole fade band in one
+  // frame. Tie opacity to its current separation and prevent a faded round
+  // from brightening if the aim circle later crosses its path.
+  const fade = projectileFadeProjection.z < -1 || projectileFadeProjection.z > 1
+    ? 1 : THREE.MathUtils.smoothstep(ringsFromAim, 1.15, 2.25);
+  if (fade <= previousFade) return;
+  mesh.userData.turnFade = fade;
+  const core = mesh.children[0] as THREE.Mesh;
+  if (fade === 1) core.visible = false;
+  else core.material = projectileFadeMaterials[Math.floor(fade * projectileFadeSteps)]!;
+}
+
+function resetProjectileFade(mesh: THREE.Group): void {
+  if (!mesh.userData.turnFade) return;
+  mesh.userData.turnFade = 0;
+  const core = mesh.children[0] as THREE.Mesh;
+  core.visible = true;
+  core.material = projectileMaterial;
+}
+
 function tracerWorldPerPixel(point: THREE.Vector3): number {
   const inverse = camera.matrixWorldInverse.elements;
   const depth = -(inverse[2]! * point.x + inverse[6]! * point.y + inverse[10]! * point.z + inverse[14]!);
@@ -7958,6 +7994,7 @@ function releaseProjectile(projectile: ClientProjectile): void {
   projectile.onImpact = undefined;
   scene.remove(projectile.mesh);
   projectile.mesh.visible = false;
+  resetProjectileFade(projectile.mesh);
   projectile.mesh.scale.set(1, 1, 1);
   projectile.predictedTargetId = undefined;
   if (projectilePool.length < maxClientProjectiles) projectilePool.push(projectile);
@@ -8107,6 +8144,7 @@ function releaseAssistedShot(shot: AssistedShotVisual): void {
   else {
     scene.remove(shot.mesh);
     shot.mesh.visible = false;
+    resetProjectileFade(shot.mesh);
     if (assistedShotPool.length < maxAssistedShotVisuals) assistedShotPool.push(shot.mesh);
   }
 }
@@ -8307,6 +8345,16 @@ function updateProjectiles(delta: number): void {
     shot.onImpact?.();
     releaseAssistedShot(shot);
     assistedShotVisuals.splice(index, 1);
+  }
+}
+
+function updateLocalProjectileFade(): void {
+  for (const shot of predictedProjectiles.values()) fadeOffAimRound(shot.mesh, shot.pendingAge);
+  for (const shot of clientProjectiles.values()) {
+    if (shot.local) fadeOffAimRound(shot.mesh, shot.pendingAge);
+  }
+  for (const shot of assistedShotVisuals) {
+    if (shot.ownerId === localPlayerId) fadeOffAimRound(shot.mesh, shot.elapsed);
   }
 }
 
@@ -10515,6 +10563,7 @@ function animate(): void {
   giantTransportAssetPreview?.update(delta, airplane, !journeyMode, camera);
   updateProjectiles(delta);
   updateLockCircle();
+  updateLocalProjectileFade();
   updateWeapons(delta);
   syncAceObjective();
   syncLegendaryObjective();
