@@ -2,6 +2,7 @@ import { missionJourneyDetails } from './mission-journey-content';
 import { CombatStatsHeader } from './combat-stats-header';
 import { horizontalDistanceSquared, isFiniteGuidancePosition, opponentAltitudeGuidance } from './opponent-altitude-guidance';
 import { AircraftVictory } from './aircraft-victory';
+import { createProjectileCore, fitProjectileRound as fitRound, projectileForwardStep, projectileMaterial, projectileMaterialForOpponent, projectileRoundDiameter as roundDiameter } from './projectile-visual';
 import { MissionOneAircraftPreview } from './mission-one-aircraft-preview';
 import {M24_INTRO,m24IntroText} from './m24-intro';
 import {m23IntroText} from './m23-intro';
@@ -7788,13 +7789,6 @@ renderer.domElement.addEventListener('gesturechange', (event) => {
   trackpadGestureScale = scale;
 }, { passive: false });
 renderer.domElement.addEventListener('gestureend', () => { trackpadGestureScale = 0; });
-const projectileGeometry = new THREE.SphereGeometry(0.5, 12, 8);
-const projectileMaterial = new THREE.MeshPhongMaterial({
-  color: 0xdc143c,
-  emissive: 0x580818,
-  shininess: 24,
-  toneMapped: false,
-});
 const projectileFadeDuration = 0.12;
 const projectileFadeMaterials = Array.from({ length: 11 }, (_, index) => {
   const material = projectileMaterial.clone();
@@ -7807,17 +7801,12 @@ const projectileAimPassDistance = 120;
 const projectileSharpTurnBank = 0.45;
 const projectileAimAttitudeTolerance = 0.000001;
 const assistedAircraftMaxApproachTime = 0.24;
-const projectileRoundPixels = 16;
-
 function projectileRoundDiameter(point: THREE.Vector3): number {
-  const inverse = camera.matrixWorldInverse.elements;
-  const depth = -(inverse[2]! * point.x + inverse[6]! * point.y + inverse[10]! * point.z + inverse[14]!);
-  const focalPixels = Math.max(1, camera.projectionMatrix.elements[5]! * window.innerHeight / 2);
-  return Math.max(camera.near, depth) * projectileRoundPixels / focalPixels;
+  return roundDiameter(point, camera, window.innerHeight);
 }
 
 function fitProjectileRound(mesh: THREE.Group, distance: number): void {
-  mesh.scale.setScalar(Math.min(projectileRoundDiameter(mesh.position), Math.max(0, distance * 2)));
+  fitRound(mesh, distance, camera, window.innerHeight);
 }
 const projectileForward = new THREE.Vector3(0, 0, -1);
 const projectileZeroVelocity = new THREE.Vector3();
@@ -8024,10 +8013,17 @@ if (visualQaMode && cityWorld.visualQaPresets) {
 
 function createProjectileMesh(): THREE.Group {
   const mesh = new THREE.Group();
-  const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
-  core.renderOrder = 3;
-  mesh.add(core);
+  mesh.add(createProjectileCore());
   return mesh;
+}
+
+function colorServerProjectile(mesh: THREE.Group, ownerId: string): void {
+  // City-wide traffic can still be visible during a private Journey attempt.
+  const opponent = ownerId !== localPlayerId && (!journeyMode ||
+    ownerId === journeyAttempt?.targetId || ownerId === journeyAttempt?.secondaryTargetId ||
+    ownerId === journeyAttempt?.rearGuardThirdId || ownerId === journeyAttempt?.rearGuardFourthId ||
+    focusedBotsAreSafe() && remotePlayers.get(ownerId)?.isBot === true && !unrelatedFocusedBot(ownerId));
+  (mesh.children[0] as THREE.Mesh).material = projectileMaterialForOpponent(opponent);
 }
 function createProjectileVisual(): ClientProjectile {
   const mesh = createProjectileMesh();
@@ -8231,6 +8227,7 @@ function releaseAssistedShot(shot: AssistedShotVisual): void {
   else {
     scene.remove(shot.mesh);
     shot.mesh.visible = false;
+    (shot.mesh.children[0] as THREE.Mesh).material = projectileMaterial;
     if (assistedShotPool.length < maxAssistedShotVisuals) assistedShotPool.push(shot.mesh);
   }
 }
@@ -8272,6 +8269,7 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
   // A delayed acknowledgement can shorten the remaining trail but cannot
   // rewind or rotate the visible round. Impact feedback has its own world point.
   if (!predictedProjectile) {
+    colorServerProjectile(mesh, message.ownerId);
     mesh.position.copy(origin);
     mesh.quaternion.setFromUnitVectors(projectileForward, direction);
     mesh.rotateZ(bank);
@@ -8370,6 +8368,7 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
   projectile.lastAuthoritativeAt = performance.now();
   if (!keepFiringRay) projectile.spawnedAt = projectile.lastAuthoritativeAt;
   if (!keepFiringRay) {
+    colorServerProjectile(projectile.mesh, message.ownerId);
     projectile.firingOrigin.copy(projectile.authoritativePosition);
     projectile.mesh.position.copy(projectile.authoritativePosition);
     fitProjectileRound(projectile.mesh, 0);
@@ -8483,11 +8482,9 @@ function updateProjectiles(delta: number): void {
     projectile.pendingAge += delta;
     // Local rounds retain their launch speed. Server positions smooth remote
     // rounds while the server continues to own local hits and removal.
-    const correction = projectile.local ? 0 : THREE.MathUtils.clamp(
-      projectileOrigin.subVectors(projectile.authoritativePosition, projectile.mesh.position).dot(projectile.direction) * positionBlend,
-      -step * 0.15, step * 0.15,
-    );
-    projectile.mesh.position.addScaledVector(projectile.direction, step + correction);
+    const visualStep = projectile.local ? step : projectileForwardStep(step,
+      projectileOrigin.subVectors(projectile.authoritativePosition, projectile.mesh.position).dot(projectile.direction), positionBlend);
+    projectile.mesh.position.addScaledVector(projectile.direction, visualStep);
     projectile.authoritativePosition.addScaledVector(projectile.direction, step);
     const traveled = projectileOrigin.subVectors(projectile.mesh.position, projectile.firingOrigin).dot(projectile.direction);
     fitProjectileRound(projectile.mesh, traveled);
