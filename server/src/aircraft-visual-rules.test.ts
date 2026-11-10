@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
+import * as THREE from 'three';
+import ts from 'typescript';
 import {
   DESTRUCTION_EFFECT_DURATION_SECONDS,
   DESTRUCTION_FRAGMENT_COUNT,
@@ -78,6 +81,36 @@ test('full-size remote landing gear stays clear through the first metres of take
         assert.ok(lowest >= -1e-9, `${type} clips by ${-lowest}m at ${altitude}m and pitch ${pitch}`);
       }
     }
+  }
+});
+
+test('staged runway aircraft use gameplay wheel placement at their world position', () => {
+  const client = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const intro = client.slice(client.indexOf('async function prepareMissionCombatIntro('), client.indexOf('async function prepareMonsterMissionIntro('));
+  assert.match(intro, /aircraft\.getWorldPosition\(aircraftPosition\)[\s\S]*applyPlaneGroundContact\(aircraft, aircraftPosition\.y - aircraftVisualGroundY\(aircraftPosition\), aircraftOrientation\)/);
+  const helper = client.slice(client.indexOf('function applyPlaneGroundContact('), client.indexOf('function updatePlaneVisuals('));
+  const { outputText } = ts.transpileModule(helper, { compilerOptions: { target: ts.ScriptTarget.ES2022 } });
+  const groundContacts = Object.fromEntries(Object.entries(aircraftVisualConfig).map(([type, config]) => [type, config.groundContacts]));
+  const apply = runInNewContext(`${outputText}\napplyPlaneGroundContact`, {
+    aircraftGroundContacts: groundContacts, groundContactVisualOffset, smoothAirborneGroundContactOffset,
+  });
+  const paintedSurface = 400 + runwayVisualSurfaceOffset * DALLAS_WORLD_SCALE;
+  const stage = new THREE.Group();
+  stage.position.set(200, 400 + runwayRootClearance, 300);
+  stage.rotation.y = 0.7;
+  for (const [type, config] of Object.entries(aircraftVisualConfig)) {
+    const plane = new THREE.Group();
+    const airframe = new THREE.Group();
+    airframe.scale.setScalar(aircraftPresentationScale[type as keyof typeof aircraftPresentationScale]);
+    plane.userData = { aircraftType: type, airframeRoot: airframe };
+    plane.rotation.x = 0.07;
+    stage.add(plane);
+    plane.add(airframe);
+    const worldPosition = plane.getWorldPosition(new THREE.Vector3());
+    apply(plane, worldPosition.y - paintedSurface, plane.getWorldQuaternion(new THREE.Quaternion()));
+    const wheelYs = config.groundContacts.map(contact => airframe.localToWorld(new THREE.Vector3().copy(contact)).y);
+    assert.ok(Math.abs(Math.min(...wheelYs) - paintedSurface) < 1e-9, `${type} wheels must meet the painted runway`);
+    assert.ok(plane.getWorldPosition(new THREE.Vector3()).equals(worldPosition));
   }
 });
 

@@ -39,6 +39,17 @@ test('native and web origin allowlist is exact', () => {
   assert.equal(nativePlatformForOrigin('capacitor://attacker.example'), undefined);
 });
 
+test('local web API and realtime use the same loopback host as the page', () => {
+  for (const host of ['localhost', '127.0.0.1']) {
+    assert.deepEqual(resolveTransport({ native: false, development: true, pageOrigin: `http://${host}:5173` }), {
+      apiOrigin: `http://${host}:8091`, websocketOrigin: `ws://${host}:8091`,
+    });
+  }
+  assert.deepEqual(resolveTransport({
+    native: false, development: true, pageOrigin: 'http://127.0.0.1:5173', webSocketOverride: 'ws://127.0.0.1:9000',
+  }), { apiOrigin: 'http://127.0.0.1:9000', websocketOrigin: 'ws://127.0.0.1:9000' });
+});
+
 test('native auth uses official SDK adapters and never accepts client account authority', () => {
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   const client = readFileSync(new URL('../../client/src/native-auth.ts', import.meta.url), 'utf8');

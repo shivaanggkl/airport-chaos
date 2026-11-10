@@ -103,10 +103,10 @@ test('updated travel retains the existing per-frame aim speed', () => {
 test('client prediction and server projectiles both derive direction from the shared aim sample', () => {
   const client = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
-  assert.match(client, /direction\.set\(visualAim\.x, visualAim\.y, -1\)\.normalize\(\)/);
-  assert.match(client, /aimSample: visualAimToId \? \{ from: visualAimFromId, to: visualAimToId, blend: visualAimBlend \}/);
+  assert.match(client, /localFiringDirection\(soloExploreMode \? neutralAim : visualAim, direction\)\.applyQuaternion/);
+  assert.match(client, /aimSample: visualAimToId \? combatShotAimSample\(visualAimFromId, visualAimToId, visualAimBlend\)/);
   assert.match(server, /const shotAim = validatedShotAim\(player, message\.aimSample, now\)/);
-  assert.match(server, /rotateLocalYxz\(\{ x: aim\.x, y: aim\.y, z: -1 \}, transform\.rotation\)/);
+  assert.match(server, /rotateLocalYxz\(aim \? localFiringDirection\(aim, .* : socket\.forward, transform\.rotation\)/);
   assert.match(client, /if \(distance > COMBAT_RANGE\)/);
   assert.match(client, /maxAuthoritativeProjectileAgeMs = \(COMBAT_RANGE \/ BASE_PROJECTILE_SPEED \+ 1\) \* 1_000/);
   assert.match(server, /Math\.hypot\(local\.x, local\.y, local\.z\) > COMBAT_RANGE/);

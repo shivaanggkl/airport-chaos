@@ -69,7 +69,7 @@ import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, localFiringDirection, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
 import { FirehawkPayments } from './firehawk-payments.js';
@@ -4948,12 +4948,12 @@ function handleWantedDestruction(killerId: string, victimId: string, now: number
   setEventTerminal(event, 'completed', now);
 }
 
-function removeProjectile(projectileId: string, monsterImpact?: {attemptId:string;position:Vector3;bodyPosition:Vector3;yaw:number;sequence:number}): void {
+function removeProjectile(projectileId: string, monsterImpact?: {attemptId:string;position:Vector3;bodyPosition:Vector3;yaw:number;sequence:number}, impactPosition?: Vector3): void {
   const projectile = projectiles.get(projectileId);
   if (!projectile || !projectiles.delete(projectileId)) return;
   if(projectile.privateAttemptId)monsterEncounters.get(projectile.privateAttemptId)?.projectileIds.delete(projectileId);
   projectileBudget.release(projectile.ownerId, projectile.cityId);
-  const removed={type:'projectileRemove',projectileId,...(monsterImpact?{monsterImpact}: {})};
+  const removed={type:'projectileRemove',projectileId,monsterImpact,impactPosition};
   if (projectile.skyDuelPractice) sendToPlayer(projectile.ownerId, removed);
   else if (projectile.skyDuelMatchId) {
     const session = skyDuelSessions.get(projectile.skyDuelMatchId);
@@ -5098,7 +5098,7 @@ function forwardDirection(transform: Pick<Transform, 'rotation'>): Vector3 {
   return normalize(rotateLocalYxz({ x: 0, y: 0, z: -1 }, transform.rotation));
 }
 
-function muzzleTransform(transform: Transform): { position: Vector3; direction: Vector3 } {
+function muzzleTransform(transform: Transform, aim?: { x: number; y: number }): { position: Vector3; direction: Vector3 } {
   const socket = aircraftPresentationMuzzleSockets[transform.aircraftType];
   const localPosition = rotateLocalYxz(socket.position, transform.rotation);
   return {
@@ -5107,7 +5107,7 @@ function muzzleTransform(transform: Transform): { position: Vector3; direction: 
       y: transform.position.y + localPosition.y,
       z: transform.position.z + localPosition.z,
     },
-    direction: normalize(rotateLocalYxz(socket.forward, transform.rotation)),
+    direction: normalize(rotateLocalYxz(aim ? localFiringDirection(aim, { x: 0, y: 0, z: -1 }) : socket.forward, transform.rotation)),
   };
 }
 
@@ -5413,16 +5413,15 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
   player.lastFireAt = now;
 
   const transform = fireTransform ?? player;
-  const muzzle = muzzleTransform(transform);
+  const { position, direction } = muzzleTransform(transform, aim);
   const privateId=playerJourneyAttempts.get(playerId);
-  const direction = normalize(rotateLocalYxz({ x: aim.x, y: aim.y, z: -1 }, transform.rotation));
   const projectile: ProjectileState = {
     projectileId: randomUUID(),
     ownerId: playerId,
     airAssaultId: player.airAssaultId,
     cityId: player.cityId,
     damage: damageOverride ?? projectileDamageForAircraft(player.aircraftType),
-    position: muzzle.position,
+    position,
     direction,
     traveled: 0,
     speed: ballisticShotSpeed(player.velocity, direction),
@@ -5874,6 +5873,10 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
   return true;
 }
 
+function assistedTracerSpeed(velocity: Vector3, origin: Vector3, target: Vector3): number {
+  return ballisticShotSpeed(velocity, normalize({ x: target.x - origin.x, y: target.y - origin.y, z: target.z - origin.z }));
+}
+
 function createFortressAssistedShot(playerId: string, player: PlayerState, targetId: string,
     clientShotId: string | undefined, fireTransform: Transform | undefined, shotAim: {x:number;y:number}): boolean {
   const now = Date.now();
@@ -5886,7 +5889,8 @@ function createFortressAssistedShot(playerId: string, player: PlayerState, targe
   player.lastFireAt = now;
   const shotId = randomUUID();
   sendToPlayer(playerId,{type:'assistedShot',shotId,ownerId:playerId,targetId,
-    origin:target.origin,targetPosition:target.position,clientShotId});
+    origin:target.origin,targetPosition:target.position,
+    speed:assistedTracerSpeed(player.velocity,target.origin,target.position),clientShotId});
   // Reuse the exact component collision, damage, mission and reward path.
   // No client-provided target point or health change is accepted.
   applyTransportHit(playerId,target.origin,target.end,now,0,projectileDamageForAircraft(player.aircraftType),shotId);
@@ -5917,6 +5921,7 @@ function createAssistedShot(
     targetId,
     origin: muzzle.position,
     targetPosition: target.position,
+    speed: assistedTracerSpeed(player.velocity, muzzle.position, target.position),
     clientShotId,
   };
   if (player.skyDuelMatchId) {
@@ -6192,7 +6197,7 @@ function updateProjectiles(deltaSeconds: number): void {
     const transportMissionId = missionAttempt?.missionId;
     if (transportMissionId === journeyDallas07.id || transportMissionId === journeyDallas08.id || transportMissionId === journeyDallas09.id || transportMissionId === journeyDallas10.id || transportMissionId === journeyDallas11.id || transportMissionId === journeyDallas12.id) {
       const start={x:previousX,y:previousY,z:previousZ};
-      if(applyTransportHit(projectile.ownerId,start,projectile.position,now,deltaSeconds,projectile.damage)) {removeProjectile(projectile.projectileId);continue;}
+      if(applyTransportHit(projectile.ownerId,start,projectile.position,now,deltaSeconds,projectile.damage,projectile.projectileId)) {removeProjectile(projectile.projectileId);continue;}
       const blocked = segmentBlockedByBuildings(start, projectile.position, transportBuildings) ||
         projectile.position.y <= dallasTerrain.elevationAt(projectile.position.x, projectile.position.z);
       const disposition = transportProjectileDisposition(transportMissionId, projectile.traveled, blocked);
@@ -6241,7 +6246,7 @@ function updateProjectiles(deltaSeconds: number): void {
       projectile.position = { x: previousX + (projectile.position.x - previousX) * hitFraction,
         y: previousY + (projectile.position.y - previousY) * hitFraction,
         z: previousZ + (projectile.position.z - previousZ) * hitFraction };
-      removeProjectile(projectile.projectileId);
+      removeProjectile(projectile.projectileId, undefined, projectile.position);
       applyCombatHit(projectile.ownerId, hitPlayerId, projectile.cityId, now, projectile.damage, projectile.traveled,
         { impactId: projectile.projectileId, impactPosition: { ...projectile.position } });
       continue;
@@ -9117,6 +9122,7 @@ server.on('connection', (socket, request) => {
         if (!assisted) {
           if (!createProjectile(playerId, player, clientShotId, fireTransform, shotAim)) {
             logFireBlocked(playerId, 'invalid_state_or_projectile_cap', now);
+            if (clientShotId) sendToPlayer(playerId, { type: 'shotRejected', clientShotId });
           } else {
             const lockedTarget = currentLockedTarget(playerId, player, player.lockedTargetId, now, fireTransform);
             if (lockedTarget && player.lockedTargetId) sendIncomingFire(player.lockedTargetId, playerId);

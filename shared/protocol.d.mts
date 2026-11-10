@@ -15,6 +15,7 @@ export const AIM_MAX_OFFSET: number;
 export const AIM_MANUAL_OFFSET: number;
 export const AIM_SWITCH_MARGIN: number;
 export type AimOffset = { x: number; y: number };
+export function localFiringDirection<T extends { x: number; y: number; z: number }>(aim: AimOffset, out: T): T;
 export function interpolateAim(from: AimOffset, to: AimOffset, blend: number, out: AimOffset): AimOffset;
 export function aimTargetScore(angle: number, distance: number): number;
 export function aimGoal(x: number, y: number, z: number, out: AimOffset): boolean;

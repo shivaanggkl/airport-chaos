@@ -136,6 +136,8 @@ export class SkyDuelUi {
 
   isMatchActive(): boolean { return this.phase === 'active'; }
 
+  canGuideOpponent(): boolean { return this.isMatchActive() && !this.opponentDisconnected; }
+
   isRunwayLaunchActive(): boolean { return this.phase === 'launch'; }
   blocksFlightInput(): boolean {
     return Boolean(this.matchId) && (this.phase === 'found' || this.phase === 'collecting' ||
@@ -162,8 +164,9 @@ export class SkyDuelUi {
     }
   }
 
-  updateTelemetry(localHealth: number, localAltitudeFeet: number, opponentHealth?: number, opponentAltitudeFeet?: number): void {
+  updateTelemetry(localHealth: number, localAltitudeFeet: number, opponentHealth?: number, opponentAltitudeFeet?: number, guidance = ''): void {
     this.statsHeader.updateTelemetry(localHealth, localAltitudeFeet, opponentHealth, opponentAltitudeFeet);
+    this.statsHeader.setOpponentGuidance(this.canGuideOpponent() ? guidance : '');
   }
 
   constructor(host: HTMLElement, private readonly send: (type: string, matchId?: string) => boolean,
@@ -426,6 +429,7 @@ export class SkyDuelUi {
       if (!this.matchId && message.matchId) { this.pendingState = message; return; }
       if (message.matchId && this.matchId && message.matchId !== this.matchId || this.phase === 'result') return;
       this.phase = message.phase ?? this.phase;
+      if (!this.canGuideOpponent()) this.statsHeader.setOpponentGuidance('');
       this.scoreA = message.scoreA ?? this.scoreA;
       this.scoreB = message.scoreB ?? this.scoreB;
       this.endsAt = message.endsAt ?? this.endsAt;
@@ -445,6 +449,7 @@ export class SkyDuelUi {
     } else if (message.type === 'skyDuelOpponentDisconnected') {
       this.notify(`OPPONENT RECONNECTING · ${message.reconnectSeconds ?? 15} SEC`);
       this.opponentDisconnected = true;
+      this.statsHeader.setOpponentGuidance('');
       this.setWaitingNote(this.opponentCard, 'WAITING FOR PILOT');
       if (this.phase === 'countdown') this.countdown.hidden = true;
       if (this.phase === 'launch') {
@@ -467,6 +472,7 @@ export class SkyDuelUi {
       this.resultMatchId = message.matchId ?? '';
       this.pilotAId = message.pilotA ?? this.pilotAId;
       this.phase = 'result';
+      this.statsHeader.setOpponentGuidance('');
       this.queuedAt = 0;
       this.hud.hidden = true;
       this.panel.hidden = false;

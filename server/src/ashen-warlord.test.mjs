@@ -428,11 +428,11 @@ test('monster HUD keeps the common aim circle and receipt feedback stays isolate
     const css=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
     const rule=css.match(/\.monster-arrival-focus :is\([^}]+\}/)?.[0];assert(rule);assert(!rule.includes('#acquisition-circle'));
     const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
-    assert.match(main,/message.monsterImpact.attemptId===journeyAttempt.attemptId/);
-    assert.match(main,/removeClientProjectile\(message.projectileId\);\s+if\(message.monsterImpact/);
+    assert.match(main,/monsterImpact.attemptId === journeyAttempt\?\.attemptId/);
+    assert.match(main,/finishProjectileAtImpact\(projectile, monsterImpact.position\)/);
 });
 
-test('confirmed M19 surface impacts follow the rendered body, emit bounded sparks/smoke once, and dispose cleanly',async()=>{
+test('confirmed M19 surface impacts use the server point, emit bounded sparks/smoke once, and dispose cleanly',async()=>{
     const {MonsterArrivalView}=await import('../../client/src/monster-arrival.ts');
     const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model);
     await view.ready;let hits=0;view.onHit=()=>hits++;
@@ -441,7 +441,7 @@ test('confirmed M19 surface impacts follow the rendered body, emit bounded spark
     view.showBulletImpact(receipt);view.showBulletImpact(receipt);view.update(.03);
     assert.equal(hits,1);
     const points=scene.getObjectByName('monster-pooled-dust-and-smoke'),sizes=points.geometry.getAttribute('size'),positions=points.geometry.getAttribute('position');
-    let count=0;for(let i=0;i<sizes.count;i++)if(sizes.getX(i)>0){count++;assert(Math.abs(positions.getX(i)-1010)<20);assert(Math.abs(positions.getZ(i)-2020)<20);}
+    let count=0;for(let i=0;i<sizes.count;i++)if(sizes.getX(i)>0){count++;assert(Math.abs(positions.getX(i)-10)<20);assert(Math.abs(positions.getZ(i)-20)<20);}
     assert.equal(count,16);view.dispose();assert.equal(scene.children.length,0);
 });
 

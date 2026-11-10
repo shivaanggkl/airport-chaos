@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
-import { PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { BASE_PROJECTILE_SPEED, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { combatShotAimSample, combatAimBlend, combatLockReady } from '../../shared/combat-aim.mjs';
 type Vec = {
     x: number;
@@ -117,6 +117,12 @@ test('restored lock gives one authoritative assisted hit; unlocked shots remain 
   assert.equal(hits()[0]!.health,75);
   assert.equal(hits()[0]!.impactId,event.shotId);
   assert.deepEqual(hits()[0]!.impactPosition,event.targetPosition);
+  await wait(()=>target.messages.some(m=>m.type==='assistedShot'&&m.shotId===event.shotId),'observer receives the same confirmed tracer');
+  const observed = target.messages.find(m=>m.type==='assistedShot'&&m.shotId===event.shotId)!;
+  assert.deepEqual(observed.origin,event.origin);
+  assert.deepEqual(observed.targetPosition,event.targetPosition);
+  assert.equal(observed.speed,event.speed);
+  assert.ok(event.speed>=BASE_PROJECTILE_SPEED);
   assert.equal(shooter.messages.some(m=>m.type==='projectileSpawn'&&m.clientShotId==='restored-assisted'),false,'no second ballistic damage path');
   await delay(400);shooter.send(fire);await delay(150);
   assert.equal(hits().length,1,'duplicate intent cannot apply another reward or hit');
@@ -131,6 +137,16 @@ test('restored lock gives one authoritative assisted hit; unlocked shots remain 
   await delay(400);shooter.send({type:'fire',clientShotId:'invalid-sample',targetId:target.id,aimSample:{from:-1,to:999999,blend:1}});
   await wait(()=>shooter.messages.some(m=>m.type==='shotRejected'&&m.clientShotId==='invalid-sample'),'invalid server-sample reference rejected');
   assert.equal(hits().length,1);
+  shooter.goalYaw=0;
+  await wait(()=>shooter.yaw===0,'shooter realigns for ballistic contact');
+  shooter.send({type:'fire',clientShotId:'ballistic-contact'});
+  await wait(()=>shooter.messages.some(m=>m.type==='projectileSpawn'&&m.clientShotId==='ballistic-contact'),'ballistic contact round spawned');
+  const ballistic=shooter.messages.find(m=>m.type==='projectileSpawn'&&m.clientShotId==='ballistic-contact')!;
+  await wait(()=>hits().some(hit=>hit.impactId===ballistic.projectileId),'server swept hit for the ballistic shot');
+  const receipt=hits().find(hit=>hit.impactId===ballistic.projectileId)!;
+  const removal=shooter.messages.find(m=>m.type==='projectileRemove'&&m.projectileId===ballistic.projectileId)!;
+  assert.deepEqual(removal.impactPosition,receipt.impactPosition);
+  assert.equal(receipt.health,50);
  }finally{if(timer)clearInterval(timer);a?.socket.close();b?.socket.close();child.kill('SIGTERM');await delay(200);rmSync(dir,{recursive:true,force:true})}
 });
 

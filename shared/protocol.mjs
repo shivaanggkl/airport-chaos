@@ -29,6 +29,13 @@ export function projectileDamageForAircraft(aircraftType) {
 export function ballisticShotSpeed(velocity, direction) {
   return BASE_PROJECTILE_SPEED + Math.max(0, velocity.x * direction.x + velocity.y * direction.y + velocity.z * direction.z);
 }
+export function localFiringDirection(aim, out) {
+  const inverseLength = 1 / Math.hypot(aim.x, aim.y, 1);
+  out.x = aim.x * inverseLength;
+  out.y = aim.y * inverseLength;
+  out.z = -inverseLength;
+  return out;
+}
 const finiteCombatVector = value => value && [value.x, value.y, value.z].every(Number.isFinite);
 // Solve the existing longitudinal launch-speed model for one straight shot.
 export function ballisticIntercept(origin, shooterVelocity, targetPosition, targetVelocity) {

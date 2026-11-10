@@ -24,7 +24,10 @@ export function resolveTransport({ native, development, pageOrigin, webSocketOve
   }
 
   if (development) {
-    const websocket = new URL(webSocketOverride || 'ws://localhost:8091');
+    const page = new URL(pageOrigin);
+    // Keep the local API session and WebSocket cookie on the page's loopback host.
+    const host = isLoopback(page) ? page.hostname : 'localhost';
+    const websocket = new URL(webSocketOverride || `ws://${host}:8091`);
     if (!isLoopback(websocket) && websocket.protocol !== 'wss:') {
       throw new Error('Non-loopback development transport requires WSS.');
     }
