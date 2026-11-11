@@ -44,7 +44,7 @@ test('Coming-soon modes and unsupported cities cannot start a different game mod
 test('Single Player retains the mission journey and homepage reuses all existing mode artwork', () => {
   let missions = 0;
   runInNewContext(`${code}; chooseCity({id:'dallas',status:'available'});`, {
-    cityJourneyMode: 'missions', recordProductIntent() {}, showMissionJourney() { missions++; },
+    cityJourneyMode: 'missions', dallasUnlocked: () => true, recordProductIntent() {}, showMissionJourney() { missions++; },
   });
   assert.equal(missions, 1);
   const home = readFileSync('client/src/home-hangar.ts', 'utf8');
@@ -95,4 +95,30 @@ test('solo exploration omits territory-only geometry and the server gates territ
  assert.match(server,/player\.soloExploreMode\)\{[\s\S]*?!soloExploreMessages\.has\(message.type\)/);
  const allowed=server.match(/const soloExploreMessages=new Set\(\[([^\]]+)\]\)/)![1];
  for(const action of ['fire','lock','missionAccept','eventJoin','skyDuelQueue','intercityRouteStart'])assert.ok(!allowed.includes(`'${action}'`));
+});
+
+
+test('locked Dallas reuses the Hub dialog; explore keeps missions locked and back selects Training City', () => {
+  let explore: () => void = () => {}, goBack: () => void = () => {};
+  let journeys = 0, selected = -1, focused = false;
+  const trigger = {};
+  const context = {
+    cityJourneyMode: 'missions', cityJourneyLaunching: true, cityJourneyTransitionUntil: 999,
+    dallasUnlocked: () => false, recordProductIntent() {},
+    document: { activeElement: trigger, body: trigger }, HTMLElement: Object,
+    hubInfoDialog: { openDallasLocked(origin: unknown, primary: () => void, back: () => void) {
+      assert.equal(origin, trigger); explore = primary; goBack = back;
+    } },
+    showMissionJourney() { journeys++; },
+    cityJourneyEntries: [{id:'dallas'}, {id:'milwaukee'}], cityJourneyIndex: 1,
+    setCityJourneyIndex(index: number) { selected = index; },
+    cityJourneyViews: [{card:{focus() {}}}, {card:{focus() { focused = true; }}}],
+  };
+  runInNewContext(`${code}; chooseCity({id:'dallas',status:'available'});`, context);
+  assert.equal(journeys, 0);
+  assert.equal(context.cityJourneyLaunching, false);
+  explore(); assert.equal(journeys, 1);
+  assert.equal(context.dallasUnlocked(), false);
+  goBack(); assert.equal(selected, 1); assert.equal(focused, true);
+  assert.equal(context.cityJourneyTransitionUntil, 0);
 });
