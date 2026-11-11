@@ -8,6 +8,20 @@ const ast = ts.createSourceFile('bootstrap.ts', source, ts.ScriptTarget.Latest, 
 const choose = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'chooseCity')!;
 const code = ts.transpileModule(choose.getText(ast), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 
+test('Sky Duel bypasses city selection and always resolves Dallas', () => {
+  const selector = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'showSelector')!;
+  const selectorCode = ts.transpileModule(selector.getText(ast), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const dallas = { id: 'dallas', status: 'available' };
+  const chosen: unknown[] = [];
+  runInNewContext(`${selectorCode}; showSelector('', {mode:'multiplayer'});`, {
+    cityJourneyMode: 'missions', selectedHomeMultiplayerMode: 'sky',
+    abandonPendingJourneyLaunch() {}, sessionStorage: { setItem() {} }, CITY_JOURNEY_MODE_KEY: 'mode',
+    getCity(id: string) { assert.equal(id, 'dallas'); return dallas; },
+    chooseCity(city: unknown) { chosen.push(city); },
+  });
+  assert.deepEqual(chosen, [dallas]);
+});
+
 test('Sky Duel continues from city selection even when its existing launch guard is set', () => {
   const calls: unknown[][] = [];
   const context = { cityJourneyMode: 'multiplayer', selectedHomeMultiplayerMode: 'sky', cityJourneyLaunching: true,

@@ -1,3 +1,4 @@
+import { rewardedAdProvider, type RewardedAdAttempt } from './rewarded-ads';
 import { missionJourneyDetails } from './mission-journey-content';
 import { CombatStatsHeader } from './combat-stats-header';
 import { horizontalDistanceSquared, isFiniteGuidancePosition, opponentAltitudeGuidance } from './opponent-altitude-guidance';
@@ -171,6 +172,7 @@ const skyDuelMode = launchMode === 'sky-duel' && cityId === 'dallas';
 const airAssaultMode = launchMode === 'air-assault' && cityId === 'dallas';
 const journeyMode = launchMode === 'missions' && cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
 type JourneyAttemptState = {
+  canContinueAfterAd?: boolean;
   crossfireKills?:number; rearGuardKills?:number; rearGuardThirdId?:string|null; rearGuardFourthId?:string|null; enemyHealths?:number[];
   attemptId: string; missionId: string; targetId: string | null; secondaryTargetId?: string | null; crossfireHuntersAlive?: number; targetHealth: number; targetEngaged?: boolean; firstContactSupported?: boolean; surpriseAttackSupported?: boolean; ambushWarningAt?: number; ambushRearWarning?: boolean;
   aiIsolated?: boolean;
@@ -1376,7 +1378,7 @@ let elevatorDepartureTurnSide: PrecisionTurnSide = null;
 let elevatorDepartureAttemptId: string | null = null;
 const journeyResultElement = document.createElement('div');
 journeyResultElement.className = 'journey-result hidden';
-journeyResultElement.innerHTML = '<div class="journey-result-card"><div class="journey-result-status-banner" aria-hidden="true"><span class="journey-result-status-mark">✓</span></div><p data-journey-result-heading>MISSION 01 · GOLDEN GATES</p><h2 data-journey-result-title></h2><strong data-journey-result-name>ROOKIE RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward><img class="journey-result-credits-icon" src="/media/hub/credits.avif" alt="" aria-hidden="true"><img class="journey-result-crash-icon" src="/media/hub/aircraft.png" alt="" aria-hidden="true"><div><span data-journey-reward-copy></span><small data-journey-loss-copy hidden>NO CREDITS LOST</small></div></div><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
+journeyResultElement.innerHTML = '<div class="journey-result-card"><div class="journey-result-status-banner" aria-hidden="true"><span class="journey-result-status-mark">✓</span></div><p data-journey-result-heading>MISSION 01 · GOLDEN GATES</p><h2 data-journey-result-title></h2><strong data-journey-result-name>ROOKIE RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward><img class="journey-result-credits-icon" src="/media/hub/credits.avif" alt="" aria-hidden="true"><img class="journey-result-crash-icon" src="/media/hub/aircraft.png" alt="" aria-hidden="true"><div><span data-journey-reward-copy></span><small data-journey-loss-copy hidden>NO CREDITS LOST</small></div></div><section class="journey-result-checkpoint"><h3>Continue where you left off.</h3><button type="button" data-journey-ad><img src="/media/hub/watch-ad.jpg" alt="" aria-hidden="true"><span>WATCH AD<small>CONTINUE FREE</small></span></button><small data-journey-ad-notice role="status"></small></section><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
 const journeyResultCard = journeyResultElement.querySelector<HTMLElement>('.journey-result-card')!;
 let trainingResultActive = false;
 let flightEndResultActive = false;
@@ -2972,7 +2974,7 @@ function updateJourneyHud(): void {
     const ace = phase === 'ACE' && journeyAttempt.targetId ? remotePlayers.get(journeyAttempt.targetId) : undefined;
     const distance = phase === 'ACE' && ace ? airplane.position.distanceTo(ace.plane.position) * WORLD_METERS_PER_UNIT
       : missionObjective ? airplane.position.distanceTo(missionObjective.position) * WORLD_METERS_PER_UNIT : null;
-    const aimed = Boolean(ace && selectedCombatTarget?.remote === ace && selectedCombatTarget.locked && distance !== null && distance <= 4_500);
+    const aimed = Boolean(ace && selectedCombatTarget?.remote === ace && selectedCombatTarget.locked && distance !== null && distance <= COMBAT_RANGE);
     if (journeyHudObjective) journeyHudObjective.textContent = phase === 'GATES'
       ? onGround ? 'Pass 3 gates, defeat ace, land perfectly' : `Fly through gate ${journeyAttempt.gateIndex + 1}`
       : phase === 'ACE' ? aimed ? 'Fire at the ace' : ace ? 'Get behind the ace' : 'Defeat the ace'
@@ -3171,6 +3173,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   flightEndResultActive = false;
   trainingResultActive = false;
   journeyResultElement.classList.remove('is-training', 'is-flight-result');
+  updateJourneyAdButton(attempt);
   const dfwMission = attempt.missionId === journeyDallas01.id;
   const lakeMission = attempt.missionId === journeyDallas02.id;
   const ascentMission = attempt.missionId === journeyDallas03.id;
@@ -3277,6 +3280,106 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   journeyExit.textContent = 'EXIT TO JOURNEY';
   journeyExit.hidden = success;
   if (success) { if (missionClearAttemptId !== attempt.attemptId) audioManager.playReward(); if (legendaryMission) legendaryPilotUnlocked = true; }
+}
+
+let pendingJourneyAd: { failureKey: string; adAttemptId: string } | undefined;
+let journeyAdBusy = false;
+function updateJourneyAdButton(attempt: JourneyAttemptState): void {
+  const button = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-ad]')!;
+  const notice = journeyResultElement.querySelector<HTMLElement>('[data-journey-ad-notice]')!;
+  journeyResultElement.classList.remove('has-continuation');
+  button.disabled = journeyAdBusy || !rewardedAdProvider || !attempt.canContinueAfterAd;
+  if (attempt.canContinueAfterAd && rewardedAdProvider && !journeyAdBusy) {
+    button.disabled = true;
+    void apiFetch(apiUrl('/api/rewarded-ads/status')).then(async response => {
+      const result = await response.json() as { rewardedAds?: { supported: boolean } };
+      if (journeyAttempt?.attemptId !== attempt.attemptId || journeyAttempt.finishedAt !== attempt.finishedAt || journeyAdBusy) return;
+      button.disabled = !response.ok || result.rewardedAds?.supported !== true;
+      journeyResultElement.classList.toggle('has-continuation', !button.disabled);
+      if (button.disabled) notice.textContent = 'Rewarded videos are currently unavailable.';
+    }).catch(() => { notice.textContent = 'Rewarded videos are currently unavailable.'; });
+  }
+  notice.textContent = !attempt.canContinueAfterAd ? ''
+    : !rewardedAdProvider ? 'Rewarded videos are available in the mobile app only.' : '';
+}
+journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-ad]')!.addEventListener('click', () => void continueJourneyWithAd());
+async function continueJourneyWithAd(): Promise<void> {
+  const failed = journeyAttempt;
+  if (!failed || failed.status !== 'FAILED' || !failed.canContinueAfterAd || !rewardedAdProvider || journeyAdBusy) return;
+  journeyAdBusy = true;
+  const failureKey = `${failed.attemptId}:${failed.finishedAt}`;
+  const notice = journeyResultElement.querySelector<HTMLElement>('[data-journey-ad-notice]')!;
+  const buttons = [...journeyResultElement.querySelectorAll<HTMLButtonElement>('button')];
+  buttons.forEach(button => { button.disabled = true; });
+  const post = async (path: string, payload: object): Promise<Response> => apiFetch(apiUrl(`/api/rewarded-ads/${path}`), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  try {
+    if (pendingJourneyAd?.failureKey !== failureKey) {
+      notice.textContent = 'Loading video…';
+      const response = await post('journey-attempt', { attemptId: failed.attemptId });
+      const result = await response.json() as { attempt?: RewardedAdAttempt; error?: string };
+      if (!response.ok || !result.attempt) throw new Error(result.error ?? 'Video unavailable. Please try again later.');
+      const ad = result.attempt;
+      const statusResponse = await apiFetch(apiUrl(`/api/rewarded-ads/attempt-status?attemptId=${encodeURIComponent(ad.attemptId)}`));
+      if (!statusResponse.ok) throw new Error('Unable to check video. Try again.');
+      const status = await statusResponse.json() as {attemptStatus:string};
+      if (['REWARDED','PENDING_VERIFICATION','AD_STARTED'].includes(status.attemptStatus)) {
+        pendingJourneyAd={failureKey,adAttemptId:ad.attemptId};
+      } else try {
+        await rewardedAdProvider.load(ad);
+        await post('event', { attemptId: ad.attemptId, event: 'started' });
+        const shown = await rewardedAdProvider.show();
+        await post('event', { attemptId: ad.attemptId, event: shown.state }).catch(() => undefined);
+        if (shown.state !== 'qualified') throw new Error('Video was not completed. Your checkpoint is saved.');
+        pendingJourneyAd = { failureKey, adAttemptId: ad.attemptId };
+      } catch (error) {
+        await post('event', { attemptId: ad.attemptId, event: 'failed' }).catch(() => undefined);
+        throw error;
+      }
+    }
+    notice.textContent = 'Verifying video…';
+    for (let count = 0; count < 20; count++) {
+      if (journeyAttempt?.attemptId !== failed.attemptId) return;
+      const verification = await apiFetch(apiUrl(`/api/rewarded-ads/attempt-status?attemptId=${encodeURIComponent(pendingJourneyAd!.adAttemptId)}`));
+      if (!verification.ok) throw new Error('Unable to check video verification. Please try again.');
+      const verified = await verification.json() as { attemptStatus: string };
+      if (['FAILED', 'EXPIRED', 'CLOSED_WITHOUT_REWARD'].includes(verified.attemptStatus)) {
+        pendingJourneyAd = undefined;
+        throw new Error('Video could not be verified. Please try again.');
+      }
+      if (verified.attemptStatus !== 'REWARDED') {
+        await new Promise(resolve => window.setTimeout(resolve, 1500));
+        continue;
+      }
+      const response = await post('journey-continue', { attemptId: failed.attemptId, adAttemptId: pendingJourneyAd!.adAttemptId });
+      if (response.ok) {
+        const result = await response.json() as { health: number; maxHealth: number; resumeFlight: { position: NetworkVector; rotation: NetworkVector; velocity: NetworkVector } };
+        const flight = result.resumeFlight;
+        resetCrashPresentation(); cinematicDirector.resetFlight();
+        crashed = false; runStarted = true; onGround = false; localLifeState = 'alive'; airplane.visible = true;
+        airplane.position.set(flight.position.x, flight.position.y, flight.position.z);
+        heading = flight.rotation.y; pitch = flight.rotation.x; roll = flight.rotation.z;
+        airplane.rotation.set(pitch, heading, roll, 'YXZ');
+        velocity.set(flight.velocity.x, flight.velocity.y, flight.velocity.z);
+        currentSpeed = Math.hypot(flight.velocity.x, flight.velocity.z); verticalSpeed = flight.velocity.y;
+        applyLocalHull(result.health, result.maxHealth); updateHealthDisplay(); setFlightState('FLYING');
+        setJourneyPaused(false); journeyResultElement.classList.add('hidden'); updateCamera(1); sendLocalState();
+        pendingJourneyAd = undefined;
+        return;
+      }
+      if (response.status !== 409) throw new Error('Unable to verify video. Please try again.');
+      await new Promise(resolve => window.setTimeout(resolve, 1500));
+    }
+    throw new Error('Verification is pending. Press Watch Ad again to check without replaying the video.');
+  } catch (error) {
+    notice.textContent = error instanceof Error ? error.message : 'Video unavailable. Please try again.';
+  } finally {
+    await rewardedAdProvider.discard().catch(() => undefined);
+    journeyAdBusy = false;
+    buttons.forEach(button => { button.disabled = false; });
+    journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-ad]')!.disabled = !journeyAttempt?.canContinueAfterAd;
+  }
 }
 
 function showTrainingResult(): void {
@@ -12165,6 +12268,12 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     const previousTargetId = journeyAttempt?.targetId;
     const previousHealth = journeyAttempt?.targetHealth;
     if (previousAttempt?.attemptId !== message.attempt.attemptId || ['FAILED','COMPLETED','ABANDONED'].includes(message.attempt.status)) { clearProjectileVisuals(); clearCombatTarget(); }
+    if (previousAttempt?.status === 'FAILED' && message.attempt.status === 'RACING') {
+      resetCrashPresentation();
+      monsterView?.dispose(); monsterView = undefined;
+      transportView?.dispose(); transportView = undefined; transportViewAttemptId = '';
+      journeyResultElement.classList.add('hidden');
+    }
     journeyAttempt = message.attempt;
     if ((message.attempt.missionId !== journeyDallas13.id && message.attempt.missionId !== journeyDallas14.id && message.attempt.missionId !== journeyDallas15.id && message.attempt.missionId !== journeyDallas16.id && message.attempt.missionId !== journeyDallas17.id && message.attempt.missionId !== journeyDallas18.id && message.attempt.missionId !== journeyDallas08.id && message.attempt.missionId !== journeyDallas09.id && message.attempt.missionId !== journeyDallas10.id && message.attempt.missionId !== journeyDallas12.id && message.attempt.missionId !== journeyDallas07.id && message.attempt.missionId !== journeyDallas11.id) || ['FAILED','ABANDONED'].includes(message.attempt.status) ||
       aircraftVictory && aircraftVictory.attemptId !== message.attempt.attemptId ||
@@ -12248,12 +12357,13 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     setJourneyPaused(['READY', 'APPROACH', 'RACING'].includes(message.attempt.status) && message.attempt.pausedAt != null,
       pauseDeadlineFromServer(message.attempt.pausedAt, message.serverNow));
     if((message.attempt.missionId===journeyDallas07.id || message.attempt.missionId===journeyDallas08.id || message.attempt.missionId===journeyDallas09.id || message.attempt.missionId===journeyDallas10.id || message.attempt.missionId===journeyDallas11.id || message.attempt.missionId===journeyDallas12.id) && ['APPROACH','RACING'].includes(message.attempt.status)){
-      if(!transportView || transportViewAttemptId!==message.attempt.attemptId){
+      if((!transportView || transportViewAttemptId!==message.attempt.attemptId) &&
+        (message.attempt.status==='APPROACH' || transportMissionHasLiveTarget(message.attempt))){
         missionIntroSkip.hidden=true;
         transportView?.dispose();const view=new GiantIncomingView(scene,getTerrainHeight,message.attempt.missionId===journeyDallas10.id || message.attempt.missionId===journeyDallas11.id || message.attempt.missionId===journeyDallas12.id,message.attempt.missionId===journeyDallas11.id || message.attempt.missionId===journeyDallas12.id,message.attempt.missionId);transportView=view;transportViewAttemptId=message.attempt.attemptId;
         const arrivalEscortMission = message.attempt.missionId === journeyDallas12.id ? journeyDallas12 : message.attempt.missionId === journeyDallas10.id ? journeyDallas10
           : message.attempt.missionId === journeyDallas09.id ? journeyDallas09 : null;
-        const arrivalEscorts = arrivalEscortMission
+        const arrivalEscorts = message.attempt.status !== 'APPROACH' ? [] : arrivalEscortMission
           ? arrivalEscortMission.escortAircraft.slice(0, message.attempt.missionId===journeyDallas10.id?4:message.attempt.missionId===journeyDallas09.id?3:2).map((type, index) => {
             const escort = createAirplane(type, true);
             applyReinforcementEscortPaint(escort, type, arrivalEscortMission.escortScale, { [`livery:${type}`]: arrivalEscortMission.escortLiveries[index]! });

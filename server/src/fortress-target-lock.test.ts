@@ -27,7 +27,7 @@ function fixture(missionId: string=journeyDallas11.id) {
   let locked:string|undefined;
   const packets:any[]=[];
   const reinforcementChecks:any[]=[];
-  const store={get:()=>attempt,hitFortressComponent:(_pilot:string,_attempt:string,part:'body'|'left'|'right'|'core',_now:number,damage:number)=>{
+  const store={get:()=>attempt,activeSnapshot:()=>attempt,hitFortressComponent:(_pilot:string,_attempt:string,part:'body'|'left'|'right'|'core',_now:number,damage:number)=>{
     const key=part==='left'?'fortressLeftHealth':part==='right'?'fortressRightHealth':'monsterHealth';
     attempt[key]=Math.max(0,attempt[key]-damage);return {...attempt};
   },hitTransport:(_pilot:string,_attempt:string,_now:number,damage:number)=>{attempt.monsterHealth=Math.max(0,attempt.monsterHealth-damage);return {...attempt};}};
@@ -254,13 +254,13 @@ test('an aimed giant outside weapon range shows GET CLOSER feedback without gran
     transportLockParts,COMBAT_RANGE,insideDynamicLock,visualAim:{x:0,y:0},
     airplane:{position:new THREE.Vector3(),rotation:{y:0},quaternion:new THREE.Quaternion()},
     combatOffset:new THREE.Vector3(),combatInverseQuaternion:new THREE.Quaternion(),
-    transportView:{hasState:true,fortressTargetPosition:new THREE.Vector3(0,0,-6000),fortressComponentPosition:()=>{}},
+    transportView:{hasState:true,fortressTargetPosition:new THREE.Vector3(0,0,-(COMBAT_RANGE+1000)),fortressComponentPosition:()=>{}},
     showTargetRangeFeedback:(...args:unknown[])=>feedback.push(args),
   });
   const code=client.slice(client.indexOf('function showTransportRangeFeedback('),client.indexOf('function validateServerLock('));
   vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
   assert.equal(vm.runInContext('showTransportRangeFeedback()',context),true);
-  assert.equal(feedback[0][0].displayName,'GIANT PLANE');assert.equal(feedback[0][1],6000);
+  assert.equal(feedback[0][0].displayName,'GIANT PLANE');assert.equal(feedback[0][1],COMBAT_RANGE+1000);
   assert.equal(feedback[0][2],false);assert.equal(feedback[0][3],false);
   context.transportView.fortressTargetPosition.set(0,0,-4000);
   assert.equal(vm.runInContext('showTransportRangeFeedback()',context),false,'in-range acquisition stays server-owned');

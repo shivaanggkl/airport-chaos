@@ -783,9 +783,8 @@ function activateCityJourneyCard(index: number): void {
 
 
 function cityJourneyFullCardSrc(entry: CityJourneyEntry): string {
-  return (entry.id === 'dallas' || entry.id === 'california' || entry.id === 'new-york') && (cityJourneyMode === 'missions' || cityJourneyMode === 'solo-free-fly')
-    ? `/media/city-journey/${entry.id}-single-player-card.png`
-    : `/media/city-journey/${entry.id}-card.png`;
+  if (entry.id === 'dallas' || entry.id === 'california' || entry.id === 'new-york' || entry.id === 'milwaukee') return `/media/city-journey/${entry.id}-card.jpg`;
+  return `/media/city-journey/${entry.id}-card.png`;
 }
 
 function createCityJourneyCards(): void {
@@ -800,7 +799,15 @@ function createCityJourneyCards(): void {
     card.style.setProperty('--journey-art-image', `url("${entry.artImage}")`);
     card.style.setProperty('--journey-art-position', entry.artPosition);
     if (entry.id === 'dallas' || entry.id === 'milwaukee' || entry.id === 'california' || entry.id === 'new-york') {
-      card.append(createMenuCarouselArtwork(cityJourneyFullCardSrc(entry), 'city-journey-full-card-image'));
+      const artwork = createMenuCarouselArtwork(cityJourneyFullCardSrc(entry), 'city-journey-full-card-image', 'SINGLE PLAYER');
+      const statusTag = document.createElement('span');
+      statusTag.className = 'home-mode-flag city-mission-count';
+      const comingSoon = entry.id === 'california' || entry.id === 'new-york';
+      statusTag.classList.toggle('is-unavailable', comingSoon);
+      statusTag.textContent = comingSoon ? 'COMING SOON'
+        : entry.id === 'milwaukee' ? 'PRACTICE' : `${journeyMissionOrder.length} MISSIONS`;
+      artwork.querySelector('.menu-card-artwork')!.append(statusTag);
+      card.append(artwork);
     }
     const subtitle = document.createElement('small');
     subtitle.textContent = entry.subtitle;
@@ -856,6 +863,7 @@ function renderCityJourney(): void {
     view.card.setAttribute('aria-selected', offset === 0 ? 'true' : 'false');
     positionMenuCarouselCard(view.card, offset);
     view.card.classList.toggle('is-full-card-display', fullCardDisplay);
+    view.card.querySelectorAll<HTMLElement>('.home-mode-flag').forEach(tag => { tag.hidden = cityJourneyMode !== 'missions'; });
     view.card.classList.toggle('is-california-single-player', entry.id === 'california' && cityJourneyMode === 'missions');
     if (dallasFullCard || entry.id === 'california' || newYorkFullCard) {
       const image = view.card.querySelector<HTMLImageElement>('.city-journey-full-card-image');
@@ -863,7 +871,9 @@ function renderCityJourney(): void {
       if (image && image.getAttribute('src') !== src) setMenuCarouselArtwork(image, src);
     }
     view.card.tabIndex = fullCardDisplay && offset === 0 && !state.disabled ? 0 : -1;
-    if (dallasFullCard) view.card.setAttribute('aria-label', cityJourneyMode === 'missions' || cityJourneyMode === 'solo-free-fly' || selectedHomeMultiplayerMode==='assault' ? 'Dallas, Single Player' : 'Dallas, Multiplayer');
+    if (dallasFullCard) view.card.setAttribute('aria-label', cityJourneyMode === 'missions'
+      ? `Dallas, Single Player, ${journeyMissionOrder.length} missions`
+      : cityJourneyMode === 'solo-free-fly' || selectedHomeMultiplayerMode==='assault' ? 'Dallas, Single Player' : 'Dallas, Multiplayer');
     else if (entry.id === 'milwaukee') view.card.setAttribute('aria-label', 'Milwaukee, Training City');
     else if (entry.id === 'california') view.card.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'California, Single Player, Coming Soon' : 'California, Multiplayer, Coming Soon');
     else if (newYorkFullCard) view.card.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'New York, Single Player, Coming Soon' : 'New York, Multiplayer, Coming Soon');
@@ -2073,6 +2083,10 @@ function showSelector(message = '', options: { preferDallas?: boolean; mode?: Ci
   if (options.mode) cityJourneyMode = options.mode;
   abandonPendingJourneyLaunch();
   try { sessionStorage.setItem(CITY_JOURNEY_MODE_KEY, cityJourneyMode); } catch { /* in-memory mode remains available */ }
+  if (cityJourneyMode === 'multiplayer' && selectedHomeMultiplayerMode === 'sky') {
+    chooseCity(getCity('dallas')!);
+    return;
+  }
   cityJourneyLaunching = false;
   cityJourneyTransitionUntil = 0;
   closeCityHelp();
@@ -2335,6 +2349,11 @@ function chooseCity(city: CityDefinition): void {
     cityJourneyLaunching = true;
     void enterCity(city, selectedHomeMultiplayerMode === 'assault' ? 'day' : 'evening', false, selectedHomeMultiplayerMode === 'assault' ? 'air-assault' : 'sky-duel').catch((error: unknown) => {
       console.error('[battle] Unable to initialize gameplay.', error);
+      if (selectedHomeMultiplayerMode === 'sky') {
+        hubAccountNotice = { ok: false, message: 'Unable to load Sky Duel. Please try again.' };
+        void showHome();
+        return;
+      }
       showSelector(selectedHomeMultiplayerMode === 'assault' ? 'Unable to load Air Assault.' : 'Unable to load Sky Duel.', { mode: 'multiplayer', preferDallas: true });
     });
     return;
@@ -2584,8 +2603,6 @@ async function start(): Promise<void> {
   } else if (directMultiplayerEntry) {
     await showHome();
     showSelector('', { preferDallas: true, mode: 'multiplayer' });
-    const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
-    if (dallas) showSelector('', { mode: 'multiplayer', preferDallas: true });
   } else if ((url.searchParams.get('launchMode')==='solo-free-fly'||url.searchParams.get('launchMode')==='free-fly')&&getCity(url.searchParams.get('city'))){
     const mode=url.searchParams.get('launchMode') as 'solo-free-fly'|'free-fly';
     cityJourneyMode=mode;await enterCity(getCity(url.searchParams.get('city'))!,resolveCityTimePreset(getCity(url.searchParams.get('city'))!,url.searchParams.get('time')),false,mode,true);

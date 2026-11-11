@@ -238,7 +238,7 @@ for (const {mission, config, giant} of replayCases) test(`M${journeyMissionSlot(
  assert.equal(core.material.transparent,false);
  const depth=-replay.tracer.position.clone().applyMatrix4(camera.matrixWorldInverse).z;
  assert.ok(depth>0);
- assert.ok(Math.abs(replay.tracer.scale.x * camera.projectionMatrix.elements[5] * 540 / depth - 16)<1e-8);
+ assert.ok(Math.abs(replay.tracer.scale.x * camera.projectionMatrix.elements[5] * 540 / depth - 12)<1e-8);
  vm.runInContext('updateAircraftVictory(.7);',ctx);
  assert.equal(ctx.aircraftVictoryReplay,null);assert.equal(scene.children.length,0);assert(airplane.visible);
  if (giant) assert.deepEqual(events,['dispose','giant crash','success']);

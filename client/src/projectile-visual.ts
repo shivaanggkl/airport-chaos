@@ -24,7 +24,7 @@ export function projectileRoundDiameter(point: THREE.Vector3, camera: THREE.Pers
   const inverse = camera.matrixWorldInverse.elements;
   const depth = -(inverse[2]! * point.x + inverse[6]! * point.y + inverse[10]! * point.z + inverse[14]!);
   const focalPixels = Math.max(1, camera.projectionMatrix.elements[5]! * viewportHeight / 2);
-  return Math.max(camera.near, depth) * 16 / focalPixels;
+  return Math.max(camera.near, depth) * 12 / focalPixels;
 }
 
 export function fitProjectileRound(mesh: THREE.Object3D, traveled: number, camera: THREE.PerspectiveCamera, viewportHeight: number): void {

@@ -81,7 +81,7 @@ export class HomeHangar {
     };
     addMode('Single Player', '/media/hub/missions-card.jpg', handlers.missions);
     addMode('Free Fly, Single Player, Explore Dallas', '/media/hub/free-fly-card.jpg', handlers.explore);
-    for (const mode of homeMultiplayerModes) addMode(
+    for (const mode of homeMultiplayerModes.filter((mode): boolean => mode.playable)) addMode(
       `${mode.title}${mode.playable ? ', 1 versus 1' : ', coming soon'}`,
       `/media/multiplayer/${mode.artwork}-card.${mode.id === 'assault' ? 'jpg' : 'png'}`,
       () => handlers.multiplayer(mode.id), mode.id !== 'assault', !mode.playable,
