@@ -2364,6 +2364,17 @@ function chooseCity(city: CityDefinition): void {
     return;
   }
   if (city.id === 'dallas') {
+    if (cityJourneyMode === 'missions' && !dallasUnlocked()) {
+      cityJourneyLaunching = false;
+      hubInfoDialog.openDallasLocked(document.activeElement instanceof HTMLElement ? document.activeElement : document.body,
+        () => showMissionJourney(true, true, city),
+        () => {
+          cityJourneyTransitionUntil = 0;
+          setCityJourneyIndex(cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'));
+          cityJourneyViews[cityJourneyIndex]?.card.focus();
+        });
+      return;
+    }
     showMissionJourney(true, true, city);
     return;
   }

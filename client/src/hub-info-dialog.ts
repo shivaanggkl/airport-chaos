@@ -14,6 +14,7 @@ export class HubInfoDialog {
   private readonly status = document.createElement('p');
   private readonly closeButton = document.createElement('button');
   private returnFocus?: HTMLElement;
+  private onDismiss?: () => void;
 
   constructor() {
     this.dialog.className = 'hub-info-dialog';
@@ -118,6 +119,15 @@ export class HubInfoDialog {
     this.actionClose.textContent = 'CANCEL';
   }
 
+  openDallasLocked(trigger: HTMLElement, explore: () => void, goBack: () => void): void {
+    this.heading.textContent = 'DALLAS MISSIONS LOCKED';
+    this.lead.textContent = '';
+    this.description.textContent = 'Complete TRAINING CITY training to unlock DALLAS missions.';
+    this.showAction(trigger, 'EXPLORE DALLAS', explore);
+    this.actionClose.textContent = 'GO BACK';
+    this.onDismiss = goBack;
+  }
+
   private showAction(trigger: HTMLElement, label: string, action: () => void): void {
     this.balance.hidden = true;
     this.contact.hidden = true;
@@ -125,7 +135,7 @@ export class HubInfoDialog {
     this.status.textContent = '';
     this.primary.textContent = label;
     this.primary.hidden = false;
-    this.primary.onclick = () => { this.close(); action(); };
+    this.primary.onclick = () => { this.onDismiss = undefined; this.close(); action(); };
     this.open(trigger);
     this.primary.focus();
   }
@@ -136,6 +146,9 @@ export class HubInfoDialog {
     this.returnFocus?.focus();
     this.returnFocus = undefined;
     this.actionClose.textContent = 'CLOSE';
+    const onDismiss = this.onDismiss;
+    this.onDismiss = undefined;
+    onDismiss?.();
   }
 
   private open(trigger: HTMLElement): void {
