@@ -1,4 +1,4 @@
-import { cruiseThrottleSelection } from '../../shared/flight-control-rules.mjs';
+import { cruiseThrottleSelection, cruiseThrottleStops } from '../../shared/flight-control-rules.mjs';
 import { arrangeControls, fitControl, type LayoutBox } from './control-layout-geometry';
 import type { FlightAction } from './flight-input';
 import {
@@ -143,6 +143,7 @@ export class MobileInputControls {
   private demoActive = false;
   private throttlePointer: number | undefined;
   private throttleTarget: number | undefined;
+  private onGround = false;
   private throttleBoostRequested = false;
   private lastBoostReady: boolean | undefined;
   private boostReadyPulseTimer: number | undefined;
@@ -231,7 +232,8 @@ export class MobileInputControls {
     this.renderThrottle(value, false);
   }
 
-  syncFlightState(throttle: number, boostMeter: number, boostActive: boolean, keyboardThrottleActive = false) {
+  syncFlightState(throttle: number, boostMeter: number, boostActive: boolean, keyboardThrottleActive = false, onGround = false) {
+    this.onGround = onGround;
     if (keyboardThrottleActive) {
       this.throttleTarget = undefined;
     }
@@ -498,6 +500,9 @@ export class MobileInputControls {
     const move = (event: PointerEvent) => {
       const rect = lever.getBoundingClientRect();
       const state = throttleLeverState(event.clientY, rect.top, rect.height);
+      // Ground Boost uses FAST power until airborne; releasing retains FAST.
+      // Airborne bursts still return to the pilot's previous cruise setting.
+      if (state.boost && this.onGround) cruiseBeforeBoost = Math.max(cruiseBeforeBoost, cruiseThrottleStops[3]!);
       this.throttleTarget = state.boost ? cruiseBeforeBoost : state.throttle;
       this.throttleBoostRequested = state.boost;
       this.renderThrottle(state.throttle, state.boost, state.handlePercent);
