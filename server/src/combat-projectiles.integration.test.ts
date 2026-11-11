@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { dallasElevationAt } from './dallas-elevation.js';
+import { transportGunMuzzle } from './giant-incoming.js';
 import { aircraftPresentationMuzzleSockets } from '../../shared/aircraft-presentation-scale.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -15,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
+import { transportTuning, type TransportShotState } from '../../shared/giant-incoming.mjs';
 import { BASE_PROJECTILE_SPEED, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { combatShotAimSample, combatAimBlend, combatLockReady } from '../../shared/combat-aim.mjs';
 type Vec = {
@@ -150,7 +152,7 @@ test('restored lock gives one authoritative assisted hit; unlocked shots remain 
  }finally{if(timer)clearInterval(timer);a?.socket.close();b?.socket.close();child.kill('SIGTERM');await delay(200);rmSync(dir,{recursive:true,force:true})}
 });
 
-test('M13 real Bluejay socket acquires transport lock and inflicts an assisted hit',{timeout:100000},async()=>{
+test('M13 Bluejay lands an assisted hit and receives the authoritative turret flight with damage',{timeout:120000},async()=>{
  const dir=mkdtempSync(join(tmpdir(),'airport-m13-lock-')),db='/private/tmp/airport-chaos-m13-'+randomUUID()+'.sqlite';
  const profiles=new PlayerProfileStore(db,true,true),sessions=new PilotSessionStore(db),identity=sessions.issue(undefined,false);
  profiles.getOrCreate(identity.pilotId,'M13 QA');
@@ -186,6 +188,24 @@ test('M13 real Bluejay socket acquires transport lock and inflicts an assisted h
   a.send({type:'fire',targetId:aim.targetId,clientShotId:'m13-real-hit',aimSample:{from:aim.aimId,to:aim.aimId,blend:1},transform:{position:firePosition,rotation:{x:a.pitch,y:a.yaw,z:a.roll},aircraftType:'trainer'}});
   await wait(()=>a!.messages.some(m=>m.type==='assistedShot'&&m.clientShotId==='m13-real-hit'),'M13 assisted shot');
   await wait(()=>journeys.get(identity.pilotId,attempt.attemptId)!.monsterHealth===journeyDallas07.bossHealth-25,'M13 authoritative 25 HP damage');
+  clearInterval(timer);
+  timer=setInterval(()=>{
+   const state=a!.messages.filter(m=>m.type==='transportState').at(-1)!;
+   const pose=state.pose;
+   const muzzle=transportGunMuzzle(pose,0,state.gunYaw,state.gunPitch);
+   const ahead=Math.min(.2, Math.max(0,(Date.now()-state.serverNow)/1000));
+   a!.goal={x:muzzle.x+pose.velocity.x*ahead+Math.sin(pose.yaw)*80,
+    y:muzzle.y,z:muzzle.z+pose.velocity.z*ahead+Math.cos(pose.yaw)*80};
+   a!.step();
+  },80);
+  const turretHit=()=>a!.messages.find(m=>m.type==='damage' && m.shooterId===`transport:${attempt.attemptId}` && m.transportImpact);
+  await wait(()=>!!turretHit(),'the transport hits and includes the authoritative projectile with its damage',28000);
+  const damage=turretHit()!;
+  const shot:TransportShotState=damage.transportImpact;
+  assert.equal(damage.damage,transportTuning.shotDamage);
+  assert.equal(damage.impactId,shot.id);
+  assert.deepEqual(damage.impactPosition,shot.position);
+  assert.ok(shot.traveled>0 && shot.speed>0,'the confirmed projectile has a positive flight distance and speed');
  }catch(e){console.log('M13_NETWORK_DIAGNOSTICS',JSON.stringify({pose:a?.pose,latestTransport:a?.messages.filter(m=>m.type==='transportState').at(-1),latestJourney:a?.messages.filter(m=>m.type==='journeyAttempt').at(-1),tail:a?.messages.slice(-3),output:output.slice(0,2000)+output.slice(-1500)}));throw e;}
  finally{if(timer)clearInterval(timer);a?.socket.close();child.kill('SIGTERM');await delay(200);rmSync(dir,{recursive:true,force:true});for(const suffix of ['', '-wal','-shm'])rmSync(db+suffix,{force:true});}
 });

@@ -229,6 +229,8 @@ export class MonsterArrivalView {
 
   private swipeAgeMs=0;
   private lastHitSequence=0;
+  private queuedHitSequence = 0;
+  private victoryAt?: number;
   private hitPulse=0;
   private ending:'defeat'|'timeout'|null=null;
   private endingElapsed=0;
@@ -306,7 +308,7 @@ export class MonsterArrivalView {
     this.creature.setJumpProgress(state.jumpProgress??null);
     this.creature.setMotion(state.velocity?.x??0,state.velocity?.z??0,state.yawVelocity??0,
       state.gaitPhase??0,state.aimYaw??0,state.aimPitch??0);
-    if(state.hitSequence>this.lastHitSequence) {
+    if(state.hitSequence>Math.max(this.lastHitSequence,this.queuedHitSequence)) {
       this.onHit?.();this.hitPulse=.28;this.lastHitSequence=state.hitSequence;this.creature.hit();
       const p=state.hitPosition;this.particles.emit(p?.x??state.x,p?.y??state.y+300,p?.z??state.z,false,5,this.crimsonCore?28:7);
     }
@@ -364,9 +366,26 @@ export class MonsterArrivalView {
     }
   }
 
-  showBulletImpact(hit:{position:{x:number;y:number;z:number};sequence:number}):void {
+  queueBulletImpact(sequence: number): boolean {
+    if (sequence <= Math.max(this.lastHitSequence, this.queuedHitSequence)) return false;
+    this.queuedHitSequence = sequence;
+    return true;
+  }
+
+  bulletImpactPosition(hit: { position: THREE.Vector3Like; bodyPosition: THREE.Vector3Like; yaw: number }): THREE.Vector3 {
+    const root = this.creature.root;
+    const x = hit.position.x - hit.bodyPosition.x;
+    const z = hit.position.z - hit.bodyPosition.z;
+    const rotation = root.rotation.y - hit.yaw;
+    const cos = Math.cos(rotation), sin = Math.sin(rotation);
+    return new THREE.Vector3(root.position.x + x * cos + z * sin,
+      root.position.y + hit.position.y - hit.bodyPosition.y, root.position.z + z * cos - x * sin);
+  }
+
+  showBulletImpact(hit:{position:{x:number;y:number;z:number};sequence:number}, emitParticles = true):void {
     if(hit.sequence<=this.lastHitSequence)return;
     this.lastHitSequence=hit.sequence;this.hitPulse=.28;this.creature.hit();this.onHit?.();
+    if (!emitParticles) return;
     const p = hit.position;
     this.particles.emit(p.x,p.y,p.z,false,8,28);
     this.particles.emit(p.x,p.y,p.z,true,8,100,.18);
@@ -408,6 +427,8 @@ export class MonsterArrivalView {
 
   finish(kind:'defeat'|'timeout'):void {
     if(this.ending)return;
+    // Give the final confirmed round time to reach the monster before the blast.
+    if (this.stationary && kind === 'defeat' && this.elapsed < (this.victoryAt ??= this.elapsed + .16)) return;
     this.beam.visible=false;this.wave.visible=false;this.roar.visible=false;
     this.ending=kind;this.endingElapsed=0;
     if(this.state?.titan?.locomotion==='jump'||this.state?.jumpProgress!==null && this.state?.jumpProgress!==undefined){
@@ -428,6 +449,7 @@ export class MonsterArrivalView {
   }
   update(delta:number):void {
     delta=Math.min(.05,Math.max(0,delta));this.elapsed+=delta;
+    if (!this.ending && this.victoryAt !== undefined && this.elapsed >= this.victoryAt) this.finish('defeat');
     const c=this.creature;
     if(this.state && !this.ending) {
       if(this.stationary||this.striking&&!this.hunting)c.root.position.copy(this.target);else c.root.position.lerp(this.target,1-Math.exp(-delta*12));

@@ -50,9 +50,9 @@ export class CombatMissionIntroPath {
     if(this.huntingIntro){this.sampleHunting(elapsed,position,target,chasePosition,chaseTarget);return;}
     if(this.strikingIntro){this.sampleStriking(elapsed,position,target,chasePosition,chaseTarget);return;}
     if(this.arrivalIntro){this.sampleArrival(elapsed,position,target,chasePosition,chaseTarget);return;}
-    // M7 shows runway preparation; Later combat missions show a short, level airborne pass.
+    // Combat aircraft reveal in a short, level airborne pass.
     // Only the temporary visual group moves, never a live opponent or the player.
-    if (this.missionNumber !== 7 && this.missionNumber !== 19)
+    if (this.missionNumber !== 19)
       this.opponent.position.copy(this.opponentOrigin).addScaledVector(this.departureDirection, Math.min(Math.max(0, elapsed), 4_000) * (this.missionNumber === 12 ? .6 : this.missionNumber === 9 ? .42 : .16));
     const boss=this.missionNumber===19,cut=boss?6000:4000;
     const enemyShot = elapsed < cut;

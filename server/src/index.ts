@@ -5049,7 +5049,7 @@ function distanceToSegmentSquared(
 // Test both moving objects over the same server tick. At Redspear Boost speeds
 // a four-point target sample can skip a crossing between samples. Relative-
 // motion closest approach is continuous and keeps the existing hit radius.
-function sweptProjectileHit(
+function sweptProjectileHitTime(
   player: PlayerState,
   startX: number,
   startY: number,
@@ -5057,7 +5057,7 @@ function sweptProjectileHit(
   end: Vector3,
   deltaSeconds: number,
   visualScale = 1,
-): boolean {
+): number | undefined {
   const hitRadius = aircraftHitRadii[player.aircraftType] * visualScale * projectileHitRadiusMultiplier + projectileVisualRadius;
   // The stored transform is the target's end-of-tick position. Rewind it to
   // the segment start before testing relative swept motion; otherwise fast
@@ -5075,7 +5075,7 @@ function sweptProjectileHit(
   const dx = relativeX + motionX * closestTime;
   const dy = relativeY + motionY * closestTime;
   const dz = relativeZ + motionZ * closestTime;
-  return dx * dx + dy * dy + dz * dz <= hitRadius * hitRadius;
+  return dx * dx + dy * dy + dz * dz <= hitRadius * hitRadius ? closestTime : undefined;
 }
 
 function normalize(vector: Vector3): Vector3 {
@@ -6136,12 +6136,21 @@ function updateTransportEncounters(now: number): void {
                 e.shots.splice(i, 1);
                 continue;
             }
-            if (sweptProjectileHit(pilot, before.x, before.y, before.z, shot.position, dt)) {
+            const hitTime = sweptProjectileHitTime(pilot, before.x, before.y, before.z, shot.position, dt);
+            if (hitTime !== undefined) {
                 e.shots.splice(i, 1);
                 if (pilot.lifeState === 'alive' && now >= pilot.spawnProtectedUntil) {
                     const shotDamage = e.missionId===journeyDallas10.id ? journeyDallas10.gunShotDamage : e.fortressTurrets ? journeyDallas11.gunShotDamage : transportTuning.shotDamage;
                     pilot.health = Math.max(0, pilot.health - shotDamage);
-                    sendToPlayer(e.playerId, { type: 'damage', playerId: e.playerId, shooterId: `transport:${e.attemptId}`, health: pilot.health, maxHealth: maxHealthForAircraft(pilot.aircraftType), damage: shotDamage });
+                    const contactTravel = step * hitTime;
+                    const transportImpact = { ...shot, traveled: shot.traveled - step + contactTravel, position: {
+                        x: before.x + shot.direction.x * contactTravel,
+                        y: before.y + shot.direction.y * contactTravel,
+                        z: before.z + shot.direction.z * contactTravel,
+                    } };
+                    sendToPlayer(e.playerId, { type: 'damage', playerId: e.playerId, shooterId: `transport:${e.attemptId}`,
+                        health: pilot.health, maxHealth: maxHealthForAircraft(pilot.aircraftType), damage: shotDamage,
+                        impactId: shot.id, impactPosition: transportImpact.position, transportImpact });
                     if (!pilot.health) {
                         failPlayerJourney(e.playerId, 'CRASHED', now);
                         markPlayerDestroyed(e.playerId, pilot, now);

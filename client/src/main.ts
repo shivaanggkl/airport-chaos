@@ -22,7 +22,7 @@ import { portalForCity, portalModeAllowed, sweptPortalCrossing, portalRules, typ
 import { AirAssaultUi } from './air-assault';
 import { airAssaultHearts, type AssaultSnapshot } from '../../shared/air-assault.mjs';
 import { missionTimePreset } from './mission-time-presets';
-import { transportTuning, transportScaleForMission, transportLockParts } from '../../shared/giant-incoming.mjs';
+import { transportTuning, transportScaleForMission, transportLockParts, type TransportShotState } from '../../shared/giant-incoming.mjs';
 import {GiantIncomingView,type TransportStateMessage} from './giant-incoming';
 import { CrashSequence, type CrashSurface } from './crash-sequence';
 import { applyAircraftCosmetics as applyEquippedLivery, applyReinforcementEscortPaint } from './aircraft-cosmetics';
@@ -3908,6 +3908,14 @@ function showDamageFeedback(): void {
   damageFlashTimer = window.setTimeout(() => damageFlashElement.classList.remove('visible'), 190);
 }
 
+function showLocalProjectileDamage(damage: number, remainingHealth: number): void {
+  updateHealthDisplay(true);
+  if (remainingHealth > 0) hapticsManager.emit('damage');
+  showCombatMessage(`-${damage} DAMAGE`);
+  showDamageFeedback();
+  playTone(150, 0.13, 'sawtooth', 0.05, 80, 0, 'impacts');
+}
+
 function updateHealthDisplay(damaged = false): void {
   // A stale server packet during a rolling deploy must never turn the local
   // HUD into `100/undefined`; aircraft config is the safe authoritative
@@ -4597,6 +4605,15 @@ let missionFiveIntroPath: MissionFiveIntroPath | undefined;
 let missionSixIntroPath: MissionSixIntroPath | undefined;
 let missionCombatIntroPath: CombatMissionIntroPath | undefined;
 let missionCombatIntroAircraft: THREE.Group | undefined;
+const missionCombatIntroIdentityTags: {
+  label: THREE.Sprite;
+  aircraft: THREE.Object3D;
+  aircraftType: AircraftType;
+  targetId: string | null | undefined;
+  fallbackName: string;
+  height: number;
+}[] = [];
+const missionCombatIntroLabelPosition = new THREE.Vector3();
 let flightLaunchSkipFov = CAMERA_CHASE_FOV;
 let flightLaunchEngineLift = 0;
 let missionImageStory:ImageStorySequence|undefined;
@@ -4683,6 +4700,11 @@ function updateMissionStartCountdown(): void {
 }
 
 function clearMissionCombatIntroAircraft(): void {
+  for (const { label } of missionCombatIntroIdentityTags) {
+    label.removeFromParent();
+    disposePlayerIdentityTag(label);
+  }
+  missionCombatIntroIdentityTags.length = 0;
   const aircraft = missionCombatIntroAircraft;
   missionCombatIntroAircraft = undefined;
   if (!aircraft) return;
@@ -4701,10 +4723,10 @@ async function prepareMissionCombatIntro(attemptId: string, missionId: string): 
   missionCombatIntroAircraft = stage;
   const airport = airports.find(item => item.id === (missionNumber === 12 ? journeyDallas18.startAirportId : missionNumber === 11 ? journeyDallas17.startAirportId : missionNumber === 9 ? 'addison' : 'love'))!;
   const along = airport.spawnOffset + (missionNumber === 8 ? 900 : 0);
-  const x = (missionNumber === 9 || missionNumber === 11 || missionNumber === 12) ? singleMission.enemySpawn.x : missionNumber === 10 ? journeyDallas16.enemies[0]!.x : airport.x + Math.sin(airport.heading) * along;
-  const z = (missionNumber === 9 || missionNumber === 11 || missionNumber === 12) ? singleMission.enemySpawn.z : missionNumber === 10 ? journeyDallas16.enemies[0]!.z : airport.z + Math.cos(airport.heading) * along;
-  stage.position.set(x, groundPlaneY(x, z) + (missionNumber === 7 ? 0 : missionNumber === 8 ? 180 : (missionNumber === 9 || missionNumber === 11 || missionNumber === 12) ? singleMission.enemyAltitude : 750), z);
-  stage.rotation.y = missionNumber === 9
+  const x = (missionNumber === 7 || missionNumber === 9 || missionNumber === 11 || missionNumber === 12) ? singleMission.enemySpawn.x : missionNumber === 10 ? journeyDallas16.enemies[0]!.x : airport.x + Math.sin(airport.heading) * along;
+  const z = (missionNumber === 7 || missionNumber === 9 || missionNumber === 11 || missionNumber === 12) ? singleMission.enemySpawn.z : missionNumber === 10 ? journeyDallas16.enemies[0]!.z : airport.z + Math.cos(airport.heading) * along;
+  stage.position.set(x, missionNumber === 7 ? getTerrainHeight(x, z) + singleMission.enemyAltitude : groundPlaneY(x, z) + (missionNumber === 8 ? 180 : (missionNumber === 9 || missionNumber === 11 || missionNumber === 12) ? singleMission.enemyAltitude : 750), z);
+  stage.rotation.y = missionNumber === 7 ? -Math.PI / 2 : missionNumber === 9
     ? Math.atan2(x - journeyDallas15.escapeRoute[0]!.x, z - journeyDallas15.escapeRoute[0]!.z)
     : (missionNumber === 11 || missionNumber === 12) ? Math.atan2(x - airplane.position.x, z - airplane.position.z) : airport.heading;
   const enemies = missionNumber === 10 ? journeyDallas16.enemies
@@ -4727,15 +4749,57 @@ async function prepareMissionCombatIntro(attemptId: string, missionId: string): 
   for (const child of stage.children) {
     const aircraft = child as THREE.Group;
     const gear = aircraft.userData.assetGear as THREE.Object3D | undefined;
-    if (gear) gear.visible = missionNumber === 7;
+    if (gear) gear.visible = false;
     aircraft.getWorldPosition(aircraftPosition);
     aircraft.getWorldQuaternion(aircraftOrientation);
     applyPlaneGroundContact(aircraft, aircraftPosition.y - aircraftVisualGroundY(aircraftPosition), aircraftOrientation);
   }
   scene.add(stage);
+  for (const [index, enemy] of enemies.entries()) {
+    const aircraft = stage.children[index]!;
+    const targetId = index === 0 ? journeyAttempt.targetId : journeyAttempt.secondaryTargetId;
+    const target = remotePlayers.get(targetId ?? '');
+    const fallbackName = missionNumber === 12 ? 'LEGENDARY FIREHAWK' : missionNumber === 11 ? 'ARMORED MAMMOTH'
+      : missionNumber === 9 ? journeyDallas15.bossName : missionNumber === 8 ? 'ATTACKING BLUEJAY'
+      : index === 1 ? 'BLUEJAY WINGMAN' : 'RED NIGHTOWL';
+    const colors = target?.identityTag.userData.ownershipColors as readonly string[] | undefined;
+    const label = createPlayerIdentityTag(target?.displayName ?? fallbackName, enemy.aircraft, false, true, colors);
+    label.visible = false;
+    missionCombatIntroIdentityTags.push({ label, aircraft, aircraftType: enemy.aircraft, targetId, fallbackName,
+      height: new THREE.Box3().setFromObject(aircraft).getSize(aircraftPosition).y });
+    scene.add(label);
+  }
   missionCombatIntroPath = new CombatMissionIntroPath(stage, airplane, missionNumber);
   cityWorld.updateWorldStreaming?.(stage.position);
   beginFlightLaunchCinematic();
+}
+
+function updateMissionCombatIntroIdentityTags(): void {
+  const stage = missionCombatIntroAircraft;
+  const path = missionCombatIntroPath;
+  if (!stage || !path) return;
+  const now = performance.now();
+  const visible = flightLaunchState === 'active' && path.streamingPosition(now - flightLaunchStartedAt) === stage.position;
+  for (const entry of missionCombatIntroIdentityTags) {
+    const { label, aircraft, aircraftType, targetId, fallbackName, height } = entry;
+    label.visible = visible;
+    if (!visible) continue;
+    aircraft.getWorldPosition(missionCombatIntroLabelPosition);
+    if (now >= (label.userData.nextPaintAt as number ?? 0)) {
+      const target = remotePlayers.get(targetId ?? '');
+      paintPlayerIdentityTag(label, target?.displayName ?? fallbackName, aircraftType, false, true,
+        target?.identityTag.userData.ownershipColors as readonly string[] ?? [],
+        airplane.position.distanceTo(missionCombatIntroLabelPosition), false, false, true,
+        Math.max(0, missionCombatIntroLabelPosition.y - getTerrainHeight(missionCombatIntroLabelPosition.x, missionCombatIntroLabelPosition.z)),
+        'HUNTER', true);
+      label.userData.nextPaintAt = now + 500;
+    }
+    const depth = Math.max(camera.near, missionCombatIntroLabelPosition.distanceTo(camera.position));
+    const worldPerPixel = depth * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * .5)) / Math.max(1, window.innerHeight);
+    label.scale.set(worldPerPixel * 168, worldPerPixel * 42, 1);
+    label.position.setFromMatrixColumn(camera.matrixWorld, 1)
+      .multiplyScalar(height * .5 + worldPerPixel * 30).add(missionCombatIntroLabelPosition);
+  }
 }
 
 async function prepareMonsterMissionIntro(attemptId:string):Promise<void>{
@@ -5306,7 +5370,7 @@ type ServerMessage =
   | { type: 'challengeComplete'; challengeId: string; score: number; credits: number }
   | { type: 'projectileRemove'; projectileId: string; impactPosition?: NetworkVector; monsterImpact?: {attemptId:string;position:{x:number;y:number;z:number};bodyPosition:{x:number;y:number;z:number};yaw:number;sequence:number} }
   | { type: 'shotRejected'; clientShotId: string }
-  | { type: 'damage'; playerId: string; shooterId: string; health: number; maxHealth: number; damage: number; impactId?: string; impactPosition?: NetworkVector }
+  | { type: 'damage'; playerId: string; shooterId: string; health: number; maxHealth: number; damage: number; impactId?: string; impactPosition?: NetworkVector; transportImpact?: TransportShotState }
   | { type: 'repair'; playerId: string; sourceId: string; full: boolean; health: number; maxHealth: number; cooldownMs?: number }
   | {
       type: 'destroyed';
@@ -5615,7 +5679,9 @@ type ClientProjectile = {
   spawnedAt: number;
   lastAuthoritativeAt: number;
   impactTravel?: number;
-  onImpact?: () => void;
+  renderImpactFrame?: boolean;
+  impact?: AircraftProjectileImpact;
+  onImpact?: (position?: THREE.Vector3) => void;
 };
 
 type ProjectileAimExit = {
@@ -5639,27 +5705,38 @@ type AssistedShotVisual = {
   elapsed: number;
   duration: number;
   onImpact?: (position?: THREE.Vector3) => void;
-  impact?: {
-    plane: THREE.Object3D;
-    velocity?: NetworkVector;
-    localPoint?: THREE.Vector3;
-    start: THREE.Vector3;
-    contact: THREE.Vector3;
-    duration: number;
-    elapsed: number;
-    arrived?: boolean;
-  };
+  impact?: AircraftProjectileImpact;
+};
+
+type AircraftProjectileImpact = {
+  plane: THREE.Object3D;
+  velocity?: NetworkVector;
+  localPoint?: THREE.Vector3;
+  start: THREE.Vector3;
+  contact: THREE.Vector3;
+  duration: number;
+  elapsed: number;
+  arrived?: boolean;
+  incoming?: boolean;
+};
+
+type AircraftImpactShot = {
+  mesh: THREE.Object3D;
+  speed: number;
+  direction?: THREE.Vector3Like;
+  impact?: AircraftProjectileImpact;
+  onImpact?: (position?: THREE.Vector3) => void;
 };
 
 function paintPlayerIdentityTag(label: THREE.Sprite, name: string, type: AircraftType, king: boolean, isBot: boolean,
   ownershipColors: readonly string[], distance = 0, targeted = false, locked = false, missionTarget = false,
-  altitudeMeters?: number, missionTargetName = 'HUNTER'): void {
+  altitudeMeters?: number, missionTargetName = 'HUNTER', showDistance = false): void {
   const canvas = label.userData.canvas as HTMLCanvasElement;
   const band = distance <= 900 ? 'close' : distance <= 3_000 ? 'mid' : 'far';
   const distanceText = distance < 1_000 ? `${Math.round(distance / 10) * 10}m` : `${(distance / 1_000).toFixed(1)} km`;
   const altitudeText = typeof altitudeMeters === 'number' && Number.isFinite(altitudeMeters)
     ? `${formatPilotAltitude(altitudeMeters)} FT` : '';
-  const signature = `${name}|${type}|${king}|${isBot}|${ownershipColors.join(',')}|${band}|${distanceText}|${targeted}|${locked}|${missionTarget}|${missionTargetName}|${altitudeText}`;
+  const signature = `${name}|${type}|${king}|${isBot}|${ownershipColors.join(',')}|${band}|${distanceText}|${targeted}|${locked}|${missionTarget}|${missionTargetName}|${altitudeText}|${showDistance}`;
   if (label.userData.signature === signature) return;
   label.userData.signature = signature;
   const context = canvas.getContext('2d')!;
@@ -5680,7 +5757,7 @@ function paintPlayerIdentityTag(label: THREE.Sprite, name: string, type: Aircraf
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   const prefix = missionTarget ? '🎯 ' : king && !isBot ? '♛ ' : '';
-  const title = band === 'close' ? `${prefix}${name}` : `${prefix}${name} · ${distanceText}`;
+  const title = band === 'close' && !showDistance ? `${prefix}${name}` : `${prefix}${name} · ${distanceText}`;
   context.fillText(title, ownershipColors.length ? 191 : 160, 29, ownershipColors.length ? 238 : 292);
   context.fillStyle = missionTarget ? visualLanguage.mission.color : identityColor;
   context.font = '700 18px ui-sans-serif, system-ui, sans-serif';
@@ -8046,6 +8123,8 @@ function createProjectileVisual(): ClientProjectile {
 
 function releaseProjectile(projectile: ClientProjectile): void {
   projectile.impactTravel = undefined;
+  projectile.renderImpactFrame = undefined;
+  projectile.impact = undefined;
   projectile.onImpact = undefined;
   scene.remove(projectile.mesh);
   projectile.mesh.visible = false;
@@ -8331,8 +8410,8 @@ function pendingAssistedHit(shotId: string | undefined): AssistedShotVisual | un
   return shotId ? assistedShotVisuals.find(shot => shot.shotId === shotId) : undefined;
 }
 
-function setAssistedImpact(shot: AssistedShotVisual, plane: THREE.Object3D, velocity?: NetworkVector, localPoint?: THREE.Vector3): void {
-  shot.impact = { plane, velocity, localPoint, start: new THREE.Vector3(), contact: new THREE.Vector3(), duration: 0, elapsed: 0 };
+function setAssistedImpact(shot: AircraftImpactShot, plane: THREE.Object3D, velocity?: NetworkVector, localPoint?: THREE.Vector3, incoming = false): void {
+  shot.impact = { plane, velocity, localPoint, incoming, start: new THREE.Vector3(), contact: new THREE.Vector3(), duration: 0, elapsed: 0 };
 }
 
 function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn' }>): void {
@@ -8405,7 +8484,31 @@ function finishProjectileAtImpact(projectile: ClientProjectile, position: Networ
   projectile.impactTravel = THREE.MathUtils.clamp(projectileImpactPoint.dot(projectile.direction), 0, projectile.speed * 0.15);
 }
 
-function advanceAssistedImpact(shot: AssistedShotVisual, delta: number): boolean {
+function finishMonsterProjectileAtImpact(projectile: ClientProjectile, contact: THREE.Vector3): void {
+  const { mesh, direction, speed } = projectile;
+  const core = mesh.children[0] as THREE.Mesh;
+  const approachDistance = Math.min(speed * 0.12, projectile.firingOrigin.distanceTo(contact));
+  if (core.visible) core.getWorldPosition(mesh.position);
+  projectileImpactPoint.subVectors(contact, mesh.position);
+  if (core.visible && projectileImpactPoint.dot(direction) <= 0) {
+    mesh.position.copy(contact);
+  } else if (!core.visible || projectileImpactPoint.lengthSq() > approachDistance ** 2) {
+    // Recover the end of the round's flight after its short reticle tracer has faded.
+    mesh.position.copy(contact).addScaledVector(direction, -approachDistance);
+  }
+  direction.subVectors(contact, mesh.position).normalize();
+  projectile.firingOrigin.copy(mesh.position);
+  projectile.impactTravel = mesh.position.distanceTo(contact);
+  projectile.showFullFlight = true;
+  projectile.renderImpactFrame = true;
+  const exit = mesh.userData.aimExit as ProjectileAimExit | undefined;
+  if (exit) exit.active = false;
+  core.position.set(0, 0, 0);
+  core.material = projectileMaterial;
+  core.visible = true;
+}
+
+function advanceAssistedImpact(shot: AircraftImpactShot, delta: number): boolean {
   const impact = shot.impact!;
   if (impact.arrived) return true;
   const { plane, velocity, localPoint } = impact;
@@ -8419,13 +8522,17 @@ function advanceAssistedImpact(shot: AssistedShotVisual, delta: number): boolean
     else impact.contact.copy(plane.position);
   }
   if (starting) {
-    const core = shot.mesh.children[0]!;
-    core.getWorldPosition(impact.start);
-    core.position.set(0, 0, 0);
+    const core = shot.mesh.children[0];
+    (core ?? shot.mesh).getWorldPosition(impact.start);
+    core?.position.set(0, 0, 0);
     // Commit to one intercept after the round clears the reticle. A target
     // turning away cannot extend the flight or make the round chase it.
     impact.duration = Math.min(assistedAircraftMaxApproachTime,
       impact.start.distanceTo(impact.contact) / shot.speed);
+    const direction = shot.direction;
+    if (impact.incoming && direction &&
+      (impact.contact.x - impact.start.x) * direction.x + (impact.contact.y - impact.start.y) * direction.y +
+      (impact.contact.z - impact.start.z) * direction.z <= 0) impact.duration = 0;
     if (velocity && impact.duration > delta) {
       const leadTime = impact.duration - delta;
       impact.contact.x += velocity.x * leadTime;
@@ -8433,7 +8540,7 @@ function advanceAssistedImpact(shot: AssistedShotVisual, delta: number): boolean
       impact.contact.z += velocity.z * leadTime;
     }
   }
-  impact.elapsed += delta;
+  impact.elapsed += starting && impact.incoming ? Math.min(delta, impact.duration / 2) : delta;
   if (impact.elapsed < impact.duration) {
     shot.mesh.position.lerpVectors(impact.start, impact.contact, impact.elapsed / impact.duration);
     shot.mesh.scale.setScalar(projectileRoundDiameter(shot.mesh.position));
@@ -8443,7 +8550,7 @@ function advanceAssistedImpact(shot: AssistedShotVisual, delta: number): boolean
   if (!localPoint) placeAircraftImpactFlash(impact.contact, plane, projectileRoundDiameter(impact.contact) * 0.5);
   shot.mesh.position.copy(impact.contact);
   shot.mesh.scale.setScalar(projectileRoundDiameter(shot.mesh.position));
-  // Render the crimson round against the hull before returning it to the pool.
+  // Render the round against the hull before returning it to the pool.
   impact.arrived = true;
   const onImpact = shot.onImpact;
   shot.onImpact = undefined;
@@ -8457,6 +8564,10 @@ function updateProjectiles(delta: number): void {
   if (aimQaRay && now >= aimQaRayUntil) aimQaRay.visible = false;
   for (const [projectileId, projectile] of clientProjectiles) {
     projectile.mesh.visible = true;
+    if (projectile.impact) {
+      if (advanceAssistedImpact(projectile, delta)) removeClientProjectile(projectileId);
+      continue;
+    }
     if (projectile.impactTravel !== undefined) {
       const step = Math.min(projectile.impactTravel, delta * projectile.speed);
       projectile.impactTravel -= step;
@@ -8465,7 +8576,13 @@ function updateProjectiles(delta: number): void {
       const traveled = projectileOrigin.subVectors(projectile.mesh.position, projectile.firingOrigin).dot(projectile.direction);
       fitProjectileRound(projectile.mesh, traveled);
       if (projectile.impactTravel === 0) {
+        if (projectile.renderImpactFrame) projectile.mesh.scale.setScalar(projectileRoundDiameter(projectile.mesh.position));
         projectile.onImpact?.();
+        if (projectile.renderImpactFrame) {
+          projectile.renderImpactFrame = false;
+          projectile.onImpact = undefined;
+          continue;
+        }
         removeClientProjectile(projectileId);
       }
       continue;
@@ -9020,7 +9137,7 @@ function updateRemotePlayers(delta: number): void {
       remote.plane.rotation.set(hunterPose.rotation.x, hunterPose.rotation.y, hunterPose.rotation.z, 'YXZ');
     }
     const hiddenBot = remote.isBot && (
-      Boolean(missionCombatIntroPath && missionCombatIntroPath.missionNumber !== 7 && flightLaunchState === 'active') ||
+      Boolean(missionCombatIntroPath && flightLaunchState === 'active') ||
       transportEscortInactive(remote) ||
       missionFocus?.showAmbientAIAircraft === false && unrelatedFocusedBot(remote.playerId));
     remote.plane.visible = remote.lifeState === 'alive' && !hiddenBot;
@@ -9475,7 +9592,7 @@ function updateAircraftVisuals(delta: number): void {
   const localPower = crashed ? 0 : Math.min(1.45, Math.max(throttle, currentSpeed / currentAircraft.maxSpeed * 0.72) + boostVisualStrength * 0.42);
   updatePlaneVisuals(airplane, localPower, boostVisualStrength, delta);
   if (missionCombatIntroAircraft) for (const aircraft of missionCombatIntroAircraft.children)
-    updatePlaneEngineVisuals(aircraft as THREE.Group, missionCombatIntroPath?.missionNumber === 7 ? .15 : .7, 0, delta);
+    updatePlaneEngineVisuals(aircraft as THREE.Group, .7, 0, delta);
   for (const remote of remotePlayers.values()) {
     updatePlaneVisuals(remote.plane, remote.boostActive ? 0.92 : 0.55, remote.boostActive ? 1 : 0, delta);
   }
@@ -10818,6 +10935,8 @@ function animate(): void {
   }
   giantTransportAssetPreview?.update(delta, airplane, !journeyMode, camera);
   updateLockCircle();
+  updateMissionCombatIntroIdentityTags();
+  transportView?.updateProjectileShots(delta, camera, window.innerHeight);
   updateProjectiles(delta);
   updateWeapons(delta);
   updateLocalProjectiles();
@@ -11882,7 +12001,8 @@ function sendFireIntent(): boolean {
     return false;
   }
   firedSinceWelcome = true;
-  spawnMuzzleFeedback(projectileOrigin, projectileDirection, clientShotId, targetId, combatLockState === 'LOCKED');
+  const showFullFlight = combatLockState === 'LOCKED' && componentAttempt?.missionId !== journeyDallas25.id;
+  spawnMuzzleFeedback(projectileOrigin, projectileDirection, clientShotId, targetId, showFullFlight);
   playFireSound();
   return true;
 }
@@ -12908,7 +13028,19 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     const monsterImpact = message.monsterImpact;
     if (monsterImpact && monsterImpact.attemptId === journeyAttempt?.attemptId && isMonsterJourneyMission(journeyAttempt?.missionId)) {
       const view = monsterView;
-      if (projectile) {
+      if (view && journeyAttempt?.missionId === journeyDallas25.id) {
+        if (!view.queueBulletImpact(monsterImpact.sequence)) return;
+        const contact = view.bulletImpactPosition(monsterImpact);
+        const onImpact = () => {
+          if (monsterView !== view) return;
+          playProjectileHit(contact, 0, false, true, view.introRoot, true);
+          view.showBulletImpact({ position: contact, sequence: monsterImpact.sequence }, false);
+        };
+        if (projectile) {
+          finishMonsterProjectileAtImpact(projectile, contact);
+          projectile.onImpact = onImpact;
+        } else onImpact();
+      } else if (projectile) {
         finishProjectileAtImpact(projectile, monsterImpact.position);
         projectile.onImpact = () => view?.showBulletImpact(monsterImpact);
       } else view?.showBulletImpact(monsterImpact);
@@ -12917,21 +13049,40 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     } else if (projectile?.impactTravel === undefined) removeClientProjectile(message.projectileId);
   } else if (message.type === 'damage') {
     for (const ending of aircraftVictoryCandidates) ending.recordFatalHit(message);
-    const localShot = message.shooterId === localPlayerId && message.playerId !== localPlayerId;
+    const incoming = message.playerId === localPlayerId;
+    const localShot = message.shooterId === localPlayerId && !incoming;
     const impactId = message.impactId;
-    if (!impactId || !confirmedProjectileHits.has(impactId)) {
+    let feedbackDeferred = false;
+    const firstImpact = !impactId || !confirmedProjectileHits.has(impactId);
+    if (firstImpact) {
       if (impactId) rememberProjectileId(confirmedProjectileHits, impactId);
-      const position = message.impactPosition ?? (message.playerId === localPlayerId
+      const position = message.impactPosition ?? (incoming
         ? airplane.position : remotePlayers.get(message.playerId)?.plane.position);
       const shot = pendingAssistedHit(impactId);
       const projectile = impactId ? clientProjectiles.get(impactId) : undefined;
       const target = localShot && message.health > 0 ? remotePlayers.get(message.playerId) : undefined;
       const onImpact = (contact?: THREE.Vector3) => {
-        const aircraft = (shot || projectile?.showFullFlight) && target?.plane.visible && target.plane.parent
-          ? target.plane : undefined;
+        const plane = incoming && impactId ? airplane : (shot || projectile?.showFullFlight) ? target?.plane : undefined;
+        const aircraft = plane?.visible && plane.parent ? plane : undefined;
         playProjectileHit(contact ?? aircraft?.position ?? position, message.damage, localShot, !!aircraft, aircraft, contact !== undefined);
+        if (feedbackDeferred) showLocalProjectileDamage(message.damage, message.health);
       };
-      if (shot) {
+      if (incoming && message.transportImpact && message.shooterId === `transport:${transportViewAttemptId}`) {
+        const { speed, direction } = message.transportImpact;
+        feedbackDeferred = transportView?.presentProjectileImpact(message.transportImpact, mesh => {
+          const round: AircraftImpactShot = { mesh, speed, direction, onImpact };
+          setAssistedImpact(round, airplane, velocity, undefined, true);
+          return delta => advanceAssistedImpact(round, delta);
+        }) ?? false;
+        if (!feedbackDeferred) onImpact();
+      } else if (incoming) {
+        const round = shot ?? projectile;
+        if (round && message.health > 0) {
+          feedbackDeferred = true;
+          round.onImpact = onImpact;
+          setAssistedImpact(round, airplane, velocity, undefined, true);
+        } else onImpact();
+      } else if (shot) {
         shot.onImpact = onImpact;
         if (target) setAssistedImpact(shot, target.plane, target.velocity);
       }
@@ -12939,13 +13090,10 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       else onImpact();
     }
     if (localShot && combatQaElement) combatQaDetail = 'shot: assisted/ballistic · HIT';
-    if (message.playerId === localPlayerId) {
+    if (incoming) {
       applyLocalHull(message.health, message.maxHealth);
-      if (message.health > 0) hapticsManager.emit('damage');
-      updateHealthDisplay(true);
-      showCombatMessage(`-${message.damage} DAMAGE`);
-      showDamageFeedback();
-      playTone(150, 0.13, 'sawtooth', 0.05, 80, 0, 'impacts');
+      if (firstImpact && !feedbackDeferred) showLocalProjectileDamage(message.damage, message.health);
+      else updateHealthDisplay();
     } else {
       const remote = remotePlayers.get(message.playerId);
       if (remote) {

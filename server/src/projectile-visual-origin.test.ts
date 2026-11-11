@@ -141,6 +141,8 @@ test('transport shot snapshots retain the shared orange round and reconcile forw
   const tracer = { mesh, traveled: 0 };
   const view = Object.create(GiantIncomingView.prototype);
   view.tracers = [tracer];
+  view.levels = [{}];
+  view.receivedAt = performance.now();
   const camera = new THREE.PerspectiveCamera(58);
   const muzzle = new THREE.Vector3(120, 80, -1000);
   const direction = new THREE.Vector3(-0.5, 0.2, -1).normalize();
@@ -148,20 +150,115 @@ test('transport shot snapshots retain the shared orange round and reconcile forw
     id, direction, traveled, speed: 1000, position: muzzle.clone().addScaledVector(direction, traveled),
   });
   view.syncProjectileShots([snapshot('rear-turret', 30)]);
-  view.updateProjectileShots(0, 0, camera, 1080);
+  view.updateProjectileShots(0, camera, 1080);
   assert.ok(mesh.position.distanceTo(muzzle) < 1e-9, 'a fresh snapshot reconstructs the real turret muzzle');
-  view.updateProjectileShots(0.016, 0.016, camera, 1080);
+  view.updateProjectileShots(0.016, camera, 1080);
   assert.equal(mesh.material.color.getHex(), 0xff8c00);
   assert.equal(mesh.geometry, createProjectileCore().geometry);
   assert.ok(mesh.visible && mesh.position.clone().sub(muzzle).cross(direction).length() < 1e-9);
   const prior = tracer.traveled;
   view.syncProjectileShots([snapshot('rear-turret', 10)]);
-  view.updateProjectileShots(0.016, 0, camera, 1080);
+  view.receivedAt = performance.now();
+  view.updateProjectileShots(0.016, camera, 1080);
   assert.equal(tracer.traveled, prior, 'a delayed snapshot cannot rewind the round');
   view.syncProjectileShots([snapshot('front-turret', 200)]);
   assert.equal(tracer.traveled, 200, 'a reused slot resumes an older shot at its authoritative progress');
   view.syncProjectileShots([]);
   assert.equal(mesh.visible, false);
+});
+
+for (const kind of ['ballistic', 'assisted', 'turret'] as const) {
+  test(`an incoming ${kind} round reaches the visible player hull before it is recycled`, () => {
+    const { context } = fixture();
+    const plane = new THREE.Group();
+    const airframe = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8));
+    hull.name = 'aircraft-fallback-qa';
+    airframe.add(hull);
+    plane.add(airframe);
+    plane.userData.airframeRoot = airframe;
+    plane.position.z = -132;
+    context.scene.add(plane);
+    const core = createProjectileCore(true);
+    const group = new THREE.Group();
+    group.add(core);
+    group.position.z = -120;
+    const camera = new THREE.PerspectiveCamera(58);
+    const contacts: THREE.Vector3[] = [];
+    const direction = new THREE.Vector3(0, 0, -1);
+    const round = { mesh: group, speed: 1000, direction, elapsed: .12, duration: .132,
+      onImpact: (point: THREE.Vector3) => contacts.push(point.clone()) };
+    const clientProjectiles = new Map(kind === 'ballistic' ? [['shot', round]] : []);
+    const runtime = {
+      ...context, camera, aimQaRay: null, clientProjectiles, projectileAimPassDistance: 120,
+      assistedShotVisuals: kind === 'assisted' ? [round] : [], assistedAircraftMaxApproachTime: .24,
+      aircraftImpactRay: new THREE.Raycaster(), aircraftImpactAim: new THREE.Vector3(), aircraftImpactSurfaceHits: [],
+      removeClientProjectile: (id: string) => clientProjectiles.delete(id),
+    };
+    const helpers = runInNewContext([
+      code('setAssistedImpact'), code('advanceAssistedImpact'), code('placeAircraftImpactFlash'), code('updateProjectiles'),
+      '({ setAssistedImpact, advanceAssistedImpact, updateProjectiles });',
+    ].join('\n'), runtime);
+    const view = Object.create(GiantIncomingView.prototype);
+    if (kind === 'turret') {
+      core.removeFromParent();
+      core.visible = false;
+      view.tracers = [{ mesh: core, traveled: 0 }];
+      view.levels = [{}];
+      const shot = { id: 'between-snapshots', position: new THREE.Vector3(0, 0, -132), direction, speed: 1000, traveled: 12 };
+      assert.equal(view.presentProjectileImpact(shot, (mesh: THREE.Mesh) => {
+        const turretRound = { ...round, mesh };
+        helpers.setAssistedImpact(turretRound, plane, undefined, undefined, true);
+        return (delta: number) => helpers.advanceAssistedImpact(turretRound, delta);
+      }), true);
+      view.syncProjectileShots([]);
+      view.final = 'timeout';
+    } else helpers.setAssistedImpact(round, plane, undefined, undefined, true);
+    const frame = () => kind === 'turret' ? view.updateProjectileShots(.016, camera, 1080) : helpers.updateProjectiles(.016);
+    const mesh = kind === 'turret' ? core : group;
+    frame();
+    assert.equal(mesh.position.z, -126);
+    assert.equal(contacts.length, 0);
+    plane.position.z = -135;
+    frame();
+    assert.equal(contacts.length, 1);
+    assert.ok(Math.abs(contacts[0]!.z + 130.975) < .001, 'contact uses the moved hull surface');
+    assert.ok(mesh.position.equals(contacts[0]!));
+    assert.equal(mesh.visible, true);
+    assert.equal(core.material.color.getHex(), 0xff8c00);
+    frame();
+    assert.equal(contacts.length, 1);
+    assert.equal(clientProjectiles.size + runtime.assistedShotVisuals.length + Number(kind === 'turret' && core.visible), 0);
+  });
+}
+
+test('a confirmed M19 round resumes its short approach, flashes at contact and returns to the pool', () => {
+  const { context, predicted } = fixture();
+  const core = predicted.mesh.children[0] as THREE.Mesh;
+  core.visible = false;
+  predicted.direction.set(0, 0, -1);
+  const hits: number[][] = [];
+  const projectile = Object.assign(predicted, { speed: 1000, onImpact: () => hits.push(predicted.mesh.position.toArray()) });
+  const clientProjectiles = new Map([['m19', projectile]]);
+  const runtime = {
+    ...context, projectileMaterial, projectileImpactPoint: new THREE.Vector3(),
+    clientProjectiles, aimQaRay: null, contact: new THREE.Vector3(10, 0, -1500),
+    removeClientProjectile: (id: string) => clientProjectiles.delete(id),
+  };
+  runInNewContext([
+    code('finishMonsterProjectileAtImpact'), code('updateProjectiles'),
+    "finishMonsterProjectileAtImpact(clientProjectiles.get('m19'), contact); updateProjectiles(0.06);",
+  ].join('\n'), runtime);
+  assert.deepEqual(predicted.mesh.position.toArray(), [10, 0, -1440]);
+  assert.equal(core.visible, true);
+  assert.equal(core.material, projectileMaterial);
+  assert.equal(hits.length, 0);
+  runInNewContext(`${code('updateProjectiles')}\nupdateProjectiles(0.06);`, runtime);
+  assert.deepEqual(hits, [[10, 0, -1500]]);
+  assert.equal(clientProjectiles.size, 1, 'contact renders for one frame');
+  runInNewContext(`${code('updateProjectiles')}\nupdateProjectiles(0.016);`, runtime);
+  assert.equal(clientProjectiles.size, 0);
+  assert.equal(hits.length, 1);
 });
 
 test('assisted tracers use ballistic speed and deliver feedback only on the matching shot arrival', () => {

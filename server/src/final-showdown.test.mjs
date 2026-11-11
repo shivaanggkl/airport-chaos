@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import ts from 'typescript';
 import vm from 'node:vm';
-import { journeyDallas18 as mission, journeyDallas17, journeyDallas07, journeyDallas14, journeyDallas13, journeyDallas15, journeyDallas16, journeyDallas23, journeyMissionSlot } from '../../shared/journey-mission.mjs';
+import { journeyDallas18 as mission, journeyDallas17, journeyDallas07, journeyDallas10, journeyDallas14, journeyDallas13, journeyDallas15, journeyDallas16, journeyDallas23, journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
@@ -149,7 +149,7 @@ test('actual Firehawk factory and flight integrator keep the airborne patrol ins
   const players = new Map(), sent = [];
   const ctx = runtime(['createBot', 'botStateMessage', 'transportEscortHealth', 'transportEscortCosmetics', 'advanceBotFlight', 'moveTowardBot', 'isHunterCombatPhase', 'botMinimumTurnRadius', 'smoothHunter', 'hunterClearance'], {
     advanceHunterFlight, createOpponent,
-    journeyDallas13, journeyDallas18: mission,journeyDallas17, ambushCanFire, players, nextBotSerial: 1, botNames: ['Hunter'], botPersonalities: ['hunter'],
+    journeyDallas10, journeyDallas13, journeyDallas18: mission,journeyDallas17, ambushCanFire, players, nextBotSerial: 1, botNames: ['Hunter'], botPersonalities: ['hunter'],
     botAirports: () => cityAirports.dallas, airportRoute: () => [], boundJourneyHunterPoint,
     botTerrainHeight: () => 120, botRunwayHeight: () => 120, safeBotWaypoint: (_city, _from, p) => p,
     sendToPlayer: (_owner, p) => sent.push(p), broadcastToCity: () => assert.fail('private spawn leaked'),
