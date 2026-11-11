@@ -460,9 +460,9 @@ def nacelle(side):
                (-4.47, cx, cy, 0.10, 0.10)], [DARK], steps=24)
     # Swept wing pylon, with a broader root blended into the underside.
     mesh(f"Engine pylon {side}",
-         [(cx - 0.40, -1.46, -3.96), (cx + 0.40, -1.46, -3.96),
+         [(cx - 0.40, -0.85, -2.20), (cx + 0.40, -0.85, -2.20),
           (cx + 0.25, -2.03, -4.31), (cx - 0.25, -2.03, -4.31),
-          (cx - 0.36, -1.47, -1.80), (cx + 0.36, -1.47, -1.80),
+          (cx - 0.36, -0.85, 0.20), (cx + 0.36, -0.85, 0.20),
           (cx + 0.22, -2.02, -1.88), (cx - 0.22, -2.02, -1.88)],
          [(0, 1, 2, 3), (0, 4, 5, 1), (3, 2, 6, 7),
           (0, 3, 7, 4), (1, 5, 6, 2), (4, 7, 6, 5)], [WHITE], smooth=False)
@@ -507,8 +507,9 @@ def wheel(name, center, radius_value, width):
 
 
 # Retractable gear remains a visual-only static QA asset.
-tube("Nose gear strut", (0, -1.59, -15.0), (0, -3.25, -14.92), 0.105, METAL)
+tube("Nose gear strut", (0, -1.59, -15.0), (0, -3.48, -14.91), 0.105, METAL)
 tube("Nose gear brace", (0, -2.12, -15.0), (0, -2.76, -14.20), 0.058, TRIM)
+tube("Nose wheel axle", (-0.34, -3.48, -14.91), (0.34, -3.48, -14.91), 0.10, METAL)
 for side in (-1, 1):
     wheel(f"Nose twin wheel {side}", (side * 0.34, -3.48, -14.91), 0.47, 0.30)
     empty(f"GroundContact_Nose_{'Left' if side < 0 else 'Right'}",

@@ -1,23 +1,26 @@
 type Position = { x: number; y: number; z: number };
-type Located = { cityId: string; position: Position };
+type Located = { cityId: string; position: Position; partition?: string };
 /** Conservative broad phase only. The existing swept impact test remains authoritative. */
 export class CombatSpatialIndex<T extends Located> {
-  private readonly cities = new Map<string, Map<string, T[]>>();
+  private readonly cities = new Map<string, Map<string, Map<string, T[]>>>();
   constructor(private readonly cellSize = 512) {}
   rebuild(values: Iterable<T>): void {
     this.cities.clear();
     for (const value of values) {
-      let cells = this.cities.get(value.cityId);
-      if (!cells) { cells = new Map(); this.cities.set(value.cityId, cells); }
+      let partitions = this.cities.get(value.cityId);
+      if (!partitions) { partitions = new Map(); this.cities.set(value.cityId, partitions); }
+      const partition = value.partition ?? "";
+      let cells = partitions.get(partition);
+      if (!cells) { cells = new Map(); partitions.set(partition, cells); }
       const p = value.position;
       const key = `${Math.floor(p.x/this.cellSize)},${Math.floor(p.y/this.cellSize)},${Math.floor(p.z/this.cellSize)}`;
       const bucket = cells.get(key);
       if (bucket) bucket.push(value); else cells.set(key,[value]);
     }
   }
-  query(city: string, start: Position, end: Position, padding: number, out: T[]): void {
+  query(city: string, start: Position, end: Position, padding: number, out: T[], partition = ""): void {
     out.length = 0;
-    const cells = this.cities.get(city); if (!cells) return;
+    const cells = this.cities.get(city)?.get(partition); if (!cells) return;
     const minX=Math.floor((Math.min(start.x,end.x)-padding)/this.cellSize),maxX=Math.floor((Math.max(start.x,end.x)+padding)/this.cellSize);
     const minY=Math.floor((Math.min(start.y,end.y)-padding)/this.cellSize),maxY=Math.floor((Math.max(start.y,end.y)+padding)/this.cellSize);
     const minZ=Math.floor((Math.min(start.z,end.z)-padding)/this.cellSize),maxZ=Math.floor((Math.max(start.z,end.z)+padding)/this.cellSize);

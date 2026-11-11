@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
-import { addOsmCityData, disposeOsmGroups, type CompactChunk, type CompactCityData } from './osm-city';
+import { addOsmCityData, disposeOsmGroups, type CompactCityData } from './osm-city';
+import { chunkMaterials, preparationOptions, prepareDallasChunk, assembleDallasChunk, type PreparationJob, type PreparationReply, type PreparedChunk } from './dallas-chunk-preparation';
+import type { DallasTerrainEnvironment } from './dallas-terrain';
 
 type Lod = 'near' | 'mid' | 'far';
 type ManifestEntry = { id: string; lod: Lod; x: number; z: number; minX: number; maxX: number; minZ: number; maxZ: number; filename: string; bytes: number };
@@ -111,16 +113,6 @@ function geometryBytes(groups: ReadonlyArray<THREE.Group>): number {
   return bytes;
 }
 
-function featureCounts(chunk: CompactChunk): FeatureCounts {
-  return {
-    roads: chunk.r.length / 6,
-    buildings: chunk.b.length,
-    water: chunk.w.length,
-    landuse: chunk.p.length,
-    aeroways: (chunk.a?.length ?? 0) / 6,
-  };
-}
-
 export class DallasChunkStreamer {
   private manifest?: Manifest;
   private readonly cells = new Map<string, CellEntries>();
@@ -132,6 +124,12 @@ export class DallasChunkStreamer {
   private readonly activeRequests = new Map<string, ActiveRequest>();
   private buildQueue: BuildJob[] = [];
   private alive = true;
+  private worker?: Worker;
+  private jobSequence = 0;
+  private workerTimeout?: ReturnType<typeof setTimeout>;
+  private readonly fallbackOptions: ReturnType<typeof preparationOptions>;
+  private building?: { id: number; job: BuildJob; groups: THREE.Group[]; assemblyMs: number };
+  private readonly materials: Map<string, THREE.Material>;
   private loadedBytes = 0;
   private lastPosition = new THREE.Vector3(Infinity, 0, Infinity);
   private readonly preloadPosition = new THREE.Vector3();
@@ -161,7 +159,25 @@ export class DallasChunkStreamer {
   private currentSpeed = 0;
   private currentPreloadDistance = 0;
 
-  constructor(private readonly scene: THREE.Scene, private readonly options: Options) {
+  constructor(private readonly scene: THREE.Scene, options: Options, environment: DallasTerrainEnvironment) {
+    this.materials = chunkMaterials(options);
+    const config = { environment,
+      materials: [...this.materials].map(([key, material]) => ({ key, mapped: Boolean((material as THREE.MeshStandardMaterial).map) })),
+      monsterDamageTargets: options.monsterDamageTargets, majorHighwayWidth: options.majorHighwayWidth };
+    this.fallbackOptions = preparationOptions(config);
+    try {
+      this.worker = new Worker(new URL('./dallas-chunk.worker.ts', import.meta.url), { type: 'module' });
+      this.worker.onmessage = (event: MessageEvent<PreparationReply>) => {
+        if (!this.alive || event.data.id !== this.building?.id) return;
+        clearTimeout(this.workerTimeout); this.workerTimeout = undefined;
+        if (event.data.result) this.assemble(event.data.result);
+        else this.finishBuild(false);
+      };
+      this.worker.onerror = (event) => { event.preventDefault(); this.workerFailed(); };
+      this.worker.onmessageerror = () => this.workerFailed();
+      this.worker.postMessage({ config });
+    } catch { this.worker?.terminate(); this.worker = undefined; }
+
     void fetch('/data/dallas/manifest.json').then((response) => {
       if (!response.ok) throw new Error(`Dallas manifest returned ${response.status}`);
       return response.json() as Promise<Manifest>;
@@ -243,7 +259,7 @@ export class DallasChunkStreamer {
   }
 
   private pump(): void {
-    while (this.alive && this.activeRequests.size < this.maxConcurrency && this.queue.length) {
+    while (this.alive && this.activeRequests.size < this.maxConcurrency && this.activeRequests.size + this.buildQueue.length + Number(Boolean(this.building)) < 8 && this.queue.length) {
       const entry = this.queue.shift()!;
       const key = this.keyFor(entry);
       if ((!this.desired.has(key) && !this.needsVisibleReplacement(entry, this.lastPosition)) || this.loaded.has(key)) {
@@ -283,7 +299,7 @@ export class DallasChunkStreamer {
         this.activeRequests.delete(key);
         // A job remains pending while its parse/build work waits. This prevents
         // duplicate fetches for the same cell and preserves exact queue state.
-        if (!this.buildQueue.some((job) => this.keyFor(job.entry) === key)) this.pending.delete(key);
+        if (this.keyForActiveBuild() !== key && !this.buildQueue.some((job) => this.keyFor(job.entry) === key)) this.pending.delete(key);
         // A local/static response can resolve synchronously enough that calling
         // pump() here recursively drains hundreds of FAR chunks in microtasks.
         // That starves rendering, so no attached FAR can advance to local
@@ -294,61 +310,97 @@ export class DallasChunkStreamer {
     }
   }
 
+  private keyForActiveBuild(): string | undefined {
+    return this.building && this.keyFor(this.building.job.entry);
+  }
+
+  private workerFailed(): void {
+    const awaitingReply = this.workerTimeout !== undefined;
+    clearTimeout(this.workerTimeout); this.workerTimeout = undefined;
+    this.worker?.terminate(); this.worker = undefined;
+    if (awaitingReply && this.alive && this.building) this.prepareFallback();
+  }
+
+  private wanted(job: BuildJob): boolean {
+    const key = this.keyFor(job.entry);
+    return !this.loaded.has(key) && (this.desired.has(key) || this.needsVisibleReplacement(job.entry, this.lastPosition));
+  }
+
+  private preparationJob(): PreparationJob {
+    const { v, source, attribution, license, chunkSize } = this.manifest!;
+    return { id: this.building!.id, payload: this.building!.job.payload, header: { v, source, attribution, license, chunkSize } };
+  }
+
   private processBuildQueue(): void {
     this.buildScheduled = false;
-    if (!this.alive || !this.manifest || !this.buildQueue.length) return;
+    if (!this.alive || !this.manifest || this.building || !this.buildQueue.length) return;
     this.sortBuildQueue();
-    // One bounded parse/build per task keeps a 600–900 KB dense NEAR cell
-    // from monopolising the main thread while an urgent local replacement is
-    // waiting behind it.
     const job = this.buildQueue.shift()!;
-    const key = this.keyFor(job.entry);
-    if ((!this.desired.has(key) && !this.needsVisibleReplacement(job.entry, this.lastPosition)) || this.loaded.has(key)) {
-      this.pending.delete(key);
-      this.discardedLoads += 1;
-      this.scheduleBuild();
-      return;
+    if (!this.wanted(job)) {
+      this.pending.delete(this.keyFor(job.entry)); this.discardedLoads += 1;
+      this.scheduleBuild(); this.schedulePump(); return;
     }
-    let chunk: CompactChunk;
-    const parseStartedAt = performance.now();
-    try {
-      chunk = JSON.parse(job.payload) as CompactChunk;
-    } catch {
-      this.pending.delete(key);
-      this.failedFetches += 1;
-      this.scheduleBuild();
-      return;
-    }
-    const parseMs = performance.now() - parseStartedAt;
-    this.parseTotalMs += parseMs;
-    this.parseCount += 1;
-    this.maxParseMs = Math.max(this.maxParseMs, parseMs);
-    const buildStartedAt = performance.now();
-    const city: CompactCityData = { v: this.manifest.v, source: this.manifest.source, attribution: this.manifest.attribution, license: this.manifest.license, chunkSize: this.manifest.chunkSize, chunks: [chunk] };
-    const result = addOsmCityData(this.scene, city, this.options);
-    const buildMs = performance.now() - buildStartedAt;
-    this.buildTotalMs += buildMs;
-    this.buildCount += 1;
-    if (buildMs >= this.maxBuildMs) {
-      this.maxBuildMs = buildMs;
-      this.maxBuildFilename = job.entry.filename;
-    }
-    // Attach first, then allow the visibility handoff to replace the prior
-    // FAR/MID representation atomically; no required cell goes blank.
-    for (const group of result.groups) group.visible = false;
-    const bytes = Math.max(job.entry.bytes, geometryBytes(result.groups));
-    this.loaded.set(key, { entry: job.entry, groups: result.groups, bytes, lastUsed: performance.now(), features: featureCounts(chunk) });
-    this.loadedBytes += bytes;
-    this.loadedChunks += 1;
-    this.pending.delete(key);
-    this.applyLodVisibility(job.entry.id, this.lastPosition);
-    this.needsRebalance = true;
-    this.scheduleBuild();
-    this.schedulePump();
+    this.building = { id: ++this.jobSequence, job, groups: [], assemblyMs: 0 };
+    if (this.worker) {
+      this.workerTimeout = setTimeout(() => this.workerFailed(), 15_000);
+      try { this.worker.postMessage(this.preparationJob()); }
+      catch { this.workerFailed(); }
+    } else this.prepareFallback();
+  }
+
+  private prepareFallback(): void {
+    // The same builder is retained when workers are unavailable. One chunk per
+    // task, with the same bounded queue and incremental scene attachment.
+    if (!this.alive || !this.building) return;
+    try { this.assemble(prepareDallasChunk(this.preparationJob(), this.fallbackOptions)); }
+    catch { this.finishBuild(false); }
+  }
+
+  private assemble(result: PreparedChunk): void {
+    const active = this.building!;
+    this.parseTotalMs += result.parseMs; this.parseCount += 1;
+    this.maxParseMs = Math.max(this.maxParseMs, result.parseMs);
+    const iterator = assembleDallasChunk(result, this.materials, active.groups);
+    const step = () => {
+      if (!this.alive || this.building !== active) return;
+      if (!this.wanted(active.job)) { this.discardedLoads += 1; this.finishBuild(true); return; }
+      const started = performance.now();
+      try {
+        let done = false;
+        for (let meshes = 0; meshes < 2 && performance.now() - started < 2; meshes++) {
+          if (iterator.next().done) { done = true; break; }
+        }
+        active.assemblyMs += performance.now() - started;
+        if (!done) { window.setTimeout(step, 0); return; }
+        // Atomic handoff only after all meshes are ready. Keep the previous LOD
+        // visible throughout worker preparation and incremental assembly.
+        for (const group of active.groups) this.scene.add(group);
+        const bytes = Math.max(active.job.entry.bytes, geometryBytes(active.groups));
+        this.loaded.set(this.keyFor(active.job.entry), { entry: active.job.entry, groups: active.groups,
+          bytes, lastUsed: performance.now(), features: result.features });
+        this.loadedBytes += bytes; this.loadedChunks += 1;
+        this.buildTotalMs += active.assemblyMs; this.buildCount += 1;
+        if (active.assemblyMs >= this.maxBuildMs) { this.maxBuildMs = active.assemblyMs; this.maxBuildFilename = active.job.entry.filename; }
+        this.applyLodVisibility(active.job.entry.id, this.lastPosition);
+        active.groups = []; // Ownership transferred to the loaded cache.
+        this.needsRebalance = true;
+        this.finishBuild(true);
+      } catch { this.finishBuild(false); }
+    };
+    window.setTimeout(step, 0);
+  }
+
+  private finishBuild(success: boolean): void {
+    if (!this.building) return;
+    clearTimeout(this.workerTimeout); this.workerTimeout = undefined;
+    disposeOsmGroups(this.building.groups);
+    this.pending.delete(this.keyFor(this.building.job.entry)); this.building = undefined;
+    if (!success) this.failedFetches += 1;
+    this.scheduleBuild(); this.schedulePump();
   }
 
   private scheduleBuild(): void {
-    if (!this.alive || this.buildScheduled || !this.buildQueue.length) return;
+    if (!this.alive || this.buildScheduled || this.building || !this.buildQueue.length) return;
     this.buildScheduled = true;
     window.setTimeout(() => this.processBuildQueue(), 0);
   }
@@ -516,7 +568,11 @@ export class DallasChunkStreamer {
   }
 
   dispose(): void {
+    clearTimeout(this.workerTimeout); this.workerTimeout = undefined;
     this.alive = false;
+    this.worker?.terminate(); this.worker = undefined;
+    if (this.building) disposeOsmGroups(this.building.groups);
+    this.building = undefined;
     for (const request of this.activeRequests.values()) request.controller.abort();
     for (const loaded of this.loaded.values()) disposeOsmGroups(loaded.groups);
     this.loaded.clear(); this.cells.clear(); this.queue = []; this.buildQueue = []; this.activeRequests.clear(); this.desired.clear(); this.pending.clear(); this.visibleLod.clear(); this.loadedBytes = 0;
@@ -539,6 +595,7 @@ export class DallasChunkStreamer {
     for (const entry of this.queue) requested[entry.lod] += 1;
     for (const request of this.activeRequests.values()) requested[request.entry.lod] += 1;
     for (const job of this.buildQueue) requested[job.entry.lod] += 1;
+    if (this.building) requested[this.building.job.entry.lod] += 1;
     let missingImmediateCells = 0;
     const protectedCells = { visible: 0, ahead: 0, immediateFallback: 0 };
     const protectedBytes = { current: 0, visible: 0, ahead: 0, fallback: 0, handoff: 0, overlap: 0 };
@@ -584,8 +641,8 @@ export class DallasChunkStreamer {
       queued: this.queue.length,
       pending: this.pending.size,
       activeFetches: this.activeRequests.size,
-      queuedBuilds: this.buildQueue.length,
-      queuedBuildBytes: this.buildQueue.reduce((total, job) => total + job.payload.length * 2, 0),
+      queuedBuilds: this.buildQueue.length + Number(Boolean(this.building)),
+      queuedBuildBytes: this.buildQueue.reduce((total, job) => total + job.payload.length * 2, (this.building?.job.payload.length ?? 0) * 2),
       abortedFetches: this.abortedFetches,
       protectedCells,
       protectedBytes,
@@ -627,7 +684,7 @@ export class DallasChunkStreamer {
         ?? order.map((lod) => this.loaded.get(`${lod}:${representative.id}`)).find(Boolean);
       const entry = loaded?.entry ?? representative;
       const key = this.keyFor(entry);
-      const inBuild = this.buildQueue.some((job) => this.keyFor(job.entry) === key);
+      const inBuild = this.keyForActiveBuild() === key || this.buildQueue.some((job) => this.keyFor(job.entry) === key);
       const inFetch = this.activeRequests.has(key);
       const queued = this.queue.some((queuedEntry) => this.keyFor(queuedEntry) === key);
       const lifecycle: DallasChunkVisualDebug['lifecycle'] = loaded ? 'attached' : inBuild ? 'building' : inFetch ? 'fetching' : queued ? 'queued' : 'absent';

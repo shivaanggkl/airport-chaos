@@ -94,6 +94,10 @@ export const monsterDamageSites = scaledMonsterDamageSites.map(site => ({ ...sit
   depth: site.depth / DALLAS_WORLD_SCALE }));
 const monsterTargetMeshes = new Set<THREE.Mesh>();
 let monsterDamageActive = false;
+export function registerMappedMonsterMesh(mesh: THREE.Mesh): void {
+  monsterTargetMeshes.add(mesh);
+  mesh.visible = !monsterDamageActive;
+}
 export function setMappedMonsterDamage(active: boolean): void {
   monsterDamageActive = active;
   for (const mesh of monsterTargetMeshes) mesh.visible = !active;
@@ -317,21 +321,18 @@ function addRoadSurface(buffers: GeometryBuffers, a: readonly number[], b: reado
   pushTriangle(buffers, b, d, c, [0, 1, 0]);
 }
 
-export function addOsmCityData(
-  scene: THREE.Scene,
-  cityData: CompactCityData,
-  options: {
-    roadMaterial: THREE.Material;
-    roofMaterial?: THREE.Material;
-    drivewayMaterial?: THREE.Material;
-    bridgeTrimMaterial?: THREE.Material;
-    shorelineMaterial?: THREE.Material;
-    treeTrunkMaterial?: THREE.Material;
-    treeCrownMaterial?: THREE.Material;
-    streetLightMaterial?: THREE.PointsMaterial;
-    buildingMaterials: ReadonlyArray<THREE.Material>;
-    waterMaterial: THREE.Material;
-    landMaterials: ReadonlyArray<THREE.Material>;
+export type OsmCityOptions<M> = {
+    roadMaterial: M;
+    roofMaterial?: M;
+    drivewayMaterial?: M;
+    bridgeTrimMaterial?: M;
+    shorelineMaterial?: M;
+    treeTrunkMaterial?: M;
+    treeCrownMaterial?: M;
+    streetLightMaterial?: M;
+    buildingMaterials: ReadonlyArray<M>;
+    waterMaterial: M;
+    landMaterials: ReadonlyArray<M>;
     isExcluded: (x: number, z: number, padding: number) => boolean;
     heightAt: (x: number, z: number) => number;
     // Dallas already streams separately preprocessed NEAR/MID/FAR chunks.
@@ -344,24 +345,26 @@ export function addOsmCityData(
     midRadius?: number;
     farRadius?: number;
     majorHighwayWidth?: number;
-    highwayAccentMaterial?: THREE.Material;
-    aerowayMaterials?: ReadonlyArray<THREE.Material>;
-  },
-): { roadSegments: ImportedRoadSegment[]; obstacleBounds: ImportedObstacle[]; waterBounds: ImportedWater[]; groups: THREE.Group[] } {
+    highwayAccentMaterial?: M;
+    aerowayMaterials?: ReadonlyArray<M>;
+  };
+type PreparedMesh<M> = { geometry: THREE.BufferGeometry; material: M; name: string; points?: boolean };
+type PreparedGroup<M> = { name: string; meshes: PreparedMesh<M>[] };
+type PreparedCityChunk<M> = { x: number; z: number; detail: PreparedGroup<M>; mid: PreparedGroup<M>; far: PreparedGroup<M> };
+
+/** CPU-only geometry preparation shared by streamed Dallas and the static city loader. */
+export function prepareOsmCityData<M>(cityData: CompactCityData, options: OsmCityOptions<M>) {
   const roadSegments: ImportedRoadSegment[] = [];
   const obstacleBounds: ImportedObstacle[] = [];
   const waterBounds: ImportedWater[] = [];
-  const groups: THREE.Group[] = [];
+  const groups: PreparedCityChunk<M>[] = [];
   const collectCollisionData = options.collectCollisionData !== false;
   const buildDerivedLods = options.streamRadius !== undefined;
 
   for (const chunk of cityData.chunks) {
-    const chunkGroup = new THREE.Group();
-    chunkGroup.name = `osm-${chunk.x}-${chunk.z}`;
-    const midGroup = new THREE.Group();
-    midGroup.name = `osm-mid-${chunk.x}-${chunk.z}`;
-    const farGroup = new THREE.Group();
-    farGroup.name = `osm-far-${chunk.x}-${chunk.z}`;
+    const chunkGroup: PreparedGroup<M> = { name: `osm-${chunk.x}-${chunk.z}`, meshes: [] };
+    const midGroup: PreparedGroup<M> = { name: `osm-mid-${chunk.x}-${chunk.z}`, meshes: [] };
+    const farGroup: PreparedGroup<M> = { name: `osm-far-${chunk.x}-${chunk.z}`, meshes: [] };
 
     const roadBuffers: GeometryBuffers = { positions: [], normals: [], colors: [] };
     const streetLightPositions: number[] = [];
@@ -437,24 +440,18 @@ export function addOsmCityData(
       if (collectCollisionData) roadSegments.push({ x1, z1, x2, z2, width });
     }
     if (roadBuffers.positions.length) {
-      const roadMesh = new THREE.Mesh(createGeometry(roadBuffers), options.roadMaterial);
-      roadMesh.name = 'osm-road';
-      chunkGroup.add(roadMesh);
+      chunkGroup.meshes.push({ geometry: createGeometry(roadBuffers), material: options.roadMaterial, name: 'osm-road' });
     }
     if (streetLightPositions.length && options.streetLightMaterial) {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(streetLightPositions, 3));
-      chunkGroup.add(new THREE.Points(geometry, options.streetLightMaterial));
+      chunkGroup.meshes.push({ geometry, material: options.streetLightMaterial, name: '', points: true });
     }
     if (highwayAccentBuffers.positions.length && options.highwayAccentMaterial) {
-      const accentMesh = new THREE.Mesh(createGeometry(highwayAccentBuffers), options.highwayAccentMaterial);
-      accentMesh.name = 'osm-highway-accent';
-      chunkGroup.add(accentMesh);
+      chunkGroup.meshes.push({ geometry: createGeometry(highwayAccentBuffers), material: options.highwayAccentMaterial, name: 'osm-highway-accent' });
     }
     if (bridgeTrimBuffers.positions.length && options.bridgeTrimMaterial) {
-      const mesh = new THREE.Mesh(createGeometry(bridgeTrimBuffers), options.bridgeTrimMaterial);
-      mesh.name = 'osm-bridge-deck-edges';
-      chunkGroup.add(mesh);
+      chunkGroup.meshes.push({ geometry: createGeometry(bridgeTrimBuffers), material: options.bridgeTrimMaterial, name: 'osm-bridge-deck-edges' });
     }
 
     const aerowayBuffers = (options.aerowayMaterials ?? []).map((): GeometryBuffers => ({ positions: [], normals: [] }));
@@ -479,9 +476,7 @@ export function addOsmCityData(
     }
     aerowayBuffers.forEach((buffers, kind) => {
       if (buffers.positions.length) {
-        const aerowayMesh = new THREE.Mesh(createGeometry(buffers), options.aerowayMaterials![kind]);
-        aerowayMesh.name = `osm-aeroway-${kind}`;
-        chunkGroup.add(aerowayMesh);
+        chunkGroup.meshes.push({ geometry: createGeometry(buffers), material: options.aerowayMaterials![kind], name: `osm-aeroway-${kind}` });
       }
     });
 
@@ -489,7 +484,7 @@ export function addOsmCityData(
       positions: [], normals: [], indices: [],
       // Dallas's streamed building materials are untextured. Milwaukee's
       // mapped facades retain UVs; unused UV arrays cost many MiB downtown.
-      ...((material as THREE.MeshStandardMaterial).map ? { uvs: [] } : {}),
+      ...((material as { map?: unknown }).map ? { uvs: [] } : {}),
     }));
     const targetBuffers = options.monsterDamageTargets
       ? options.buildingMaterials.map((): GeometryBuffers => ({ positions: [], normals: [], indices: [] })) : undefined;
@@ -561,28 +556,18 @@ export function addOsmCityData(
     }
     buildingBuffers.forEach((buffers, family) => {
       if (buffers.positions.length) {
-        const buildingMesh = new THREE.Mesh(createGeometry(buffers), options.buildingMaterials[family]);
-        buildingMesh.name = `osm-building-${family}`;
-        chunkGroup.add(buildingMesh);
+        chunkGroup.meshes.push({ geometry: createGeometry(buffers), material: options.buildingMaterials[family], name: `osm-building-${family}` });
       }
     });
     if (roofBuffers.positions.length && options.roofMaterial) {
-      const mesh = new THREE.Mesh(createGeometry(roofBuffers), options.roofMaterial);
-      mesh.name = 'osm-residential-roofs';
-      chunkGroup.add(mesh);
+      chunkGroup.meshes.push({ geometry: createGeometry(roofBuffers), material: options.roofMaterial, name: 'osm-residential-roofs' });
     }
     if (drivewayBuffers.positions.length && options.drivewayMaterial) {
-      const mesh = new THREE.Mesh(createGeometry(drivewayBuffers), options.drivewayMaterial);
-      mesh.name = 'osm-driveways-and-parking';
-      chunkGroup.add(mesh);
+      chunkGroup.meshes.push({ geometry: createGeometry(drivewayBuffers), material: options.drivewayMaterial, name: 'osm-driveways-and-parking' });
     }
     targetBuffers?.forEach((buffers, family) => {
       if (!buffers.positions.length) return;
-      const mesh = new THREE.Mesh(createGeometry(buffers), options.buildingMaterials[family]);
-      mesh.name = 'osm-monster-damage-target';
-      mesh.visible = !monsterDamageActive;
-      monsterTargetMeshes.add(mesh);
-      chunkGroup.add(mesh);
+      chunkGroup.meshes.push({ geometry: createGeometry(buffers), material: options.buildingMaterials[family], name: 'osm-monster-damage-target' });
     });
 
     const waterBuffers: GeometryBuffers = { positions: [], normals: [] };
@@ -608,14 +593,10 @@ export function addOsmCityData(
       if (collectCollisionData) waterBounds.push({ ...box, surfaceY, polygon: points });
     }
     if (waterBuffers.positions.length) {
-      const waterMesh = new THREE.Mesh(createGeometry(waterBuffers), options.waterMaterial);
-      waterMesh.name = 'osm-water';
-      chunkGroup.add(waterMesh);
+      chunkGroup.meshes.push({ geometry: createGeometry(waterBuffers), material: options.waterMaterial, name: 'osm-water' });
     }
     if (shorelineBuffers.positions.length && options.shorelineMaterial) {
-      const mesh = new THREE.Mesh(createGeometry(shorelineBuffers), options.shorelineMaterial);
-      mesh.name = 'osm-mapped-shoreline';
-      chunkGroup.add(mesh);
+      chunkGroup.meshes.push({ geometry: createGeometry(shorelineBuffers), material: options.shorelineMaterial, name: 'osm-mapped-shoreline' });
     }
 
     const landBuffers = options.landMaterials.map((): GeometryBuffers => ({ positions: [], normals: [] }));
@@ -628,9 +609,7 @@ export function addOsmCityData(
     }
     landBuffers.forEach((buffers, family) => {
       if (buffers.positions.length) {
-        const landMesh = new THREE.Mesh(createGeometry(buffers), options.landMaterials[family]);
-        landMesh.name = `osm-land-${family}`;
-        chunkGroup.add(landMesh);
+        chunkGroup.meshes.push({ geometry: createGeometry(buffers), material: options.landMaterials[family], name: `osm-land-${family}` });
       }
     });
 
@@ -672,20 +651,16 @@ export function addOsmCityData(
         }
       }
       if (trunks.positions.length) {
-        const mesh = new THREE.Mesh(createGeometry(trunks), options.treeTrunkMaterial);
-        mesh.name = 'osm-mapped-tree-trunks';
-        chunkGroup.add(mesh);
+        chunkGroup.meshes.push({ geometry: createGeometry(trunks), material: options.treeTrunkMaterial, name: 'osm-mapped-tree-trunks' });
       }
       if (crowns.positions.length) {
-        const mesh = new THREE.Mesh(createGeometry(crowns), options.treeCrownMaterial);
-        mesh.name = 'osm-mapped-tree-crowns';
-        chunkGroup.add(mesh);
+        chunkGroup.meshes.push({ geometry: createGeometry(crowns), material: options.treeCrownMaterial, name: 'osm-mapped-tree-crowns' });
       }
     }
 
-    if (buildDerivedLods && midRoadBuffers.positions.length) midGroup.add(new THREE.Mesh(createGeometry(midRoadBuffers), options.roadMaterial));
-    if (buildDerivedLods && farRoadBuffers.positions.length) farGroup.add(new THREE.Mesh(createGeometry(farRoadBuffers), options.roadMaterial));
-    const addMassesToGroup = (group: THREE.Group, masses: ReadonlyMap<string, BuildingMassing>, material: THREE.Material, heightScale: number, heightBias: number): void => {
+    if (buildDerivedLods && midRoadBuffers.positions.length) midGroup.meshes.push({ geometry: createGeometry(midRoadBuffers), material: options.roadMaterial, name: '' });
+    if (buildDerivedLods && farRoadBuffers.positions.length) farGroup.meshes.push({ geometry: createGeometry(farRoadBuffers), material: options.roadMaterial, name: '' });
+    const addMassesToGroup = (group: PreparedGroup<M>, masses: ReadonlyMap<string, BuildingMassing>, material: M, heightScale: number, heightBias: number): void => {
       const buffers: GeometryBuffers = { positions: [], normals: [] };
       for (const mass of masses.values()) {
         const centerX = (mass.minX + mass.maxX) / 2;
@@ -698,44 +673,47 @@ export function addOsmCityData(
         const height = THREE.MathUtils.clamp(mass.maxHeight * heightScale + heightBias, 10, 165);
         addBuilding(buffers, footprint, options.heightAt(centerX, centerZ) + 0.09, height);
       }
-      if (buffers.positions.length) group.add(new THREE.Mesh(createGeometry(buffers), material));
+      if (buffers.positions.length) group.meshes.push({ geometry: createGeometry(buffers), material: material, name: '' });
     };
     if (buildDerivedLods) addMassesToGroup(midGroup, midMasses, options.buildingMaterials[2], 0.72, 7);
     if (buildDerivedLods) addMassesToGroup(farGroup, farMasses, options.buildingMaterials[1], 0.5, 9);
     if (buildDerivedLods && waterBuffers.positions.length) {
-      const farWater = new THREE.Mesh(createGeometry(waterBuffers), options.waterMaterial);
-      farGroup.add(farWater);
+      farGroup.meshes.push({ geometry: createGeometry(waterBuffers), material: options.waterMaterial, name: '' });
     }
 
-    if (chunkGroup.children.length) {
-      scene.add(chunkGroup);
-      groups.push(chunkGroup);
-      if (options.streamRadius) {
-        const centerX = (chunk.x + 0.5) * cityData.chunkSize;
-        const centerZ = (chunk.z + 0.5) * cityData.chunkSize;
-        chunkGroup.visible = false;
-        if (midGroup.children.length) {
-          midGroup.visible = false;
-          scene.add(midGroup);
-        }
-        if (farGroup.children.length) {
-          farGroup.visible = false;
-          scene.add(farGroup);
-        }
-        streamedChunkGroups.push({
-          detail: chunkGroup,
-          mid: midGroup.children.length ? midGroup : undefined,
-          far: farGroup.children.length ? farGroup : undefined,
-          x: centerX,
-          z: centerZ,
-          detailRadius: options.streamRadius,
-          midRadius: options.midRadius ?? 20_000,
-          farRadius: options.farRadius ?? 35_000,
-        });
-      }
-    }
+    if (chunkGroup.meshes.length) groups.push({ x: chunk.x, z: chunk.z, detail: chunkGroup, mid: midGroup, far: farGroup });
   }
   return { roadSegments, obstacleBounds, waterBounds, groups };
+}
+
+export function addOsmCityData(scene: THREE.Scene, cityData: CompactCityData, options: OsmCityOptions<THREE.Material>) {
+  const prepared = prepareOsmCityData(cityData, options);
+  const groups: THREE.Group[] = [];
+  const assemble = (data: PreparedGroup<THREE.Material>) => {
+    const group = new THREE.Group(); group.name = data.name;
+    for (const mesh of data.meshes) {
+      const object = mesh.points ? new THREE.Points(mesh.geometry, mesh.material) : new THREE.Mesh(mesh.geometry, mesh.material);
+      object.name = mesh.name;
+      if (object instanceof THREE.Mesh && object.name === 'osm-monster-damage-target') registerMappedMonsterMesh(object);
+      group.add(object);
+    }
+    return group;
+  };
+  for (const chunk of prepared.groups) {
+    const detail = assemble(chunk.detail);
+    scene.add(detail); groups.push(detail);
+    if (options.streamRadius) {
+      detail.visible = false;
+      const mid = chunk.mid.meshes.length ? assemble(chunk.mid) : undefined;
+      const far = chunk.far.meshes.length ? assemble(chunk.far) : undefined;
+      if (mid) { mid.visible = false; scene.add(mid); }
+      if (far) { far.visible = false; scene.add(far); }
+      streamedChunkGroups.push({ detail, mid, far,
+        x: (chunk.x + 0.5) * cityData.chunkSize, z: (chunk.z + 0.5) * cityData.chunkSize,
+        detailRadius: options.streamRadius, midRadius: options.midRadius ?? 20_000, farRadius: options.farRadius ?? 35_000 });
+    }
+  }
+  return { ...prepared, groups };
 }
 
 export function disposeOsmGroups(groups: ReadonlyArray<THREE.Group>): void {

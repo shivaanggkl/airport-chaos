@@ -23,3 +23,20 @@ test('broad phase preserves every exact swept hit and its earliest fraction', ()
     assert.deepEqual(nearby,all);
   }
 });
+
+test('overlapping sessions keep exact candidate order without cross-session targets', () => {
+  const sessions = ['', 'journey:a', 'journey:b', 'duel:a', 'assault:a', 'training:a'];
+  const targets = sessions.flatMap(partition => Array.from({ length: 8 }, (_, id) => ({
+    id, partition, cityId: 'dallas', position: { x: id * 10, y: 50, z: 0 },
+  })));
+  const index = new CombatSpatialIndex<typeof targets[number]>();
+  index.rebuild(targets);
+  const out: typeof targets = [];
+  for (const partition of sessions) {
+    index.query('dallas', { x: 0, y: 50, z: 0 }, { x: 100, y: 50, z: 0 }, 50, out, partition);
+    assert.deepEqual(out, targets.filter(target => target.partition === partition));
+  }
+  index.rebuild(targets.filter(target => target.partition !== 'journey:a'));
+  index.query('dallas', { x: 0, y: 50, z: 0 }, { x: 100, y: 50, z: 0 }, 50, out, 'journey:a');
+  assert.deepEqual(out, []);
+});

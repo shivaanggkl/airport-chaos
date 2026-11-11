@@ -7,6 +7,8 @@ import { landingGradeForScore, type LandingGrade } from '../../shared/landing-sc
 import { isPerfectLandingGrade } from '../../shared/gameplay-cinematic-rules.mjs';
 import { PlayerWallet } from './player-wallet.js';
 
+type WalletTransaction = Parameters<Parameters<PlayerWallet['transaction']>[0]>[0];
+
 export type JourneyAttemptStatus = 'READY' | 'APPROACH' | 'RACING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
 export const JOURNEY_PAUSE_LIMIT_MS = journeyPauseLimitMs;
 export type JourneyAttempt = {
@@ -98,6 +100,44 @@ function attempt(row: AttemptRow): JourneyAttempt {
 
 export class JourneyAttemptStore {
   private readonly database: DatabaseSync;
+  // One active attempt per pilot, bounded even when clients disappear without closing.
+  private readonly activeSnapshots = new Map<string, { attempt: JourneyAttempt; usedAt: number }>();
+  private transactionActive = false;
+
+  private remember(current: JourneyAttempt | undefined, pilotId: string): void {
+    if (this.transactionActive) return;
+    this.activeSnapshots.delete(pilotId);
+    if (!current || current.pausedAt !== null || !['READY', 'APPROACH', 'RACING'].includes(current.status) ||
+        current.deadlineAt !== null && current.deadlineAt <= Date.now()) return;
+    if (this.activeSnapshots.size >= 512) this.activeSnapshots.delete(this.activeSnapshots.keys().next().value!);
+    const snapshot = Object.freeze({ ...current,
+      heartPosition: current.heartPosition ? Object.freeze({ ...current.heartPosition }) : null });
+    this.activeSnapshots.set(pilotId, { attempt: snapshot, usedAt: Date.now() });
+  }
+
+  private transaction<T>(pilotId: string, operation: (wallet: WalletTransaction) => T): T {
+    this.activeSnapshots.delete(pilotId);
+    this.transactionActive = true;
+    try { return this.wallet.transaction(operation); }
+    finally {
+      this.transactionActive = false;
+      // Both commit and rollback require a fresh durable snapshot on the next read.
+      this.activeSnapshots.delete(pilotId);
+    }
+  }
+
+  activeSnapshot(pilotId: string, attemptId: string): JourneyAttempt | undefined {
+    const cached = this.activeSnapshots.get(pilotId);
+    const now = Date.now();
+    if (cached?.attempt.attemptId === attemptId && now - cached.usedAt < 60_000 &&
+        (cached.attempt.deadlineAt === null || cached.attempt.deadlineAt > now)) {
+      cached.usedAt = now;
+      return cached.attempt;
+    }
+    const current = this.get(pilotId, attemptId);
+    return this.activeSnapshots.get(pilotId)?.attempt ?? current;
+  }
+
   private readonly wallet: PlayerWallet;
   private readonly allowAllMissionsForQa: boolean;
   private readonly allowPerPilotQaUnlocks: boolean;
@@ -263,7 +303,9 @@ export class JourneyAttemptStore {
   get(pilotId: string, attemptId: string): JourneyAttempt | undefined {
     const row = this.database.prepare('SELECT * FROM journey_attempts WHERE pilot_id = ? AND attempt_id = ?')
       .get(pilotId, attemptId) as AttemptRow | undefined;
-    return row ? attempt(row) : undefined;
+    const current = row ? attempt(row) : undefined;
+    this.remember(current, pilotId);
+    return current;
   }
 
   pause(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
@@ -274,10 +316,15 @@ export class JourneyAttemptStore {
   }
 
   expirePaused(now = Date.now()): JourneyAttempt[] {
+    for (const [pilotId, cached] of this.activeSnapshots) {
+      if (now - cached.usedAt >= 60_000 || cached.attempt.deadlineAt !== null && cached.attempt.deadlineAt <= now)
+        this.activeSnapshots.delete(pilotId);
+    }
     const rows = this.database.prepare(`UPDATE journey_attempts
       SET status = 'FAILED', failure_reason = 'PAUSE_EXPIRED', finished_at = ?, paused_at = NULL
       WHERE paused_at IS NOT NULL AND paused_at <= ? AND status IN ('READY','APPROACH','RACING')
       RETURNING *`).all(now, now - JOURNEY_PAUSE_LIMIT_MS) as AttemptRow[];
+    for (const row of rows) this.activeSnapshots.delete(row.pilot_id);
     return rows.map(attempt);
   }
 
@@ -393,7 +440,7 @@ export class JourneyAttemptStore {
   launch(pilotId: string, aircraftType: string, now = Date.now(), missionId: string = journeyDallas01.id): JourneyAttempt {
     if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id && missionId !== journeyDallas04.id && missionId !== journeyDallas05.id && missionId !== journeyDallas06.id && missionId !== journeyDallas07.id && missionId !== journeyDallas08.id && missionId !== journeyDallas09.id && missionId !== journeyDallas10.id && missionId !== journeyDallas11.id && missionId !== journeyDallas12.id && missionId !== journeyDallas13.id && missionId !== journeyDallas14.id && missionId !== journeyDallas15.id && missionId !== journeyDallas16.id && missionId !== journeyDallas17.id && missionId !== journeyDallas18.id && (missionId!==journeyDallas19.id&&missionId!==journeyDallas25.id) && missionId !== journeyDallas20.id && missionId !== journeyDallas21.id && missionId !== journeyDallas22.id && missionId !== journeyDallas23.id && missionId !== journeyDallas24.id) throw new Error('Unknown Journey mission');
     if (!this.canAccessMission(pilotId, missionId)) throw new Error('Journey mission is locked');
-    return this.wallet.transaction(() => {
+    return this.transaction(pilotId, () => {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', finished_at = ?, failure_reason = 'REPLACED' WHERE pilot_id = ? AND status IN ('READY','APPROACH','RACING')")
         .run(now, pilotId);
       const attemptId = randomUUID();
@@ -536,7 +583,7 @@ export class JourneyAttemptStore {
   }
 
   private hitEncounter(pilotId: string, attemptId: string, mission: {id:string;firstClearCredits:number}, now:number, damage?: number): JourneyAttempt | undefined {
-    return this.wallet.transaction(wallet => {
+    return this.transaction(pilotId, wallet => {
       const current = this.get(pilotId, attemptId);
       const requiredEscorts=mission.id===journeyDallas08.id?3:mission.id===journeyDallas09.id?7:mission.id===journeyDallas10.id?15:mission.id===journeyDallas12.id?3:0;
       const fortress=mission.id===journeyDallas11.id||mission.id===journeyDallas12.id;
@@ -584,7 +631,7 @@ export class JourneyAttemptStore {
   recordPerfectApproachLanding(_pilotId:string,_attemptId:string,_airportId:string,_score:number,_touchdownCycle:number,_now=Date.now()): JourneyAttempt | undefined {return undefined;}
 
   acceptGate(pilotId: string, attemptId: string, gateIndex: number, now = Date.now(), verifiedSpeed?: number): JourneyAttempt | undefined {
-    return this.wallet.transaction(wallet => {
+    return this.transaction(pilotId, wallet => {
       const current = this.get(pilotId, attemptId);
       if(current?.missionId===journeyDallas20.id||current?.missionId===journeyDallas22.id)return undefined;
       const mission = current?.missionId === journeyDallas01.id ? journeyDallas01 : current?.missionId === journeyDallas02.id ? journeyDallas02 : current?.missionId === journeyDallas03.id ? journeyDallas03 : current?.missionId === journeyDallas04.id ? journeyDallas04 : current?.missionId === journeyDallas05.id ? journeyDallas05 : current?.missionId === journeyDallas06.id ? journeyDallas06 : current?.missionId === journeyDallas20.id ? journeyDallas20 : undefined;
@@ -704,7 +751,7 @@ export class JourneyAttemptStore {
   }
 
   updateFormationHold(pilotId: string, attemptId: string, targetId: string, valid: boolean, now = Date.now()): JourneyAttempt | undefined {
-    return this.wallet.transaction(wallet => {
+    return this.transaction(pilotId, wallet => {
       const current = this.get(pilotId, attemptId);
       if (!current || current.missionId !== journeyDallas08.id || current.status !== 'RACING' || current.targetId !== targetId) return undefined;
       if (!valid) {
@@ -741,7 +788,7 @@ export class JourneyAttemptStore {
 
   /** Only confirmed destruction of the encounter's assigned enemy can complete combat. */
   completeHunter(pilotId: string, attemptId: string, targetId: string, now = Date.now()): JourneyAttempt | undefined {
-    return this.wallet.transaction(wallet => {
+    return this.transaction(pilotId, wallet => {
       const current = this.get(pilotId, attemptId);
       if (!current || (current.missionId !== journeyDallas15.id && current.missionId !== journeyDallas13.id && current.missionId !== journeyDallas14.id && current.missionId !== journeyDallas16.id && current.missionId !== journeyDallas17.id && current.missionId !== journeyDallas18.id) ||
         current.status !== 'RACING' || (current.missionId===journeyDallas16.id || current.missionId===journeyDallas17.id || current.missionId===journeyDallas18.id ? ![current.targetId,current.secondaryTargetId,...(current.missionId===journeyDallas17.id||current.missionId===journeyDallas18.id?[current.rearGuardThirdId]:[]),...(current.missionId===journeyDallas18.id?[current.rearGuardFourthId]:[])].includes(targetId) : current.targetId !== targetId) ||
@@ -814,7 +861,7 @@ export class JourneyAttemptStore {
   recordLegendaryLanding(pilotId: string, attemptId: string, airportId: string,
     score: number, touchdownCycle: number, now = Date.now()): JourneyAttempt | undefined {
     if (!Number.isInteger(score) || score < 1 || score > 1_000) return undefined;
-    return this.wallet.transaction(wallet => {
+    return this.transaction(pilotId, wallet => {
       const current = this.get(pilotId, attemptId);
       if (current?.missionId !== journeyDallas24.id || current.status !== 'RACING' ||
         current.legendaryPhase !== 'LANDING' || !current.targetId ||
