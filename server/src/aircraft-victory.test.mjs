@@ -285,7 +285,7 @@ test('M8 holds the opponent at its confirmed pose while only the finishing bulle
  assert.deepEqual(ending.impactPosition.toArray(),ending.enemyPosition.toArray());
 });
 
-const crossfireResultStart=source.indexOf("    if (message.attempt.missionId === journeyDallas16.id && message.attempt.status === 'COMPLETED')");
+const crossfireResultStart=source.indexOf("    if ((message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas17.id || message.attempt.missionId === journeyDallas18.id) && localPlayerId");
 const crossfireResultEnd=source.indexOf('    if (previousAttempt?.missionId',crossfireResultStart);
 const crossfireResult=ts.transpileModule(source.slice(crossfireResultStart,crossfireResultEnd),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 for(const finalOrdinal of [0,1])for(const overlapping of [false,true])test(`M10 replays both opponents, final target ${finalOrdinal}, overlapping ${overlapping}`,()=>{
@@ -361,12 +361,12 @@ test('all 24 Journey success headings include their displayed mission number, in
 
 for(const mission of [journeyDallas17,journeyDallas18])test(`${mission.name}: state packets preserve the recorded fatal shot through completion instead of resetting the replay`,()=>{
  const start=source.indexOf('    if ((message.attempt.missionId !== journeyDallas13.id');
- const end=source.indexOf("    if (message.attempt.missionId === journeyDallas16.id && message.attempt.status === 'COMPLETED')",start);
+ const end=source.indexOf('    if (previousAttempt?.missionId !== message.attempt.missionId)',start);
  const stateHandler=ts.transpileModule(source.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
- const attempt={missionId:mission.id,attemptId:'state-replay',targetId:'enemy',status:'RACING'};
+ const attempt={missionId:mission.id,attemptId:'state-replay',targetId:'enemy',secondaryTargetId:'second',rearGuardThirdId:'third',rearGuardFourthId:'fourth',crossfireKills:mission===journeyDallas18?14:6,status:'RACING'};
  let clears=0;
  const ctx=vm.createContext({journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,AircraftVictory,
-  message:{attempt},localPlayerId:'pilot',aircraftVictory:null,aircraftVictoryQueue:[],transportView:undefined,aircraftVictoryTransport:undefined,aircraftVictoryCandidates:[],clearAircraftVictoryReplay:()=>clears++,flightGameRoot:{classList:{remove(){}}},transportCrashFlash:{style:{}}});
+  message:{attempt},previousAttempt:attempt,localPlayerId:'pilot',aircraftVictory:null,aircraftVictoryQueue:[],transportView:undefined,aircraftVictoryTransport:undefined,aircraftVictoryCandidates:[],clearAircraftVictoryReplay:()=>clears++,flightGameRoot:{classList:{remove(){}}},transportCrashFlash:{style:{}}});
  vm.runInContext(stateHandler,ctx);
  const ending=ctx.aircraftVictory;
  ending.recordProjectile({projectileId:'finisher',ownerId:'pilot',position:{x:hit.position.x,y:hit.position.y,z:hit.position.z+12},speed:6000});
@@ -428,10 +428,11 @@ for(const mission of [journeyDallas17,journeyDallas18])test(`${mission.name}: st
 });
 
 const m14StateStart=source.indexOf('    if ((message.attempt.missionId !== journeyDallas13.id');
-const m14StateEnd=source.indexOf("    if (message.attempt.missionId === journeyDallas16.id && message.attempt.status === 'COMPLETED')",m14StateStart);
+const m14StateEnd=source.indexOf('    if (previousAttempt?.missionId !== message.attempt.missionId)',m14StateStart);
 const m14StateHandler=ts.transpileModule(source.slice(m14StateStart,m14StateEnd),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 function m14Fixture(mission=journeyDallas08) {
- const ids=['escort-a','escort-b','escort-c','escort-d'].slice(0,mission.escortAircraft.length),events=[],effects=[],no=()=>{},camera=new THREE.PerspectiveCamera(58);
+ const aircraft=mission.enemies?.map(enemy=>enemy.aircraft)??mission.escortAircraft;
+ const ids=['escort-a','escort-b','escort-c','escort-d'].slice(0,aircraft.length),events=[],effects=[],no=()=>{},camera=new THREE.PerspectiveCamera(58);
  camera.position.set(100,200,300);camera.lookAt(0,150,0);camera.updateMatrixWorld();
  const attempt={missionId:mission.id,attemptId:'escorts',targetId:ids[0],secondaryTargetId:ids[1],rearGuardThirdId:ids[2],rearGuardFourthId:ids[3],rearGuardKills:0,monsterHealth:2000,fortressLeftHealth:0,fortressRightHealth:0,status:'RACING'};
  const planes=ids.map(()=>new THREE.Group());
@@ -439,14 +440,14 @@ function m14Fixture(mission=journeyDallas08) {
   aircraftVictory:null,aircraftVictoryQueue:[],transportView:undefined,aircraftVictoryTransport:undefined,aircraftVictoryCandidates:[],aircraftVictoryReplay:null,
   prepareAircraftVictoryReplay:ending=>{ending.beginFromGameplayCamera(camera);events.push(`replay:${ending.targetId}`);},clearAircraftVictoryReplay:no,
   clearHeldActions:no,mobileInput:{reset:no},boostActive:false,journeyMode:true,journeyAttempt:attempt,previousAttempt:undefined,localPlayerId:'pilot',airplane:new THREE.Group(),camera,
-  remotePlayers:new Map(ids.map((id,index)=>[id,{plane:planes[index],aircraftType:mission.escortAircraft[index],identityTag:{visible:true},hullTag:{visible:true},playerProxy:{visible:true}}])),
+  remotePlayers:new Map(ids.map((id,index)=>[id,{plane:planes[index],aircraftType:aircraft[index],identityTag:{visible:true},hullTag:{visible:true},playerProxy:{visible:true}}])),
   recentDestructionIds:new Map(),performance:{now:()=>1000},updateHumanRosterStatus:no,destructionPosition:new THREE.Vector3(),recordEscortHudHealth:no,selectedCombatTarget:undefined,
   hapticsManager:{emit:no},audioManager:{playDestroyConfirm:no},airAssaultMode:false,skyDuelMode:false,flightRecap:{kills:0},gameplayFeedback:{push:no},killNotice:()=>'',score:0,recordBestScore:no,handleContractKill:no,showCombatMessage:no,
   createDestructionEffect:(_p,type)=>effects.push(type),playDestructionSound:no,transportCrashFlash:{style:{}},flightGameRoot:{classList:{remove:no,add:no}},showJourneyResult:()=>events.push('success')});
  vm.runInContext([receive,code('playAircraftVictory'),code('updateAircraftVictory')].join('\n'),ctx);
  const state=next=>{ctx.previousAttempt=ctx.journeyAttempt;ctx.journeyAttempt=next;ctx.message={attempt:next};vm.runInContext(m14StateHandler,ctx);};
  state(attempt);
- return {ctx,ids,events,effects,camera,state,attempt,destroy(index){ctx.message={...hit,playerId:ids[index],aircraftType:mission.escortAircraft[index]};vm.runInContext('receive();',ctx);}};
+ return {ctx,ids,events,effects,camera,state,attempt,destroy(index){ctx.message={...hit,playerId:ids[index],aircraftType:aircraft[index]};vm.runInContext('receive();',ctx);}};
 }
 for(const mission of [journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12])for(const finalOrdinal of mission.escortAircraft.keys())for(const destructionFirst of [false,true])test(`${mission.name} final escort screenplay: final ${finalOrdinal}, destruction first ${destructionFirst}`,()=>{
  const f=m14Fixture(mission),{ctx,ids,state,attempt,events,effects}=f;
@@ -507,4 +508,29 @@ for (const remainingWing of ['fortressLeftHealth','fortressRightHealth']) test(`
  vm.runInContext('updateAircraftVictory(2);updateAircraftVictory(2);',ctx);
  assert(!events.includes('success'),'destroying escorts cannot finish a living armored giant');
  assert.deepEqual(effects,[...journeyDallas12.escortAircraft]);
+});
+
+for(const mission of [journeyDallas17,journeyDallas18])for(const finalOrdinal of mission.enemies.keys())for(const destructionFirst of [false,true])test(`${mission.name} replays all actual aircraft before success: final ${finalOrdinal}, destruction first ${destructionFirst}`,()=>{
+ const f=m14Fixture(mission),{ctx,ids,state,attempt,events,effects}=f;
+ assert.equal(ctx.aircraftVictoryCandidates.length,mission.enemies.length);
+ let kills=0;
+ for(const index of [...ids.keys()].filter(index=>index!==finalOrdinal).concat(finalOrdinal)){
+  const ending=ctx.aircraftVictoryCandidates[index],enemy=mission.enemies[index];
+  assert.equal(ending.mission.enemyAircraft,enemy.aircraft);assert.equal(ending.mission.enemyLivery,enemy.livery);
+  assert.equal(ending.mission.fromGameplayCamera,true);
+  ending.recordProjectile({projectileId:`bullet${index}`,ownerId:'pilot',position:{x:11745,y:2456,z:-34567},speed:1000});
+  ending.recordFatalHit({playerId:ids[index],shooterId:'pilot',health:0,impactId:`bullet${index}`,impactPosition:hit.position});
+  kills|=1<<index;
+  const final=index===finalOrdinal;
+  if(final&&destructionFirst)f.destroy(index);
+  state({...attempt,crossfireKills:kills,status:final?'COMPLETED':'RACING'});
+  if(final)ending.confirmSuccess();
+  if(!final||!destructionFirst)f.destroy(index);
+  assert.equal(ctx.aircraftVictory,ending);assert(!events.includes('success'));
+  vm.runInContext('updateAircraftVictory(.3);',ctx);assert.equal(ending.replaying,true);
+  vm.runInContext('updateAircraftVictory(2);',ctx);
+  if(!final)assert(!events.includes('success'));
+ }
+ assert.equal(events.filter(event=>event.startsWith('replay:')).length,mission.enemies.length);
+ assert.equal(effects.length,mission.enemies.length);assert.equal(events.at(-1),'success');
 });

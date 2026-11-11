@@ -110,7 +110,7 @@ export const journeyDallas13: Readonly<{
 export const journeyDallas14: Readonly<{
   id: 'journey-dallas-14'; cityId: 'dallas'; name: 'SURPRISE ATTACK'; chapter: 'SKY HUNTERS';
   timeLimitMs: 180000; firstClearCredits: 1800; startAirportId: 'love';
-  enemyAircraft: 'trainer'; enemyLivery: 'bluejay-aurora'; enemyHealth: 150;
+  enemyAircraft: 'trainer'; enemyLivery: 'bluejay-aurora'; enemyHealth: 300;
   enemyAltitude: 2400; aggressionDistance: 30000; patrolRadius: 4500; cruiseSpeed: 460;
   warningMs: 3000; rearApproachMs: 18000; enemySpawn: Readonly<{ x: number; z: number }>;
 }>;
@@ -123,20 +123,22 @@ export const journeyDallas15: Readonly<{
 }>;
 export const journeyDallas16: Readonly<{
   id:'journey-dallas-16';cityId:'dallas';name:'DOUBLE THREAT';chapter:'SKY HUNTERS';
-  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs: 180000;enemyHealth:100;aggressionDistance:8000;
+  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs: 180000;enemyHealth:200;aggressionDistance:8000;
   enemies:readonly Readonly<{aircraft:'privateJet'|'trainer';livery:string;x:number;z:number;altitude:number}>[];
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas17:Readonly<{
   id:'journey-dallas-17';cityId:'dallas';name:'IRON HUNTER';chapter:'SKY HUNTERS';firstClearCredits:2250;
-  startAirportId:'executive';timeLimitMs: 180000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:250;
+  startAirportId:'executive';timeLimitMs: 180000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:200;
   enemyAltitude:2400;aggressionDistance:6000;patrolRadius:6000;cruiseSpeed:400;enemySpawn:Readonly<{x:number;z:number}>;
+  enemies: readonly Readonly<{aircraft:'cargo'|'privateJet'|'trainer';livery:string;name:string;level:'HARD'|'VERY_HARD';health:200;x:number;z:number;altitude:number}>[];
 }>;
 export const journeyDallas18: Readonly<{
   id: 'journey-dallas-18'; cityId: 'dallas'; name: 'FINAL SHOWDOWN'; chapter: 'SKY HUNTERS'; firstClearCredits: 2400;
   startAirportId: 'dfw'; timeLimitMs: 180000; enemyAircraft: 'fighter'; enemyLivery: 'firehawk-stealth-gray'; enemyHealth: 300;
   enemyAltitude: 2700; aggressionDistance: 8000; patrolRadius: 7500; cruiseSpeed: 600;
   enemySpawn: Readonly<{x:number;z:number}>; enemyDamage: 20; shotIntervalMs: 750; burstShots: 2; burstPauseMs: 2000;
+  enemies: readonly Readonly<{aircraft:'fighter'|'privateJet'|'trainer';livery:string;name:string;level:'LEGENDARY'|'VERY_HARD';health:300|200;x:number;z:number;altitude:number}>[];
 }>;
 export const journeyDallas19: Readonly<{
   id: 'journey-dallas-19'; cityId: 'dallas'; name: 'FINAL MONSTER BATTLE'; chapter: 'LEGENDARY SKIES';

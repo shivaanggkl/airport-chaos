@@ -19,3 +19,7 @@ export function airborneAirbrakeDeceleration(forwardSpeed:number,strength:number
 export function airbornePitchTarget(pitchControl:number,envelope:{maxClimbPitch:number;maxDivePitch?:number}):number;
 export function airborneLiftFactor(forwardSpeed:number,angleOfAttack:number,throttle:number,stallFactor:number,envelope:{lift:number;takeoffSpeed:number;climbLiftBoost:number}):number;
 export function hasRunwayLiftoffLift(speed:number,pitch:number,throttle:number,envelope:{lift:number;takeoffSpeed:number;climbLiftBoost:number}):boolean;
+
+export const cruiseThrottleStops:readonly number[];
+export function cruiseThrottleSelection(value:number):number;
+export function controlledEngineThrust(speed:number,target:number,available:number,drag:number,response:number):number;

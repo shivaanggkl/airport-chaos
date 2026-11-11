@@ -12,12 +12,12 @@ import {journeyDallas15 as mission,journeyDallas13,journeyDallas14,journeyMissio
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
 import {cityAirports} from '../../shared/city-airports.mjs';
 import {projectileDamageForAircraft} from '../../shared/protocol.mjs';
-import {enemyAiLevels} from '../../shared/enemy-ai.mjs';
+import {enemyAiLevels,skyHuntersDifficulty} from '../../shared/enemy-ai.mjs';
 import {createOpponent} from './opponent.js';
 import {planOpponentTactics,recordOpponentHit,recordOpponentDamage} from './opponent-tactics.js';
 import {advanceHunterFlight} from './hunter-flight.js';
 import {pursuitProgress} from './hot-pursuit.js';
-import {insideJourneyHunterArena,journeyHunterSteeringTarget} from './journey-hunter-airspace.js';
+import {insideJourneyHunterArena,journeyHunterSteeringTarget,boundJourneyHunterPoint} from './journey-hunter-airspace.js';
 import {JourneyAttemptStore} from './journey-attempts.js';
 import {aceDamageAuthorized} from './journey-ace.js';
 const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
@@ -32,13 +32,32 @@ test('M9 identity, eight hits, Addison distance and 55km route remain inside aut
  assert.ok(length>=45000&&length<=65000);assert.ok(aircraftFlightEnvelope.trainer.maxSpeed>mission.cruiseSpeed*1.8);
 });
 
+test('M9 factory creates one escaping Mammoth at Hard difficulty with 200 HP',()=>{
+ const players=new Map();
+ const ctx=runtime(['createBot'],{journeyDallas13,journeyDallas14,journeyDallas15:mission,
+  createOpponent,players,nextBotSerial:1,botNames:['Hunter'],botPersonalities:['hunter'],
+  botAirports:()=>cityAirports.dallas,airportRoute:()=>[],boundJourneyHunterPoint,
+  botTerrainHeight:()=>120,safeBotWaypoint:(_city,_from,point)=>point,journeyAceClearance:300,
+  aircraftFlightEnvelope,DALLAS_WORLD_SCALE:3,pursuitProgress,
+  sendToPlayer(){},broadcastToCity:()=>assert.fail('private opponent leaked'),botStateMessage:()=>({})});
+ const id=ctx.createBot('dallas',undefined,{attemptId:'attempt',targetPlayerId:'owner',target:{},ace:true});
+ const enemy=players.get(id);
+ assert.equal(players.size,1);assert.equal(enemy.aircraftType,'cargo');assert.equal(enemy.displayName,'ESCAPING MAMMOTH');
+ assert.equal(enemy.health,200);assert.ok(enemy.bot.journeyPursuit);
+ assert.equal(enemy.bot.opponent.definition.level,'HARD');assert.equal(skyHuntersDifficulty[9],'HARD');
+ assert.equal(enemy.bot.opponent.definition.behavior,'objective');assert.equal(enemy.bot.opponent.definition.personality,'defensive');
+ for(const aircraft of ['trainer','cargo','privateJet','fighter']){
+  assert.equal(projectileDamageForAircraft(aircraft),25);assert.equal(enemy.health/projectileDamageForAircraft(aircraft),8);
+ }
+});
+
 test('real heavy-aircraft integration completes the escape, with bounded defensive maneuvers and no orbit trap',t=>{
  const position={...mission.enemySpawn,y:1000},first=mission.escapeRoute[0];
  const enemy={position,rotation:{x:0,y:Math.atan2(position.x-first.x,position.z-first.z),z:0},velocity:{x:0,y:0,z:0},aircraftType:'cargo'};
  const motion={speed:420,bankControl:0,combatTurnSign:1},progress={index:0,previous:{...position},remaining:0,escaped:false};
  const target={position:{x:position.x+1000,y:1000,z:position.z-1000},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:0},aircraftType:'trainer'};
- const ai=createOpponent({aircraft:'cargo',livery:mission.enemyLivery,level:'MEDIUM',cityId:'dallas',position,rotation:enemy.rotation,speed:420,health:200,behavior:'objective',personality:'defensive'});
- assert.equal(ai.profile,enemyAiLevels.MEDIUM);
+ const ai=createOpponent({aircraft:'cargo',livery:mission.enemyLivery,level:'HARD',cityId:'dallas',position,rotation:enemy.rotation,speed:420,health:200,behavior:'objective',personality:'defensive'});
+ assert.equal(ai.profile,enemyAiLevels.HARD);
  let seconds=0,breaks=0;
  for(;seconds<180&&!progress.escaped;seconds+=.05){
   pursuitProgress(enemy.position,progress);
@@ -49,7 +68,7 @@ test('real heavy-aircraft integration completes the escape, with bounded defensi
   const previous={...position};advanceHunterFlight(enemy,motion,{...plan.waypoint,...goal},plan.cruise,.05,()=>100);
   assert.ok(Math.hypot(position.x-previous.x,position.z-previous.z)>10);assert.ok(motion.speed<=450);assert.ok(position.y>100);assert.ok(insideJourneyHunterArena(position));
  }
- assert.ok(progress.escaped);assert.ok(seconds>80&&seconds<150);assert.ok(breaks>0);t.diagnostic(`Physical escape ${seconds.toFixed(1)}s; MEDIUM defensive flight remains outbound`);
+ assert.ok(progress.escaped);assert.ok(seconds>80&&seconds<150);assert.ok(breaks>0);t.diagnostic(`Physical escape ${seconds.toFixed(1)}s; HARD defensive flight remains outbound`);
 });
 
 test('takeoff clock, timeout, old-attempt invalidation and preserved completion receipts',()=>{

@@ -12,6 +12,7 @@ type TransportProjectileVisual = {
     mesh: ReturnType<typeof createProjectileCore>;
     shot?: TransportShotState;
     traveled: number;
+    advanceImpact?: (delta: number) => boolean;
 };
 function roundedBayShape(width: number, height: number): THREE.Shape {
     const half = width / 2, radius = .45;
@@ -122,7 +123,8 @@ export class GiantIncomingView {
     private fortressBays: ReturnType<typeof fortressBay>[] = [];
     private fortressMarkers: THREE.Mesh[][] = [];
     private hatchOpen = 0;
-    private tracers: TransportProjectileVisual[] = Array.from({ length: 9 }, () => ({ mesh: createProjectileCore(true), traveled: 0 }));
+    // Nine live server rounds, with room for one simultaneous four-turret volley finishing visually.
+    private tracers: TransportProjectileVisual[] = Array.from({ length: 13 }, () => ({ mesh: createProjectileCore(true), traveled: 0 }));
     private warningGeometry = new THREE.SphereGeometry(5, 8, 6);
     private warningMaterial = new THREE.MeshBasicMaterial({ color: 0xffce45, toneMapped: false });
     private warning = new THREE.Mesh(this.warningGeometry, this.warningMaterial);
@@ -239,7 +241,7 @@ export class GiantIncomingView {
     private syncProjectileShots(shots: readonly TransportShotState[]): void {
         for (const tracer of this.tracers) {
             const id = tracer.shot?.id;
-            if (id && !shots.some(shot => shot.id === id)) {
+            if (id && !tracer.advanceImpact && !shots.some(shot => shot.id === id)) {
                 tracer.shot = undefined;
                 tracer.mesh.visible = false;
             }
@@ -247,7 +249,7 @@ export class GiantIncomingView {
         for (const shot of shots) {
             const existing = this.tracers.find(tracer => tracer.shot?.id === shot.id);
             if (existing) {
-                existing.shot = shot;
+                if (!existing.advanceImpact) existing.shot = shot;
                 continue;
             }
             const free = this.tracers.find(tracer => !tracer.shot);
@@ -259,16 +261,45 @@ export class GiantIncomingView {
         }
     }
 
-    private updateProjectileShots(delta: number, ahead: number, camera: THREE.PerspectiveCamera, viewportHeight: number): void {
+    presentProjectileImpact(shot: TransportShotState,
+        prepareImpact: (mesh: THREE.Mesh) => (delta: number) => boolean): boolean {
+        if (this.disposed) return false;
+        const existing = this.tracers.find(tracer => tracer.shot?.id === shot.id);
+        const tracer = existing ?? this.tracers.find(tracer => !tracer.shot);
+        if (!tracer) return false;
+        if (!existing?.mesh.visible || existing.mesh.scale.x === 0) {
+            const distance = Math.min(shot.traveled, shot.speed * transportSnapshotHorizon);
+            tracer.mesh.position.set(shot.position.x - shot.direction.x * distance,
+                shot.position.y - shot.direction.y * distance, shot.position.z - shot.direction.z * distance);
+        }
+        tracer.shot = shot;
+        tracer.advanceImpact = prepareImpact(tracer.mesh);
+        return true;
+    }
+
+    updateProjectileShots(delta: number, camera: THREE.PerspectiveCamera, viewportHeight: number): void {
+        if (this.disposed) return;
+        const live = !this.final && !this.arrival && !this.finishingShotHeld && this.levels.length > 0;
+        const ahead = Math.min(transportSnapshotHorizon, (performance.now() - this.receivedAt) / 1000);
         const blend = 1 - Math.exp(-delta * 34);
         for (const tracer of this.tracers) {
             const { mesh, shot } = tracer;
-            if (!shot) continue;
-            const estimatedTravel = Math.min(COMBAT_RANGE, shot.traveled + shot.speed * ahead);
+            if (tracer.advanceImpact) {
+                mesh.visible = true;
+                if (tracer.advanceImpact(delta)) {
+                    tracer.advanceImpact = undefined;
+                    tracer.shot = undefined;
+                    mesh.visible = false;
+                }
+                continue;
+            }
+            if (!shot || !live) continue;
             const nominalStep = shot.speed * delta;
+            const estimatedTravel = Math.min(COMBAT_RANGE, shot.traveled + shot.speed * ahead);
+            const remaining = Math.max(0, estimatedTravel - tracer.traveled);
             const step = projectileForwardStep(nominalStep, estimatedTravel - tracer.traveled - nominalStep, blend);
-            tracer.traveled = Math.min(COMBAT_RANGE, tracer.traveled + Math.min(step, Math.max(0, estimatedTravel - tracer.traveled)));
-            mesh.visible = !this.final && tracer.traveled < COMBAT_RANGE;
+            tracer.traveled += Math.min(step, remaining);
+            mesh.visible = tracer.traveled < COMBAT_RANGE;
             const offset = tracer.traveled - shot.traveled;
             mesh.position.set(
                 shot.position.x + shot.direction.x * offset,
@@ -370,7 +401,6 @@ export class GiantIncomingView {
             this.root.updateMatrixWorld(true);
             (warningGun ? this.sideGuns[lod]?.[warningGun - 1]?.muzzle : this.levels[lod]!.getObjectByName('RearGunMuzzle'))?.getWorldPosition(this.warning.position);
             this.warning.scale.setScalar(1 + Math.sin(this.elapsed * 16) * .2);
-            this.updateProjectileShots(delta, ahead, camera, window.innerHeight);
             if (!this.final && s.health < transportTuning.health * .6 && Math.random() < delta * (s.health < transportTuning.health * .25 ? 16 : 5)) {
                 const socket = this.levels[lod]!.getObjectByName(`EngineSmoke_${Math.floor(Math.random() * 4)}`)!;
                 const p = socket.getWorldPosition(new THREE.Vector3());

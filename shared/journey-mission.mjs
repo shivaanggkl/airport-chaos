@@ -259,7 +259,7 @@ const baseJourneyDallas14 = Object.freeze({
   id: 'journey-dallas-14', cityId: 'dallas', name: 'SURPRISE ATTACK',
   chapter: 'SKY HUNTERS', timeLimitMs: 60_000, firstClearCredits: 1_800,
   startAirportId: 'love', enemyAircraft: 'trainer', enemyLivery: 'bluejay-aurora',
-  enemyHealth: 150, enemyAltitude: 800, aggressionDistance: 10_000,
+  enemyHealth: 300, enemyAltitude: 800, aggressionDistance: 10_000,
   patrolRadius: 1_500, cruiseSpeed: 460, warningMs: 3_000, rearApproachMs: 18_000,
   // Trailing Love Field’s northbound departure, 16 km from the airport center.
   enemySpawn: Object.freeze({ x: -5_140 - 600, z: -7_780 + Math.sqrt((16_000 / 3) ** 2 - 600 ** 2) }),
@@ -282,7 +282,7 @@ const baseJourneyDallas15 = Object.freeze({
 // Two independently flying opponents share permission to initiate shots.
 const baseJourneyDallas16 = Object.freeze({
   id:'journey-dallas-16',cityId:'dallas',name:'DOUBLE THREAT',chapter:'SKY HUNTERS',
-  firstClearCredits:2_100,startAirportId:'dfw',timeLimitMs: 60_000,enemyHealth:100,aggressionDistance:8_000 / DALLAS_WORLD_SCALE,
+  firstClearCredits:2_100,startAirportId:'dfw',timeLimitMs: 60_000,enemyHealth:200,aggressionDistance:8_000 / DALLAS_WORLD_SCALE,
   enemies:Object.freeze([
     Object.freeze({aircraft:'privateJet',livery:'nightowl-sunset-red',x:-65_000 / DALLAS_WORLD_SCALE,z:-53_500 / DALLAS_WORLD_SCALE,altitude:750}),
     Object.freeze({aircraft:'trainer',livery:'bluejay-skybolt',x:-57_000 / DALLAS_WORLD_SCALE,z:-51_000 / DALLAS_WORLD_SCALE,altitude:900}),
@@ -293,9 +293,14 @@ const baseJourneyDallas16 = Object.freeze({
 // A heavy, aggressive opponent uses the same single-enemy combat lifecycle.
 const baseJourneyDallas17 = Object.freeze({
   id: 'journey-dallas-17', cityId: 'dallas', name: 'IRON HUNTER', chapter: 'SKY HUNTERS', firstClearCredits: 2_250,
-  startAirportId: 'executive', timeLimitMs: 60_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 250,
+  startAirportId: 'executive', timeLimitMs: 60_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 200,
   enemyAltitude: 800, aggressionDistance: 6_000 / DALLAS_WORLD_SCALE, patrolRadius: 2_000, cruiseSpeed: 400,
   enemySpawn: Object.freeze({ x: -10_500 / DALLAS_WORLD_SCALE, z: 16_000 / DALLAS_WORLD_SCALE }),
+  enemies: Object.freeze([
+    Object.freeze({ aircraft: 'cargo', livery: 'mammoth-desert-sand', name: 'ARMORED MAMMOTH', level: 'HARD', health: 200, x: -10_500 / DALLAS_WORLD_SCALE, z: 16_000 / DALLAS_WORLD_SCALE, altitude: 800 }),
+    Object.freeze({ aircraft: 'privateJet', livery: 'nightowl-sunset-red', name: 'NIGHTOWL', level: 'VERY_HARD', health: 200, x: -9_300 / DALLAS_WORLD_SCALE, z: 15_200 / DALLAS_WORLD_SCALE, altitude: 850 }),
+    Object.freeze({ aircraft: 'trainer', livery: 'bluejay-skybolt', name: 'BLUEJAY', level: 'VERY_HARD', health: 200, x: -11_700 / DALLAS_WORLD_SCALE, z: 15_200 / DALLAS_WORLD_SCALE, altitude: 750 }),
+  ]),
 });
 
 // Chapter 2 finale; weapon pacing and damage are private to this encounter.
@@ -304,6 +309,12 @@ const baseJourneyDallas18 = Object.freeze({
   startAirportId: 'dfw', timeLimitMs: 60_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-stealth-gray', enemyHealth: 300,
   enemyAltitude: 900, aggressionDistance: 8_000 / DALLAS_WORLD_SCALE, patrolRadius: 2_500, cruiseSpeed: 600,
   enemySpawn: Object.freeze({ x: -47_500 / DALLAS_WORLD_SCALE, z: -48_000 / DALLAS_WORLD_SCALE }),
+  enemies: Object.freeze([
+    Object.freeze({ aircraft: 'fighter', livery: 'firehawk-stealth-gray', name: 'LEGENDARY FIREHAWK 1', level: 'LEGENDARY', health: 300, x: -47_500 / DALLAS_WORLD_SCALE, z: -48_000 / DALLAS_WORLD_SCALE, altitude: 900 }),
+    Object.freeze({ aircraft: 'fighter', livery: 'firehawk-stealth-gray', name: 'LEGENDARY FIREHAWK 2', level: 'LEGENDARY', health: 300, x: -45_500 / DALLAS_WORLD_SCALE, z: -47_000 / DALLAS_WORLD_SCALE, altitude: 950 }),
+    Object.freeze({ aircraft: 'privateJet', livery: 'nightowl-sunset-red', name: 'NIGHTOWL', level: 'VERY_HARD', health: 200, x: -49_500 / DALLAS_WORLD_SCALE, z: -46_600 / DALLAS_WORLD_SCALE, altitude: 850 }),
+    Object.freeze({ aircraft: 'trainer', livery: 'bluejay-skybolt', name: 'BLUEJAY', level: 'VERY_HARD', health: 200, x: -47_500 / DALLAS_WORLD_SCALE, z: -45_600 / DALLAS_WORLD_SCALE, altitude: 800 }),
+  ]),
   enemyDamage: 20, shotIntervalMs: 750, burstShots: 2, burstPauseMs: 2_000,
 });
 

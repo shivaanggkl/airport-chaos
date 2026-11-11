@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import ts from 'typescript';
 import vm from 'node:vm';
-import { journeyDallas14 as mission, journeyDallas13, journeyDallas06, journeyDallas07, journeyMissionSlot } from '../../shared/journey-mission.mjs';
+import { journeyDallas14 as mission, journeyDallas13, journeyDallas06, journeyDallas07, journeyDallas10, journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
@@ -43,7 +43,7 @@ test('one server-owned Bluejay, duplicate prevention, horizontal aggression boun
   const active = { missionId: mission.id, attemptId: 'attempt', status: 'APPROACH', targetId: null };
   const players = new Map(); let created = 0, engaged = 0;
   const ctx = runtime(['ensureFirstContact'], { journeyDallas13, journeyDallas14: mission, ambushCanFire, players,
-    createBot: (_city, _defense, spawn) => { created++; assert.equal(spawn.firstContact, true); players.set('enemy', { bot: { journeyFirstContact: true, journeySurpriseAttack: true, ambush: { activatedAt: 0, warningAt: 0 }, journeyAttemptId: 'attempt', journeyTargetPlayerId: 'owner' }, lifeState: 'alive', health: 150, position: { x: mission.aggressionDistance + 1, y: 900, z: 0 } }); return 'enemy'; },
+    createBot: (_city, _defense, spawn) => { created++; assert.equal(spawn.firstContact, true); players.set('enemy', { bot: { journeyFirstContact: true, journeySurpriseAttack: true, ambush: { activatedAt: 0, warningAt: 0 }, journeyAttemptId: 'attempt', journeyTargetPlayerId: 'owner' }, lifeState: 'alive', health: mission.enemyHealth, position: { x: mission.aggressionDistance + 1, y: 900, z: 0 } }); return 'enemy'; },
     journeyStore: { assignFirstContact: (_pilot, _attempt, id) => { active.targetId = id; return active; } },
     removeBot: () => assert.fail('unexpected removal'), sendJourneyState: () => {}, failPlayerJourney: () => assert.fail('unexpected failure'),
     provokeJourneyHunter: () => { engaged++; players.get('enemy').bot.journeyProvoked = true; },
@@ -102,14 +102,14 @@ test('old active Escape Vector attempts are invalidated once; historical clears 
   } finally { f.db.close(); rmSync(f.directory, { recursive: true, force: true }); }
 });
 
-test('six accepted Bluejay combat hits destroy only the owned target and complete the real reward transaction', () => {
+test('twelve accepted Bluejay combat hits destroy only the owned target and complete the real reward transaction', () => {
   const f = fixture();
   try {
     const a = f.store.launch('pilot', 'trainer', 1000, mission.id);
     f.store.approach('pilot', a.attemptId); f.store.assignFirstContact('pilot', a.attemptId, 'enemy');
     f.store.startFirstContact('pilot', a.attemptId, 2000);
     const pilot = { pilotId: 'pilot', entityType: 'player', cityId: 'dallas', lifeState: 'alive', isBot: false, score: 0, aircraftType: 'trainer' };
-    const enemy = { entityType: 'player', cityId: 'dallas', lifeState: 'alive', isBot: true, score: 0, health: 150, spawnProtectedUntil: 0, aircraftType: 'trainer',
+    const enemy = { entityType: 'player', cityId: 'dallas', lifeState: 'alive', isBot: true, score: 0, health: mission.enemyHealth, spawnProtectedUntil: 0, aircraftType: 'trainer',
       bot: { journeyFirstContact: true, journeySurpriseAttack: true, ambush: { activatedAt: 0, warningAt: 0 }, journeyAttemptId: a.attemptId, journeyTargetPlayerId: 'owner', journeyProvoked: true } };
     const players = new Map([['owner', pilot], ['enemy', enemy], ['outsider', { ...pilot, pilotId: 'other' }]]);
     const packets = [];
@@ -127,13 +127,13 @@ test('six accepted Bluejay combat hits destroy only the owned target and complet
     enemy.bot.journeyProvoked = false;
     assert.equal(ctx.applyCombatHit('owner', 'enemy', 'dallas', 3000, 25), false);
     enemy.bot.journeyProvoked = true;
-    for (let hit = 1; hit <= 6; hit++) {
+    for (let hit = 1; hit <= 12; hit++) {
       assert.equal(ctx.applyCombatHit('owner', 'enemy', 'dallas', 3000 + hit * 500, projectileDamageForAircraft('trainer')), true);
-      assert.equal(enemy.health, 150 - hit * 25);
-      assert.equal(f.store.get('pilot', a.attemptId).status, hit === 6 ? 'COMPLETED' : 'RACING');
+      assert.equal(enemy.health, mission.enemyHealth - hit * 25);
+      assert.equal(f.store.get('pilot', a.attemptId).status, hit === 12 ? 'COMPLETED' : 'RACING');
     }
     assert.equal(players.has('enemy'), false);
-    assert.equal(packets.filter(p => p.type === 'damage').length, 6);
+    assert.equal(packets.filter(p => p.type === 'damage').length, 12);
     assert.equal(f.store.get('pilot', a.attemptId).firstClearCredits, 1800);
   } finally { f.db.close(); rmSync(f.directory, { recursive: true, force: true }); }
 });
@@ -141,7 +141,7 @@ test('six accepted Bluejay combat hits destroy only the owned target and complet
 test('actual Bluejay factory and flight integrator keep the airborne patrol inside its scaled patrol area with unchanged flight characteristics', () => {
   const players = new Map(), sent = [];
   const ctx = runtime(['createBot', 'botStateMessage', 'transportEscortHealth', 'transportEscortCosmetics', 'advanceBotFlight', 'moveTowardBot', 'isHunterCombatPhase', 'botMinimumTurnRadius', 'smoothHunter', 'hunterClearance'], {
-    advanceHunterFlight, createOpponent,
+    advanceHunterFlight, createOpponent, journeyDallas10,
     journeyDallas13, journeyDallas14: mission, ambushCanFire, players, nextBotSerial: 1, botNames: ['Hunter'], botPersonalities: ['hunter'],
     botAirports: () => cityAirports.dallas, airportRoute: () => [], boundJourneyHunterPoint,
     botTerrainHeight: () => 120, botRunwayHeight: () => 120, safeBotWaypoint: (_city, _from, p) => p,
@@ -153,7 +153,8 @@ test('actual Bluejay factory and flight integrator keep the airborne patrol insi
   });
   const id = ctx.createBot('dallas', undefined, { attemptId: 'attempt', targetPlayerId: 'owner', target: {}, firstContact: true, surpriseAttack: true });
   const enemy = players.get(id), spawn = { ...enemy.position };
-  assert.equal(enemy.aircraftType, 'trainer'); assert.equal(enemy.health, 150);
+  assert.equal(enemy.aircraftType, 'trainer'); assert.equal(enemy.health, 300);
+  assert.equal(players.size,1);assert.equal(enemy.bot.opponent.definition.level,'MEDIUM');
   assert.equal(enemy.position.y, 120 + mission.enemyAltitude); assert.equal(Math.hypot(enemy.velocity.x, enemy.velocity.z), 460);
   assert.equal(sent[0].equippedCosmetics['livery:trainer'], mission.enemyLivery);
   let maxRadius = 0, minSpeed = Infinity;
@@ -173,7 +174,7 @@ test('actual Bluejay factory and flight integrator keep the airborne patrol insi
 });
 
 
-test('M8 keeps its Journey identity, exact Love Field distance, livery, clock and six-hit health', () => {
+test('M8 keeps its Journey identity, exact Love Field distance, livery, clock and twelve-hit health', () => {
  const love = cityAirports.dallas.find(a => a.id === 'love');
  assert.equal(journeyMissionSlot(mission.id), 8);
  assert.equal(mission.name, 'SURPRISE ATTACK');
@@ -186,7 +187,11 @@ test('M8 keeps its Journey identity, exact Love Field distance, livery, clock an
  assert(separation>=12_000&&separation<=20_000);
  assert(mission.enemySpawn.z>runwayZ,"enemy starts behind northbound departure");
  assert.deepEqual(boundJourneyHunterPoint(mission.enemySpawn),mission.enemySpawn);
- assert.equal(mission.enemyHealth / projectileDamageForAircraft('trainer'),6);
+ assert.equal(mission.enemyHealth,300);
+ for(const type of ['trainer','cargo','privateJet','fighter']){
+  assert.equal(projectileDamageForAircraft(type),25);
+  assert.equal(mission.enemyHealth / projectileDamageForAircraft(type),12);
+ }
  assert.equal(mission.timeLimitMs,180_000);
  assert.doesNotMatch(source,/updateJourneyEscape|ensureJourneyEscapeHunter|updateEscapeHold/);
 });

@@ -9,6 +9,7 @@ export type MissionObjective = {
   fixedTop?: boolean;
   dock?: HTMLElement;
   bottomCue?: boolean;
+  peripheralCue?: boolean;
 };
 
 type ConfirmedGateAttempt = { attemptId: string; gateIndex: number; status: string };
@@ -121,11 +122,42 @@ export function projectMissionObjective(
   width: number, height: number, obstacles: readonly ScreenRect[] = [],
   safe: SafeInsets = { left: 0, right: 0, top: 0, bottom: 0 },
   projected = new THREE.Vector3(), local = new THREE.Vector3(),
-  bottomCue = false,
+  bottomCue = false, peripheralCue = false,
 ): ObjectivePlacement {
   local.copy(target).applyMatrix4(camera.matrixWorldInverse);
   const front = local.z < -camera.near;
   const arrowHalfWidth = height < 520 ? 94 : ARROW_HALF_WIDTH;
+  if (peripheralCue) {
+    if (front) projected.copy(target).project(camera);
+    const bearing = front ? projected.x : local.x / Math.max(1, Math.abs(local.z));
+    const side = width >= arrowHalfWidth * 6 && Math.abs(bearing) > .35 ? Math.sign(bearing) : 0;
+    const left = safe.left + arrowHalfWidth + 12;
+    const right = width - safe.right - arrowHalfWidth - 12;
+    const bottom = height - safe.bottom - ARROW_HALF_HEIGHT - 18;
+    const bottomY = Math.min(height * .88, bottom);
+    let x = Math.max(left, Math.min(right, width * .5)), y = bottomY;
+    // Prefer the target's side at mid-height. Front/rear targets stay below
+    // the flight view; a crowded side also falls back to that lower slot.
+    for (let lane = side ? 0 : 1; lane < 2; lane++) {
+      const candidateX = lane === 0 ? side < 0 ? left : right : x;
+      const desiredY = lane === 0 ? height * .5 : bottomY;
+      let top = Math.max(safe.top + ARROW_HALF_HEIGHT + 12, height * (lane === 0 ? .3 : .8));
+      if (lane === 0) for (const rect of obstacles) {
+        if (rect.top < height * .4 && candidateX + arrowHalfWidth > rect.left - 7 && candidateX - arrowHalfWidth < rect.right + 7)
+          top = Math.max(top, rect.bottom + ARROW_HALF_HEIGHT + 8);
+      }
+      let bestDistance = Infinity;
+      for (let candidateY = top; candidateY <= bottom; candidateY += 8) {
+        if (obstacles.some(rect => overlaps(candidateX, candidateY, arrowHalfWidth, ARROW_HALF_HEIGHT, rect))) continue;
+        const distance = Math.abs(candidateY - desiredY);
+        if (distance < bestDistance) { bestDistance = distance; x = candidateX; y = candidateY; }
+      }
+      if (bestDistance < Infinity) break;
+    }
+    const angle = front ? Math.atan2((1 - projected.y) * height * .5 - y, (projected.x + 1) * width * .5 - x)
+      : Math.atan2(Math.max(1, -local.y + Math.max(1, local.z) * .4), local.x);
+    return { kind: 'arrow', x, y, angle };
+  }
   if (bottomCue) {
     const x = Math.max(safe.left + arrowHalfWidth + 12,
       Math.min(width - safe.right - arrowHalfWidth - 12, width * .5));
@@ -449,7 +481,7 @@ export class ObjectiveGuidance {
         this.arrow.style.transform = '';
       } else {
         const placement = projectMissionObjective(camera, target.position, target.radius,
-          innerWidth, innerHeight, this.obstacles, this.safeInsets, this.projected, this.local, target.bottomCue);
+          innerWidth, innerHeight, this.obstacles, this.safeInsets, this.projected, this.local, target.bottomCue, target.peripheralCue);
         this.marker.hidden = placement.kind !== 'marker';
         this.arrow.hidden = placement.kind !== 'arrow';
         const visible = placement.kind === 'marker' ? this.marker : this.arrow;
@@ -459,7 +491,7 @@ export class ObjectiveGuidance {
       return;
     }
     const placement = projectMissionObjective(camera, target.position, target.radius,
-      innerWidth, innerHeight, this.obstacles, this.safeInsets, this.projected, this.local, target.bottomCue);
+      innerWidth, innerHeight, this.obstacles, this.safeInsets, this.projected, this.local, target.bottomCue, target.peripheralCue);
     const label = `${target.label} · ${formatObjectiveDistance(this.distanceMeters)}`;
     if (label !== this.lastLabel && now >= this.nextLabelAt) {
       this.lastLabel = label;

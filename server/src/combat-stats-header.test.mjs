@@ -44,12 +44,12 @@ const update=main.slice(main.indexOf('function guidanceOpponent('),main.indexOf(
 const missions=[journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18];
 function context(mission){
  const values={};const enemy={cityId:'dallas',entityType:'player',timeSinceUpdate:0,targetPosition:{x:4_000,y:5_200,z:0},aircraftType:mission===journeyDallas16?'privateJet':mission.enemyAircraft,playerId:'enemy',displayName:'ENEMY',lifeState:'alive',health:70,altitudeMeters:500};
- const ctx=vm.createContext({missionStartCountdownStartedAt:null,missionStartCountdownPending:false,journeyPaused:false,flightDialogOpen:()=>false,aircraftDefinitions:{trainer:{callsign:'BLUEJAY'},privateJet:{callsign:'NIGHTOWL'},cargo:{callsign:'MAMMOTH'},fighter:{callsign:'FIREHAWK'}},journeyCombatMissions:missions,journeyDallas16,journeyMode:true,journeyAttempt:{missionId:mission.id,status:'RACING',targetId:'enemy',secondaryTargetId:'second',targetHealth:55,enemyHealths:[70,40],deadlineAt:Date.now()+120000},runStarted:true,crashed:false,launchCinematicBlocksInput:()=>false,performance:{now:()=>1000},nextJourneyCombatHudUpdateAt:0,selectedCombatTarget:null,remotePlayers:new Map([['enemy',enemy]]),serverProfile:{pilotName:'PILOT',pilotProgress:{level:3}},health:150,altitudeAboveTerrain:()=>400,METERS_TO_FEET:3.28084,WORLD_METERS_PER_UNIT:1,journeyServerTimeOffset:0,cityId:'dallas',remoteStateStaleSeconds:3,airplane:{position:{x:0,y:4_000,z:0}},horizontalDistanceSquared,isFiniteGuidancePosition,opponentAltitudeGuidance,connectionReady:()=>true,localLifeState:'alive',flightExitPending:false,tutorialMenuOpen:()=>false,aircraftVictory:undefined,groundPlaneY:()=>0,skyDuelUi:{canGuideOpponent:()=>true},flightGameRoot:{classList:{toggle:(_,visible)=>values.visible=visible}},journeyCombatHeader:{element:{hidden:true},clock:{textContent:''},setIdentity:(_,opponent)=>values.opponent=opponent,setOpponentGuidance:text=>values.guidance=text,updateTelemetry:(...args)=>values.telemetry=args}});
+ const ctx=vm.createContext({missionStartCountdownStartedAt:null,missionStartCountdownPending:false,journeyPaused:false,flightDialogOpen:()=>false,aircraftDefinitions:{trainer:{callsign:'BLUEJAY'},privateJet:{callsign:'NIGHTOWL'},cargo:{callsign:'MAMMOTH'},fighter:{callsign:'FIREHAWK'}},journeyCombatMissions:missions,journeyDallas16,journeyDallas17,journeyDallas18,journeyMode:true,journeyAttempt:{missionId:mission.id,status:'RACING',targetId:'enemy',secondaryTargetId:'second',targetHealth:55,enemyHealths:[70,40],deadlineAt:Date.now()+120000},runStarted:true,crashed:false,launchCinematicBlocksInput:()=>false,performance:{now:()=>1000},nextJourneyCombatHudUpdateAt:0,selectedCombatTarget:null,remotePlayers:new Map([['enemy',enemy]]),serverProfile:{pilotName:'PILOT',pilotProgress:{level:3}},health:150,altitudeAboveTerrain:()=>400,METERS_TO_FEET:3.28084,WORLD_METERS_PER_UNIT:1,journeyServerTimeOffset:0,cityId:'dallas',remoteStateStaleSeconds:3,airplane:{position:{x:0,y:4_000,z:0}},horizontalDistanceSquared,isFiniteGuidancePosition,opponentAltitudeGuidance,connectionReady:()=>true,localLifeState:'alive',flightExitPending:false,tutorialMenuOpen:()=>false,aircraftVictory:undefined,groundPlaneY:()=>0,skyDuelUi:{canGuideOpponent:()=>true},flightGameRoot:{classList:{toggle:(_,visible)=>values.visible=visible}},journeyCombatHeader:{element:{hidden:true},clock:{textContent:''},setIdentity:(_,opponent)=>values.opponent=opponent,setOpponentGuidance:text=>values.guidance=text,updateTelemetry:(...args)=>values.telemetry=args}});
  vm.runInContext(transpile(update),ctx);return {ctx,values,enemy};
 }
 for(const mission of missions)test(`${mission.name}: shared header uses mission health and hides outside active gameplay`,()=>{
  const {ctx,values}=context(mission);vm.runInContext('updateJourneyCombatHeader()',ctx);
- assert.equal(values.visible,true);assert.equal(values.telemetry[2],mission===journeyDallas16?70:55);assert.equal(values.telemetry[3],500*3.28084);
+ assert.equal(values.visible,true);assert.equal(values.telemetry[2],mission===journeyDallas16||mission===journeyDallas17||mission===journeyDallas18?70:55);assert.equal(values.telemetry[3],500*3.28084);
  assert.equal(values.guidance,'↑ FLY UP 3,900 FT');
  ctx.journeyAttempt.status='COMPLETED';vm.runInContext('updateJourneyCombatHeader()',ctx);assert.equal(values.visible,false);assert.equal(values.guidance,'');
  ctx.journeyAttempt.status='RACING';ctx.launchCinematicBlocksInput=()=>true;vm.runInContext('updateJourneyCombatHeader()',ctx);assert.equal(values.visible,false);
@@ -160,3 +160,31 @@ test('Sky Duel gates both human and AI guidance on live match and current oppone
   assert.equal(guidance(),'');
  }
 });
+
+test('M11 shared header can select either wingman and follows the last surviving assigned plane',()=>{
+ const {ctx,values,enemy}=context(journeyDallas17);
+ ctx.journeyAttempt.rearGuardThirdId='third';ctx.journeyAttempt.enemyHealths=[200,150,75];
+ const second={...enemy,playerId:'second',aircraftType:'privateJet',targetPosition:{x:2000,y:4500,z:0}};
+ const third={...enemy,playerId:'third',aircraftType:'trainer',targetPosition:{x:1000,y:4500,z:0}};
+ ctx.remotePlayers.set('second',second);ctx.remotePlayers.set('third',third);
+ const tick=()=>vm.runInContext('nextJourneyCombatHudUpdateAt=0; updateJourneyCombatHeader()',ctx);
+ tick();assert.equal(values.opponent.name,'BLUEJAY');assert.equal(values.telemetry[2],75);
+ ctx.selectedCombatTarget={remote:second};tick();assert.equal(values.opponent.name,'NIGHTOWL');assert.equal(values.telemetry[2],150);
+ second.lifeState='destroyed';enemy.lifeState='destroyed';tick();assert.equal(values.opponent.name,'BLUEJAY');assert.equal(values.telemetry[2],75);
+});
+
+ test('M12 shared header follows either Firehawk, Nightowl and Bluejay with their own health',()=>{
+ const {ctx,values,enemy}=context(journeyDallas18);
+ Object.assign(ctx.journeyAttempt,{rearGuardThirdId:'third',rearGuardFourthId:'fourth',enemyHealths:[300,275,175,125]});
+ for(const [index,id] of ['enemy','second','third','fourth'].entries()){
+  ctx.remotePlayers.set(id,{...enemy,playerId:id,aircraftType:journeyDallas18.enemies[index].aircraft,targetPosition:{x:4000-index*500,y:4500,z:0}});
+ }
+ const tick=()=>vm.runInContext('nextJourneyCombatHudUpdateAt=0; updateJourneyCombatHeader()',ctx);
+ for(const [index,id] of ['enemy','second','third','fourth'].entries()){
+  ctx.selectedCombatTarget={remote:ctx.remotePlayers.get(id)};tick();
+  assert.equal(values.opponent.name,['FIREHAWK','FIREHAWK','NIGHTOWL','BLUEJAY'][index]);
+  assert.equal(values.telemetry[2],[300,275,175,125][index]);
+ }
+ for(const id of ['enemy','second','third'])ctx.remotePlayers.get(id).lifeState='destroyed';
+ ctx.selectedCombatTarget=null;tick();assert.equal(values.opponent.name,'BLUEJAY');assert.equal(values.telemetry[2],125);
+ });
