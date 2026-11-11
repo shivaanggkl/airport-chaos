@@ -289,9 +289,10 @@ test('Giant Incoming applies the damage captured when each shot was fired', () =
     store.approach('pilot', launched.attemptId, 1_100);
     store.startGiantIncoming('pilot', launched.attemptId, 2_000);
     assert.equal(store.hitTransport('pilot', launched.attemptId, 3_000, 25)?.monsterHealth, 1_975);
-    assert.equal(store.hitTransport('pilot', launched.attemptId, 3_200)?.monsterHealth, 1_935);
-    assert.equal(store.hitTransport('pilot', launched.attemptId, 3_400, -1), undefined);
-    assert.equal(store.get('pilot', launched.attemptId)?.monsterHealth, 1_935);
+    assert.equal(store.hitTransport('pilot', launched.attemptId, 3_200)?.monsterHealth, 1_950);
+    assert.equal(store.hitTransport('pilot', launched.attemptId, 3_400, 40)?.monsterHealth, 1_910);
+    assert.equal(store.hitTransport('pilot', launched.attemptId, 3_600, -1), undefined);
+    assert.equal(store.get('pilot', launched.attemptId)?.monsterHealth, 1_910);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
