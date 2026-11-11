@@ -783,9 +783,8 @@ function activateCityJourneyCard(index: number): void {
 
 
 function cityJourneyFullCardSrc(entry: CityJourneyEntry): string {
-  return (entry.id === 'dallas' || entry.id === 'california' || entry.id === 'new-york') && (cityJourneyMode === 'missions' || cityJourneyMode === 'solo-free-fly')
-    ? `/media/city-journey/${entry.id}-single-player-card.png`
-    : `/media/city-journey/${entry.id}-card.png`;
+  if (entry.id === 'dallas' || entry.id === 'california' || entry.id === 'new-york' || entry.id === 'milwaukee') return `/media/city-journey/${entry.id}-card.jpg`;
+  return `/media/city-journey/${entry.id}-card.png`;
 }
 
 function createCityJourneyCards(): void {

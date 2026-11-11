@@ -67,7 +67,6 @@ type ArtworkBounds = readonly [x: number, y: number, width: number, height: numb
 const artworkBounds: Readonly<Record<string, ArtworkBounds>> = {
   '/media/city-journey/california-single-player-card.png': [8, 8, 1264, 1059, 1280, 1075],
   '/media/hub/missions-card.jpg': [102, 24, 1076, 804, 1280, 853],
-  '/media/hub/free-fly-card.jpg': [21, 32, 1212, 1190, 1254, 1254],
   '/media/multiplayer/air-assault-card.jpg': [102, 22, 1076, 806, 1280, 853],
 };
 
