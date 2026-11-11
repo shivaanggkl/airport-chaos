@@ -162,6 +162,12 @@ export class JourneyAttemptStore {
       CREATE UNIQUE INDEX IF NOT EXISTS journey_one_active_attempt ON journey_attempts(pilot_id)
         WHERE status IN ('READY','APPROACH','RACING');
       CREATE INDEX IF NOT EXISTS journey_attempts_pilot_created ON journey_attempts(pilot_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS journey_continuations (
+        attempt_id TEXT PRIMARY KEY REFERENCES journey_attempts(attempt_id),
+        pilot_id TEXT NOT NULL, failed_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,
+        payload TEXT NOT NULL, consumed_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS journey_continuations_expiry ON journey_continuations(expires_at) WHERE consumed_at IS NULL;
       CREATE TABLE IF NOT EXISTS journey_completions (
         pilot_id TEXT NOT NULL, mission_id TEXT NOT NULL, first_attempt_id TEXT NOT NULL,
         completed_at INTEGER NOT NULL, best_time_ms INTEGER NOT NULL, clear_count INTEGER NOT NULL DEFAULT 1,
@@ -316,6 +322,7 @@ export class JourneyAttemptStore {
   }
 
   expirePaused(now = Date.now()): JourneyAttempt[] {
+    this.database.prepare('DELETE FROM journey_continuations WHERE consumed_at IS NULL AND expires_at<=?').run(now);
     for (const [pilotId, cached] of this.activeSnapshots) {
       if (now - cached.usedAt >= 60_000 || cached.attempt.deadlineAt !== null && cached.attempt.deadlineAt <= now)
         this.activeSnapshots.delete(pilotId);
@@ -910,6 +917,33 @@ export class JourneyAttemptStore {
     return this.get(pilotId, attemptId);
   }
 
+  saveContinuation(pilotId: string, attemptId: string, failedAt: number, payload: object): boolean {
+    const current = this.get(pilotId, attemptId);
+    if (current?.status !== 'FAILED' || current.finishedAt !== failedAt || current.startedAt === null || current.deadlineAt === null ||
+        !['CRASHED','MONSTER_KILLED','TIME_UP','ENEMY_ESCAPED'].includes(current.failureReason ?? '') || !journeyMissionOrder.includes(current.missionId)) return false;
+    const serialized = JSON.stringify(payload);
+    if (serialized.length > 150_000) return false;
+    return this.database.prepare(`INSERT OR IGNORE INTO journey_continuations
+      (attempt_id,pilot_id,failed_at,expires_at,payload) VALUES(?,?,?,?,?)`)
+      .run(attemptId, pilotId, failedAt, failedAt + 600_000, serialized).changes === 1;
+  }
+
+  continuation<T>(pilotId: string, attemptId: string, now = Date.now()): { failedAt: number; expiresAt: number; data: T } | undefined {
+    const row = this.database.prepare(`SELECT failed_at,expires_at,payload FROM journey_continuations
+      WHERE attempt_id=? AND pilot_id=? AND consumed_at IS NULL AND expires_at>?
+      AND NOT EXISTS (SELECT 1 FROM journey_attempts j WHERE j.pilot_id=journey_continuations.pilot_id
+        AND j.attempt_id<>journey_continuations.attempt_id AND j.status IN ('READY','APPROACH','RACING'))`)
+      .get(attemptId, pilotId, now) as {failed_at: number; expires_at: number; payload: string} | undefined;
+    const current = this.get(pilotId, attemptId);
+    if (!row || current?.status !== 'FAILED' || current.finishedAt !== row.failed_at) return undefined;
+    try { return { failedAt: row.failed_at, expiresAt: row.expires_at, data: JSON.parse(row.payload) as T }; }
+    catch { return undefined; }
+  }
+
+  discardContinuation(pilotId: string, attemptId: string): void {
+    this.database.prepare('DELETE FROM journey_continuations WHERE pilot_id=? AND attempt_id=? AND consumed_at IS NULL').run(pilotId, attemptId);
+  }
+
   continuedByAd(pilotId: string, attemptId: string, adAttemptId: string): boolean {
     const receipt = this.database.prepare(`SELECT continuation_key FROM rewarded_ad_attempts
       WHERE attempt_id=? AND pilot_id=? AND status='REWARDED' AND continuation_consumed_at IS NOT NULL`)
@@ -922,12 +956,15 @@ export class JourneyAttemptStore {
       const current = this.get(pilotId, attemptId);
       const mission = current && [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyDallas25].find(definition => definition.id === current.missionId);
       if (current?.status !== 'FAILED' || current.finishedAt === null || current.startedAt === null || current.deadlineAt === null ||
-          !['CRASHED', 'MONSTER_KILLED', 'TIME_UP'].includes(current.failureReason ?? '') || !mission || !('timeLimitMs' in mission)) return undefined;
+          !['CRASHED', 'MONSTER_KILLED', 'TIME_UP', 'ENEMY_ESCAPED'].includes(current.failureReason ?? '') || !mission || !('timeLimitMs' in mission)) return undefined;
+      if (!this.continuation(pilotId, attemptId, now) || this.database.prepare(`SELECT 1 FROM rewarded_ad_attempts
+        WHERE pilot_id=? AND continuation_key LIKE ? AND continuation_consumed_at IS NOT NULL`).get(pilotId, `${attemptId}:%`)) return undefined;
       const key = `${attemptId}:${current.finishedAt}`;
       const consumed = this.database.prepare(`UPDATE rewarded_ad_attempts SET continuation_consumed_at=?
         WHERE attempt_id=? AND pilot_id=? AND status='REWARDED' AND continuation_key=? AND continuation_consumed_at IS NULL`)
         .run(now, adAttemptId, pilotId, key).changes;
       if (!consumed) return undefined;
+      this.database.prepare("UPDATE journey_continuations SET consumed_at=?,payload='{}' WHERE attempt_id=? AND pilot_id=?").run(now, attemptId, pilotId);
       const remaining = Math.min(mission.timeLimitMs, Math.max(0, current.deadlineAt - current.finishedAt) + 60_000);
       this.database.prepare(`UPDATE journey_attempts SET status='RACING', failure_reason=NULL, finished_at=NULL,
         finish_time_ms=NULL, paused_at=NULL, started_at=?, deadline_at=?, hold_updated_at=? WHERE pilot_id=? AND attempt_id=?`)

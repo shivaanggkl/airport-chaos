@@ -7024,26 +7024,32 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
 .home-mode-previous { left: 0; }
 .home-mode-next { right: 0; }
 .home-mode-previous[hidden], .home-mode-next[hidden] { display: none; }
-/* Shared folded corner flag for every Pilot Hub mode card. */
+/* Shared rounded clip, cropped to the same edge as the card artwork. */
 .home-mode-track > .home-hangar-mode { overflow: visible; }
 .home-mode-flag {
   position: absolute; z-index: 2; isolation: isolate; pointer-events: none;
-  top: 3.2%; left: -4px; width: 44%; height: 12%; box-sizing: border-box;
+  top: 3.2%; left: 0; width: 44%; height: 12%; box-sizing: border-box;
   display: flex; align-items: center; padding: 0 18px 0 11px; color: #142540;
   font: 900 clamp(10px, 1.15vw, 14px)/1.1 var(--font-display); letter-spacing: .025em;
   white-space: nowrap; text-shadow: 0 1px rgb(255 255 255 / 35%);
   filter: drop-shadow(0 2px 2px rgb(0 13 35 / 28%));
 }
+.home-mode-flag[hidden] { display: none; }
 .home-mode-flag::before {
   content: ''; position: absolute; z-index: -1; inset: 0;
   background: var(--menu-gold-fill); border-top: 1px solid #fff0b0;
-  clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
-}
-.home-mode-flag::after {
-  content: ''; position: absolute; left: 0; bottom: -5px;
-  border-top: 5px solid #946214; border-left: 4px solid transparent;
+  border-radius: 0 10px 10px 0;
 }
 
+.city-mission-count {
+  top: auto; bottom: 3.2%; left: 50%; transform: translateX(-50%);
+  width: auto; min-width: 44%; max-width: 90%; justify-content: center; padding: 0 14px;
+}
+.city-mission-count::before { border-radius: 10px; }
+.city-mission-count.is-unavailable { color: #414b56; }
+.city-mission-count.is-unavailable::before {
+  background: linear-gradient(#e1e4e8, #a9afb8); border-top-color: #f0f2f4;
+}
 
 /* Saved custom positions override mode-specific default placement rules. */
 html.custom-control-layout #game-root [data-touch-control],
@@ -7174,7 +7180,7 @@ html.custom-control-layout #game-root #radar-panel {
 /* Failure uses the shared result card/header; only its checkpoint controls differ. */
 .journey-result-checkpoint { display: none; }
 .journey-result.is-terminal.is-failure:not(.is-flight-result) [data-journey-result-detail] { display: none; }
-.journey-result.is-terminal.is-failure:not(.is-flight-result) .journey-result-checkpoint {
+.journey-result.is-terminal.is-failure.has-continuation:not(.is-flight-result) .journey-result-checkpoint {
   display: grid; justify-items: center; gap: 10px; margin: 8px 0; padding: 14px;
   min-width: 0; border: 1px solid #8fc2db; border-radius: 16px;
   background: linear-gradient(#f4fbff, #deeffb); color: #0b2345;
@@ -7200,7 +7206,7 @@ html.custom-control-layout #game-root #radar-panel {
   .journey-result.is-terminal.is-failure:not(.is-flight-result) .journey-result-actions { grid-template-columns: 1fr; }
 }
 @media (max-height: 520px) {
-  .journey-result.is-terminal.is-failure:not(.is-flight-result) .journey-result-checkpoint { gap: 4px; margin: 6px 0; padding: 8px; }
+  .journey-result.is-terminal.is-failure.has-continuation:not(.is-flight-result) .journey-result-checkpoint { gap: 4px; margin: 6px 0; padding: 8px; }
   .journey-result-checkpoint h3 { font-size: 18px; }
   .journey-result-checkpoint button { grid-template-columns: 40px minmax(0, 1fr); min-height: 48px; padding: 4px 12px; border-radius: 14px; font-size: 22px; }
   .journey-result-checkpoint [data-journey-ad-notice] { font-size: 11px; }

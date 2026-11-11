@@ -52,7 +52,7 @@ function fixture(type='trainer',variant=variants[0]){
  const rotate=(p,r)=>new THREE.Vector3(p.x,p.y,p.z).applyEuler(new THREE.Euler(r.x,r.y,r.z,'YXZ'));
  const ctx=vm.createContext({...rules,...missions,aircraftPresentationMuzzleSockets,owner,attempt,
   playerJourneyAttempts:new Map([['pilot','attempt']]),monsterEncounters:new Map([['attempt',encounter]]),transportEncounters:new Map(),
-  journeyStore:{get:()=>attempt},combatTransformFreshMs:500,runwayCombatProtected:()=>false,
+  journeyStore:{get:()=>attempt,activeSnapshot:()=>attempt},combatTransformFreshMs:500,runwayCombatProtected:()=>false,
   normalize:v=>new THREE.Vector3(v.x,v.y,v.z).normalize(),rotateLocalYxz:rotate,forwardDirection:t=>rotate({x:0,y:0,z:-1},t.rotation),dot:(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,
   closestLockTarget:()=>undefined,setServerLock:(_id,p,id)=>{p.lockedTargetId=id;},
  });
@@ -103,7 +103,9 @@ for(const variant of variants)test(`${variant.mission.name} shared range widget 
  assert(vm.runInContext('showMonsterRangeFeedback()',ctx));assert.equal(calls.at(-1)[1],2000);assert.equal(calls.at(-1)[2],true);assert.equal(calls.at(-1)[3],false);assert.equal(ctx.targetRangeElement.textContent,'AIM AT MONSTER');
  assert(vm.runInContext('showMonsterRangeFeedback(true)',ctx));assert.equal(calls.at(-1)[3],true);
  ctx.monsterAimPosition=()=>new THREE.Vector3(0,0,-6000);
- assert(vm.runInContext('showMonsterRangeFeedback()',ctx));assert.equal(calls.at(-1)[1],6000);assert.equal(calls.at(-1)[2],false);
+ assert(vm.runInContext('showMonsterRangeFeedback()',ctx));assert.equal(calls.at(-1)[1],6000);assert.equal(calls.at(-1)[2],true);
+ ctx.monsterAimPosition=()=>new THREE.Vector3(0,0,-6001);
+ assert(vm.runInContext('showMonsterRangeFeedback()',ctx));assert.equal(calls.at(-1)[2],false);
  ctx.journeyAttempt.missionId=missions.journeyDallas07.id;assert.equal(vm.runInContext('showMonsterRangeFeedback()',ctx),false);
 });
 

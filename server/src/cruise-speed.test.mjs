@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {aircraftFlightEnvelope,MPH_PER_METER_PER_SECOND as mph} from '../../shared/aircraft-flight-envelope.mjs';
 import {cruiseThrottleStops,cruiseThrottleSelection,throttleSpeedTarget,throttleDecelerationResponse,controlledEngineThrust,throttleTargetDeceleration} from '../../shared/flight-control-rules.mjs';
-for(const [type,expected] of Object.entries({trainer:[900,1620,3240,4608],cargo:[1050,1890,3780,5250],privateJet:[1350,2430,4860,7020],fighter:[1500,2700,5400,8100]}))test(type+' actual level-flight controller settles at all approved speeds and returns from boost',()=>{
+for(const [type,expected] of Object.entries({trainer:[1350,2430,4860,6912],cargo:[1575,2835,5670,7875],privateJet:[2025,3645,7290,10530],fighter:[2250,4050,8100,12150]}))test(type+' actual level-flight controller settles at all approved speeds and returns from boost',()=>{
  const e=aircraftFlightEnvelope[type];
  for(const dt of [1/30,1/120]){
  let speed=e.takeoffSpeed;

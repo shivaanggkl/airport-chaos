@@ -2974,7 +2974,7 @@ function updateJourneyHud(): void {
     const ace = phase === 'ACE' && journeyAttempt.targetId ? remotePlayers.get(journeyAttempt.targetId) : undefined;
     const distance = phase === 'ACE' && ace ? airplane.position.distanceTo(ace.plane.position) * WORLD_METERS_PER_UNIT
       : missionObjective ? airplane.position.distanceTo(missionObjective.position) * WORLD_METERS_PER_UNIT : null;
-    const aimed = Boolean(ace && selectedCombatTarget?.remote === ace && selectedCombatTarget.locked && distance !== null && distance <= 4_500);
+    const aimed = Boolean(ace && selectedCombatTarget?.remote === ace && selectedCombatTarget.locked && distance !== null && distance <= COMBAT_RANGE);
     if (journeyHudObjective) journeyHudObjective.textContent = phase === 'GATES'
       ? onGround ? 'Pass 3 gates, defeat ace, land perfectly' : `Fly through gate ${journeyAttempt.gateIndex + 1}`
       : phase === 'ACE' ? aimed ? 'Fire at the ace' : ace ? 'Get behind the ace' : 'Defeat the ace'
@@ -3287,6 +3287,7 @@ let journeyAdBusy = false;
 function updateJourneyAdButton(attempt: JourneyAttemptState): void {
   const button = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-ad]')!;
   const notice = journeyResultElement.querySelector<HTMLElement>('[data-journey-ad-notice]')!;
+  journeyResultElement.classList.remove('has-continuation');
   button.disabled = journeyAdBusy || !rewardedAdProvider || !attempt.canContinueAfterAd;
   if (attempt.canContinueAfterAd && rewardedAdProvider && !journeyAdBusy) {
     button.disabled = true;
@@ -3294,6 +3295,7 @@ function updateJourneyAdButton(attempt: JourneyAttemptState): void {
       const result = await response.json() as { rewardedAds?: { supported: boolean } };
       if (journeyAttempt?.attemptId !== attempt.attemptId || journeyAttempt.finishedAt !== attempt.finishedAt || journeyAdBusy) return;
       button.disabled = !response.ok || result.rewardedAds?.supported !== true;
+      journeyResultElement.classList.toggle('has-continuation', !button.disabled);
       if (button.disabled) notice.textContent = 'Rewarded videos are currently unavailable.';
     }).catch(() => { notice.textContent = 'Rewarded videos are currently unavailable.'; });
   }
@@ -3319,7 +3321,12 @@ async function continueJourneyWithAd(): Promise<void> {
       const result = await response.json() as { attempt?: RewardedAdAttempt; error?: string };
       if (!response.ok || !result.attempt) throw new Error(result.error ?? 'Video unavailable. Please try again later.');
       const ad = result.attempt;
-      try {
+      const statusResponse = await apiFetch(apiUrl(`/api/rewarded-ads/attempt-status?attemptId=${encodeURIComponent(ad.attemptId)}`));
+      if (!statusResponse.ok) throw new Error('Unable to check video. Try again.');
+      const status = await statusResponse.json() as {attemptStatus:string};
+      if (['REWARDED','PENDING_VERIFICATION','AD_STARTED'].includes(status.attemptStatus)) {
+        pendingJourneyAd={failureKey,adAttemptId:ad.attemptId};
+      } else try {
         await rewardedAdProvider.load(ad);
         await post('event', { attemptId: ad.attemptId, event: 'started' });
         const shown = await rewardedAdProvider.show();
@@ -12350,12 +12357,13 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     setJourneyPaused(['READY', 'APPROACH', 'RACING'].includes(message.attempt.status) && message.attempt.pausedAt != null,
       pauseDeadlineFromServer(message.attempt.pausedAt, message.serverNow));
     if((message.attempt.missionId===journeyDallas07.id || message.attempt.missionId===journeyDallas08.id || message.attempt.missionId===journeyDallas09.id || message.attempt.missionId===journeyDallas10.id || message.attempt.missionId===journeyDallas11.id || message.attempt.missionId===journeyDallas12.id) && ['APPROACH','RACING'].includes(message.attempt.status)){
-      if(!transportView || transportViewAttemptId!==message.attempt.attemptId){
+      if((!transportView || transportViewAttemptId!==message.attempt.attemptId) &&
+        (message.attempt.status==='APPROACH' || transportMissionHasLiveTarget(message.attempt))){
         missionIntroSkip.hidden=true;
         transportView?.dispose();const view=new GiantIncomingView(scene,getTerrainHeight,message.attempt.missionId===journeyDallas10.id || message.attempt.missionId===journeyDallas11.id || message.attempt.missionId===journeyDallas12.id,message.attempt.missionId===journeyDallas11.id || message.attempt.missionId===journeyDallas12.id,message.attempt.missionId);transportView=view;transportViewAttemptId=message.attempt.attemptId;
         const arrivalEscortMission = message.attempt.missionId === journeyDallas12.id ? journeyDallas12 : message.attempt.missionId === journeyDallas10.id ? journeyDallas10
           : message.attempt.missionId === journeyDallas09.id ? journeyDallas09 : null;
-        const arrivalEscorts = arrivalEscortMission
+        const arrivalEscorts = message.attempt.status !== 'APPROACH' ? [] : arrivalEscortMission
           ? arrivalEscortMission.escortAircraft.slice(0, message.attempt.missionId===journeyDallas10.id?4:message.attempt.missionId===journeyDallas09.id?3:2).map((type, index) => {
             const escort = createAirplane(type, true);
             applyReinforcementEscortPaint(escort, type, arrivalEscortMission.escortScale, { [`livery:${type}`]: arrivalEscortMission.escortLiveries[index]! });

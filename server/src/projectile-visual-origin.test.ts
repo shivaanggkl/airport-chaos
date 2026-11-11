@@ -416,7 +416,7 @@ test('pooled aircraft rounds are solid crimson spheres with a consistent project
     assert.equal(mesh.scale.x, mesh.scale.y);
     assert.equal(mesh.scale.x, mesh.scale.z);
     const halfWidthNdc = new THREE.Vector3(mesh.scale.x * 0.5, 0, 0).project(camera).x;
-    assert.ok(Math.abs(halfWidthNdc * 1920 - 16) < 1e-9);
+    assert.ok(Math.abs(halfWidthNdc * 1920 - 12) < 1e-9);
   }
   runInNewContext('fitProjectileRound(mesh, 0.1);', context);
   assert.deepEqual(mesh.scale.toArray(), [0.2, 0.2, 0.2], 'the sphere cannot extend behind the firing point');

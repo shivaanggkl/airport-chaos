@@ -90,7 +90,7 @@ export function createMenuCarouselArtwork(src: string, imageClass: string, ribbo
   frame.append(image); visual.append(frame);
   if (ribbon) {
     const flag = document.createElement('span'); flag.className = 'home-mode-flag';
-    flag.textContent = ribbon; flag.setAttribute('aria-hidden', 'true'); visual.append(flag);
+    flag.textContent = ribbon; flag.setAttribute('aria-hidden', 'true'); frame.append(flag);
   }
   return visual;
 }

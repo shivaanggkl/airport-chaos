@@ -4,7 +4,7 @@
 export const PROTOCOL_VERSION = 36;
 // One authoritative range drives client acquisition, server assisted-hit
 // validation, unlocked projectile travel, and Hunter firing eligibility.
-export const COMBAT_RANGE = 4500;
+export const COMBAT_RANGE = 6000;
 export const BASE_PROJECTILE_SPEED = 520;
 export const FIRE_RATE_PER_SECOND = Object.freeze({
   trainer: 3.0,

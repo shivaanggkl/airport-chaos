@@ -33,17 +33,25 @@ test('all 24 missions continue only after a bound verified ad, preserving progre
         .run(start, start + definition.timeLimitMs, ready.attemptId);
       const elapsed = index % 3 === 0 ? 1_000 : index % 3 === 1 ? 90_000 : definition.timeLimitMs;
       const failedAt = start + elapsed;
-      const failure = journeys.fail('pilot', ready.attemptId, elapsed === definition.timeLimitMs ? 'TIME_UP' : 'CRASHED', failedAt)!;
+      const failure = journeys.fail('pilot', ready.attemptId, missionId===catalog.journeyDallas15.id ? 'ENEMY_ESCAPED' : elapsed === definition.timeLimitMs ? 'TIME_UP' : index>=18 ? 'MONSTER_KILLED' : 'CRASHED', failedAt)!;
+      assert.equal(journeys.saveContinuation('pilot',ready.attemptId,failedAt,{position:{x:0,y:1000,z:0},heading:0,bots:[]}),true);
+      const reopened = new JourneyAttemptStore(path,true);
+      assert.ok(reopened.continuation('pilot',ready.attemptId,failedAt+1),'checkpoint survives restart');
+      assert.equal(reopened.continuation('other',ready.attemptId,failedAt+1),undefined);
       const key = `${ready.attemptId}:${failedAt}`;
       const created = ads.createAttempt('pilot', 'android', failedAt + 1, key);
       assert.ok(created.ok); if (!created.ok) throw new Error('ad unavailable');
       const adId = created.attempt.attemptId;
       assert.equal(created.attempt.rewardCredits, 0);
+      const recovered = ads.createAttempt('pilot','android',failedAt+2,key);
+      assert.ok(recovered.ok && recovered.attempt.attemptId===adId,'issuance retry returns same video attempt');
       assert.equal(journeys.continueAfterAd('pilot', ready.attemptId, adId, failedAt + 2), undefined);
       ads.recordClientEvent('pilot', adId, 'qualified', failedAt + 3);
       assert.equal(journeys.continueAfterAd('pilot', ready.attemptId, adId, failedAt + 4), undefined, 'client qualification is not proof');
       const reward = { adUnit: adUnitId, customData: adId, rewardAmount: '1', rewardItem: 'reward', timestamp: failedAt + 4, transactionId: `verified-${index}` };
       assert.equal(ads.grantVerifiedReward(reward, failedAt + 4).rewarded, true);
+      const recoveredReward = ads.createAttempt('pilot','android',failedAt+5,key);
+      assert.ok(recoveredReward.ok && recoveredReward.attempt.attemptId===adId,'verified video recovered without another ad');
       assert.equal(journeys.continueAfterAd('other', ready.attemptId, adId, failedAt + 5), undefined);
       const now = failedAt + 30_000;
       const resumed = journeys.continueAfterAd('pilot', ready.attemptId, adId, now)!;
@@ -56,9 +64,30 @@ test('all 24 missions continue only after a bound verified ad, preserving progre
       assert.equal(journeys.continueAfterAd('pilot', ready.attemptId, adId, now + 1), undefined, 'no duplicate redemption');
       assert.equal(ads.grantVerifiedReward(reward, now + 1).duplicate, true);
       journeys.fail('pilot', ready.attemptId, 'CRASHED', now + 2);
+      assert.equal(journeys.saveContinuation('pilot',ready.attemptId,now+2,{}),false,'only one continuation per attempt');
       assert.equal(journeys.continueAfterAd('pilot', ready.attemptId, adId, now + 3), undefined, 'old ad cannot restore a new failure');
       assert.equal(profiles.getOrCreate('pilot', 'Pilot').credits, credits, 'continuation never grants credits');
     }
     db.close();
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+
+test('expired and unsupported checkpoints cannot grant continuation', () => {
+  const directory=mkdtempSync(join(tmpdir(),'journey-expiry-'));
+  try {
+    const path=join(directory,'profiles.sqlite'), profiles=new PlayerProfileStore(path);
+    profiles.getOrCreate('pilot','Pilot');
+    const ads=new RewardedAdStore(path,configuration), journeys=new JourneyAttemptStore(path,true), db=new DatabaseSync(path);
+    const a=journeys.launch('pilot','trainer',1000,catalog.journeyDallas01.id);
+    db.prepare("UPDATE journey_attempts SET status='RACING',started_at=1000,deadline_at=181000 WHERE attempt_id=?").run(a.attemptId);
+    journeys.fail('pilot',a.attemptId,'CRASHED',2000);
+    assert.equal(ads.createAttempt('pilot','android',2001,`${a.attemptId}:2000`).ok,false,'no checkpoint, no ad');
+    journeys.saveContinuation('pilot',a.attemptId,2000,{});
+    assert.equal(journeys.continuation('pilot',a.attemptId,602000),undefined);
+    assert.equal(ads.createAttempt('pilot','android',602000,`${a.attemptId}:2000`).ok,false,'expired checkpoint, no ad');
+    journeys.discardContinuation('pilot',a.attemptId);
+    assert.equal(journeys.continuation('pilot',a.attemptId,2001),undefined,'abandonment clears eligibility');
+    db.close();
+  } finally {rmSync(directory,{recursive:true,force:true});}
 });

@@ -6,6 +6,15 @@ import { selectCombatTarget, rebaseCombatAim, combatLockReady, combatIntercept, 
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
 import { ballisticShotSpeed, COMBAT_RANGE, stepAim, AIM_ENVELOPE, interpolateAim } from '../../shared/protocol.mjs';
 const zero = { x: 0, y: 0, z: 0 };
+test('lock and ballistic reach share the six-kilometer boundary', () => {
+    assert.equal(COMBAT_RANGE, 6000);
+    for (const distance of [4501, 5999, 6000, 6001]) {
+        const target = { x: 0, y: 0, z: -distance };
+        assert.equal(combatLockReady(target, { x: 0, y: 0 }), distance <= 6000);
+        assert.equal(Boolean(combatIntercept(zero, zero, target, zero)), distance <= 6000);
+    }
+    assert.equal(COMBAT_DETECTION_RANGE, 12000);
+});
 test('delayed aim updates cannot restart interpolation through an expired previous sample', () => {
     assert.equal(combatAimBlend(0, 1146, 1195), 1);
     assert.deepEqual(combatShotAimSample(128, 129, combatAimBlend(0, 1146, 1195)), { from: 129, to: 129, blend: 1 });
@@ -91,7 +100,7 @@ test('interception preserves inherited speed for stationary, approaching, retrea
     assert.equal(combatIntercept(zero, zero, { x: 0, y: 0, z: -1000 }, { x: 0, y: 0, z: -1000 }), null);
     assert.equal(combatIntercept(zero, zero, zero, zero), null);
     assert.equal(combatIntercept(zero, zero, { x: NaN, y: 0, z: 0 }, zero), null);
-    assert.equal(combatIntercept(zero, zero, { x: 0, y: 0, z: -5000 }, zero), null);
+    assert.equal(combatIntercept(zero, zero, { x: 0, y: 0, z: -(COMBAT_RANGE+1) }, zero), null);
 });
 test('assistance covers the acquisition area, stays forward-only and bounded, and has no in-flight target dependency', () => {
     const out = { x: 0, y: 0 };
@@ -154,14 +163,14 @@ test('bounded dense targeting/interception workload records timing without a har
 });
 
 test('red lock requires angular acquisition, feasible travel range and forward acquisition', () => {
-    assert.equal(combatLockReady({x:0,y:0,z:-4499}, {x:0,y:0}), true);
-    assert.equal(combatLockReady({x:0,y:0,z:-4501}, {x:0,y:0}), false);
+    assert.equal(combatLockReady({x:0,y:0,z:-(COMBAT_RANGE-1)}, {x:0,y:0}), true);
+    assert.equal(combatLockReady({x:0,y:0,z:-(COMBAT_RANGE+1)}, {x:0,y:0}), false);
     assert.equal(combatLockReady({x:400,y:0,z:-4400}, {x:0,y:0}), false, 'targets outside the lock cone cannot turn red');
     assert.equal(combatLockReady({x:100,y:0,z:-4400}, {x:100/4400,y:0}), true);
     assert.equal(combatLockReady({x:200,y:0,z:-730}, {x:200/730,y:0}), true);
     assert.equal(combatLockReady({x:0,y:0,z:730}, {x:0,y:0}), false);
     assert.equal(combatLockReady({x:0,y:0,z:-730}, {x:NaN,y:0}), false);
-    assert.equal(combatIntercept(zero,zero,{x:0,y:0,z:-4400},{x:0,y:0,z:-100}), null, 'inside current distance does not guarantee an intercept inside bullet travel');
+    assert.equal(combatIntercept(zero,zero,{x:0,y:0,z:-(COMBAT_RANGE-100)},{x:0,y:0,z:-100}), null, 'inside current distance does not guarantee an intercept inside bullet travel');
 });
 
 test('automatic acquisition converges on the nearby off-centre target without a second manual aiming action', () => {
@@ -180,7 +189,7 @@ test('approaching targets keep the same angular lock rule through close range', 
         assert.equal(combatLockReady({x:Math.sin(.08)*distance,y:0,z:-Math.cos(.08)*distance},{x:0,y:0}),false);
     }
     assert.equal(combatLockReady({x:0,y:0,z:25},{x:0,y:0}),false,'passing behind clears a real lost lock');
-    assert.equal(combatLockReady({x:0,y:0,z:-4501},{x:0,y:0}),false,'range remains enforced');
+    assert.equal(combatLockReady({x:0,y:0,z:-(COMBAT_RANGE+1)},{x:0,y:0}),false,'range remains enforced');
 });
 
 test('lead crossing the travel boundary cannot reverse the aim toward centre', () => {
@@ -231,7 +240,7 @@ test('red-lock shots use the newest issued aim without lagging behind moving tar
 test('blue detection beyond firing range never implies a reachable red lock', () => {
   const state:CombatSelection={challengerSince:0,lastAlignedAt:0};
   assert.equal(COMBAT_DETECTION_RANGE,COMBAT_RANGE*2);
-  assert.equal(selectCombatTarget(state,[{id:'far',angle:.02,distance:6000,aligned:true}],0)?.id,'far');
-  assert.equal(combatIntercept(zero,zero,{x:0,y:0,z:-6000},zero),null);
-  assert.equal(combatLockReady({x:0,y:0,z:-6000},{x:0,y:0}),false);
+  assert.equal(selectCombatTarget(state,[{id:'far',angle:.02,distance:COMBAT_RANGE+1000,aligned:true}],0)?.id,'far');
+  assert.equal(combatIntercept(zero,zero,{x:0,y:0,z:-(COMBAT_RANGE+1000)},zero),null);
+  assert.equal(combatLockReady({x:0,y:0,z:-(COMBAT_RANGE+1000)},{x:0,y:0}),false);
 });

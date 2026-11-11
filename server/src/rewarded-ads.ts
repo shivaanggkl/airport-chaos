@@ -176,7 +176,7 @@ export class RewardedAdStore {
     return this.wallet.transaction(() => this.statusWithinTransaction(pilotId, platform, now));
   }
 
-  createAttempt(pilotId: string, platform: RewardedAdPlatform, now = Date.now(), continuationKey?: string): { ok: true; attempt: RewardedAdAttempt; status: RewardedAdStatus } | { ok: false; code: 'UNSUPPORTED' | 'CLAIM_REQUIRED' | 'LIMIT_REACHED' | 'ACTIVE_ATTEMPT'; status: RewardedAdStatus } {
+  createAttempt(pilotId: string, platform: RewardedAdPlatform, now = Date.now(), continuationKey?: string): { ok: true; attempt: RewardedAdAttempt; status: RewardedAdStatus } | { ok: false; code: 'UNSUPPORTED' | 'CLAIM_REQUIRED' | 'LIMIT_REACHED' | 'ACTIVE_ATTEMPT' | 'CHECKPOINT_UNAVAILABLE'; status: RewardedAdStatus } {
     const platformConfig = this.platformConfiguration(platform);
     if (!platformConfig?.enabled || !platformConfig.adUnitId || !this.profileExists(pilotId)) {
       return { ok: false, code: 'UNSUPPORTED', status: this.unsupported(platform, now) };
@@ -184,6 +184,20 @@ export class RewardedAdStore {
     const adUnitId = platformConfig.adUnitId;
     return this.wallet.transaction(() => {
       const current = this.statusWithinTransaction(pilotId, platform, now);
+      if (continuationKey) {
+        const checkpoint = this.database.prepare(`SELECT 1 FROM journey_continuations c JOIN journey_attempts j ON j.attempt_id=c.attempt_id
+          WHERE c.pilot_id=? AND c.attempt_id || ':' || c.failed_at=? AND c.consumed_at IS NULL AND c.expires_at>?
+          AND j.status='FAILED' AND j.finished_at=c.failed_at
+          AND NOT EXISTS (SELECT 1 FROM journey_attempts other WHERE other.pilot_id=c.pilot_id
+            AND other.attempt_id<>c.attempt_id AND other.status IN ('READY','APPROACH','RACING'))`).get(pilotId, continuationKey, now);
+        if (!checkpoint) return { ok: false as const, code: 'CHECKPOINT_UNAVAILABLE' as const, status: current };
+        const prior = this.database.prepare(`SELECT * FROM rewarded_ad_attempts WHERE pilot_id=? AND continuation_key=?
+          AND platform=? AND ad_unit_id=? AND status IN ('CREATED','AD_STARTED','PENDING_VERIFICATION','REWARDED')
+          AND expires_at>? AND continuation_consumed_at IS NULL ORDER BY created_at DESC LIMIT 1`)
+          .get(pilotId, continuationKey, platform, adUnitId, now) as AttemptRow | undefined;
+        if (prior) return { ok: true as const, attempt: { attemptId: prior.attempt_id, provider: 'ADMOB' as const,
+          platform, adUnitId, customData: prior.attempt_id, expiresAt: prior.expires_at, rewardCredits: 0 }, status: current };
+      }
       if (!continuationKey && current.windowStartedAt === undefined) return { ok: false as const, code: 'CLAIM_REQUIRED' as const, status: current };
       if (!continuationKey && current.remaining <= 0) return { ok: false as const, code: 'LIMIT_REACHED' as const, status: current };
       if (current.activeAttempt) return { ok: false as const, code: 'ACTIVE_ATTEMPT' as const, status: current };

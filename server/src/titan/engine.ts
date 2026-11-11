@@ -236,6 +236,30 @@ export class TitanEncounter {
     #comboUntil = 0;
     #comboDepth = 0;
     #disposed = false;
+    /** Compact trusted recovery state; geometry, environment and projectiles are reconstructed. */
+    checkpoint() {
+        return { position: { ...this.#position }, yaw: this.#yaw, health: this.#health, time: this.#time,
+            cooldowns: [...this.#cooldowns], roarAt: this.#roarAt, anchorJumpAt: this.#anchorJumpAt,
+            pursuitRunAt: this.#pursuitRunAt, serial: this.#serial, eventSerial: this.#eventSerial,
+            velocity:{...this.#velocity}, yawVelocity:this.#yawVelocity, speed:this.#speed, gait:this.#gait,
+            vertical:this.#vertical, airborne:this.#airborne, jumpVelocity:{...this.#jumpVelocity},
+            runApproachUntil:this.#runApproachUntil, pursuitRunUntil:this.#pursuitRunUntil,
+            huntRestUntil:this.#huntRestUntil, anchorRestUntil:this.#anchorRestUntil };
+    }
+    restoreCheckpoint(state: ReturnType<TitanEncounter['checkpoint']>): void {
+        if (!Object.values(state.position).every(Number.isFinite) || !Number.isFinite(state.yaw) ||
+            !(state.health > 0 && state.health <= this.species.health) || !(state.time >= 0)) throw Error('Invalid monster checkpoint');
+        this.#position = { ...state.position }; this.#goal = { ...state.position };
+        this.#yaw = state.yaw; this.#health = state.health; this.#time = state.time;
+        this.#cooldowns = new Map(state.cooldowns); this.#roarAt = state.roarAt; this.#anchorJumpAt = state.anchorJumpAt;
+        this.#pursuitRunAt = state.pursuitRunAt; this.#serial = state.serial; this.#eventSerial = state.eventSerial;
+        this.#velocity={...state.velocity}; this.#yawVelocity=state.yawVelocity; this.#speed=state.speed; this.#gait=state.gait;
+        this.#vertical=state.vertical; this.#airborne=state.airborne; this.#jumpVelocity={...state.jumpVelocity};
+        this.#runApproachUntil=state.runApproachUntil; this.#pursuitRunUntil=state.pursuitRunUntil;
+        this.#huntRestUntil=state.huntRestUntil; this.#anchorRestUntil=state.anchorRestUntil;
+        this.#shots = []; this.#events = []; this.#pendingEvents = []; this.#active = null;
+        this.#nextDecision = this.#time; this.#updatePose(0);
+    }
     constructor(id: string, species: Readonly<Species>, position: Vec, environment: Environment, initial: {
         health?: number;
         yaw?: number;
