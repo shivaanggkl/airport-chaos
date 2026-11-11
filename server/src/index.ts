@@ -349,7 +349,6 @@ const pendingSkyDuelResults = new Map<string, { matchId: string; message: object
 type SkyDuelRematch = { matchId: string; pilotA: string; pilotB: string; aiOpponent: boolean; practice: boolean;
   readyA: boolean; readyB: boolean; startsAt: number; expiresAt: number };
 const skyDuelRematches = new Map<string, SkyDuelRematch>();
-const SKY_DUEL_AI_FALLBACK_MS = 12_000;
 const SKY_DUEL_RUNWAY_INTRO_MS = 5_000;
 const SKY_DUEL_RUNWAY_COUNTDOWN_MS = 3_000;
 const skyDuelCenter = skyDuelArenaCenter;
@@ -465,79 +464,9 @@ function skyDuelSpawn(playerId: string, session: SkyDuelSession, now: number): v
   sendSkyDuelPeerState(playerId);
 }
 
-function createSkyDuelPracticeBot(ownerId: string, now: number): string | undefined {
-  const owner = players.get(ownerId);
-  if (!owner) return undefined;
-  const id = `sky-duel-ai:${ownerId}`;
-  const { position, heading } = skyDuelRunwaySpawn(1, skyDuelRunwayElevations[1]);
-  const bot: BotRuntime = {
-    opponent: createOpponent({ aircraft:skyDuelAiTuning.aircraft,level:'LEGENDARY',cityId:'dallas',position,rotation:{x:0,y:heading,z:0},speed:0,health:skyDuelHealth,encounterId:id,ownerId,behavior:'attack' }),
-    personality: 'hunter', phase: 'taxi', journeyTargetPlayerId: ownerId,
-    route: skyDuelBotRoute(position, heading), routeIndex: 0, speed: 0, desiredSpeed: 0, nextDecisionAt: now + 5_000,
-    nextFireAt: now + 2_000, respawnAt: 0, homeAirportIndex: 0,
-    combatPhaseUntil: 0, combatWaypointRefreshAt: 0, attackFireAfter: 0,
-    combatTurnSign: 1, bankControl: 0, blindZoneEscapeUntil: 0,
-  };
-  players.set(id, {
-    pilotId: id, profile: undefined as unknown as PlayerProfile, entityType: 'player', isBot: true,
-    cityId: 'dallas', position, rotation: { x: 0, y: heading, z: 0 }, aircraftType: skyDuelAiTuning.aircraft,
-    displayName: 'AI PLAYER', score: 0, health: skyDuelHealth, lifeState: 'respawning',
-    hasRespawnTransform: true, lastFireAt: now, spawnProtectedUntil: now + 2_000,
-    velocity: { x: 0, y: 0, z: 0 }, boostActive: false, lastStateAt: now,
-    lastAcceptedPosition: { ...position }, lastAcceptedTransformAt: now,
-    chaosQaEnabled: false, tutorialMode: false, skyDuelMode: true,
-    skyDuelPracticeOwnerId: ownerId, territoryIds: new Set(), bot,
-  });
-  return id;
-}
-
-function startSkyDuelAiMatch(playerId: string, now: number, paid: boolean): boolean {
-  const player = players.get(playerId);
-  if (!player || paid && !skyDuelStakesEnabled) return false;
-  const aiPilotId = `sky-duel-ai:${player.pilotId}`;
-  if (paid) profileStore.getOrCreate(aiPilotId, 'AI PLAYER');
-  const reservation = paid ? skyDuelStore.reserveAi(player.pilotId, aiPilotId, now) : undefined;
-  if (reservation && !reservation.ok) {
-    sendToPlayer(playerId, { type: 'skyDuelError', reason: reservation.reason });
-    return false;
-  }
-  const botId = createSkyDuelPracticeBot(playerId, now);
-  if (!botId) {
-    if (reservation?.ok) skyDuelStore.settle(reservation.match.id, 'CANCELLED', 0, 0, now);
-    return false;
-  }
-  const bot = players.get(botId)!;
-  if (paid) { bot.pilotId = aiPilotId; bot.profile = profileStore.getOrCreate(aiPilotId, 'AI PLAYER'); }
-  const session: SkyDuelSession = {
-    id: reservation?.ok ? reservation.match.id : randomUUID(), playerA: playerId, playerB: botId,
-    practice: !paid, aiOpponent: true,
-    phase: 'loading', loadingEndsAt: now + 20_000, readyA: false, readyB: true,
-    presentationReadyAt: now + (paid ? 1_500 : 0), presentationReadyA: false, presentationReadyB: true,
-    countdownEndsAt: 0, launchStartedAt: 0, launchCountdownAt: 0, launchEndsAt: 0,
-    startedAt: 0,
-    scoreA: 0, scoreB: 0, respawnA: 0, respawnB: 0,
-    disconnectedA: 0, disconnectedB: 0, activeMsA: 0, activeMsB: 0,
-    lastStateAt: 0,
-  };
-  skyDuelSessions.set(session.id, session);
-  player.skyDuelMatchId = session.id;
-  players.get(botId)!.skyDuelMatchId = session.id;
-  skyDuelSpawn(playerId, session, now);
-  skyDuelSpawn(botId, session, now);
-  if (paid) sendProfile(playerId, undefined, undefined, undefined, 'Sky Duel Entry', true);
-  sendToPlayer(playerId, { type: 'skyDuelLoading', matchId: session.id, practice: !paid, aiOpponent: true,
-    playerAId: session.playerA, playerBId: session.playerB,
-    pilotA: player.displayName, pilotB: 'AI PLAYER', pilotAId: player.pilotId,
-    pilotBId: botId, levelA: player.profile.pilotProgress.level, levelB: skyDuelPilotLevel(bot, true),
-    aircraftA: player.aircraftType, avatarA: skyDuelCardDetails(player).avatar,
-    aircraftB: players.get(botId)?.aircraftType,
-    ...(paid ? { entry: competitiveModes.skyDuel.entryCredits, prize: competitiveModes.skyDuel.prizeCredits } : {}) });
-  return true;
-}
-
 function startSkyDuelHumanMatch(playerId: string, opponentId: string, now: number): boolean {
   const player = players.get(playerId), other = players.get(opponentId);
-  if (!player || !other || !skyDuelStakesEnabled || !hasOpenPlayerSocket(playerId) || !hasOpenPlayerSocket(opponentId) ||
+  if (!player || !other || player.isBot || other.isBot || !skyDuelStakesEnabled || !hasOpenPlayerSocket(playerId) || !hasOpenPlayerSocket(opponentId) ||
     player.skyDuelMatchId || other.skyDuelMatchId || player.pilotId === other.pilotId ||
     player.accountId !== undefined && player.accountId === other.accountId) return false;
   const reservation = skyDuelStore.reserve(player.pilotId, other.pilotId, now);
@@ -595,33 +524,13 @@ function abandonSkyDuelRematches(pilotId: string): void {
 
 function offerSkyDuelRematch(session: SkyDuelSession, now: number): SkyDuelRematch | undefined {
   const a = players.get(session.playerA), b = players.get(session.playerB);
-  if (!a || !b || !hasOpenPlayerSocket(session.playerA) ||
-    !session.aiOpponent && !hasOpenPlayerSocket(session.playerB) ||
-    !session.practice && !skyDuelStakesEnabled || session.practice && !skyDuelAiPracticeEnabled) return undefined;
+  if (!a || !b || a.isBot || b.isBot || session.aiOpponent || session.practice || !skyDuelStakesEnabled ||
+    !hasOpenPlayerSocket(session.playerA) || !hasOpenPlayerSocket(session.playerB)) return undefined;
   const offer: SkyDuelRematch = { matchId: session.id, pilotA: a.pilotId, pilotB: b.pilotId,
-    aiOpponent: session.aiOpponent === true, practice: session.practice === true,
+    aiOpponent: false, practice: false,
     readyA: false, readyB: false, startsAt: 0, expiresAt: now + 60_000 };
   skyDuelRematches.set(session.id, offer);
   return offer;
-}
-
-function skyDuelPracticeSpawn(playerId: string, now: number): void {
-  const player = players.get(playerId);
-  if (!player) return;
-  const { position, heading } = skyDuelRunwaySpawn(0, skyDuelRunwayElevations[0]);
-  player.position = position;
-  player.lastAcceptedPosition = { ...position };
-  player.lastAcceptedTransformAt = now;
-  player.rotation = { x: 0, y: heading, z: 0 };
-  player.velocity = { x: 0, y: 0, z: 0 };
-  player.health = skyDuelHealth;
-  player.lifeState = 'respawning';
-  player.hasRespawnTransform = true;
-  player.spawnProtectedUntil = now + competitiveModes.skyDuel.protectionMs;
-  player.skyDuelPractice = true;
-  sendToPlayer(playerId, { type: 'skyDuelSpawn', position, heading, speed: 0,
-    health: skyDuelHealth, protectedUntil: player.spawnProtectedUntil, active: true });
-  sendToPlayer(playerId, { type: 'skyDuelPractice' });
 }
 
 function skyDuelFinish(session: SkyDuelSession, outcome: DuelOutcome, now: number, cause: 'completed' | 'forfeit' | 'absence' = 'completed'): void {
@@ -753,15 +662,8 @@ function skyDuelTick(now: number): void {
       sendSkyDuelRematchState(offer, false, 'OPPONENT_LEFT');
       continue;
     }
-    const started = offer.aiOpponent ? startSkyDuelAiMatch(a, now, !offer.practice)
-      : startSkyDuelHumanMatch(a, b!, now);
+    const started = !offer.aiOpponent && !offer.practice && Boolean(b) && startSkyDuelHumanMatch(a, b!, now);
     if (!started) sendSkyDuelRematchState(offer, false, 'UNAVAILABLE');
-  }
-  for (const [playerId, player] of players) {
-    if (player.skyDuelPractice && player.skyDuelPracticeRespawnAt && now >= player.skyDuelPracticeRespawnAt) {
-      player.skyDuelPracticeRespawnAt = undefined;
-      skyDuelPracticeSpawn(playerId, now);
-    }
   }
   for (const [playerId, entry] of skyDuelQueue) {
     if (!players.get(playerId)?.skyDuelMode || !hasOpenPlayerSocket(playerId)) {
@@ -770,12 +672,6 @@ function skyDuelTick(now: number): void {
     const opponent = closestDuelOpponent(entry,
       [...skyDuelQueue.values()].filter(candidate => hasOpenPlayerSocket(candidate.playerId)), now);
     if (!opponent) {
-      if (skyDuelStakesEnabled && skyDuelAiPracticeEnabled && now - entry.queuedAt >= SKY_DUEL_AI_FALLBACK_MS) {
-        skyDuelQueue.delete(playerId);
-        skyDuelFairWaitNotified.delete(playerId);
-        startSkyDuelAiMatch(playerId, now, true);
-        continue;
-      }
       if (now - entry.queuedAt >= 45_000 && !skyDuelFairWaitNotified.has(playerId)) {
         skyDuelFairWaitNotified.add(playerId);
         sendToPlayer(playerId, { type: 'skyDuelWaiting', elapsedMs: now - entry.queuedAt, fairWait: true });
@@ -986,7 +882,6 @@ const sponsorshipInquiriesEnabled = process.env.SPONSORSHIP_PUBLIC_INQUIRIES_ENA
 // Paid entry is deliberately opt-in. Public production must keep this unset
 // until the operator has commercial, legal, and platform clearance.
 const skyDuelStakesEnabled = process.env.AIRPORT_CHAOS_SKY_DUEL_STAKES_ENABLED === '1';
-const skyDuelAiPracticeEnabled = process.env.AIRPORT_CHAOS_SKY_DUEL_AI_TEST_ENABLED === '1';
 const skyDuelStore = new SkyDuelStore(profileDatabasePath);
 const airAssaultRewards = new AirAssaultRewards(profileDatabasePath);
 const airAssaultEncounters = new Map<string, AirAssaultEncounter>();
@@ -8480,7 +8375,7 @@ server.on('connection', (socket, request) => {
       cityId,
       tutorialMode,
       skyDuelStakesEnabled: skyDuelMode && skyDuelStakesEnabled,
-      skyDuelAiPracticeEnabled: skyDuelMode && skyDuelAiPracticeEnabled,
+      skyDuelAiPracticeEnabled: false,
       tutorialSteps: profileStore.tutorialStepStates(profile.pilotId),
       ...(restoringPausedTraining ? { trainingSlideIndex: profileStore.trainingSlideIndex(profile.pilotId) } : {}),
       ...(restoringPausedTraining ? { trainingPausedAt: pausedTrainingPlayers.get(playerId)!.pausedAt, serverNow: Date.now() } : {}),
@@ -8749,14 +8644,7 @@ server.on('connection', (socket, request) => {
           return;
         }
         if (message.type === 'skyDuelPractice') {
-          if (player.skyDuelMatchId) return;
-          if (skyDuelAiPracticeEnabled && limitedBy('sky-duel-ai-practice', player.pilotId, securityLimits.skyDuelQueuePilot).limited) {
-            sendToPlayer(playerId, { type: 'skyDuelError', reason: 'RATE_LIMITED' }); return;
-          }
-          skyDuelQueue.delete(playerId);
-          skyDuelFairWaitNotified.delete(playerId);
-        if (skyDuelAiPracticeEnabled) startSkyDuelAiMatch(playerId, Date.now(), false);
-          else skyDuelPracticeSpawn(playerId, Date.now());
+          sendToPlayer(playerId, { type: 'skyDuelError', reason: 'PRACTICE_UNAVAILABLE' });
           return;
         }
         if (message.type === 'skyDuelCancel') {

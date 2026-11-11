@@ -46,7 +46,6 @@ export class SkyDuelUi {
   private readonly countdown: HTMLElement;
   private readonly countdownNumber: HTMLElement;
   private readonly rematchButton: HTMLButtonElement;
-  private readonly practiceBadge: HTMLElement;
   private readonly resultPilots: HTMLElement;
   private readonly hud: HTMLElement;
   private readonly statsHeader: CombatStatsHeader;
@@ -64,7 +63,6 @@ export class SkyDuelUi {
   private balance = 0;
   private skyTokens = 0;
   private paidEnabled = false;
-  private aiPracticeEnabled = false;
   private practiceMatch = false;
   private paidReservationConfirmed = false;
   private queuedAt = 0;
@@ -228,8 +226,7 @@ export class SkyDuelUi {
     });
     this.rematchButton.classList.add('sky-duel-rematch-button');
     this.rematchButton.hidden = true;
-    this.practiceBadge = document.createElement('div'); this.practiceBadge.className = 'sky-duel-practice'; this.practiceBadge.textContent = 'FREE PRACTICE'; this.practiceBadge.hidden = true;
-    center.append(this.copy, this.pot, this.practiceBadge, vs, this.countdown, this.rematchButton);
+    center.append(this.copy, this.pot, vs, this.countdown, this.rematchButton);
     this.matchup.append(this.localCard, center, this.opponentCard);
     this.panel.append(this.heading, this.matchup, this.actions, this.summaryCard);
     this.statsHeader = new CombatStatsHeader();
@@ -268,13 +265,12 @@ export class SkyDuelUi {
     this.tickId = window.setInterval(() => this.tick(), 250);
   }
 
-  setWelcome(pilotId: string, credits: number, skyTokens: number, paidEnabled: boolean, aiPracticeEnabled: boolean,
+  setWelcome(pilotId: string, credits: number, skyTokens: number, paidEnabled: boolean, _aiPracticeEnabled: boolean,
     pilot: PilotPresentation): void {
     this.localPilotId = pilotId;
     this.balance = credits;
     this.skyTokens = skyTokens;
     this.paidEnabled = paidEnabled;
-    this.aiPracticeEnabled = aiPracticeEnabled;
     this.localPilot = pilot;
     this.header.updateIdentity(pilot.name, credits, skyTokens, pilot.level);
     this.headerElement.querySelector<HTMLElement>('.app-shell-wallet')!.hidden = false;
@@ -404,7 +400,6 @@ export class SkyDuelUi {
       this.renderPilot(this.opponentCard, opponent, opponent.isAi ? 'AI PLAYER' : 'OPPONENT', this.paidReservationConfirmed);
       if (this.opponentDisconnected) this.setWaitingNote(this.opponentCard, 'WAITING FOR PILOT');
       this.matchup.hidden = false;
-      this.practiceBadge.hidden = !this.practiceMatch;
       this.pot.hidden = !this.paidReservationConfirmed;
       this.pot.classList.remove('is-filled');
       this.copy.textContent = '';
@@ -533,7 +528,6 @@ export class SkyDuelUi {
       for (const card of [this.localCard, this.opponentCard])
         card.querySelector<HTMLElement>('.sky-duel-stake')!.classList.toggle('is-collected', paidPrize);
       this.countdown.hidden = true;
-      this.practiceBadge.hidden = !this.practiceMatch;
       this.actions.replaceChildren();
       this.showRematchState({ available: message.rematchAvailable === true, readyA: false, readyB: false });
       if (paidPrize) {
@@ -543,23 +537,7 @@ export class SkyDuelUi {
       this.pendingResultAckMatchId = message.matchId ?? '';
       if (!document.hidden && this.pendingResultAckMatchId && this.send('skyDuelResultSeen', this.pendingResultAckMatchId))
         this.pendingResultAckMatchId = '';
-    } else if (message.type === 'skyDuelPractice') {
-      this.clearPresentationTimers();
-      this.stopHelmetRotation();
-      this.matchId = '';
-      this.playerAId = '';
-      this.playerBId = '';
-      this.phase = 'practice';
-      this.queuedAt = 0;
-      this.panel.hidden = true;
-      this.root.classList.remove('is-presentation');
-      this.headerElement.hidden = true;
-      this.hud.hidden = false;
-      this.localScore.textContent = '—';
-      this.opponentScore.textContent = '—';
-      this.clock.textContent = '—';
-      this.opponentPilot = undefined;
-      this.renderHudIdentity();
+
     }
   }
 
@@ -710,7 +688,6 @@ export class SkyDuelUi {
     this.renderPilot(this.opponentCard, undefined, 'SEARCHING…', false);
     this.pot.hidden = true;
     this.countdown.hidden = true;
-    this.practiceBadge.hidden = true;
     this.matchup.hidden = false;
     this.actions.replaceChildren();
     this.startHelmetRotation();
@@ -748,21 +725,15 @@ export class SkyDuelUi {
     this.resultPilots.replaceChildren(this.pilotIdentity(this.localPilot, Boolean(this.localPilotId)));
     this.resultPilots.hidden = !this.localPilotId;
     this.heading.textContent = 'SKY DUEL';
-    const reason = error || (!this.paidEnabled ? 'Paid matches are not available yet.'
+    const reason = error || (!this.paidEnabled ? 'Sky Duel is currently unavailable.'
       : this.balance < competitiveModes.skyDuel.entryCredits ? 'You need 500 Credits.'
         : this.balance + competitiveModes.skyDuel.entryCredits > 1_000_000 ? 'Wallet is too close to its limit.' : '');
     this.copy.textContent = this.paidEnabled
-      ? `Battle a real pilot or AI PLAYER. First to 3 wins!\nEntry: 500 Credits · Prize: 1,000 Credits · Up to 4 minutes\nYour Credits: ${this.balance.toLocaleString()}${reason ? `\n${reason}` : ''}`
-      : `FREE PRACTICE · NO CREDITS OR REWARDS${reason ? `\n${reason}` : ''}`;
+      ? `Battle another player. First to 3 wins!\nEntry: 500 Credits · Prize: 1,000 Credits · Up to 4 minutes\nYour Credits: ${this.balance.toLocaleString()}${reason ? `\n${reason}` : ''}`
+      : `Play against another player.${reason ? `\n${reason}` : ''}`;
     const play = this.button('PLAY SKY DUEL', () => this.startSearch());
     play.disabled = Boolean(reason) || this.abandonedSearch;
-    const practice = this.button(this.aiPracticeEnabled ? 'PLAY AI PRACTICE' : 'FREE PRACTICE', () => {
-        this.phase = 'loading'; this.heading.textContent = 'AI PRACTICE';
-        this.copy.textContent = 'Loading free practice. No Credits or rating at stake.';
-        this.actions.replaceChildren(); this.send('skyDuelPractice');
-      }, this.paidEnabled ? 'secondary' : 'primary');
-    practice.disabled = this.abandonedSearch;
-    this.actions.replaceChildren(play, practice,
+    this.actions.replaceChildren(play,
       ...(this.balance < competitiveModes.skyDuel.entryCredits ? [this.button('EARN CREDITS IN MISSIONS', this.earnCredits, 'secondary')] : []),
       this.button('BACK TO MULTIPLAYER', this.back, 'secondary'));
   }
@@ -978,7 +949,8 @@ export class SkyDuelUi {
     if (reason === 'WALLET_CAP') return 'Wallet is too close to its limit.';
     if (reason === 'SIGN_IN_REQUIRED') return 'Sign in to play Sky Duel.';
     if (reason === 'ALREADY_ACTIVE') return 'You already have a search or match.';
-    if (reason === 'PAID_MATCHES_UNAVAILABLE') return 'Paid matches are not available yet.';
+    if (reason === 'PAID_MATCHES_UNAVAILABLE') return 'Sky Duel is currently unavailable.';
+    if (reason === 'PRACTICE_UNAVAILABLE') return 'Sky Duel requires another player.';
     if (reason === 'RATE_LIMITED') return 'Too many searches. Try again in a minute.';
     return 'Sky Duel is unavailable. Try again.';
   }
