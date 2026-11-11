@@ -1378,7 +1378,7 @@ let elevatorDepartureTurnSide: PrecisionTurnSide = null;
 let elevatorDepartureAttemptId: string | null = null;
 const journeyResultElement = document.createElement('div');
 journeyResultElement.className = 'journey-result hidden';
-journeyResultElement.innerHTML = '<div class="journey-result-card"><div class="journey-result-status-banner" aria-hidden="true"><span class="journey-result-status-mark">✓</span></div><p data-journey-result-heading>MISSION 01 · GOLDEN GATES</p><h2 data-journey-result-title></h2><strong data-journey-result-name>ROOKIE RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward><img class="journey-result-credits-icon" src="/media/hub/credits.avif" alt="" aria-hidden="true"><img class="journey-result-crash-icon" src="/media/hub/aircraft.png" alt="" aria-hidden="true"><div><span data-journey-reward-copy></span><small data-journey-loss-copy hidden>NO CREDITS LOST</small></div></div><section class="journey-result-checkpoint"><h3>CONTINUE FROM CHECKPOINT</h3><p>Resume your flight from the latest checkpoint.</p><button type="button" data-journey-ad><img src="/media/hub/watch-ad.jpg" alt="" aria-hidden="true"><span>WATCH AD<small>CONTINUE FREE</small></span></button><small data-journey-ad-notice role="status"></small></section><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
+journeyResultElement.innerHTML = '<div class="journey-result-card"><div class="journey-result-status-banner" aria-hidden="true"><span class="journey-result-status-mark">✓</span></div><p data-journey-result-heading>MISSION 01 · GOLDEN GATES</p><h2 data-journey-result-title></h2><strong data-journey-result-name>ROOKIE RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward><img class="journey-result-credits-icon" src="/media/hub/credits.avif" alt="" aria-hidden="true"><img class="journey-result-crash-icon" src="/media/hub/aircraft.png" alt="" aria-hidden="true"><div><span data-journey-reward-copy></span><small data-journey-loss-copy hidden>NO CREDITS LOST</small></div></div><section class="journey-result-checkpoint"><h3>Continue where you left off.</h3><button type="button" data-journey-ad><img src="/media/hub/watch-ad.jpg" alt="" aria-hidden="true"><span>WATCH AD<small>CONTINUE FREE</small></span></button><small data-journey-ad-notice role="status"></small></section><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
 const journeyResultCard = journeyResultElement.querySelector<HTMLElement>('.journey-result-card')!;
 let trainingResultActive = false;
 let flightEndResultActive = false;
@@ -3297,7 +3297,7 @@ function updateJourneyAdButton(attempt: JourneyAttemptState): void {
       if (button.disabled) notice.textContent = 'Rewarded videos are currently unavailable.';
     }).catch(() => { notice.textContent = 'Rewarded videos are currently unavailable.'; });
   }
-  notice.textContent = !attempt.canContinueAfterAd ? 'Checkpoint unavailable. Retry the mission.'
+  notice.textContent = !attempt.canContinueAfterAd ? ''
     : !rewardedAdProvider ? 'Rewarded videos are available in the mobile app only.' : '';
 }
 journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-ad]')!.addEventListener('click', () => void continueJourneyWithAd());
