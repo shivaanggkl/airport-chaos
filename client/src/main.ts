@@ -10937,7 +10937,7 @@ function animate(): void {
   updateMissionStartCountdown();
   updateMissionClear(delta);
   updateAircraftVictory(delta);
-  mobileInput.syncFlightState(throttle, boostMeter, boostActive, heldActions.has('throttleUp') || heldActions.has('throttleDown'));
+  mobileInput.syncFlightState(throttle, boostMeter, boostActive, heldActions.has('throttleUp') || heldActions.has('throttleDown'), onGround);
   // Local inspection routes move only the renderer/streamer. They do not send
   // transforms, trigger gameplay rewards, or alter production flight physics.
   if (visualQaInspectionActive && visualQaRouteSpeed) airplane.position.addScaledVector(forward, visualQaRouteSpeed * delta);

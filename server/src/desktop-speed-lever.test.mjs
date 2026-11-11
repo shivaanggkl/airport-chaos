@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { cruiseThrottleStops } from '../../shared/flight-control-rules.mjs';
 import { MobileInputControls } from '../../client/src/mobile-input.ts';
 
 const classes = () => {
@@ -61,5 +62,35 @@ test('desktop lever does not override keyboard throttle until dragged, and keybo
     const mobile = controls(true); mobile.setThrottleState(.75);
     mobile.syncFlightState(.75, 100, false, true);
     assert.equal(mobile.getThrottleTarget(), .75);
+  } finally { saved ? Object.defineProperty(globalThis, 'window', saved) : delete globalThis.window; }
+});
+
+
+test('runway Boost selects and retains FAST; airborne Boost preserves the previous cruise setting on desktop and touch', () => {
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  try {
+    globalThis.window = { addEventListener() {} };
+    for (const touch of [false, true]) for (const onGround of [false, true]) {
+      const input = controls(touch), handlers = {}, notifications = [], actions = [];
+      const lever = {
+        dataset: { throttle: '0' },
+        addEventListener(name, fn) { handlers[name] = fn; },
+        getBoundingClientRect: () => ({ top: 0, height: 100 }),
+        setPointerCapture() {}, hasPointerCapture: () => false,
+        classList: { add() {}, remove() {} },
+      };
+      input.onGround = onGround;
+      input.apply = held => actions.push(held);
+      input.onThrottleInput = throttle => notifications.push(throttle);
+      input.bindThrottle(lever);
+      handlers.pointerdown({ preventDefault() {}, pointerId: 1, clientY: 8 });
+      const expected = onGround ? cruiseThrottleStops[3] : 0;
+      assert.equal(input.getThrottleTarget(), expected);
+      assert.equal(notifications.at(-1), expected);
+      assert.deepEqual(actions.at(-1), ['boost']);
+      handlers.pointerup({ pointerId: 1 });
+      assert.equal(input.getThrottleTarget(), expected);
+      assert.deepEqual(actions.at(-1), []);
+    }
   } finally { saved ? Object.defineProperty(globalThis, 'window', saved) : delete globalThis.window; }
 });
