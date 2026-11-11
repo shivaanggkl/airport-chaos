@@ -37,7 +37,7 @@ for (const missionNumber of [7,8,9,10,11,12]) test(`M${missionNumber} labels eve
  const definition=missions[`journeyDallas${missionNumber+6}`];
  const ctx=vm.createContext({...missions,THREE,airplane:player,scene:new THREE.Scene(),
   missionCombatIntroAircraft:undefined,missionCombatIntroIdentityTags:[],missionCombatIntroLabelPosition:new THREE.Vector3(),remotePlayers:new Map(),
-  journeyAttempt:{attemptId:'attempt',status:'APPROACH',targetId:'primary',secondaryTargetId:'secondary'},flightLaunchState:'pending',
+  journeyAttempt:{attemptId:'attempt',status:'APPROACH',targetId:'primary',secondaryTargetId:'secondary',rearGuardThirdId:'third',rearGuardFourthId:'fourth'},flightLaunchState:'pending',
   airports:['love','addison','executive','dfw'].map(id=>({id,x:100,z:200,spawnOffset:10,heading:.3})),
   getTerrainHeight:()=>130,groundPlaneY:()=>132,
   applyEquippedLivery(){},applyPlaneGroundContact(){},disposeAirplaneMaterials(){},
@@ -56,8 +56,8 @@ for (const missionNumber of [7,8,9,10,11,12]) test(`M${missionNumber} labels eve
   assert.equal(stage.position.y,130+definition.enemyAltitude);assert.equal(stage.rotation.y,-Math.PI/2);
  }
  assert.equal(ctx.missionCombatIntroPath.missionNumber,missionNumber);
- assert.equal(labels.length,missionNumber===10?2:1);
- assert.deepEqual(labels.map(({name})=>name),missionNumber===10?['RED NIGHTOWL','BLUEJAY WINGMAN']:
+ assert.equal(labels.length,missionNumber===12?4:missionNumber===11?3:missionNumber===10?2:1);
+ assert.deepEqual(labels.map(({name})=>name),missionNumber===12?missions.journeyDallas18.enemies.map(enemy=>enemy.name):missionNumber===11?missions.journeyDallas17.enemies.map(enemy=>enemy.name):missionNumber===10?['RED NIGHTOWL','BLUEJAY WINGMAN']:
   [{7:'RED NIGHTOWL',8:'ATTACKING BLUEJAY',9:missions.journeyDallas15.bossName,11:'ARMORED MAMMOTH',12:'LEGENDARY FIREHAWK'}[missionNumber]]);
  ctx.flightLaunchState='active';
  stage.position.add(new THREE.Vector3(75,30,-120));
@@ -67,7 +67,7 @@ for (const missionNumber of [7,8,9,10,11,12]) test(`M${missionNumber} labels eve
   const aircraft=stage.children[index],position=aircraft.getWorldPosition(new THREE.Vector3()),args=painted[index];
   assert.equal(aircraft.userData.assetGear.visible,false);
   assert.equal(label.parent,ctx.scene);assert.equal(label.visible,true);
-  assert.equal(args[1],index===0?'LIVE TARGET':'BLUEJAY WINGMAN');assert.equal(args[2],type);
+  assert.equal(args[1],index===0?'LIVE TARGET':missionNumber===12?missions.journeyDallas18.enemies[index].name:missionNumber===11?missions.journeyDallas17.enemies[index].name:'BLUEJAY WINGMAN');assert.equal(args[2],type);
   assert.equal(args[6],position.distanceTo(player.position));assert.equal(args[10],position.y-130);
   assert.equal(args[12],true,'include distance even at close range');
   assert.equal(label.position.x,position.x);assert.equal(label.position.z,position.z);

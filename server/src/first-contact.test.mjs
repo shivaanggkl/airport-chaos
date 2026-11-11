@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import ts from 'typescript';
 import vm from 'node:vm';
-import { journeyDallas13 as mission, journeyDallas14, journeyDallas06, journeyDallas07, journeyMissionSlot } from '../../shared/journey-mission.mjs';
+import { journeyDallas13 as mission, journeyDallas14, journeyDallas06, journeyDallas07, journeyDallas10, journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
@@ -166,7 +166,7 @@ test('six accepted Bluejay combat hits destroy only the owned target and complet
 test('actual Nightowl factory and flight integrator keep the airborne patrol inside its scaled patrol area with unchanged flight characteristics', () => {
   const players = new Map(), sent = [];
   const ctx = runtime(['createBot', 'botStateMessage', 'transportEscortHealth', 'transportEscortCosmetics', 'advanceBotFlight', 'moveTowardBot', 'isHunterCombatPhase', 'botMinimumTurnRadius', 'smoothHunter', 'hunterClearance'], {
-    advanceHunterFlight, createOpponent,
+    advanceHunterFlight, createOpponent, journeyDallas10,
     journeyDallas13: mission, journeyDallas14, players, nextBotSerial: 1, botNames: ['Hunter'], botPersonalities: ['hunter'],
     botAirports: () => cityAirports.dallas, airportRoute: () => [], boundJourneyHunterPoint,
     botTerrainHeight: () => 120, botRunwayHeight: () => 120, safeBotWaypoint: (_city, _from, p) => p,

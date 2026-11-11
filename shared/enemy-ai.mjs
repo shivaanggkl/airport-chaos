@@ -13,4 +13,4 @@ export function enemyAiProfile(level) {
   return enemyAiLevels[level];
 }
 // Displayed slots, deliberately separate from historical internal mission IDs.
-export const skyHuntersDifficulty = Object.freeze({ 7: 'EASY', 8: 'MEDIUM', 9: 'MEDIUM', 10: 'HARD', 11: 'VERY_HARD', 12: 'LEGENDARY' });
+export const skyHuntersDifficulty = Object.freeze({ 7: 'EASY', 8: 'MEDIUM', 9: 'HARD', 10: 'HARD', 11: 'VERY_HARD', 12: 'LEGENDARY' });

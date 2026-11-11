@@ -15,7 +15,7 @@ import { PilotSessionStore } from './session-auth.js';
 import { randomUUID } from 'node:crypto';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
-import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
+import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas17, journeyDallas18 } from '../../shared/journey-mission.mjs';
 import { transportTuning, type TransportShotState } from '../../shared/giant-incoming.mjs';
 import { BASE_PROJECTILE_SPEED, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { combatShotAimSample, combatAimBlend, combatLockReady } from '../../shared/combat-aim.mjs';
@@ -208,4 +208,46 @@ test('M13 Bluejay lands an assisted hit and receives the authoritative turret fl
   assert.ok(shot.traveled>0 && shot.speed>0,'the confirmed projectile has a positive flight distance and speed');
  }catch(e){console.log('M13_NETWORK_DIAGNOSTICS',JSON.stringify({pose:a?.pose,latestTransport:a?.messages.filter(m=>m.type==='transportState').at(-1),latestJourney:a?.messages.filter(m=>m.type==='journeyAttempt').at(-1),tail:a?.messages.slice(-3),output:output.slice(0,2000)+output.slice(-1500)}));throw e;}
  finally{if(timer)clearInterval(timer);a?.socket.close();child.kill('SIGTERM');await delay(200);rmSync(dir,{recursive:true,force:true});for(const suffix of ['', '-wal','-shm'])rmSync(db+suffix,{force:true});}
+});
+
+
+for(const mission of [journeyDallas17,journeyDallas18])test(`${mission.name}: real server assigns the exact owned roster and preserves it on reconnect`,{timeout:45000},async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'airport-m11-squad-')),db='/private/tmp/airport-chaos-m11-'+randomUUID()+'.sqlite';
+ const profiles=new PlayerProfileStore(db,true,true),sessions=new PilotSessionStore(db),identity=sessions.issue(undefined,false);
+ profiles.getOrCreate(identity.pilotId,'Squad QA');
+ const journeys=new JourneyAttemptStore(db,true),p=await port();
+ const child=spawn(process.execPath,['--import','tsx','server/src/index.ts'],{cwd:resolve(import.meta.dirname,'../..'),env:{...process.env,PORT:String(p),AIRPORT_CHAOS_PROFILE_DB:db,AIRPORT_CHAOS_DEV_QA:'1',AIRPORT_CHAOS_LOCAL_QA_UNLOCK_ALL:'true',NODE_ENV:'test'},stdio:['ignore','pipe','pipe']});
+ let output='';child.stdout.on('data',d=>output+=String(d));child.stderr.on('data',d=>output+=String(d));
+ let a:Client|undefined,b:Client|undefined;
+ try{
+  await wait(()=>output.includes('listening'),'isolated M11 server startup',20000);
+  const attempt=journeys.launch(identity.pilotId,'trainer',Date.now(),mission.id);
+  a=new Client(p,identity.cookie,'dallas',attempt.attemptId);
+  await wait(()=>!!a?.pose,'M11 welcome');
+  a.send({type:'state',position:a.pose,rotation:{x:0,y:a.yaw,z:0},boostActive:false});
+  const assigned=()=>journeys.get(identity.pilotId,attempt.attemptId)!;
+  await wait(()=>!!(mission===journeyDallas18?assigned().rearGuardFourthId:assigned().rearGuardThirdId),'all authoritative target assignments');
+  const targetIds=()=>[assigned().targetId,assigned().secondaryTargetId,assigned().rearGuardThirdId,assigned().rearGuardFourthId].slice(0,mission.enemies.length) as string[];
+  const ids=targetIds();
+  assert.equal(new Set(ids).size,mission.enemies.length);
+  await wait(()=>ids.every(id=>a!.messages.some(m=>m.playerId===id&&m.type==='playerState')),'all assigned planes visible to owner');
+  for(const [index,id] of ids.entries()){
+   const packet:Msg=a.messages.find(m=>m.playerId===id&&m.type==='playerState')!;
+   assert.equal(packet.aircraftType,mission.enemies[index]!.aircraft);
+   assert.equal(packet.health,mission.enemies[index]!.health);assert.equal(packet.maxHealth,mission.enemies[index]!.health);
+  }
+  await wait(()=>a!.messages.some(m=>m.type==='journeyAttempt'&&m.attempt.enemyHealths?.every((health:number,index:number)=>health===mission.enemies[index]?.health)),'fully assigned health snapshot');
+  const latest=a.messages.filter(m=>m.type==='journeyAttempt').at(-1)!;
+  assert.deepEqual(latest.attempt.enemyHealths,mission.enemies.map(enemy=>enemy.health));
+  assert.equal(latest.attempt.crossfireHuntersAlive,mission.enemies.length);assert.equal(latest.attempt.status,'APPROACH');
+  await new Promise<void>(resolve=>{a!.socket.once('close',()=>resolve());a!.socket.close();});
+  b=new Client(p,identity.cookie,'dallas',attempt.attemptId);
+  await wait(()=>ids.every(id=>b!.messages.some(m=>m.playerId===id&&m.type==='playerState'||m.type==='welcome'&&m.players?.some((player:Msg)=>player.playerId===id))),'reconnect restores all assigned existing opponents');
+  assert.deepEqual(targetIds(),ids);
+  const botIds=(client:Client)=>[...new Set(client.messages.flatMap(m=>m.type==='welcome'?m.players??[]:m.type==='playerState'?[m]:[])
+   .filter((m:Msg)=>m.isBot&&mission.enemies.some(enemy=>enemy.name===m.displayName)).map((m:Msg)=>m.playerId))].sort();
+  assert.deepEqual(botIds(a),[...ids].sort());
+  assert.deepEqual(botIds(b),[...ids].sort(),'reconnecting must restore exactly the same assigned mission opponents');
+ }catch(error){console.log(mission.name+'_SERVER_DIAGNOSTICS',output.slice(-1500));throw error;}
+ finally{a?.socket.close();b?.socket.close();child.kill('SIGTERM');await delay(200);rmSync(dir,{recursive:true,force:true});for(const suffix of ['', '-wal','-shm'])rmSync(db+suffix,{force:true});}
 });
