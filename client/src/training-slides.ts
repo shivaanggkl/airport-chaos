@@ -76,6 +76,7 @@ export class TrainingSlides {
   private saving = false;
   private suspended = false;
   private saveRetries = 0;
+  private stageVersion = 0;
   private readonly layoutTraining=()=>{
     this.positionLandingPanel();
     const step=this.active?trainingSlideIds[this.index]:undefined;
@@ -234,6 +235,7 @@ export class TrainingSlides {
 
   close(): void {
     if (!this.active) return;
+    this.stageVersion += 1;
     this.active = false;
     this.suspended = false;
     this.ready = false;
@@ -251,6 +253,7 @@ export class TrainingSlides {
   }
 
   private showStage(): void {
+    this.stageVersion += 1;
     if (!this.active) return;
     this.root.hidden=false;this.skip.hidden=false;
     this.skip.textContent='SKIP TRAINING';
@@ -343,6 +346,7 @@ export class TrainingSlides {
 
   private async advance(): Promise<void> {
     if (!this.active || !this.actionObserved || this.saving || this.suspended) return;
+    const stageVersion = this.stageVersion;
     this.saving = true;
     const step = trainingSlideIds[this.index]!;
     this.options.onStageEnd(step);
@@ -353,7 +357,7 @@ export class TrainingSlides {
       const success = this.index === trainingSlideIds.length - 1
         ? await this.options.onComplete()
         : await this.options.onAdvance(this.index, step);
-      if (!this.active) return;
+      if (!this.active || this.stageVersion !== stageVersion) return;
       if (success) {
         if (this.index === trainingSlideIds.length - 1) {
           this.close();
@@ -365,13 +369,11 @@ export class TrainingSlides {
         return;
       }
     } catch { /* A failed save follows the same retry path as a rejected response. */ }
-    if (!this.active) return;
+    if (!this.active || this.stageVersion !== stageVersion) return;
     this.saving = false;
     if (this.suspended) return; // Resume retries the completed lesson after the app returns.
-    if (this.saveRetries++ < 2) {
-      this.completionTimer = window.setTimeout(() => { void this.advance(); }, this.saveRetries * 1_000);
-      return;
-    }
-    this.status.textContent = 'UNABLE TO SAVE PROGRESS. REOPEN TRAINING.';
+    this.saveRetries = Math.min(this.saveRetries + 1, 15);
+    this.status.textContent = 'RETRYING — SAVING YOUR PROGRESS…';
+    this.completionTimer = window.setTimeout(() => { void this.advance(); }, this.saveRetries * 1_000);
   }
 }
