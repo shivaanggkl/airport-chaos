@@ -6643,10 +6643,18 @@ const trainingSlides=new TrainingSlides({
   },
 });
 window.addEventListener('online',()=>trainingSlides.retryPendingSave());
+function completeTrainingTargetHit():void{
+  if(trainingSlides.currentStep()!=='fire')return;
+  screenplayTargetHitPending=true;
+  if(!trainingSlides.isPlayerTurn('fire'))return;
+  screenplayTargetHitPending=false;
+  trainingSlides.completeAction('fire');
+}
 function updateTrainingScreenplay(delta:number):void{
   if(trainingPaused)return;
   const step=trainingSlides.currentStep();
   if(!step||!trainingSlides.isPlayerTurn(step)||crashed)return;
+  if(step==='fire'&&screenplayTargetHitPending)completeTrainingTargetHit();
   if(step==='cameraLook'||step==='cameraZoom')
     trainingSlides.updateProgress(step,delta);
   const now=performance.now();
@@ -12589,7 +12597,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     if (!message.paused && trainingPaused && !document.hidden) {
       clearTrainingPause();
       trainingSlides.resume(trainingPauseSlideIndex);
-      if(screenplayTargetHitPending){screenplayTargetHitPending=false;trainingSlides.completeAction('fire');}
+      if(screenplayTargetHitPending)completeTrainingTargetHit();
       mobileInput.setThrottleState(throttle);
     }
     return;
@@ -12820,10 +12828,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
   } else if(message.type==='tutorialTarget'){
     tutorialTargetId=message.targetId;tutorialTargetRequested=true;
   } else if(message.type==='tutorialSignal'){
-    if(message.signal==='targetHit'){
-      if(trainingPaused&&trainingSlides.currentStep()==='fire')screenplayTargetHitPending=true;
-      else trainingSlides.completeAction('fire');
-    }
+    if(message.signal==='targetHit')completeTrainingTargetHit();
   } else if (message.type === 'state') {
     updateRemotePlayer(message);
   } else if (message.type === 'remove') {
@@ -13160,6 +13165,8 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       finishProjectileAtImpact(projectile, message.impactPosition);
     } else if (projectile?.impactTravel === undefined) removeClientProjectile(message.projectileId);
   } else if (message.type === 'damage') {
+    // The authoritative final hit is sufficient even if the later signal is lost.
+    if(message.playerId===tutorialTargetId&&message.shooterId===localPlayerId&&message.health===0)completeTrainingTargetHit();
     for (const ending of aircraftVictoryCandidates) ending.recordFatalHit(message);
     const incoming = message.playerId === localPlayerId;
     const localShot = message.shooterId === localPlayerId && !incoming;

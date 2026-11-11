@@ -514,7 +514,7 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   assert.match(server, /message\.tutorialStatus==='completed'&&\(!profileStore\.tutorialStepsResolved\(player\.pilotId\)/);
   assert.match(server, /!profileStore\.trainingCompletionVerified\(identity\.pilotId\)/);
   assert.match(server, /completeServerTutorialStep\(playerId,player,'landing',now\)/);
-  assert.match(server, /if\(result\.nextStep==='landing'\)sendTutorialLandingApproach\(playerId,player\)/);
+  assert.match(server, /if\(result\.nextStep==='landing'&&profileStore\.trainingSlideIndex\(player\.pilotId\)===undefined\)sendTutorialLandingApproach\(playerId,player\)/);
   assert.match(server, /landingFlightState\.set\(playerId,\{baselineY:approach\.position\.y-8,airborne:true\}\)/);
   assert.match(main, /message\.type==='tutorialLandingApproach'/);
   assert.match(main, /message\.type==='tutorialStepResult'/);

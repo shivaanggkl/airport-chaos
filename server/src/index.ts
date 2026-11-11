@@ -3679,7 +3679,9 @@ function completeServerTutorialStep(playerId:string,player:PlayerState,step:Tuto
   // success card is still visible. Persist the evidence immediately; the
   // client serializes presentation without weakening server verification.
   const result=profileStore.recordTutorialStepStatus(player.pilotId,step,'completed',now);
-  if(result.changed){sendTutorialStepResult(playerId,result,step,'completed');if(result.nextStep==='landing')sendTutorialLandingApproach(playerId,player);recordAnalytics(playerId,'tutorial_step_completed',{metadata:{cityId:player.cityId,mode:step}},now);}
+  // The slide guide moves to landing after saving FIRE. The legacy guide
+  // must not remove its target and reposition the pilot before that save.
+  if(result.changed){sendTutorialStepResult(playerId,result,step,'completed');if(result.nextStep==='landing'&&profileStore.trainingSlideIndex(player.pilotId)===undefined)sendTutorialLandingApproach(playerId,player);recordAnalytics(playerId,'tutorial_step_completed',{metadata:{cityId:player.cityId,mode:step}},now);}
 }
 
 function isHumanPilot(player: PlayerState | undefined): player is PlayerState & { isBot: false } {
