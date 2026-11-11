@@ -50,15 +50,25 @@ export function stepCoordinatedBank(currentBank,turnInput,delta,envelope){
 export const mobileBankTarget=coordinatedBankTarget;
 export const stepMobileBank=stepCoordinatedBank;
 
-const throttleStops=[0,.2,.5,.8,1];
+export const cruiseThrottleStops=Object.freeze([0,.30/.82,.50/.82,.70/.82]);
+const throttleStops=[0,.08,...cruiseThrottleStops.slice(1),1];
+export function cruiseThrottleSelection(value){
+  const request=clamp(value,0,1);
+  if(request<=.08)return request;
+  return cruiseThrottleStops.reduce((nearest,stop)=>Math.abs(stop-request)<Math.abs(nearest-request)?stop:nearest,0);
+}
+export function controlledEngineThrust(speed,target,available,drag,response){
+  return Math.min(available,Math.max(0,drag+(target-speed)*response));
+}
 
 export function throttleSpeedTarget(throttle,envelope){
   const request=clamp(throttle,0,1);
   const speeds=[
     envelope.stallSpeed*.72,
     Math.max(envelope.stallSpeed*1.05,envelope.safeLandingSpeed*1.05),
-    Math.max(envelope.safeLandingSpeed*1.45,envelope.maxSpeed*.45),
-    Math.max(envelope.safeLandingSpeed*1.75,envelope.maxSpeed*.8),
+    Math.max(envelope.safeLandingSpeed*1.45,envelope.maxSpeed*.25),
+    envelope.maxSpeed*.45,
+    Math.max(envelope.safeLandingSpeed*1.75,envelope.maxSpeed*.90),
     envelope.maxSpeed,
   ];
   for(let index=1;index<throttleStops.length;index+=1){

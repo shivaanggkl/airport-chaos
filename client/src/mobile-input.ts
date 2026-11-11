@@ -1,3 +1,4 @@
+import { cruiseThrottleSelection } from '../../shared/flight-control-rules.mjs';
 import { arrangeControls, fitControl, type LayoutBox } from './control-layout-geometry';
 import type { FlightAction } from './flight-input';
 import {
@@ -493,20 +494,22 @@ export class MobileInputControls {
   }
 
   private bindThrottle(lever: HTMLElement) {
+    let cruiseBeforeBoost = 0;
     const move = (event: PointerEvent) => {
       const rect = lever.getBoundingClientRect();
       const state = throttleLeverState(event.clientY, rect.top, rect.height);
-      this.throttleTarget = state.throttle;
+      this.throttleTarget = state.boost ? cruiseBeforeBoost : state.throttle;
       this.throttleBoostRequested = state.boost;
       this.renderThrottle(state.throttle, state.boost, state.handlePercent);
       this.apply(state.boost ? ['boost'] : [], 'throttle');
-      this.onThrottleInput?.(state.throttle);
+      this.onThrottleInput?.(this.throttleTarget);
     };
     lever.addEventListener('pointerdown', (event) => {
       event.preventDefault();
       if (this.throttlePointer !== undefined) return;
       try { lever.setPointerCapture(event.pointerId); } catch { /* Element events still release state. */ }
       lever.classList.add('is-dragging');
+      cruiseBeforeBoost = this.throttleTarget ?? Number(lever.dataset.throttle ?? 0);
       this.throttlePointer = event.pointerId;
       move(event);
     });
@@ -516,9 +519,11 @@ export class MobileInputControls {
     const stop = (event: PointerEvent) => {
       if (this.throttlePointer !== event.pointerId) return;
       if (this.throttleBoostRequested) {
-        this.throttleTarget = 1;
-        this.renderThrottle(1, false);
+        this.throttleTarget = cruiseBeforeBoost;
       }
+      this.throttleTarget = this.throttleBoostRequested ? cruiseBeforeBoost : cruiseThrottleSelection(this.throttleTarget ?? 0);
+      this.renderThrottle(this.throttleTarget, false);
+      this.onThrottleInput?.(this.throttleTarget);
       this.throttleBoostRequested = false;
       this.apply([], 'throttle');
       lever.classList.remove('is-dragging', 'is-boosting');

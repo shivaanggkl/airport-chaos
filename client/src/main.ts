@@ -86,7 +86,7 @@ import { reconcileCreditSnapshot, type CreditReceipt } from '../../shared/credit
 import { FLIGHT_UNITS_PER_METER, KNOTS_PER_METER_PER_SECOND, MPH_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftGroundOffset } from '../../shared/city-airports.mjs';
 import { competitiveModes } from '../../shared/competitive-modes.mjs';
-import { airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, COORDINATED_BANK_CAP, COORDINATED_BANK_STRONG_TARGET, desktopTurnIntent, hasRunwayLiftoffLift, normalizedPitchCommand, smoothMobileSteering, stepCoordinatedBank, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
+import { airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, COORDINATED_BANK_CAP, COORDINATED_BANK_STRONG_TARGET, desktopTurnIntent, hasRunwayLiftoffLift, normalizedPitchCommand, smoothMobileSteering, stepCoordinatedBank, throttleSpeedTarget, throttleDecelerationResponse, controlledEngineThrust, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
 import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
@@ -10033,12 +10033,16 @@ function updateFlight(delta: number): void {
     throttle * currentAircraft.acceleration / currentAircraft.inertia,
     smoothstep01(takeoffThrustBlend),
   );
-  const thrust = engineThrust + boostThrust / currentAircraft.inertia;
+  const availableThrust = engineThrust + boostThrust / currentAircraft.inertia;
   const baseDrag = currentAircraft.drag * (airspeed / currentAircraft.maxSpeed) ** 2;
   const inducedDrag = Math.max(0, angleOfAttack) * currentAircraft.drag * 0.07;
   const airbrakeDrag = airborneAirbrakeDeceleration(forwardSpeed, speedBrakeStrength, currentAircraft);
   const approachDrag = landingAssistActive ? baseDrag * 0.75 : 0;
   const normalDrag = (baseDrag + inducedDrag + approachDrag) / currentAircraft.inertia + airbrakeDrag;
+  const cruiseTarget = boostActive ? currentAircraft.maxSpeed * (currentAircraft.boostMaxSpeed ?? 1.35)
+    : throttleSpeedTarget(throttle, currentAircraft);
+  const thrust = controlledEngineThrust(forwardSpeed, cruiseTarget, availableThrust, normalDrag,
+    throttleDecelerationResponse(throttle, currentAircraft));
   const normalSpeedLimit = currentAircraft.maxSpeed + speedBonus;
   const overspeed = Math.max(0, airspeed - normalSpeedLimit);
   // Boost thrust stops at release, but the speed it already earned is momentum.
