@@ -910,6 +910,32 @@ export class JourneyAttemptStore {
     return this.get(pilotId, attemptId);
   }
 
+  continuedByAd(pilotId: string, attemptId: string, adAttemptId: string): boolean {
+    const receipt = this.database.prepare(`SELECT continuation_key FROM rewarded_ad_attempts
+      WHERE attempt_id=? AND pilot_id=? AND status='REWARDED' AND continuation_consumed_at IS NOT NULL`)
+      .get(adAttemptId, pilotId) as { continuation_key: string } | undefined;
+    return Boolean(receipt?.continuation_key?.startsWith(`${attemptId}:`));
+  }
+
+  continueAfterAd(pilotId: string, attemptId: string, adAttemptId: string, now = Date.now()): JourneyAttempt | undefined {
+    return this.transaction(pilotId, () => {
+      const current = this.get(pilotId, attemptId);
+      const mission = current && [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyDallas25].find(definition => definition.id === current.missionId);
+      if (current?.status !== 'FAILED' || current.finishedAt === null || current.startedAt === null || current.deadlineAt === null ||
+          !['CRASHED', 'MONSTER_KILLED', 'TIME_UP'].includes(current.failureReason ?? '') || !mission || !('timeLimitMs' in mission)) return undefined;
+      const key = `${attemptId}:${current.finishedAt}`;
+      const consumed = this.database.prepare(`UPDATE rewarded_ad_attempts SET continuation_consumed_at=?
+        WHERE attempt_id=? AND pilot_id=? AND status='REWARDED' AND continuation_key=? AND continuation_consumed_at IS NULL`)
+        .run(now, adAttemptId, pilotId, key).changes;
+      if (!consumed) return undefined;
+      const remaining = Math.min(mission.timeLimitMs, Math.max(0, current.deadlineAt - current.finishedAt) + 60_000);
+      this.database.prepare(`UPDATE journey_attempts SET status='RACING', failure_reason=NULL, finished_at=NULL,
+        finish_time_ms=NULL, paused_at=NULL, started_at=?, deadline_at=?, hold_updated_at=? WHERE pilot_id=? AND attempt_id=?`)
+        .run(current.startedAt + now - current.finishedAt, now + remaining, now, pilotId, attemptId);
+      return this.get(pilotId, attemptId);
+    });
+  }
+
   abandon(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
     this.database.prepare(`UPDATE journey_attempts SET status = 'ABANDONED', failure_reason = 'ABANDONED', finished_at = ?, paused_at = NULL
       WHERE pilot_id = ? AND attempt_id = ? AND status IN ('READY','APPROACH','RACING')`)
