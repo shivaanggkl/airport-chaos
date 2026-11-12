@@ -223,7 +223,7 @@ test('M12 keeps identity, DFW runway, safe spawn, canonical LEGENDARY and origin
   assert.equal(projectileDamageForAircraft('trainer')*12,mission.enemyHealth);
   assert.deepEqual(mission.enemies.map(({aircraft,health,level})=>({aircraft,health,level})),[
    {aircraft:'fighter',health:300,level:'LEGENDARY'},{aircraft:'fighter',health:300,level:'LEGENDARY'},
-   {aircraft:'privateJet',health:200,level:'VERY_HARD'},{aircraft:'trainer',health:200,level:'VERY_HARD'}]);
+   {aircraft:'privateJet',health:200,level:'VERY_HARD'},{aircraft:'trainer',health:200,level:'LEGENDARY'}]);
   assert.equal(mission.firstClearCredits,2400);assert.equal(mission.timeLimitMs,180000);
   for(const obsolete of ['territoryId','captureMs','defenseMs','defenseRadius','hunterDelayMs'])assert.equal(obsolete in mission,false);
   assert.doesNotMatch(source,/updateSiegeCapture|updateSiegeDefense|assignSiegeHunter/);

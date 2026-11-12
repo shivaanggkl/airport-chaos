@@ -24,15 +24,15 @@ const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
 function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyDallas18,journeyDallas17,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
 function fixture(){const dir=mkdtempSync(join(tmpdir(),'hot-pursuit-')),path=join(dir,'p.sqlite'),db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");const store=new JourneyAttemptStore(path);db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)').run('pilot',journeyDallas14.id,'old-m8',1);return{dir,db,store,path};}
 
-test('M9 identity, eight hits, Addison distance and 55km route remain inside authored mission airspace',()=>{
- assert.equal(journeyMissionSlot(mission.id),9);assert.equal(mission.name,'HOT PURSUIT');assert.equal(mission.bossHealth/projectileDamageForAircraft('trainer'),8);
+test('M9 identity, twelve hits, Addison distance and 55km route remain inside authored mission airspace',()=>{
+ assert.equal(journeyMissionSlot(mission.id),9);assert.equal(mission.name,'HOT PURSUIT');assert.equal(mission.bossHealth/projectileDamageForAircraft('trainer'),12);
  const addison=cityAirports.dallas.find(a=>a.id==='addison');assert.equal(mission.startAirportId,addison.id);
  const distance=Math.hypot(addison.x-mission.enemySpawn.x,addison.z-mission.enemySpawn.z);assert.ok(distance>=15000&&distance<=22000);
  let from=mission.enemySpawn,length=0;for(const to of mission.escapeRoute){length+=Math.hypot(to.x-from.x,to.z-from.z);for(let t=0;t<=1;t+=.01)assert.ok(insideJourneyHunterArena({x:from.x+(to.x-from.x)*t,z:from.z+(to.z-from.z)*t}));from=to;}
  assert.ok(length>=45000&&length<=65000);assert.ok(aircraftFlightEnvelope.trainer.maxSpeed>mission.cruiseSpeed*1.8);
 });
 
-test('M9 factory creates one escaping Mammoth at Hard difficulty with 200 HP',()=>{
+test('M9 factory creates one escaping Mammoth at Hard difficulty with 300 HP',()=>{
  const players=new Map();
  const ctx=runtime(['createBot'],{journeyDallas13,journeyDallas14,journeyDallas15:mission,
   createOpponent,players,nextBotSerial:1,botNames:['Hunter'],botPersonalities:['hunter'],
@@ -43,11 +43,11 @@ test('M9 factory creates one escaping Mammoth at Hard difficulty with 200 HP',()
  const id=ctx.createBot('dallas',undefined,{attemptId:'attempt',targetPlayerId:'owner',target:{},ace:true});
  const enemy=players.get(id);
  assert.equal(players.size,1);assert.equal(enemy.aircraftType,'cargo');assert.equal(enemy.displayName,'ESCAPING MAMMOTH');
- assert.equal(enemy.health,200);assert.ok(enemy.bot.journeyPursuit);
+ assert.equal(enemy.health,300);assert.ok(enemy.bot.journeyPursuit);
  assert.equal(enemy.bot.opponent.definition.level,'HARD');assert.equal(skyHuntersDifficulty[9],'HARD');
  assert.equal(enemy.bot.opponent.definition.behavior,'objective');assert.equal(enemy.bot.opponent.definition.personality,'defensive');
  for(const aircraft of ['trainer','cargo','privateJet','fighter']){
-  assert.equal(projectileDamageForAircraft(aircraft),25);assert.equal(enemy.health/projectileDamageForAircraft(aircraft),8);
+  assert.equal(projectileDamageForAircraft(aircraft),25);assert.equal(enemy.health/projectileDamageForAircraft(aircraft),12);
  }
 });
 
@@ -77,14 +77,14 @@ test('takeoff clock, timeout, old-attempt invalidation and preserved completion 
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 
-test('eight production damage applications settle once; escape wins if arrival is already confirmed',()=>{
+test('twelve production damage applications settle once; escape wins if arrival is already confirmed',()=>{
  const f=fixture();try{
  const a=f.store.launch('pilot','trainer',1000,mission.id);f.store.approach('pilot',a.attemptId);f.store.assignHunter('pilot',a.attemptId,'enemy');f.store.startPursuit('pilot',a.attemptId,2000);
  const pilot={pilotId:'pilot',entityType:'player',cityId:'dallas',lifeState:'alive',isBot:false,score:0,aircraftType:'trainer'};
- const enemy={entityType:'player',cityId:'dallas',lifeState:'alive',isBot:true,score:0,health:200,spawnProtectedUntil:0,aircraftType:'cargo',position:{...mission.enemySpawn,y:1000},bot:{journeyAce:true,journeyPursuit:{index:0,previous:{...mission.enemySpawn,y:1000},remaining:40000,escaped:false},journeyAttemptId:a.attemptId,journeyTargetPlayerId:'owner',journeyProvoked:true}};
+ const enemy={entityType:'player',cityId:'dallas',lifeState:'alive',isBot:true,score:0,health:mission.bossHealth,spawnProtectedUntil:0,aircraftType:'cargo',position:{...mission.enemySpawn,y:1000},bot:{journeyAce:true,journeyPursuit:{index:0,previous:{...mission.enemySpawn,y:1000},remaining:40000,escaped:false},journeyAttemptId:a.attemptId,journeyTargetPlayerId:'owner',journeyProvoked:true}};
  const players=new Map([['owner',pilot],['enemy',enemy]]),packets=[];
  const ctx=runtime(['applyCombatHit','transportEscortHealth'],{pursuitProgress,aceDamageAuthorized,journeyDallas13,journeyDallas14,journeyDallas15:mission,players,journeyStore:f.store,playerJourneyAttempts:new Map([['owner',a.attemptId]]),playerJourneyAddisonTakeoff:new Set(['owner']),playerJourneyLoveTakeoff:new Set(),playerJourneyRunwayPrep:new Set(),runwayCombatProtected:()=>false,focusedBotInteractionExcluded:()=>false,tutorialCombatPairAllowed:()=>true,sameCombatContext:()=>true,insideJourneyHunterArena:()=>true,stabilityDiagnosticsEnabled:false,airportRepairStays:new Map(),sendToPlayer:(_id,p)=>packets.push(p),sendJourneyState:()=>{},provokeJourneyHunter:()=>{},markPlayerDestroyed:(_id,p)=>p.lifeState='destroyed',isHumanPilot:()=>false,botKillRewardMultiplier:.1,persistScore:()=>{},broadcastToCity:()=>assert.fail('private actor leaked'),broadcastLeaderboard:()=>{},removeBot:id=>players.delete(id),updateKing:()=>{},cityKings:new Map(),handleWantedDestruction:()=>{},challengeForPlayer:()=>undefined,recordOpponentHit,recordOpponentDamage,failPlayerJourney:()=>assert.fail('unexpected escape')});
- for(let hit=1;hit<=8;hit++){assert.equal(ctx.applyCombatHit('owner','enemy','dallas',3000+hit*500,25),true);assert.equal(enemy.health,200-hit*25);}
+ for(let hit=1;hit<=12;hit++){assert.equal(ctx.applyCombatHit('owner','enemy','dallas',3000+hit*500,25),true);assert.equal(enemy.health,mission.bossHealth-hit*25);}
  assert.equal(f.store.get('pilot',a.attemptId).status,'COMPLETED');assert.equal(f.store.get('pilot',a.attemptId).firstClearCredits,1950);assert.equal(players.has('enemy'),false);
  const replay=f.store.launch('pilot','trainer',10000,mission.id);f.store.approach('pilot',replay.attemptId);f.store.assignHunter('pilot',replay.attemptId,'enemy');f.store.startPursuit('pilot',replay.attemptId,11000);
  const finish={...mission.escapeRoute.at(-1),y:1000};enemy.position=finish;enemy.health=25;enemy.lifeState='alive';enemy.bot.journeyAttemptId=replay.attemptId;enemy.bot.journeyPursuit={index:mission.escapeRoute.length-1,previous:{...finish},remaining:0,escaped:false};
