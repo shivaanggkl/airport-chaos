@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { advanceHunterFlight, hunterBallisticSolution, hunterFlightIntercept, hunterObservedPosition } from './hunter-flight.js';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
-import { ballisticShotSpeed } from '../../shared/protocol.mjs';
+import { ballisticShotSpeed, localFiringDirection } from '../../shared/protocol.mjs';
 import { HunterMotionBuffer } from '../../shared/hunter-motion.mjs';
 
 const aircraft = aircraftFlightEnvelope.privateJet;
@@ -103,12 +103,13 @@ test('Hunter snapshot rendering stays continuous at packet joins and across head
 import vm from 'node:vm';
 import ts from 'typescript';
 import { readFileSync } from 'node:fs';
+import { journeyDallas17, journeyDallas18 } from '../../shared/journey-mission.mjs';
 import { COMBAT_RANGE } from '../../shared/protocol.mjs';
 const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 const tree = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true);
 function production(names: string[], dependencies: Record<string, unknown>) {
   const code = tree.statements.filter(n => ts.isFunctionDeclaration(n) && names.includes(n.name?.text ?? '')).map(n => n.getText(tree)).join('\n');
-  const context = vm.createContext({runwayCombatProtected:()=>false,hunterObservedPosition,...dependencies});
+  const context = vm.createContext({localFiringDirection,projectilesByOwner:new Map(),runwayCombatProtected:()=>false,hunterObservedPosition,...dependencies});
   vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
   return context;
 }
@@ -291,4 +292,54 @@ test('ordinary AI acquires at 6 km and its firing solution rejects beyond the pl
       now: 1000, solution: { distance: COMBAT_RANGE }, bot: { journeyFirstContact: true, journeySurpriseAttack } });
     assert.equal(eligible, true);
   }
+});
+
+test('M9–M12 opponents lead fast coasting players from accepted movement samples',()=>{
+ const normalize=(v:any)=>{const n=Math.hypot(v.x,v.y,v.z);return{x:v.x/n,y:v.y/n,z:v.z/n};};
+ const ctx=production(['botFireSolution','muzzleTransform','rotateLocalYxz','forwardDirection','hunterForward'],{
+  smoothHunter:()=>true,hunterBallisticSolution,hunterObservedPosition,aircraftFlightEnvelope,
+  normalize,dot:(a:any,b:any)=>a.x*b.x+a.y*b.y+a.z*b.z,
+  hunterFireRange:COMBAT_RANGE,hunterFireCone:.2,defenderDownwardFireAngle:.3,aircraftPresentationMuzzleSockets,
+ });
+ for(const opponent of [{aircraftType:'cargo',journeyPursuit:{}},{aircraftType:'privateJet',journeyCrossfire:true},{aircraftType:'trainer',journeyCrossfire:true},...journeyDallas17.enemies.map(enemy=>({aircraftType:enemy.aircraft,journeyIronHunter:true})),...journeyDallas18.enemies.map(enemy=>({aircraftType:enemy.aircraft,journeyFinalShowdown:true}))])
+ for(const aircraftType of ['trainer','privateJet','cargo','fighter'] as const) {
+  const shooter={...pilot(),aircraftType:opponent.aircraftType,bot:{...opponent,opponent:{profile:enemyAiLevels.HARD}}};
+  const envelope=aircraftFlightEnvelope[aircraftType];
+  const target={...pilot(),aircraftType,isBot:false,boostActive:false,
+   position:{x:0,y:900,z:-1800},velocity:{x:10,y:0,z:envelope.maxSpeed*1.05},lastStateAt:Date.now()-100};
+  const solution=ctx.botFireSolution(shooter,target,false);
+  assert.equal(solution.reason,undefined);
+  const origin=ctx.muzzleTransform(shooter).position;
+  const direction=normalize(ctx.rotateLocalYxz({x:solution.aimX,y:solution.aimY,z:-1},shooter.rotation));
+  const speed=ballisticShotSpeed(shooter.velocity,direction);
+  // Solve the actual closest approach, including accepted-state extrapolation.
+  const sampled=hunterObservedPosition(target.position,target.velocity,target.lastStateAt,Date.now());
+  const relative={x:direction.x*speed-target.velocity.x,y:direction.y*speed-target.velocity.y,z:direction.z*speed-target.velocity.z};
+  const offset={x:sampled.x-origin.x,y:sampled.y-origin.y,z:sampled.z-origin.z};
+  const time=(offset.x*relative.x+offset.y*relative.y+offset.z*relative.z)/(relative.x**2+relative.y**2+relative.z**2);
+  assert(time>0);
+  assert(Math.hypot(relative.x*time-offset.x,relative.y*time-offset.y,relative.z*time-offset.z)<5,
+   `${aircraftType}: a steady moving player must lie on the ballistic path`);
+ }
+});
+
+test('M10–M12 use observed banks for each attacker without changing other opponents',()=>{
+ const normalize=(v:any)=>{const n=Math.hypot(v.x,v.y,v.z);return{x:v.x/n,y:v.y/n,z:v.z/n};};
+ let observedTurn: number | undefined;
+ const ctx=production(['botFireSolution','rotateLocalYxz','forwardDirection','hunterForward'],{
+  smoothHunter:()=>true,aircraftFlightEnvelope,AIM_ENVELOPE,hunterFireRange:COMBAT_RANGE,hunterFireCone:.2,defenderDownwardFireAngle:.3,
+  muzzleTransform:(p:any)=>({position:p.position}),normalize,dot:(a:any,b:any)=>a.x*b.x+a.y*b.y+a.z*b.z,
+  hunterBallisticSolution:(...args:Parameters<typeof hunterBallisticSolution>)=>{observedTurn=args[4];return hunterBallisticSolution(...args);},
+ });
+ const target={...pilot(),position:{x:0,y:900,z:-1200},velocity:{x:70,y:0,z:-300}};
+ for(const config of [{aircraft:'privateJet',level:'HARD',journeyCrossfire:true},{aircraft:'trainer',level:'HARD',journeyCrossfire:true},...journeyDallas17.enemies.map(enemy=>({...enemy,journeyIronHunter:true})),...journeyDallas18.enemies.map(enemy=>({...enemy,journeyFinalShowdown:true}))]) {
+  const shooter={...pilot(),aircraftType:config.aircraft,bot:{...config,opponent:{profile:enemyAiLevels[config.level as keyof typeof enemyAiLevels],tactics:{targetTurnRate:.05}}}};
+  const solution=ctx.botFireSolution(shooter,target,false);
+  assert.equal(solution.reason,undefined);assert.equal(observedTurn,.05);
+  const expected=hunterBallisticSolution(shooter.position,shooter.velocity,target.position,target.velocity,.05)!;
+  const direction=normalize({x:solution.aimX,y:solution.aimY,z:-1});
+  assert(Math.hypot(direction.x-expected.direction.x,direction.y-expected.direction.y,direction.z-expected.direction.z)<1e-8);
+  ctx.botFireSolution({...shooter,bot:{...shooter.bot,journeyCrossfire:false,journeyIronHunter:false,journeyFinalShowdown:false}},target,false);
+  assert.equal(observedTurn,shooter.bot.opponent.profile.tactics.expert?.05:0,'other encounters retain their existing prediction');
+ }
 });

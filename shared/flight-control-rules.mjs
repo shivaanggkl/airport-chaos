@@ -125,3 +125,11 @@ export function airborneLiftFactor(forwardSpeed,angleOfAttack,throttle,stallFact
 export function hasRunwayLiftoffLift(speed,pitch,throttle,envelope){
   return airborneLiftFactor(speed,pitch,throttle,1,envelope)*Math.cos(pitch)>=1;
 }
+
+// One continuous spool response for Boost power and its camera/effect feedback.
+// Braking and ground safety remain immediate at the caller.
+export function stepBoostBlend(current,active,delta){
+  const target=active?1:0;
+  const next=interpolate(clamp(current,0,1),target,1-Math.exp(-3*Math.max(0,delta)));
+  return Math.abs(next-target)<.0001?target:next;
+}

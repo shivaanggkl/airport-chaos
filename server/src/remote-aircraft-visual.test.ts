@@ -138,3 +138,46 @@ test('red/blue billboard markers track remote aircraft with authoritative name a
     priorWidth = width;
   }
 });
+
+test('distant aircraft contacts keep their bearing and readable size beyond scenery range', async () => {
+  const { default: vm } = await import('node:vm');
+  const { default: ts } = await import('typescript');
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const start = main.indexOf('    const proxyMaterial = remote.playerProxy.material as THREE.SpriteMaterial;', main.indexOf('function updateRemotePlayers('));
+  const end = main.indexOf('\n  }\n}', start);
+  const code = ts.transpileModule(main.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const camera = new THREE.PerspectiveCamera(60, 16 / 9, .1, 22000);
+  camera.position.set(200, 1000, 500);
+  camera.updateMatrixWorld(true);
+  for (const distance of [13000, 60000, 220000]) {
+    for (const identityVisible of [true, false]) {
+      const plane = new THREE.Group();
+      plane.position.copy(camera.position).add(new THREE.Vector3(distance * .2, 0, -distance));
+      const before = plane.position.clone();
+      const playerProxy = new THREE.Sprite(new THREE.SpriteMaterial());
+      const context = vm.createContext({ remote: { plane, playerProxy }, identityVisible, distance,
+        camera, cameraWorldUp: new THREE.Vector3(0,1,0), contactHeight: 100, worldPerPixel: distance * 2 * Math.tan(Math.PI / 6) / 1080,
+        remoteProxyPixelWidth, selectedCombatTarget: null, COMBAT_RANGE: 6000 });
+      vm.runInContext(code, context);
+      assert.equal(playerProxy.visible, identityVisible);
+      assert.deepEqual(plane.position, before, 'marker never moves the aircraft');
+      if (!identityVisible) continue;
+      const actual = playerProxy.position.clone().project(camera);
+      const expected = plane.position.clone().add(new THREE.Vector3(0,100,0)).project(camera);
+      assert.ok(Math.abs(actual.x - expected.x) < 1e-10 && Math.abs(actual.y - expected.y) < 1e-10, 'marker stays on the real aircraft bearing');
+      assert.ok(actual.z > -1 && actual.z < 1, 'marker remains inside the camera clip range');
+      const right = playerProxy.position.clone().add(new THREE.Vector3(playerProxy.scale.x / 2,0,0)).project(camera);
+      assert.ok(Math.abs((right.x - actual.x) * 1920 - remoteProxyPixelWidth(distance)) < .001, 'pixel width stays constant');
+    }
+  }
+});
+
+test('aircraft contacts use blue AI and red human identity without fog hiding the marker', () => {
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const marker = main.slice(main.indexOf('function createRemotePlayerProxy('), main.indexOf('function disposeRemotePlayerProxy('));
+  assert.match(marker, /color: visualLanguage\[isBot \? 'ai' : 'player'\]\.color/);
+  assert.match(marker, /fog: false/);
+  assert.match(marker, /depthTest: false/);
+  assert.doesNotMatch(marker, /airAssaultMode/);
+  assert.match(main, /\.color\.set\(visualLanguage\[remote\.isBot \? 'ai' : 'player'\]\.color\)/);
+});

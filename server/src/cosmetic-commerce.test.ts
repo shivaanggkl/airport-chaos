@@ -19,9 +19,9 @@ function fixture() {
 
 const prices: Record<string, [number | undefined, number]> = {
   'bluejay-classic': [750, 75], 'bluejay-aurora': [1_500, 125],
-  'mammoth-sand': [13_000, 600], 'mammoth-desert-sand': [14_000, 650], 'mammoth-arctic-rescue': [15_000, 750],
-  'nightowl-sky-blue': [33_000, 1_350], 'nightowl-sunset-red': [33_000, 1_350],
-  'nightowl-forest-green': [33_000, 1_350], 'nightowl-premium-gold': [33_000, 1_350],
+  'mammoth-sand': [15_000, 600], 'mammoth-desert-sand': [15_000, 600], 'mammoth-arctic-rescue': [15_000, 600],
+  'nightowl-sky-blue': [15_000, 600], 'nightowl-sunset-red': [15_000, 600],
+  'nightowl-forest-green': [15_000, 600], 'nightowl-premium-gold': [15_000, 600],
   'firehawk-inferno': [undefined, 2_400],
   'firehawk-midnight-black': [undefined, 2_400],
   'firehawk-stealth-gray': [undefined, 2_400],
@@ -71,8 +71,8 @@ test('buying another appearance keeps its full listed price, even after reload',
   const { store, database, path, cleanup } = fixture();
   try {
     for (const [pilotId, type, first, second, fullPrice] of [
-      ['mammoth', 'cargo', 'mammoth-arctic-rescue', 'mammoth-sand', 13_000],
-      ['nightowl', 'privateJet', 'nightowl-premium-gold', 'nightowl-sunset-red', 33_000],
+      ['mammoth', 'cargo', 'mammoth-arctic-rescue', 'mammoth-sand', 15_000],
+      ['nightowl', 'privateJet', 'nightowl-premium-gold', 'nightowl-sunset-red', 15_000],
     ] as const) {
       store.getOrCreate(pilotId, 'Pilot');
       store.awardServerReward(pilotId, 100_000);
@@ -160,17 +160,17 @@ test('invalid currency, insufficient balance, and failed entitlement write never
     assert.equal(store.purchaseCosmetic('pilot', 'not-a-paint').ok, false);
     assert.equal(store.purchaseCosmetic('pilot', 'mammoth-sand').ok, false);
     assert.equal(store.getOrCreate('pilot', 'Pilot').unlockedAircraft.includes('cargo'), false);
-    store.awardServerReward('pilot', 13_000);
+    store.awardServerReward('pilot', 15_000);
     database.exec(`CREATE TRIGGER reject_combo BEFORE INSERT ON pilot_cosmetics
       WHEN NEW.cosmetic_id='mammoth-sand' BEGIN SELECT RAISE(ABORT,'test rollback'); END;`);
     assert.throws(() => store.purchaseCosmetic('pilot', 'mammoth-sand'), /test rollback/);
-    assert.equal(store.walletBalances('pilot')!.credits, 13_000);
+    assert.equal(store.walletBalances('pilot')!.credits, 15_000);
     assert.equal(store.getOrCreate('pilot', 'Pilot').unlockedAircraft.includes('cargo'), false);
     assert.equal((database.prepare("SELECT COUNT(*) n FROM wallet_transactions WHERE reference_id='cosmetic:mammoth-sand'").get() as { n: number }).n, 0);
     database.exec('DROP TRIGGER reject_combo');
     wallet.credit({ pilotId: 'pilot', currency: 'SKY_TOKENS', amount: 600, reason: 'ADMIN_ADJUSTMENT' });
     assert.equal(store.purchaseCosmetic('pilot', 'mammoth-sand', 'SKY_TOKENS').ok, true);
-    assert.equal(store.walletBalances('pilot')!.credits, 13_000);
+    assert.equal(store.walletBalances('pilot')!.credits, 15_000);
   } finally { cleanup(); }
 });
 

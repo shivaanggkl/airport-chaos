@@ -31,6 +31,12 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
             state.boostActive = boosted;
             state.boostVisualStrength = boosted ? 1 : 0;
             let levelView;
+            airplane.rotation.set(0,.5,0,'YXZ');state.updateCamera(1);
+            const levelOffset=state.chaseCameraPosition.clone().sub(airplane.position);
+            assert(levelOffset.y / Math.hypot(levelOffset.x,levelOffset.z) >= .30,
+                'raised chase view reveals the airframe and runway over the tail');
+            assert(Math.abs(Math.hypot(levelOffset.x,levelOffset.z)-state.defaultChaseDistance*.92)<1e-5,
+                'gameplay framing is closer without changing cinematic defaults');
             const fovStart=source.indexOf('  // Keep throttle changes',source.indexOf('function updateCamera('));
             const fov=source.slice(fovStart,source.indexOf('  const cinematicFrame',fovStart));
             for(const fraction of [0,.25,.5,.75,1]) {
@@ -55,7 +61,7 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
                 const elevation = offset.y / Math.hypot(offset.x, offset.z);
                 assert.ok(Number.isFinite(elevation));
                 const localOffset=offset.clone().applyQuaternion(state.cameraChaseQuaternion.clone().invert());
-                assert(Math.abs(localOffset.y-state.defaultChaseHeight)<1e-5,'viewing height stays independent of throttle');
+                assert(Math.abs(localOffset.y-Math.max(state.defaultChaseHeight*1.3,state.defaultChaseDistance*.28))<1e-5,'viewing height stays independent of throttle');
                 const lookOffset = state.chaseLookTarget.clone().sub(airplane.position);
                 if(looks.has(pitch))assert(lookOffset.distanceTo(looks.get(pitch))<1e-5,'bank cannot swing the aim');
                 else looks.set(pitch,lookOffset);

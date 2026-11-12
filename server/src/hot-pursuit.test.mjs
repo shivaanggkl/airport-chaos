@@ -107,3 +107,21 @@ test('server-observed destination fails once, cleans up its owned target, and ne
  assert.equal(failures,1);assert.equal(players.has('enemy'),false);assert.equal(players.has('owner'),true);assert.equal(f.store.get('pilot',a.attemptId).failureReason,'ENEMY_ESCAPED');assert.equal(f.store.progress('pilot',mission.id).completed,false);
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
+
+test('M9 retaliates within 6km and resumes escape outside it without changing other missions',()=>{
+ const enemy={cityId:'dallas',position:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},
+  bot:{personality:'hunter',journeyPursuit:{index:0,escaped:false,remaining:4000},journeyTargetPlayerId:'pilot',journeyAttemptId:'attempt',journeyProvoked:true,opponent:{}}};
+ const pilot={pilotId:'pilot',position:{x:0,y:1000,z:5000}};
+ let planInput;
+ const ctx=runtime(['hunterNavigationTarget'],{journeyDallas15:mission,hunterFireRange:6000,
+  players:new Map([['pilot',pilot]]),journeyStore:{activeSnapshot:()=>({status:'RACING'})},pursuitRecoveryPoses:new Map(),projectilesByOwner:new Map(),
+  botSafeFloor:()=>100,journeyAceClearance:300,botFireSolution:()=>({reason:'NO_FORWARD_SOLUTION'}),
+  planOpponentTactics:(_runtime,input)=>{planInput=input;return {tactic:'rearIntercept',turnSign:1,waypoint:input.objective??pilot.position};},
+  opponentReactionReady:()=>true,insideJourneyHunterArena,safeBotWaypoint:(_city,_from,to)=>to});
+ ctx.hunterNavigationTarget('enemy',enemy,enemy.bot,1000);
+ assert.equal(planInput.objective,undefined,'pursuer behind the Mammoth must permit combat turns');
+ pilot.position.z=6001;ctx.hunterNavigationTarget('enemy',enemy,enemy.bot,2000);
+ assert.ok(planInput.objective,'outside gun range the escape route resumes');
+ pilot.position.z=5000;enemy.bot.journeyProvoked=false;ctx.hunterNavigationTarget('enemy',enemy,enemy.bot,3000);
+ assert.ok(planInput.objective,'unprovoked escape remains intact');
+});

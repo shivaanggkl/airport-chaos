@@ -11,11 +11,11 @@ export const firehawkProduct = Object.freeze({
   entitlement: 'REDSPEAR_FIGHTER_PREMIUM',
 });
 export const REDSPEAR_TRIAL_DURATION_MS = 5 * 60 * 1000;
-export const aircraftDisplayOrder = Object.freeze(['trainer', 'cargo', 'privateJet', 'fighter']);
+export const aircraftDisplayOrder = Object.freeze(['trainer', 'privateJet', 'cargo', 'fighter']);
 export const aircraftEconomy = Object.freeze({
   trainer: Object.freeze({ access: 'free', credits: 0 }),
-  cargo: Object.freeze({ access: 'credits', credits: 13_000 }),
-  privateJet: Object.freeze({ access: 'credits', credits: 33_000 }),
+  cargo: Object.freeze({ access: 'credits', credits: 15_000 }),
+  privateJet: Object.freeze({ access: 'credits', credits: 15_000 }),
   fighter: Object.freeze({ access: 'premium', credits: 0, usdPrice: firehawkProduct.displayPrice, entitlement: firehawkProduct.entitlement }),
 });
 export function aircraftCreditPrice(type) {
