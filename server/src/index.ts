@@ -1,6 +1,7 @@
 import { journeyMissionOrder } from '../../shared/journey-mission.mjs';
 import { PlayerSockets } from './player-sockets.js';
 import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
+import {queryBuildings} from './collision-buildings.js';
 import {dallasElevationAt} from './dallas-elevation.js';
 import {createPursuitWarlordEncounter} from './pursuit-warlord.js';
 import {createShowdownWarlordEncounter} from './showdown-warlord.js';
@@ -46,7 +47,7 @@ import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mj
 import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
 import { journeyGateCrossing, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 import { reinforcementApproachPoint } from './reinforcement-approach.js';
-import {monsterBuildingCoverage,indexBuildingsForOcclusion,segmentBlockedByBuildings} from './monster-arrival.js';
+import {monsterBuildingCoverage,segmentBlockedByBuildings} from './monster-arrival.js';
 import {createStrikingWarlordEncounter} from './striking-warlord.js';
 import {stepM19,disposeM19,permittedM19Damage,type M19Encounter} from './m19-titan.js';
 import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
@@ -316,7 +317,6 @@ const dallasTerrain = (() => {
 })();
 const dallasAirportElevations = dallasTerrain.airportElevations;
 const monsterDistrictBuildings = loadDallasCombatBuildings([monsterBuildingCoverage(),transportBuildingCoverage()]);
-indexBuildingsForOcclusion(monsterDistrictBuildings);
 const monsterEncounters = new Map<string, M19Encounter>();
 // The union preserves both coverage regions without a second city-sized copy.
 const transportBuildings = monsterDistrictBuildings;
@@ -3567,8 +3567,10 @@ function captureJourneyRecovery(playerId: string, attempt: JourneyAttempt, now: 
     }
   }
   position.y = Math.max(position.y, botTerrainHeight('dallas', position.x, position.z) + 300);
-  for (const b of transportBuildings) if (position.x >= b.minX-100 && position.x <= b.maxX+100 && position.z >= b.minZ-100 && position.z <= b.maxZ+100)
-    position.y = Math.max(position.y, b.top + 300);
+  queryBuildings(transportBuildings,position.x-100,position.x+100,position.z-100,position.z+100,b=>{
+    if(position.x>=b.minX-100&&position.x<=b.maxX+100&&position.z>=b.minZ-100&&position.z<=b.maxZ+100)position.y=Math.max(position.y,b.top+300);
+    return false;
+  });
   const { shots: _shots, ...transportState } = transport ?? {} as TransportEncounter;
   return { position, heading, bots, transport: transport && transportState,
     monster: monster && {state: monster.engine.checkpoint(), destroyedSites:[...monster.destroyedSites], debris:[...monster.debris]},
@@ -7709,7 +7711,14 @@ function pruneEphemeralRuntimeState(now: number): void {
 }
 
 function logStabilityDiagnostics(): void {
-  if (!stabilityDiagnosticsEnabled) return;
+  if (!stabilityDiagnosticsEnabled) {
+    // Staging release verification reuses this interval without enabling gameplay QA flags.
+    if (stagingJourneyQaPilotUnlockEnabled()) {
+      const memory = process.memoryUsage();
+      console.info(`[memory] uptime=${Math.round(process.uptime())}s heap=${(memory.heapUsed / 1048576).toFixed(1)}MiB rss=${(memory.rss / 1048576).toFixed(1)}MiB`);
+    }
+    return;
+  }
   const memory = process.memoryUsage();
   const receipts = profileStore.rewardReceiptDiagnostics();
   const humans = [...players.values()].filter((player) => !player.isBot).length;

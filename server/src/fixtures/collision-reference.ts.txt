@@ -1,0 +1,116 @@
+// Collision oracle captured from staging 8d8758f before P0. Test/benchmark only.
+type Building = { minX: number; maxX: number; minZ: number; maxZ: number; top: number };
+const buildingIndexes = new WeakMap<readonly Building[], {cells:Map<string,number[]>;marks:Uint32Array;stamp:number}>();
+const occlusionCellSize=256;
+
+/** Existing spatial index also bounds pursuit queries; no full district scan per tick. */
+export function nearbyMotionBuildings(e:Pick<MonsterEncounter,'x'|'z'|'motionCell'|'motionSource'|'motionBuildings'>,buildings:readonly Building[],reach=900):readonly Building[] {
+  const cell=`${Math.floor(e.x/128)},${Math.floor(e.z/128)},${reach}`;
+  if(e.motionCell===cell && e.motionSource===buildings)return e.motionBuildings!;
+  const index=buildingIndexes.get(buildings),near:Building[]=[];
+  if(index){
+    index.stamp=(index.stamp+1)>>>0;if(!index.stamp){index.marks.fill(0);index.stamp=1;}
+    for(let x=Math.floor((e.x-reach)/occlusionCellSize);x<=Math.floor((e.x+reach)/occlusionCellSize);x++)
+      for(let z=Math.floor((e.z-reach)/occlusionCellSize);z<=Math.floor((e.z+reach)/occlusionCellSize);z++)
+        for(const id of index.cells.get(`${x},${z}`)??[]){if(index.marks[id]===index.stamp)continue;index.marks[id]=index.stamp;near.push(buildings[id]!);}
+  }else for(const b of buildings)if(b.maxX>=e.x-reach && b.minX<=e.x+reach && b.maxZ>=e.z-reach && b.minZ<=e.z+reach)near.push(b);
+  indexBuildingsForOcclusion(near);e.motionCell=cell;e.motionSource=buildings;e.motionBuildings=near;return near;
+}
+
+/** Keep low anatomy and planted feet clear of the real mapped building tops. */
+export function monsterMotionClear(x:number,z:number,yaw:number,groundAt:(x:number,z:number)=>number,buildings:readonly Building[],lift=0,margin=24,geometry:Pick<typeof monsterGeometry,'footX'|'footZ'|'spheres'>=monsterGeometry,height=journeyDallas19.monster.height):boolean {
+  const ground=groundAt(x,z),h=height,c=Math.cos(yaw),s=Math.sin(yaw);
+  for(const side of [-1,1]){
+    const fx=x+h*(c*geometry.footX*side+s*geometry.footZ);
+    const fz=z+h*(-s*geometry.footX*side+c*geometry.footZ);
+    if(lift<=0 && Math.abs(groundAt(fx,fz)-ground)>24)return false;
+  }
+  for(const v of geometry.spheres){
+    const cy=ground+lift+h*v.y,ry=h*v.radii.y,cx=x+h*(c*v.x+s*v.z),cz=z+h*(-s*v.x+c*v.z);
+    const intersects=(b:Building):boolean=>{
+      if(b.top<cy-ry)return false;
+      const slice=Math.sqrt(Math.max(0,1-(Math.max(0,cy-b.top)/ry)**2));
+      const rx=h*v.radii.x*slice+margin,rz=h*v.radii.z*slice+margin;
+      const bx=(b.minX+b.maxX)/2,bz=(b.minZ+b.maxZ)/2,bw=(b.maxX-b.minX)/2,bd=(b.maxZ-b.minZ)/2;
+      const dx=bx-cx,dz=bz-cz,ac=Math.abs(c),as=Math.abs(s);
+      // Conservative oriented surface bounds: the old largest-radius circle
+      // rejected clear paths beside long, narrow feet and the tail.
+      if(Math.abs(dx)>bw+ac*rx+as*rz || Math.abs(dz)>bd+as*rx+ac*rz ||
+        Math.abs(c*dx-s*dz)>rx+ac*bw+as*bd || Math.abs(s*dx+c*dz)>rz+as*bw+ac*bd)return false;
+      return true;
+    };
+    const index=buildingIndexes.get(buildings);
+    if(!index){if(buildings.some(intersects))return false;}
+    else{
+      index.stamp=(index.stamp+1)>>>0;if(!index.stamp){index.marks.fill(0);index.stamp=1;}
+      const reach=h*Math.max(v.radii.x,v.radii.z)+margin;
+      for(let bx=Math.floor((cx-reach)/occlusionCellSize);bx<=Math.floor((cx+reach)/occlusionCellSize);bx++)
+        for(let bz=Math.floor((cz-reach)/occlusionCellSize);bz<=Math.floor((cz+reach)/occlusionCellSize);bz++)
+          for(const id of index.cells.get(`${bx},${bz}`)??[]){if(index.marks[id]===index.stamp)continue;index.marks[id]=index.stamp;if(intersects(buildings[id]!))return false;}
+    }
+  }
+  return true;
+}
+
+/** Validate the entire ballistic footprint and both grounded endpoints. */
+export function monsterJumpClear(e:MonsterEncounter,end:Point3,groundAt:(x:number,z:number)=>number,buildings:readonly Building[]):boolean {
+  if(Math.abs(groundAt(end.x,end.z)-groundAt(e.x,e.z))>24)return false;
+  for(let i=0;i<=16;i++){
+    const t=i/16,x=e.x+(end.x-e.x)*t,z=e.z+(end.z-e.z)*t;
+    if(!monsterMotionClear(x,z,e.yaw,groundAt,buildings,monsterAttack.jumpHeight*4*t*(1-t)))return false;
+  }
+  return true;
+}
+
+/** Include every permitted firing origin around the existing monster arena. */
+export function monsterBuildingCoverage() {
+  const reach=monsterAttackRange+journeyDallas19.monster.height*Math.hypot(monsterGeometry.mouth.x,monsterGeometry.mouth.z)+300;
+  return {minX:monsterArena.minX-reach,maxX:monsterArena.maxX+reach,minZ:monsterArena.minZ-reach,maxZ:monsterArena.maxZ+reach};
+}
+
+export function loadMonsterDistrictBuildings(): Building[] {
+  const result=loadDallasCombatBuildings([monsterBuildingCoverage()]);
+  indexBuildingsForOcclusion(result);
+  return result;
+}
+
+/** Reuse the existing bounded cell queries for another mission-owned building set. */
+export function indexBuildingsForOcclusion(buildings:readonly Building[]):void {
+  const index={cells:new Map<string,number[]>(),marks:new Uint32Array(buildings.length),stamp:0};
+  for(let id=0;id<buildings.length;id++) {
+    const b=buildings[id]!;
+    for(let x=Math.floor(b.minX/occlusionCellSize);x<=Math.floor(b.maxX/occlusionCellSize);x++)
+      for(let z=Math.floor(b.minZ/occlusionCellSize);z<=Math.floor(b.maxZ/occlusionCellSize);z++) {
+        const key=`${x},${z}`,cell=index.cells.get(key);
+        if(cell)cell.push(id);else index.cells.set(key,[id]);
+      }
+  }
+  buildingIndexes.set(buildings,index);
+}
+
+export function segmentBlockedByBuildings(a: Point3, b: Point3, buildings: readonly Building[],padding=0): boolean {
+  const minX=Math.min(a.x,b.x)-padding,maxX=Math.max(a.x,b.x)+padding,minZ=Math.min(a.z,b.z)-padding,maxZ=Math.max(a.z,b.z)+padding,minY=Math.min(a.y,b.y)-padding;
+  const intersects=(building:Building):boolean => {
+    if(building.maxX<minX || building.minX>maxX || building.maxZ<minZ || building.minZ>maxZ || minY>building.top+1)return false;
+    let enter=0,leave=1;const dx=b.x-a.x,dz=b.z-a.z;
+    for(const [p,q] of [[-dx,a.x-building.minX+padding],[dx,building.maxX-a.x+padding],[-dz,a.z-building.minZ+padding],[dz,building.maxZ-a.z+padding]]) {
+      if(p===0){if(q<0)return false;continue;}
+      const t=q/p;if(p<0)enter=Math.max(enter,t);else leave=Math.min(leave,t);
+    }
+    if(enter>leave)return false;
+    return Math.min(a.y+(b.y-a.y)*enter,a.y+(b.y-a.y)*leave)<=building.top+1+padding;
+  };
+  const index=buildingIndexes.get(buildings);
+  if(!index)return buildings.some(intersects);
+  index.stamp=(index.stamp+1)>>>0;
+  if(!index.stamp){index.marks.fill(0);index.stamp=1;}
+  for(let x=Math.floor(minX/occlusionCellSize);x<=Math.floor(maxX/occlusionCellSize);x++)
+    for(let z=Math.floor(minZ/occlusionCellSize);z<=Math.floor(maxZ/occlusionCellSize);z++) {
+      const cell=index.cells.get(`${x},${z}`);if(!cell)continue;
+      for(const id of cell) {
+        if(index.marks[id]===index.stamp)continue;index.marks[id]=index.stamp;
+        if(intersects(buildings[id]!))return true;
+      }
+    }
+  return false;
+}

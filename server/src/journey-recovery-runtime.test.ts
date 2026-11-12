@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 import {createContext,runInContext} from 'node:vm';
 import test from 'node:test';
 import ts from 'typescript';
+import {queryBuildings} from './collision-buildings.js';
 import * as missions from '../../shared/journey-mission.mjs';
 import {transportPose} from '../../shared/giant-incoming.mjs';
 import {createOpponent} from './opponent.js';
@@ -21,7 +22,7 @@ function fixture() {
   const players=new Map<string,any>(),transportEncounters=new Map<string,any>(),monsterEncounters=new Map<string,any>();
   const pilot={pilotId:'pilot',aircraftType:'trainer',position:{x:0,y:1000,z:0},lastAcceptedPosition:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:0}};
   players.set('owner',pilot);
-  const context=createContext({...missions,players,transportEncounters,monsterEncounters,transportPose,structuredClone,
+  const context=createContext({...missions,queryBuildings,players,transportEncounters,monsterEncounters,transportPose,structuredClone,
     rearGuardFire:new Map(),reinforcementWaves:new Map(),botTerrainHeight:()=>100,transportBuildings:[],
     dallasTerrain:{elevationAt:()=>100},monsterDistrictBuildings:[],createOpponent,
     createStationaryWarlordEncounter,createStrikingWarlordEncounter,createHuntingWarlordEncounter,

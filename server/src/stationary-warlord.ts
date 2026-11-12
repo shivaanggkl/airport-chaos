@@ -1,6 +1,6 @@
 import {ashenWarlordSpecies} from './ashen-warlord.js';
 import {createAshenPose} from './ashen-warlord-pose.js';
-import {createM19Encounter,type DistrictBuilding} from './m19-titan.js';
+import {createM19Encounter,type DistrictBuildings} from './m19-titan.js';
 import {SpeciesRegistry} from './titan/definitions.js';
 import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
 import {ashenWarlordGeometry as geometry} from '../../shared/ashen-warlord-geometry.mjs';
@@ -16,7 +16,7 @@ export const stationaryWarlordSpecies=new SpeciesRegistry().register({...base,
     regions:base.regions.map(region=>({...region,multiplier:1})),
     abilities:[{...punch,animation:'punch',interruptible:false,moving:false,damage:15,warning:.35,windup:.2,active:.3,recovery:1.4,cooldown:4}]
 });
-export function createStationaryWarlordEncounter(id:string,playerId:string,started:number,ground:(x:number,z:number)=>number,buildings:readonly DistrictBuilding[],health=500){
+export function createStationaryWarlordEncounter(id:string,playerId:string,started:number,ground:(x:number,z:number)=>number,buildings:DistrictBuildings,health=500){
     return createM19Encounter(id,playerId,started,ground,buildings,health,stationaryWarlordSpecies,
         {geometry,spawn:journeyDallas25.monster,environmentDamage:false,articulate:createAshenPose(health,true)});
 }

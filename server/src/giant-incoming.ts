@@ -1,39 +1,29 @@
-import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
+import {dallasMissionBuildings} from './dallas-building-occlusion.js';
+import {forEachBuilding,type BuildingSource} from './collision-buildings.js';
 import { readFileSync } from 'node:fs';
 import { transportPose, transportGunMounts, transportTuning, transportFootprintRadius, transportFootprintForMission, transportScaleForMission, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
 import { AIM_ENVELOPE, COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
 import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
-import { segmentBlockedByBuildings, indexBuildingsForOcclusion } from './monster-arrival.js';
-type Building = {
-    minX: number;
-    maxX: number;
-    minZ: number;
-    maxZ: number;
-    top: number;
-};
+import { segmentBlockedByBuildings } from './monster-arrival.js';
 export function transportBuildingCoverage() {
     const first=transportPose(0),last=transportPose(transportTuning.durationMs),reach=COMBAT_RANGE+transportFootprintForMission('journey-dallas-07')*1.5;
     return {minX:first.x-reach,maxX:last.x+reach,minZ:Math.min(first.z,last.z)-reach,maxZ:Math.max(first.z,last.z)+reach};
 }
-export function loadTransportBuildings(): Building[] {
-    const result=loadDallasCombatBuildings([transportBuildingCoverage()]);
-    indexBuildingsForOcclusion(result);
-    return result;
-}
-export function transportAltitude(buildings: readonly Building[], terrain: (x: number, z: number) => number, missionId?: string): number {
+export function loadTransportBuildings() {return dallasMissionBuildings(2);}
+export function transportAltitude(buildings: BuildingSource, terrain: (x: number, z: number) => number, missionId?: string): number {
     let ceiling = 0;
     const footprint = transportFootprintForMission(missionId);
     const first = transportPose(0), last = transportPose(transportTuning.durationMs);
     const dx = last.x-first.x, dz = last.z-first.z, lengthSquared = dx*dx+dz*dz;
     // One conservative footprint/route check per mapped building, not a full
     // building scan for every route sample.
-    for (const building of buildings) {
+    forEachBuilding(buildings,building => {
         const x=(building.minX+building.maxX)/2, z=(building.minZ+building.maxZ)/2;
         const t=Math.max(0,Math.min(1,((x-first.x)*dx+(z-first.z)*dz)/lengthSquared));
         const radius=Math.hypot(building.maxX-building.minX,building.maxZ-building.minZ)/2;
         if(Math.hypot(x-first.x-t*dx,z-first.z-t*dz)<=footprint+radius)
             ceiling=Math.max(ceiling,building.top);
-    }
+    });
     for(let ms=0;ms<=transportTuning.durationMs;ms+=100){
         const p=transportPose(ms);
         for(const x of [-footprint,0,footprint])
@@ -348,7 +338,7 @@ export function transportGunIntercept(p:TransportPose,target:Point,velocity:Poin
     if(!aim.eligible || !Number.isFinite(length) || Math.abs(length-speed*seconds)>.01)return undefined;
     return {...aim,muzzle,point,seconds,speed,direction:{x:x/length,y:y/length,z:z/length}};
 }
-export function stepTransportEncounter(e: TransportEncounter, target: Point, velocity: Point, buildings: readonly Building[], now: number) {
+export function stepTransportEncounter(e: TransportEncounter, target: Point, velocity: Point, buildings: BuildingSource, now: number) {
     const dt = Math.max(0, Math.min(.1, (now - e.lastTickAt) / 1000));
     e.lastTickAt = now;
     const p = transportPose(now - e.startedAt, e.altitude, e.durationMs, e.missionId), m = transportMuzzle(p, e.gunYaw, e.gunPitch), aim = transportAim(p, target);
