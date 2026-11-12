@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import {dallasLandmarks,landmarkBounds} from '../../shared/dallas-landmarks.mjs';
 import {generateDallasSkyline} from '../../shared/dallas-skyline.mjs';
 import {DALLAS_WORLD_SCALE as S} from '../../shared/dallas-world-scale.mjs';
-import {authoredDallasBuildings,replacedDallasFootprint,loadDallasCombatBuildings} from './dallas-building-occlusion.js';
+import {authoredDallasBuildings,replacedDallasFootprint,loadDallasCombatBuildings} from './dallas-collision-source.js';
 import {dallasElevationAt} from './dallas-elevation.js';
 import {loadTransportBuildings} from './giant-incoming.js';
 import {transportPose,transportTuning,transportFootprintRadius} from '../../shared/giant-incoming.mjs';
@@ -56,10 +56,11 @@ test('both authoritative building indexes replace invisible downtown footprints 
  const first=transportPose(0),last=transportPose(transportTuning.durationMs),transportReach=COMBAT_RANGE+transportFootprintRadius;
  const coverages=[{minX:monsterArena.minX-reach,maxX:monsterArena.maxX+reach,minZ:monsterArena.minZ-reach,maxZ:monsterArena.maxZ+reach},
   {minX:first.x-transportReach,maxX:last.x+transportReach,minZ:Math.min(first.z,last.z)-transportReach,maxZ:Math.max(first.z,last.z)+transportReach}];
- for(const [index,buildings] of [loadMonsterDistrictBuildings(),loadTransportBuildings()].entries()){
+ for(const [index,view] of [loadMonsterDistrictBuildings(),loadTransportBuildings()].entries()){
+  const buildings=Array.from(view);
   const c=coverages[index],expected=authored.filter(b=>b.maxX>=c.minX&&b.minX<=c.maxX&&b.maxZ>=c.minZ&&b.minZ<=c.maxZ);
   assert(expected.length>0);
-  assert.deepEqual(buildings.filter(b=>known.has(key(b))),expected,'every visible authored envelope inside this loader coverage is indexed');
+  assert.deepEqual(buildings.filter(b=>known.has(key(b))),[...new Map(expected.map(b=>[key(b),b])).values()],'every visible authored envelope inside this loader coverage is indexed');
   for(const b of buildings.filter(b=>replacedDallasFootprint(b.minX,b.maxX,b.minZ,b.maxZ)))assert(known.has(key(b)),'no hidden raw-map footprint remains downtown');
   const target=expected[0],x=(target.minX+target.maxX)/2,z=(target.minZ+target.maxZ)/2;
   assert.equal(segmentBlockedByBuildings({x:x-1,y:target.top-2,z},{x:x+1,y:target.top-2,z},buildings),true);

@@ -29,7 +29,7 @@ import {boundJourneyHunterPoint,insideJourneyHunterArena,keepJourneyHunterInside
 import {dallasElevationAt as ground} from './dallas-elevation.js';
 import {getTerrainHeight} from '../../client/src/dallas-world.js';
 const clientGround=(x,z)=>getTerrainHeight(x/3,z/3)*3;
-import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
+import {loadDallasCombatBuildings} from './dallas-collision-source.js';
 import {indexBuildingsForOcclusion,segmentBlockedByBuildings} from './monster-arrival.js';
 import {validateClientTransform} from './transform-validation.js';
 import {JourneyAttemptStore} from './journey-attempts.js';
@@ -92,7 +92,7 @@ function simulate(mission) {
   const forward=ctx.hunterForward(shooter),dot=forward.x*solution.direction.x+forward.y*solution.direction.y+forward.z*solution.direction.z;
   if(dot<Math.cos(bot ? .2 : protocol.AIM_ENVELOPE))return;
   let direction=solution.direction;
-  if(bot){const s=ctx.botFireSolution(shooter,target,false);if(s.reason||s.distance>2500)return;const aim=opponentAim(shooter.bot.opponent.profile,s.aimX,s.aimY,random);direction=ctx.normalize(ctx.rotateLocalYxz({x:aim.x,y:aim.y,z:-1},shooter.rotation));}
+  if(bot){const s=ctx.botFireSolution(shooter,target,false);if(s.reason||s.distance>protocol.COMBAT_RANGE)return;const aim=opponentAim(shooter.bot.opponent.profile,s.aimX,s.aimY,random);direction=ctx.normalize(ctx.rotateLocalYxz({x:aim.x,y:aim.y,z:-1},shooter.rotation));}
   if(bot){enemyShots++;firstEnemyShot??=elapsed;}else{pilotShots++;firstPilotShot??=elapsed;}
   shots.push({owner:id,target:target===enemy?enemyId:'owner',position:{...origin},direction,speed:protocol.ballisticShotSpeed(shooter.velocity,direction),travel:0});
   if(bot)recordOpponentShot(enemy.bot.opponent);

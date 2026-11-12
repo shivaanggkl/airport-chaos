@@ -15,3 +15,7 @@ android/key.properties
 native-auth/android/build/
 
 native-auth/android/.gradle/
+
+# Deterministic server collision packages are rebuilt from tracked city sources.
+server/collision-data/*.bin
+server/collision-data/*.tmp

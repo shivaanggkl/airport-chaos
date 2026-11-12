@@ -33,7 +33,7 @@ import {cityRegistry} from '../../shared/city-registry.mjs';
 import {dallasElevationAt as ground} from './dallas-elevation.js';
 import {getTerrainHeight} from '../../client/src/dallas-world.js';
 const clientGround=(x,z)=>getTerrainHeight(x/3,z/3)*3;
-import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
+import {loadDallasCombatBuildings} from './dallas-collision-source.js';
 import {indexBuildingsForOcclusion,segmentBlockedByBuildings} from './monster-arrival.js';
 import {validateClientTransform} from './transform-validation.js';
 import {DALLAS_WORLD_SCALE} from '../../shared/dallas-world-scale.mjs';

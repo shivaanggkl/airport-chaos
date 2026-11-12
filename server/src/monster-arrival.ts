@@ -1,4 +1,5 @@
-import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
+import {dallasMissionBuildings} from './dallas-building-occlusion.js';
+import {indexBuildings,queryBuildings,hasBuildingIndex,type BuildingSource} from './collision-buildings.js';
 // Fitted geometry compatibility helpers. Live M19 decisions run only in titan/engine via m19-titan.
 import { monsterArena } from '../../shared/m19-environment.mjs';
 import { scaleDallasPoint } from '../../shared/dallas-world-scale.mjs';
@@ -17,7 +18,7 @@ export type MonsterEncounter = {
   yawVelocity: number; aimYaw: number; aimPitch: number; gaitPhase: number;
   travelSinceAttack: number; blockedSeconds: number; roamIndex: number; roamDirection: number; nextJumpAt: number; jumpStartedAt: number; jumpProgress: number | null; jumpHeight: number;
   jumpFrom: Point3; jumpTo: Point3;
-  moveSpeed: number; motionCell?: string; motionSource?: readonly Building[]; motionBuildings?: readonly Building[];
+  moveSpeed: number; motionCell?: string; motionSource?: BuildingSource; motionBuildings?: BuildingSource;
   velocity: Point3; attackKind: 'single' | 'fan'; pendingFan: { at: number; spread: number }[];
   lastPlayerHitAt: number; sustainedSince: number; sustainedPosition?: Point3;
   hitPosition?: Point3;
@@ -229,25 +230,20 @@ export function sweptMonsterHit(encounter: MonsterEncounter, groundY: number, a:
 }
 
 type Building = { minX: number; maxX: number; minZ: number; maxZ: number; top: number };
-const buildingIndexes = new WeakMap<readonly Building[], {cells:Map<string,number[]>;marks:Uint32Array;stamp:number}>();
-const occlusionCellSize=256;
-
-/** Existing spatial index also bounds pursuit queries; no full district scan per tick. */
-export function nearbyMotionBuildings(e:Pick<MonsterEncounter,'x'|'z'|'motionCell'|'motionSource'|'motionBuildings'>,buildings:readonly Building[],reach=900):readonly Building[] {
+/** Keep only a bounded nearby surface set per moving monster, never a city copy. */
+export function nearbyMotionBuildings(e:Pick<MonsterEncounter,'x'|'z'|'motionCell'|'motionSource'|'motionBuildings'>,buildings:BuildingSource,reach=900):readonly Building[] {
   const cell=`${Math.floor(e.x/128)},${Math.floor(e.z/128)},${reach}`;
-  if(e.motionCell===cell && e.motionSource===buildings)return e.motionBuildings!;
-  const index=buildingIndexes.get(buildings),near:Building[]=[];
-  if(index){
-    index.stamp=(index.stamp+1)>>>0;if(!index.stamp){index.marks.fill(0);index.stamp=1;}
-    for(let x=Math.floor((e.x-reach)/occlusionCellSize);x<=Math.floor((e.x+reach)/occlusionCellSize);x++)
-      for(let z=Math.floor((e.z-reach)/occlusionCellSize);z<=Math.floor((e.z+reach)/occlusionCellSize);z++)
-        for(const id of index.cells.get(`${x},${z}`)??[]){if(index.marks[id]===index.stamp)continue;index.marks[id]=index.stamp;near.push(buildings[id]!);}
-  }else for(const b of buildings)if(b.maxX>=e.x-reach && b.minX<=e.x+reach && b.maxZ>=e.z-reach && b.minZ<=e.z+reach)near.push(b);
+  if(e.motionCell===cell && e.motionSource===buildings)return e.motionBuildings as readonly Building[];
+  const near:Building[]=[],indexed=hasBuildingIndex(buildings);
+  queryBuildings(buildings,e.x-reach,e.x+reach,e.z-reach,e.z+reach,b=>{
+    if(indexed||b.maxX>=e.x-reach&&b.minX<=e.x+reach&&b.maxZ>=e.z-reach&&b.minZ<=e.z+reach)near.push({...b});
+    return false;
+  });
   indexBuildingsForOcclusion(near);e.motionCell=cell;e.motionSource=buildings;e.motionBuildings=near;return near;
 }
 
 /** Keep low anatomy and planted feet clear of the real mapped building tops. */
-export function monsterMotionClear(x:number,z:number,yaw:number,groundAt:(x:number,z:number)=>number,buildings:readonly Building[],lift=0,margin=24,geometry:Pick<typeof monsterGeometry,'footX'|'footZ'|'spheres'>=monsterGeometry,height=journeyDallas19.monster.height):boolean {
+export function monsterMotionClear(x:number,z:number,yaw:number,groundAt:(x:number,z:number)=>number,buildings:BuildingSource,lift=0,margin=24,geometry:Pick<typeof monsterGeometry,'footX'|'footZ'|'spheres'>=monsterGeometry,height=journeyDallas19.monster.height):boolean {
   const ground=groundAt(x,z),h=height,c=Math.cos(yaw),s=Math.sin(yaw);
   for(const side of [-1,1]){
     const fx=x+h*(c*geometry.footX*side+s*geometry.footZ);
@@ -268,21 +264,14 @@ export function monsterMotionClear(x:number,z:number,yaw:number,groundAt:(x:numb
         Math.abs(c*dx-s*dz)>rx+ac*bw+as*bd || Math.abs(s*dx+c*dz)>rz+as*bw+ac*bd)return false;
       return true;
     };
-    const index=buildingIndexes.get(buildings);
-    if(!index){if(buildings.some(intersects))return false;}
-    else{
-      index.stamp=(index.stamp+1)>>>0;if(!index.stamp){index.marks.fill(0);index.stamp=1;}
-      const reach=h*Math.max(v.radii.x,v.radii.z)+margin;
-      for(let bx=Math.floor((cx-reach)/occlusionCellSize);bx<=Math.floor((cx+reach)/occlusionCellSize);bx++)
-        for(let bz=Math.floor((cz-reach)/occlusionCellSize);bz<=Math.floor((cz+reach)/occlusionCellSize);bz++)
-          for(const id of index.cells.get(`${bx},${bz}`)??[]){if(index.marks[id]===index.stamp)continue;index.marks[id]=index.stamp;if(intersects(buildings[id]!))return false;}
-    }
+    const reach=h*Math.max(v.radii.x,v.radii.z)+margin;
+    if(queryBuildings(buildings,cx-reach,cx+reach,cz-reach,cz+reach,intersects))return false;
   }
   return true;
 }
 
 /** Validate the entire ballistic footprint and both grounded endpoints. */
-export function monsterJumpClear(e:MonsterEncounter,end:Point3,groundAt:(x:number,z:number)=>number,buildings:readonly Building[]):boolean {
+export function monsterJumpClear(e:MonsterEncounter,end:Point3,groundAt:(x:number,z:number)=>number,buildings:BuildingSource):boolean {
   if(Math.abs(groundAt(end.x,end.z)-groundAt(e.x,e.z))>24)return false;
   for(let i=0;i<=16;i++){
     const t=i/16,x=e.x+(end.x-e.x)*t,z=e.z+(end.z-e.z)*t;
@@ -297,27 +286,12 @@ export function monsterBuildingCoverage() {
   return {minX:monsterArena.minX-reach,maxX:monsterArena.maxX+reach,minZ:monsterArena.minZ-reach,maxZ:monsterArena.maxZ+reach};
 }
 
-export function loadMonsterDistrictBuildings(): Building[] {
-  const result=loadDallasCombatBuildings([monsterBuildingCoverage()]);
-  indexBuildingsForOcclusion(result);
-  return result;
-}
+export function loadMonsterDistrictBuildings() {return dallasMissionBuildings(1);}
 
-/** Reuse the existing bounded cell queries for another mission-owned building set. */
-export function indexBuildingsForOcclusion(buildings:readonly Building[]):void {
-  const index={cells:new Map<string,number[]>(),marks:new Uint32Array(buildings.length),stamp:0};
-  for(let id=0;id<buildings.length;id++) {
-    const b=buildings[id]!;
-    for(let x=Math.floor(b.minX/occlusionCellSize);x<=Math.floor(b.maxX/occlusionCellSize);x++)
-      for(let z=Math.floor(b.minZ/occlusionCellSize);z<=Math.floor(b.maxZ/occlusionCellSize);z++) {
-        const key=`${x},${z}`,cell=index.cells.get(key);
-        if(cell)cell.push(id);else index.cells.set(key,[id]);
-      }
-  }
-  buildingIndexes.set(buildings,index);
-}
+/** Array fixtures and bounded moving-monster subsets use the same numeric index. */
+export function indexBuildingsForOcclusion(buildings:BuildingSource):void {indexBuildings(buildings);}
 
-export function segmentBlockedByBuildings(a: Point3, b: Point3, buildings: readonly Building[],padding=0): boolean {
+export function segmentBlockedByBuildings(a: Point3, b: Point3, buildings: BuildingSource,padding=0): boolean {
   const minX=Math.min(a.x,b.x)-padding,maxX=Math.max(a.x,b.x)+padding,minZ=Math.min(a.z,b.z)-padding,maxZ=Math.max(a.z,b.z)+padding,minY=Math.min(a.y,b.y)-padding;
   const intersects=(building:Building):boolean => {
     if(building.maxX<minX || building.minX>maxX || building.maxZ<minZ || building.minZ>maxZ || minY>building.top+1)return false;
@@ -329,19 +303,7 @@ export function segmentBlockedByBuildings(a: Point3, b: Point3, buildings: reado
     if(enter>leave)return false;
     return Math.min(a.y+(b.y-a.y)*enter,a.y+(b.y-a.y)*leave)<=building.top+1+padding;
   };
-  const index=buildingIndexes.get(buildings);
-  if(!index)return buildings.some(intersects);
-  index.stamp=(index.stamp+1)>>>0;
-  if(!index.stamp){index.marks.fill(0);index.stamp=1;}
-  for(let x=Math.floor(minX/occlusionCellSize);x<=Math.floor(maxX/occlusionCellSize);x++)
-    for(let z=Math.floor(minZ/occlusionCellSize);z<=Math.floor(maxZ/occlusionCellSize);z++) {
-      const cell=index.cells.get(`${x},${z}`);if(!cell)continue;
-      for(const id of cell) {
-        if(index.marks[id]===index.stamp)continue;index.marks[id]=index.stamp;
-        if(intersects(buildings[id]!))return true;
-      }
-    }
-  return false;
+  return queryBuildings(buildings,minX,maxX,minZ,maxZ,intersects);
 }
 
 export function normalizeDirection(a: Point3, b: Point3): Point3 {

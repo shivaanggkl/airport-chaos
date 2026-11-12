@@ -23,7 +23,7 @@ const ground=(wx,wz)=>{
   const at=(a,b)=>data.baseElevation+samples[b*data.width+a]*data.scale;
   return THREE.MathUtils.lerp(THREE.MathUtils.lerp(at(x0,z0),at(x1,z0),x-x0),THREE.MathUtils.lerp(at(x0,z1),at(x1,z1),x-x0),z-z0)*DALLAS_WORLD_SCALE;
 };
-const buildings=loadMonsterDistrictBuildings().filter(b=>b.maxX>-8500*DALLAS_WORLD_SCALE&&b.minX<-2500*DALLAS_WORLD_SCALE&&b.maxZ>-5000*DALLAS_WORLD_SCALE&&b.minZ<500*DALLAS_WORLD_SCALE).map(b=>({x:(b.minX+b.maxX)/2,z:(b.minZ+b.maxZ)/2,halfX:(b.maxX-b.minX)/2,halfZ:(b.maxZ-b.minZ)/2,height:b.top}));
+const buildings=Array.from(loadMonsterDistrictBuildings()).filter(b=>b.maxX>-8500*DALLAS_WORLD_SCALE&&b.minX<-2500*DALLAS_WORLD_SCALE&&b.maxZ>-5000*DALLAS_WORLD_SCALE&&b.minZ<500*DALLAS_WORLD_SCALE).map(b=>({x:(b.minX+b.maxX)/2,z:(b.minZ+b.maxZ)/2,halfX:(b.maxX-b.minX)/2,halfZ:(b.maxZ-b.minZ)/2,height:b.top}));
 
 test('M19 authored approach is clear in real Dallas geometry, grounded, distance-matched and ends exactly at the combat transform',async()=>{
   const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,ground(journeyDallas19.monster.x,journeyDallas19.monster.z),ground(M19_DOWNTOWN.x,M19_DOWNTOWN.z),undefined,source,ground,()=>390,model,true);

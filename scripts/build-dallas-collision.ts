@@ -1,0 +1,15 @@
+import {mkdirSync,writeFileSync,renameSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {loadDallasCombatBuildings} from '../server/src/dallas-collision-source.js';
+import {monsterBuildingCoverage} from '../server/src/monster-arrival.js';
+import {transportBuildingCoverage} from '../server/src/giant-incoming.js';
+import {buildCollisionBuffer,CollisionBuildings,COLLISION_VERSION} from '../server/src/collision-buildings.js';
+const coverages=[monsterBuildingCoverage(),transportBuildingCoverage()],masks:number[]=[];
+const buildings=loadDallasCombatBuildings(coverages,masks);
+const buffer=buildCollisionBuffer(buildings,masks);
+const dataset=new CollisionBuildings(buffer);
+const directory=new URL('../server/collision-data/',import.meta.url);mkdirSync(directory,{recursive:true});
+const file=new URL('dallas-v1.bin',directory),temporary=new URL('dallas-v1.bin.tmp',directory);
+writeFileSync(temporary,buffer);renameSync(temporary,file);
+writeFileSync(new URL('dallas-v1.json',directory),JSON.stringify({version:COLLISION_VERSION,sourceRecords:buildings.length,records:dataset.length,bytes:buffer.length,sha256:createHash('sha256').update(buffer).digest('hex'),coverages},null,2)+'\n');
+console.info(`Dallas collision v${COLLISION_VERSION}: ${buildings.length} source rows → ${dataset.length} exact unique rows, ${(buffer.length/1048576).toFixed(1)} MiB`);

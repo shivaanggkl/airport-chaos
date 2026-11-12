@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "AIRPORT_CHAOS_DEV_QA=1 tsx watch --env-file-if-exists=../.env src/index.ts",
-    "build": "tsc",
-    "start": "node --env-file-if-exists=../.env dist/index.js"
+    "build": "npm run build:collision && tsc",
+    "start": "node --env-file-if-exists=../.env dist/index.js",
+    "build:collision": "tsx ../scripts/build-dallas-collision.ts",
+    "predev": "npm run build:collision"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",

@@ -1,6 +1,7 @@
 import { journeyMissionOrder } from '../../shared/journey-mission.mjs';
 import { PlayerSockets } from './player-sockets.js';
 import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
+import {queryBuildings} from './collision-buildings.js';
 import {dallasElevationAt} from './dallas-elevation.js';
 import {createPursuitWarlordEncounter} from './pursuit-warlord.js';
 import {createShowdownWarlordEncounter} from './showdown-warlord.js';
@@ -46,7 +47,7 @@ import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mj
 import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
 import { journeyGateCrossing, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 import { reinforcementApproachPoint } from './reinforcement-approach.js';
-import {monsterBuildingCoverage,indexBuildingsForOcclusion,segmentBlockedByBuildings} from './monster-arrival.js';
+import {monsterBuildingCoverage,segmentBlockedByBuildings} from './monster-arrival.js';
 import {createStrikingWarlordEncounter} from './striking-warlord.js';
 import {stepM19,disposeM19,permittedM19Damage,type M19Encounter} from './m19-titan.js';
 import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
@@ -316,7 +317,6 @@ const dallasTerrain = (() => {
 })();
 const dallasAirportElevations = dallasTerrain.airportElevations;
 const monsterDistrictBuildings = loadDallasCombatBuildings([monsterBuildingCoverage(),transportBuildingCoverage()]);
-indexBuildingsForOcclusion(monsterDistrictBuildings);
 const monsterEncounters = new Map<string, M19Encounter>();
 // The union preserves both coverage regions without a second city-sized copy.
 const transportBuildings = monsterDistrictBuildings;
@@ -816,7 +816,7 @@ const botPopulationTickMs = 1_000;
 const maxBotsPerCity = 7;
 const maxBotsIncludingTemporaryDefenders = maxBotsPerCity + 2;
 const botKillRewardMultiplier = 0.35;
-const hunterDetectionRange = 4_500;
+const hunterDetectionRange = COMBAT_RANGE;
 const hunterPursuitRange = 6_500;
 const hunterFireRange = COMBAT_RANGE;
 const hunterFireCone = 0.20;
@@ -3567,8 +3567,10 @@ function captureJourneyRecovery(playerId: string, attempt: JourneyAttempt, now: 
     }
   }
   position.y = Math.max(position.y, botTerrainHeight('dallas', position.x, position.z) + 300);
-  for (const b of transportBuildings) if (position.x >= b.minX-100 && position.x <= b.maxX+100 && position.z >= b.minZ-100 && position.z <= b.maxZ+100)
-    position.y = Math.max(position.y, b.top + 300);
+  queryBuildings(transportBuildings,position.x-100,position.x+100,position.z-100,position.z+100,b=>{
+    if(position.x>=b.minX-100&&position.x<=b.maxX+100&&position.z>=b.minZ-100&&position.z<=b.maxZ+100)position.y=Math.max(position.y,b.top+300);
+    return false;
+  });
   const { shots: _shots, ...transportState } = transport ?? {} as TransportEncounter;
   return { position, heading, bots, transport: transport && transportState,
     monster: monster && {state: monster.engine.checkpoint(), destroyedSites:[...monster.destroyedSites], debris:[...monster.debris]},
@@ -6811,7 +6813,7 @@ function botCombatTarget(botId: string, bot: PlayerState, now: number): [string,
       (!bot.bot?.journeyTargetPlayerId || id === bot.bot.journeyTargetPlayerId) &&
       (bot.cityId !== 'milwaukee' || target.milwaukeeBotsProvoked) && target.lifeState === 'alive' && target.hasRespawnTransform && now >= target.spawnProtectedUntil && now - target.lastStateAt < 1_500)
     .map(([id, target]) => ({ id, target, distance: Math.hypot(target.position.x - bot.position.x, target.position.y - bot.position.y, target.position.z - bot.position.z) }))
-    .filter((candidate) => candidate.distance > 90 && candidate.distance <
+    .filter((candidate) => candidate.distance > 90 && candidate.distance <=
       (bot.skyDuelPracticeOwnerId ? skyDuelAiTuning.detectionRange : hunterDetectionRange))
     .filter((candidate) => {
       const currentHunters = [...players.values()].filter((other) => other.isBot && other.lifeState === 'alive' && other.bot?.combatTargetId === candidate.id && isHunterCombatPhase(other.bot.phase)).length;
@@ -7397,7 +7399,7 @@ function updateBots(now: number, expertOnly = false): void {
       // separate, modest bot cone and random dispersion create pressure
       // without granting a bot the player's assisted LOCKED-hit contract.
       const canShoot = !target.isBot && target.lifeState === 'alive' && now >= target.spawnProtectedUntil &&
-        !solution.reason && (!bot.journeyFirstContact || bot.journeyIronHunter || bot.journeyFinalShowdown || solution.distance <= 2_500);
+        !solution.reason;
       const crossfireAllowed = !bot.journeyCrossfire || Boolean(bot.journeyAttemptId &&
         crossfireFireCoordinators.get(bot.journeyAttemptId)?.canInitiate(botId, canShoot, now));
       const escortFire = bot.journeyRearGuardEscort && bot.journeyAttemptId ? rearGuardFire.get(bot.journeyAttemptId) : undefined;
