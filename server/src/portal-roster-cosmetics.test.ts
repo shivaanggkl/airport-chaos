@@ -20,7 +20,7 @@ test('committed public portal roster preserves humans and profile-less bot cosme
     runInNewContext(ts.transpileModule(fn + ';sendPortal("owner",{id:"test",phase:"COMMITTED",from:"dallas",to:"milwaukee"});', {
         compilerOptions: { target: ts.ScriptTarget.ES2022 },
     }).outputText, {
-        players: new Map([['owner', { cityId: 'milwaukee' }], ...peers.map((peer, i) => [String(i), peer] as const)]),
+        players: new Map([['owner', { cityId: 'milwaukee', aircraftType: 'trainer' }], ...peers.map((peer, i) => [String(i), peer] as const)]),
         sendToPlayer: (_id: string, value: unknown) => { packet = value; },
         portalNavigation: () => undefined, territorySnapshot: () => [], socialSnapshot: () => [],
         cityEvents: new Map(), eventSnapshot: () => ({}), playerJourneyAttempts: new Map(),
