@@ -145,3 +145,25 @@ test('streamer keeps the old LOD visible, rejects stale work, bounds queues and 
   bounded.pump(); assert.equal(bounded.activeRequests.size, 1, 'combined fetch/preparation backlog is bounded at eight');
   bounded.dispose(); assert.ok(signals.every(signal => signal.aborted)); assert.equal(bounded.pending.size, 0);
 });
+
+
+test('Love Field imported intersections cannot cover the authored M19 runway', t => {
+  const { numeric } = fixture(t);
+  for (const lod of ['near', 'mid', 'far']) {
+    for (const id of ['-3_-4', '-3_-5']) {
+      const chunk = JSON.parse(readFileSync(resolve(`client/public/data/dallas/${lod}/${id}.json`), 'utf8'));
+      const result = prepareDallasChunk({ id: 1, header, payload: JSON.stringify(chunk) }, numeric);
+      for (const group of result.groups) for (const mesh of group.meshes.filter(m => m.name.startsWith('osm-aeroway'))) {
+        const positions = mesh.attributes.position.array;
+        for (let i = 0; i < positions.length; i += 9) {
+          const xs = [positions[i],positions[i+3],positions[i+6]], zs = [positions[i+2],positions[i+5],positions[i+8]];
+          assert(!(Math.min(...xs) <= -5117 && Math.max(...xs) >= -5163 && Math.min(...zs) <= -6430 && Math.max(...zs) >= -9130), `${lod}/${id}: imported deck overlaps the playable runway`);
+        }
+      }
+    }
+  }
+  // Aeroways outside authored airport grounds still render normally.
+  const chunk = { x: 0, z: 0, r: [], b: [], w: [], p: [], a: [0, 1000, 1000, 1100, 1000, 46] };
+  const result = prepareDallasChunk({ id: 2, header, payload: JSON.stringify(chunk) }, numeric);
+  assert(result.groups.some(g => g.meshes.some(m => m.name === 'osm-aeroway-0' && m.attributes.position.array.length > 0)));
+});

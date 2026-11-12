@@ -462,6 +462,9 @@ export function prepareOsmCityData<M>(cityData: CompactCityData, options: OsmCit
       const x2 = chunk.a![index + 3];
       const z2 = chunk.a![index + 4];
       const width = chunk.a![index + 5];
+      // Authored airport surfaces own their flattened runway corridors. Imported
+      // aeroways can otherwise interpolate a raised diagonal deck across them.
+      if (options.isExcluded((x1 + x2) / 2, (z1 + z2) / 2, Math.max(Math.abs(x2 - x1), Math.abs(z2 - z1)) / 2 + width / 2)) continue;
       const length = Math.hypot(x2 - x1, z2 - z1);
       const buffer = aerowayBuffers[kind];
       if (!buffer || length < 0.5) continue;
