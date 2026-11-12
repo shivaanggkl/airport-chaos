@@ -233,7 +233,7 @@ test('all four opponents produce real forward ballistic hits against a moving Bl
  const normalize=v=>{const n=Math.hypot(v.x,v.y,v.z);return{x:v.x/n,y:v.y/n,z:v.z/n};},dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
  const ctx=runtime(['botFireSolution','muzzleTransform','rotateLocalYxz','forwardDirection','hunterForward'],{aircraftPresentationMuzzleSockets,aircraftFlightEnvelope,AIM_ENVELOPE,hunterObservedPosition,hunterBallisticSolution,smoothHunter:()=>true,runwayCombatProtected:()=>false,hunterFireCone:.2,hunterFireRange:COMBAT_RANGE,defenderDownwardFireAngle:.3,normalize,dot});
  for(const config of mission.enemies){
-  const shooter={aircraftType:config.aircraft,position:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-500},bot:{opponent:{profile:enemyAiLevels[config.level]}}};
+  const shooter={aircraftType:config.aircraft,position:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-500},bot:{journeyFinalShowdown:true,opponent:{profile:enemyAiLevels[config.level]}}};
   const target={aircraftType:'trainer',position:{x:0,y:1000,z:-1200},rotation:{x:0,y:0,z:0},velocity:{x:100,y:0,z:-300}};
   const solution=ctx.botFireSolution(shooter,target,false);assert.equal(solution.reason,undefined);
   const aim=opponentAim(enemyAiLevels[config.level],solution.aimX,solution.aimY,()=>.6),direction=normalize(ctx.rotateLocalYxz({x:aim.x,y:aim.y,z:-1},shooter.rotation)),origin=ctx.muzzleTransform(shooter).position,speed=ballisticShotSpeed(shooter.velocity,direction);
@@ -261,6 +261,7 @@ test('exit removes all four owned opponents, shots and targeting; squad cannot r
  const player={assistedAim:{},aimSamples:[]},enemy={isBot:true,bot:{journeyAttemptId:'attempt',journeyTargetPlayerId:'owner',journeyFinalShowdown:true}},unrelated={isBot:true,bot:{journeyAttemptId:'another'}};
  const players=new Map([['owner',player],...['enemy1','enemy2','enemy3','enemy4'].map(id=>[id,{...enemy,bot:{...enemy.bot}}]),['other',unrelated]]),removedShots=[],sent=[];
  const ctx=runtime(['removeJourneyHunter','removeBot','updateRepairStations'],{
+  journeyStore:{discardContinuation:()=>{}},journeyContinuations:new Map(),pursuitRecoveryPoses:new Map(),
   journeyDallas07:{id:'7'},journeyDallas08:{id:'8'},journeyDallas09:{id:'9'},journeyDallas10:{id:'10'},journeyDallas11:{id:'11'},journeyDallas12:{id:'12'},journeyDallas18:{id:'18'},journeyDallas19:{id:'19'},
   players,playerJourneyAttempts:new Map([['owner','attempt']]),setServerLock:()=>{},removePlayerProjectiles:id=>removedShots.push(id),clearPlayerRuntimeState:()=>{},portalFlights:new Map(),sendToPlayer:(_id,p)=>sent.push(p),broadcastToCity:()=>assert.fail('private removal leaked'),doubleHunterMotion:new Map(),crossfireFireCoordinators:new Map(),crossfireDefeatedHunters:new Map(),crossfireHunterMotion:new Map(),
   pausedJourneyPlayers:new Set(['owner','other']),pausedTrainingPlayers:new Set(),

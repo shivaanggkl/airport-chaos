@@ -23,3 +23,5 @@ export function hasRunwayLiftoffLift(speed:number,pitch:number,throttle:number,e
 export const cruiseThrottleStops:readonly number[];
 export function cruiseThrottleSelection(value:number):number;
 export function controlledEngineThrust(speed:number,target:number,available:number,drag:number,response:number):number;
+
+export function stepBoostBlend(current:number,active:boolean,delta:number):number;

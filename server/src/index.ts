@@ -6877,12 +6877,14 @@ function hunterInterceptWaypoint(player: PlayerState, bot: BotRuntime, target: P
 function botFireSolution(shooter: PlayerState, target: PlayerState, defender: boolean): { distance: number; vertical: number; angle: number; aimX: number; aimY: number; reason?: string } {
   if (runwayCombatProtected(undefined, target)) return {distance:0,vertical:0,angle:Infinity,aimX:0,aimY:0,reason:'RUNWAY_PROTECTED'};
   const expert=(shooter.bot?.opponent??shooter.npcOpponent)?.profile.tactics.expert===true;
+  const bankTracking = expert || shooter.bot?.journeyCrossfire === true || shooter.bot?.journeyIronHunter === true || shooter.bot?.journeyFinalShowdown === true;
+  const predictiveTracking = bankTracking || shooter.bot?.journeyPursuit !== undefined;
   const fireCone=expert?AIM_ENVELOPE:hunterFireCone;
-  const targetPosition=expert&&!target.isBot?hunterObservedPosition(target.position,target.velocity,target.lastStateAt,Date.now()):target.position;
+  const targetPosition=predictiveTracking&&!target.isBot?hunterObservedPosition(target.position,target.velocity,target.lastStateAt,Date.now()):target.position;
   const muzzle = muzzleTransform(shooter).position;
   const actualDistance = Math.hypot(targetPosition.x - muzzle.x, targetPosition.y - muzzle.y, targetPosition.z - muzzle.z);
   const envelope = aircraftFlightEnvelope[target.aircraftType];
-  const targetCap = envelope.maxSpeed * (expert || target.boostActive ? envelope.boostMaxSpeed : 1) + (expert ? 10 : 0);
+  const targetCap = envelope.maxSpeed * (predictiveTracking || target.boostActive ? envelope.boostMaxSpeed : 1) + (predictiveTracking ? 10 : 0);
   const targetSpeed = Math.hypot(target.velocity.x, target.velocity.y, target.velocity.z);
   const scale = targetSpeed > targetCap ? targetCap / targetSpeed : 1;
   if (shooter.airAssaultId) {
@@ -6903,7 +6905,7 @@ function botFireSolution(shooter: PlayerState, target: PlayerState, defender: bo
   if (smoothHunter(shooter)) {
     const solution = hunterBallisticSolution(muzzle, shooter.velocity, targetPosition,
       { x: target.velocity.x * scale, y: target.velocity.y * scale, z: target.velocity.z * scale },
-      (shooter.bot?.opponent ?? shooter.npcOpponent)?.profile.tactics.expert
+      bankTracking
         ? (shooter.bot?.opponent ?? shooter.npcOpponent)?.tactics?.targetTurnRate ?? 0 : 0);
     if (!solution) return { distance: actualDistance, vertical: targetPosition.y - shooter.position.y,
       angle: Infinity, aimX: 0, aimY: 0, reason: 'NO_BALLISTIC_INTERCEPT' };
@@ -7006,12 +7008,13 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
     const cruise = bot.journeyPursuit ? journeyDallas15.cruiseSpeed : ambushTarget ? ambushCruiseSpeed(ambushTarget.velocity) : bot.journeyFirstContact ? (bot.journeyFinalShowdown ? journeyDallas18 : bot.journeyIronHunter ? journeyDallas17 : bot.journeySurpriseAttack ? journeyDallas14 : journeyDallas13).cruiseSpeed
       : envelope.maxSpeed * (bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : botCruiseFactor(bot.personality));
     bot.expertControl = bot.opponent?.profile.tactics.expert;
-    const boundedEscort = bot.journeyEscortMissionId === journeyDallas10.id;
-    // Formation and pursuit both go through the same Dallas boundary.
-    const waypoint = boundedEscort ? { ...target, ...dallasEscortSteeringTarget(player.position, hunterForward(player), target) } : target;
+    const boundedDallasOpponent = bot.journeyEscortMissionId === journeyDallas10.id ||
+      player.cityId === 'dallas' && bot.journeyCrossfire === true;
+    // Apply the same boundary during smooth flight, including M10's early-return path.
+    const waypoint = boundedDallasOpponent ? { ...target, ...dallasEscortSteeringTarget(player.position, hunterForward(player), target) } : target;
     advanceHunterFlight(player, bot, waypoint, bot.opponent?.tactics?.plan.cruise ?? cruise, delta,
       (x, z) => botSafeFloor(player.cityId, x, z, hunterClearance(bot)));
-    if (boundedEscort) {
+    if (boundedDallasOpponent) {
       const bounded = keepDallasEscortInside(player.position);
       if (bounded.x !== player.position.x) {
         player.position.x = bounded.x;
@@ -7179,7 +7182,10 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     const threatened=bot.journeyProvoked===true&&Math.hypot(pilot.position.x-player.position.x,pilot.position.z-player.position.z)<=journeyDallas15.threatDistance;
     const bullets=threatened?[...(projectilesByOwner.get(bot.journeyTargetPlayerId) ?? [])].filter(shot=>shot.cityId===player.cityId):[];
     const plan=planOpponentTactics(bot.opponent!,{enemy:player,target:pilot,targetId:bot.journeyTargetPlayerId,speed:bot.speed,now,
-      cruise:journeyDallas15.cruiseSpeed,objective,firingSolution:threatened&&!botFireSolution(player,pilot,false).reason,
+      // Retaliate inside the shared gun range; resume the escape objective outside it.
+      cruise:journeyDallas15.cruiseSpeed,
+      objective:threatened&&Math.hypot(pilot.position.x-player.position.x,pilot.position.y-player.position.y,pilot.position.z-player.position.z)<=hunterFireRange?undefined:objective,
+      firingSolution:threatened&&!botFireSolution(player,pilot,false).reason,
       lockedByTarget:threatened&&pilot.lockedTargetId===botId,bullets,floorAt:(x,z)=>botSafeFloor(player.cityId,x,z,journeyAceClearance),
       safeWaypoint:(from,to)=>safeBotWaypoint(player.cityId,from,to,journeyAceClearance),inside:insideJourneyHunterArena});
     bot.phase=plan.tactic==='defensiveBreak'?'extend':'approach';bot.combatTurnSign=plan.turnSign<0?-1:1;

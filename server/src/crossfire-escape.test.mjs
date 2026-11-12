@@ -14,14 +14,14 @@ import {enemyAiLevels} from '../../shared/enemy-ai.mjs';
 import {projectileDamageForAircraft,ballisticShotSpeed,COMBAT_RANGE,AIM_ENVELOPE} from '../../shared/protocol.mjs';
 import {CrossfireFireCoordinator} from './journey-crossfire.js';
 import {JourneyAttemptStore} from './journey-attempts.js';
-import {hunterBallisticSolution} from './hunter-flight.js';
+import {hunterBallisticSolution,hunterObservedPosition} from './hunter-flight.js';
 import {aircraftPresentationMuzzleSockets} from '../../shared/aircraft-presentation-scale.mjs';
 import {projectileImpactFraction} from '../../shared/projectile-collision.mjs';
 import {createOpponent,opponentAim} from './opponent.js';
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
 import {recordOpponentHit,recordOpponentDamage} from './opponent-tactics.js';
 const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
-function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyDallas18,journeyDallas17,recordOpponentHit,recordOpponentDamage,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
+function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyDallas18,journeyDallas17,hunterObservedPosition,recordOpponentHit,recordOpponentDamage,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
 function fixture(){const dir=mkdtempSync(join(tmpdir(),'double-threat-')),path=join(dir,'p.sqlite'),db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");const store=new JourneyAttemptStore(path);db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)').run('pilot',journeyDallas15.id,'m9',1);return{dir,path,db,store};}
 function assigned(f,at=1000){const a=f.store.launch('pilot','trainer',at,mission.id);f.store.approach('pilot',a.attemptId);f.store.assignCrossfireHunter('pilot',a.attemptId,'one',1);f.store.assignCrossfireHunter('pilot',a.attemptId,'two',2);return a;}
 
@@ -82,7 +82,7 @@ test('production factory creates two correctly painted HARD aircraft, and aggres
 
 test('exit cleanup removes both owned aircraft, shooter permissions and projectiles without touching unrelated actors',()=>{
  const attempt={missionId:mission.id,attemptId:'attempt',targetId:'one',secondaryTargetId:'two'},owner={assistedAim:{},aimSamples:[]},players=new Map([['owner',owner],['one',{bot:{journeyAttemptId:'attempt'}}],['two',{bot:{journeyAttemptId:'attempt'}}],['other',{bot:{journeyAttemptId:'unrelated'}}]]),coordinators=new Map([['attempt',new CrossfireFireCoordinator()]]),removedShots=[];
- const ctx=runtime(['removeJourneyHunter'],{players,playerJourneyAttempts:new Map([['owner','attempt']]),setServerLock:()=>{},removePlayerProjectiles:id=>removedShots.push(id),journeyDallas07:{},journeyDallas08:{},journeyDallas09:{},journeyDallas10:{},journeyDallas11:{},journeyDallas12:{},journeyDallas19:{},journeyDallas18:{},journeyDallas23:{},journeyDallas24:{},journeyDallas25:{},journeyDallas20:{},journeyDallas21:{},journeyDallas22:{},doubleHunterMotion:new Map(),crossfireFireCoordinators:coordinators,crossfireDefeatedHunters:new Map(),crossfireHunterMotion:new Map(),removeBot:id=>players.delete(id)});
+ const ctx=runtime(['removeJourneyHunter'],{journeyStore:{discardContinuation:()=>{}},journeyContinuations:new Map(),players,playerJourneyAttempts:new Map([['owner','attempt']]),setServerLock:()=>{},removePlayerProjectiles:id=>removedShots.push(id),journeyDallas07:{},journeyDallas08:{},journeyDallas09:{},journeyDallas10:{},journeyDallas11:{},journeyDallas12:{},journeyDallas19:{},journeyDallas18:{},journeyDallas23:{},journeyDallas24:{},journeyDallas25:{},journeyDallas20:{},journeyDallas21:{},journeyDallas22:{},doubleHunterMotion:new Map(),crossfireFireCoordinators:coordinators,crossfireDefeatedHunters:new Map(),crossfireHunterMotion:new Map(),removeBot:id=>players.delete(id)});
  ctx.removeJourneyHunter(attempt);assert.equal(players.has('one')||players.has('two'),false);assert.equal(players.has('other'),true);assert.equal(coordinators.has('attempt'),false);assert.deepEqual(removedShots,['owner']);
 });
 
@@ -90,7 +90,7 @@ test('both HARD aircraft produce real forward ballistic hits against a moving Bl
  const normalize=v=>{const n=Math.hypot(v.x,v.y,v.z);return{x:v.x/n,y:v.y/n,z:v.z/n};},dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
  const ctx=runtime(['botFireSolution','muzzleTransform','rotateLocalYxz','forwardDirection','hunterForward'],{aircraftPresentationMuzzleSockets,aircraftFlightEnvelope,AIM_ENVELOPE,hunterBallisticSolution,smoothHunter:()=>true,runwayCombatProtected:()=>false,hunterFireCone:.2,hunterFireRange:COMBAT_RANGE,defenderDownwardFireAngle:.3,normalize,dot});
  for(const config of mission.enemies){
-  const shooter={aircraftType:config.aircraft,position:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-500},bot:{opponent:{profile:enemyAiLevels.HARD}}};
+  const shooter={aircraftType:config.aircraft,position:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-500},bot:{journeyCrossfire:true,opponent:{profile:enemyAiLevels.HARD}}};
   const target={aircraftType:'trainer',position:{x:0,y:1000,z:-1200},rotation:{x:0,y:0,z:0},velocity:{x:100,y:0,z:-300}};
   const solution=ctx.botFireSolution(shooter,target,false);assert.equal(solution.reason,undefined);
   const aim=opponentAim(enemyAiLevels.HARD,solution.aimX,solution.aimY,()=>.6),direction=normalize(ctx.rotateLocalYxz({x:aim.x,y:aim.y,z:-1},shooter.rotation)),origin=ctx.muzzleTransform(shooter).position,speed=ballisticShotSpeed(shooter.velocity,direction);

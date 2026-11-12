@@ -6,9 +6,10 @@ import { cosmeticCatalog, cosmeticUnlockPrice } from '../../shared/cosmetics.mjs
 
 test('Store and Hangar use fixed authoritative aircraft and paint prices', () => {
   const offers = new Map(publicStoreCatalog().map(item => [item.id, item]));
+  assert.deepEqual(publicStoreCatalog().filter(item => item.kind === 'aircraft').map(item => item.id), ['trainer', 'privateJet', 'cargo', 'fighter']);
   assert.deepEqual([offers.get('trainer').free, offers.get('trainer').credits], [true, undefined]);
-  assert.deepEqual([offers.get('cargo').credits, offers.get('cargo').tokens], [13_000, 600]);
-  assert.deepEqual([offers.get('privateJet').credits, offers.get('privateJet').tokens], [33_000, 1_350]);
+  assert.deepEqual([offers.get('cargo').credits, offers.get('cargo').tokens], [15_000, 600]);
+  assert.deepEqual([offers.get('privateJet').credits, offers.get('privateJet').tokens], [15_000, 600]);
   assert.deepEqual([offers.get('fighter').credits, offers.get('fighter').tokens], [undefined, 2_400]);
   for (const item of cosmeticCatalog.filter(item => !item.retired)) {
     const offer = offers.get(item.id);

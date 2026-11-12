@@ -87,7 +87,7 @@ import { reconcileCreditSnapshot, type CreditReceipt } from '../../shared/credit
 import { FLIGHT_UNITS_PER_METER, KNOTS_PER_METER_PER_SECOND, MPH_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftGroundOffset } from '../../shared/city-airports.mjs';
 import { competitiveModes } from '../../shared/competitive-modes.mjs';
-import { airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, COORDINATED_BANK_CAP, COORDINATED_BANK_STRONG_TARGET, desktopTurnIntent, hasRunwayLiftoffLift, normalizedPitchCommand, smoothMobileSteering, stepCoordinatedBank, throttleSpeedTarget, throttleDecelerationResponse, controlledEngineThrust, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
+import { airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, COORDINATED_BANK_CAP, COORDINATED_BANK_STRONG_TARGET, desktopTurnIntent, hasRunwayLiftoffLift, normalizedPitchCommand, smoothMobileSteering, stepBoostBlend, stepCoordinatedBank, throttleSpeedTarget, throttleDecelerationResponse, controlledEngineThrust, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
 import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
@@ -1828,7 +1828,7 @@ let nextJourneyCombatHudUpdateAt = 0;
 function updateJourneyCombatHeader(): void {
   const mission = journeyCombatMissions.find(definition => definition.id === journeyAttempt?.missionId);
   const countdownVisible = missionStartCountdownStartedAt !== null && !journeyPaused && !flightDialogOpen();
-  const visible = Boolean(journeyMode && mission && (journeyAttempt?.status === 'APPROACH' || journeyAttempt?.status === 'RACING' || countdownVisible && journeyAttempt?.status === 'READY') &&
+  const visible = Boolean(journeyMode && mission && mission !== journeyDallas13 && mission !== journeyDallas14 && mission !== journeyDallas15 && mission !== journeyDallas16 && mission !== journeyDallas17 && mission !== journeyDallas18 && (journeyAttempt?.status === 'APPROACH' || journeyAttempt?.status === 'RACING' || countdownVisible && journeyAttempt?.status === 'READY') &&
     !crashed && (!launchCinematicBlocksInput() || countdownVisible));
   journeyCombatHeader.element.hidden = !visible;
   flightGameRoot.classList.toggle('journey-combat-header-active', visible);
@@ -2501,16 +2501,17 @@ monsterBossHud.className = 'monster-boss-hud hidden';
 monsterBossHud.innerHTML = '<strong>MONSTER</strong><div><i></i></div><span>100%</span>';
 skyChallengeElement.append(monsterBossHud);
 const escortHudMissions = [journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas12] as const;
+const escortHealthRowCount = Math.max(journeyDallas18.enemies.length, ...escortHudMissions.map(mission => mission.escortCount));
 const escortHealthHud = document.createElement('div');
 escortHealthHud.className = 'escort-health-hud hidden';
-escortHealthHud.innerHTML = Array.from({ length: journeyDallas09.escortCount }, () =>
+escortHealthHud.innerHTML = Array.from({ length: escortHealthRowCount }, () =>
   '<div data-escort-health><strong>ESCORT</strong><div><i></i></div><span>—</span></div>').join('');
 skyChallengeElement.append(escortHealthHud);
 const escortHealthRows = [...escortHealthHud.querySelectorAll<HTMLElement>('[data-escort-health]')].map(row => ({
   row, name: row.querySelector<HTMLElement>('strong')!, value: row.querySelector<HTMLElement>('span')!,
 }));
-const escortHudHealth: (number | null)[] = Array(journeyDallas09.escortCount).fill(null);
-const escortHudAircraft: (AircraftType | null)[] = Array(journeyDallas09.escortCount).fill(null);
+const escortHudHealth: (number | null)[] = Array(escortHealthRowCount).fill(null);
+const escortHudAircraft: (AircraftType | null)[] = Array(escortHealthRowCount).fill(null);
 let escortHudAttemptId = '';
 function recordEscortHudHealth(remote: RemotePlayer, health = remote.health): void {
   if (!remote.plane.userData.rearGuardEscort) return;
@@ -2945,26 +2946,36 @@ function updateJourneyHud(): void {
   }
   const segments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
   if (segments) segments.hidden = crossfireMission || elevatorMission || formationMission || firstContactMission || surpriseMission || aceMission || ironMission || showdownMission || breakoutMission || huntMission || pursuitMission || legendaryMission;
-  if (journeyHudEnemy) journeyHudEnemy.hidden = !ironMission && !crossfireMission && !formationMission && !firstContactMission && !surpriseMission && !aceMission && !showdownMission && !(legendaryMission && journeyAttempt.legendaryPhase === 'ACE');
+  if (journeyHudEnemy) journeyHudEnemy.hidden = !formationMission && !(legendaryMission && journeyAttempt.legendaryPhase === 'ACE');
   const activeMissionId = journeyAttempt.missionId;
   const escortMission = escortHudMissions.find(item => item.id === activeMissionId);
-  const activeEscortPhase = escortMission && (journeyAttempt.fighterEscortsAlive??0)>0;
+  const healthPointEnemies = showdownMission ? journeyDallas18.enemies : ironMission ? journeyDallas17.enemies : crossfireMission ? journeyDallas16.enemies : undefined;
+  const singleHealthMission = firstContactMission ? journeyDallas13 : surpriseMission ? journeyDallas14 : aceMission ? journeyDallas15 : undefined;
+  const showsHealthPoints = Boolean(singleHealthMission || healthPointEnemies);
+  const activeEscortPhase = showsHealthPoints || escortMission && (journeyAttempt.fighterEscortsAlive??0)>0;
   const activeHud = journeyAttempt.status === 'APPROACH' || journeyAttempt.status === 'RACING';
   monsterBossHud.classList.toggle('hidden', !(breakoutMission || elevatorMission) || !activeHud);
   escortHealthHud.classList.toggle('hidden', !activeEscortPhase || !activeHud);
+  escortHealthHud.classList.toggle('shows-health-points', showsHealthPoints);
   if (activeEscortPhase) {
     for (const remote of remotePlayers.values()) recordEscortHudHealth(remote);
     for (const [index, { row, name, value }] of escortHealthRows.entries()) {
-      const type = escortHudAircraft[index] ?? escortMission!.escortAircraft[index];
-      row.hidden = index >= escortMission!.escortCount;
+      const type = singleHealthMission ? singleHealthMission.enemyAircraft : healthPointEnemies ? healthPointEnemies[index]?.aircraft : escortHudAircraft[index] ?? escortMission!.escortAircraft[index];
+      row.hidden = index >= (singleHealthMission ? 1 : healthPointEnemies ? healthPointEnemies.length : escortMission!.escortCount);
       if (row.hidden || !type) continue;
       const callsign = aircraftDefinitions[type].callsign;
-      const duplicate = escortMission!.escortAircraft.some((aircraft, slot) =>
-        (escortHudAircraft[slot] ?? aircraft) === type && slot !== index);
+      const duplicate = healthPointEnemies ? healthPointEnemies.some((enemy, slot) => enemy.aircraft === type && slot !== index)
+        : !showsHealthPoints && escortMission!.escortAircraft.some((aircraft, slot) =>
+          (escortHudAircraft[slot] ?? aircraft) === type && slot !== index);
       const label = duplicate ? `${callsign} ${index + 1}` : callsign;
       if (name.textContent !== label) name.textContent = label;
-      const percent = escortHudHealth[index];
-      const healthLabel = percent === null ? '—' : `${Math.round(percent)}%`;
+      const healthPointMaximum = singleHealthMission ? 'bossHealth' in singleHealthMission ? singleHealthMission.bossHealth : singleHealthMission.enemyHealth : showdownMission ? journeyDallas18.enemies[index]!.health : ironMission ? journeyDallas17.enemies[index]!.health : crossfireMission ? journeyDallas16.enemyHealth : null;
+      const currentHealth = singleHealthMission ? journeyAttempt.targetHealth : (journeyAttempt.crossfireKills ?? 0) & (1 << index) ? 0
+        : journeyAttempt.enemyHealths?.[index] ?? healthPointMaximum;
+      const hp = healthPointMaximum === null ? null : Math.max(0, Math.min(healthPointMaximum, currentHealth ?? healthPointMaximum));
+      const percent = hp === null ? escortHudHealth[index] : hp / healthPointMaximum! * 100;
+      const healthLabel = hp === null ? percent === null ? '—' : `${Math.round(percent)}%`
+        : `${Math.round(hp)} / ${healthPointMaximum} HP`;
       if (value.textContent !== healthLabel) value.textContent = healthLabel;
       row.style.setProperty('--escort-health', `${percent ?? 0}%`);
     }
@@ -3032,7 +3043,7 @@ function updateJourneyHud(): void {
     const distance = enemy?.lifeState === 'alive' ? airplane.position.distanceTo(enemy.plane.position) : null;
     const hp = Math.max(0, Math.min(journeyDallas13.enemyHealth, journeyAttempt.targetHealth));
     if (journeyHudObjective) journeyHudObjective.textContent = 'Find And Shoot Down NIGHTOWL Plane Before Time Runs Out.';
-    if (journeyHudProgress) journeyHudProgress.textContent = enemy ? `ENEMY HEALTH: ${hp} / ${journeyDallas13.enemyHealth}` : 'FINDING ENEMY…';
+    if (journeyHudProgress) journeyHudProgress.textContent = enemy ? `NIGHTOWL: ${hp > 0 ? 'ACTIVE' : 'DESTROYED'}` : 'FINDING ENEMY…';
     if (journeyHudTarget) journeyHudTarget.textContent = `DISTANCE: ${distance === null ? 'LOCATING' : formatObjectiveDistance(distance * WORLD_METERS_PER_UNIT)}`;
     if (journeyHudTimer) journeyHudTimer.hidden = true;
     if (journeyHudEnemy) journeyHudEnemy.style.setProperty('--enemy-health', `${hp / journeyDallas13.enemyHealth * 100}%`);
@@ -3043,7 +3054,7 @@ function updateJourneyHud(): void {
     const distance = ace?.lifeState === 'alive' ? airplane.position.distanceTo(ace.plane.position) : null;
     const hp = Math.max(0, Math.min(journeyDallas15.bossHealth, journeyAttempt.targetHealth));
     if (journeyHudObjective) journeyHudObjective.textContent = 'Find And Shoot Down MAMMOTH Plane Before Time Runs Out.';
-    if (journeyHudProgress) journeyHudProgress.textContent = `MAMMOTH: ${hp} / ${journeyDallas15.bossHealth} HP`;
+    if (journeyHudProgress) journeyHudProgress.textContent = `MAMMOTH: ${hp > 0 ? 'ACTIVE' : 'DESTROYED'}`;
     if (journeyHudTarget) journeyHudTarget.textContent = `TARGET: ${distance===null?'LOCATING':formatObjectiveDistance(distance*WORLD_METERS_PER_UNIT)}`;
     if (journeyHudTimer) journeyHudTimer.textContent = journeyAttempt.status==='APPROACH' ? 'TAKE OFF TO START THE CHASE' : `ESCAPE: ${formatObjectiveDistance((journeyAttempt.escapeRemaining??0)*WORLD_METERS_PER_UNIT)} LEFT`;
     if (journeyHudEnemy) journeyHudEnemy.style.setProperty('--enemy-health', `${hp / journeyDallas15.bossHealth * 100}%`);
@@ -3054,7 +3065,7 @@ function updateJourneyHud(): void {
     const distance = enemy?.lifeState === 'alive' ? airplane.position.distanceTo(enemy.plane.position) : null;
     const hp = Math.max(0, Math.min(journeyDallas14.enemyHealth, journeyAttempt.targetHealth));
     if (journeyHudObjective) journeyHudObjective.textContent = 'Find And Shoot Down BLUEJAY Plane Before Time Runs Out.';
-    if (journeyHudProgress) journeyHudProgress.textContent = enemy ? `BLUEJAY: ${hp} / ${journeyDallas14.enemyHealth} HP` : 'FINDING ENEMY…';
+    if (journeyHudProgress) journeyHudProgress.textContent = enemy ? `BLUEJAY: ${hp > 0 ? 'ACTIVE' : 'DESTROYED'}` : 'FINDING ENEMY…';
     if (journeyHudTarget) journeyHudTarget.textContent = `DISTANCE: ${distance === null ? 'LOCATING' : formatObjectiveDistance(distance * WORLD_METERS_PER_UNIT)}`;
     if (journeyHudTimer) journeyHudTimer.textContent = `YOUR HEALTH: ${Math.round(health / maxHealth * 100)}%`;
     if (journeyHudEnemy) journeyHudEnemy.style.setProperty('--enemy-health', `${hp / journeyDallas14.enemyHealth * 100}%`);
@@ -3096,7 +3107,7 @@ function updateJourneyHud(): void {
     const killed=(journeyAttempt.crossfireKills??0),remaining=ids.length-ids.reduce((count,_id,index)=>count+Number(Boolean(killed&(1<<index))),0);
     if(journeyHudObjective)journeyHudObjective.textContent=missionJourneyDetails.find(mission=>mission.id===definition.id)!.description;
     if(journeyHudProgress)journeyHudProgress.textContent=`ENEMIES LEFT: ${remaining}/${ids.length}`;
-    if(journeyHudTarget)journeyHudTarget.textContent=enemy?`${aircraftDefinitions[enemy.aircraftType].callsign}: ${Math.max(0,hp)} / ${maximumHealth} HP`:'LOCATING ENEMIES';
+    if(journeyHudTarget)journeyHudTarget.textContent=enemy ? crossfireMission || ironMission || showdownMission ? aircraftDefinitions[enemy.aircraftType].callsign : `${aircraftDefinitions[enemy.aircraftType].callsign}: ${Math.max(0,hp)} / ${maximumHealth} HP` : 'LOCATING ENEMIES';
     if(journeyHudTimer)journeyHudTimer.textContent=enemy?`DISTANCE: ${formatObjectiveDistance(airplane.position.distanceTo(enemy.plane.position)*WORLD_METERS_PER_UNIT)}`:'';
     if(journeyHudEnemy)journeyHudEnemy.style.setProperty('--enemy-health',`${Math.max(0,hp)/maximumHealth*100}%`);
     if(enemy&&missionObjective?.id!==`${journeyAttempt.attemptId}:${enemy.playerId}`)syncAceObjective();
@@ -5978,10 +5989,11 @@ function createRemotePlayerProxy(isBot: boolean): THREE.Sprite {
   texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.SpriteMaterial({
     map: texture,
-    color: airAssaultMode&&isBot?'#ff4141':visualLanguage[isBot ? 'ai' : 'player'].color,
+    color: visualLanguage[isBot ? 'ai' : 'player'].color,
     transparent: true,
     depthWrite: false,
-    depthTest: true,
+    depthTest: false,
+    fog: false,
     opacity: 0,
   });
   const proxy = new THREE.Sprite(material);
@@ -9138,7 +9150,7 @@ function updateRemotePlayer(player: NetworkPlayer): void {
   if (typeof player.isBot === 'boolean' && remote.isBot !== player.isBot) {
     remote.isBot = Boolean(player.isBot);
     refreshPlayerIdentityTag(remote);
-    (remote.playerProxy.material as THREE.SpriteMaterial).color.set(airAssaultMode&&remote.isBot?'#ff4141':visualLanguage[remote.isBot ? 'ai' : 'player'].color);
+    (remote.playerProxy.material as THREE.SpriteMaterial).color.set(visualLanguage[remote.isBot ? 'ai' : 'player'].color);
   }
   if (player.botPersonality) remote.botPersonality = player.botPersonality;
   if (lifeStateChanged) remote.nearMissActive = false;
@@ -9308,12 +9320,17 @@ function updateRemotePlayers(delta: number): void {
       distance <= 320 || selectedCombatTarget?.remote === remote || performance.now() - remote.lastHitAt <= 2_000
     );
     const proxyMaterial = remote.playerProxy.material as THREE.SpriteMaterial;
-    remote.playerProxy.visible = identityVisible && distance <= 12_000;
+    remote.playerProxy.visible = identityVisible;
     if (remote.playerProxy.visible) {
       const targeted = selectedCombatTarget?.remote === remote;
       const targetPixels = remoteProxyPixelWidth(distance) + (targeted ? selectedCombatTarget?.locked ? 4 : 2 : 0);
-      const width = worldPerPixel * targetPixels;
       remote.playerProxy.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, contactHeight);
+      // This is a HUD contact, not distant scenery. Keep its bearing and pixel
+      // size even when the real aircraft lies beyond the scenery clip plane.
+      const markerDistance = remote.playerProxy.position.distanceTo(camera.position);
+      const markerScale = Math.min(1, camera.far * 0.9 / Math.max(1, markerDistance));
+      if (markerScale < 1) remote.playerProxy.position.sub(camera.position).multiplyScalar(markerScale).add(camera.position);
+      const width = worldPerPixel * targetPixels * markerScale;
       remote.playerProxy.scale.set(width, width * (2 / 3), 1);
       proxyMaterial.opacity = targeted ? 1 : distance <= COMBAT_RANGE ? 0.96 : 0.82;
     }
@@ -9928,19 +9945,10 @@ function updateFlight(delta: number): void {
   // stays entirely inside the existing client flight state/transform stream.
   const boostRequested = !onGround && !crashed && heldActions.has('boost') && !throttleDown && !landingAssistActive;
   boostActive = boostRequested && boostMeter > 0.05;
-  const boostVisualTarget = boostActive ? 1 : 0;
-  // Braking and approach assist kill both the thrust and visual immediately;
-  // ordinary release fades the trail in a few frames instead of popping.
-  if (!boostActive && (throttleDown || landingAssistActive || onGround)) {
-    boostVisualStrength = 0;
-  } else {
-    const response = boostVisualTarget > boostVisualStrength ? 12 : 16;
-    boostVisualStrength = THREE.MathUtils.lerp(
-      boostVisualStrength,
-      boostVisualTarget,
-      1 - Math.exp(-response * delta),
-    );
-  }
+  // Power, speed target and visual feedback share the same smooth spool.
+  // Keep explicit braking, landing assist and ground safety immediate.
+  boostVisualStrength = !boostActive && (throttleDown || landingAssistActive || onGround)
+    ? 0 : stepBoostBlend(boostVisualStrength, boostActive, delta);
   if (boostActive) {
     boostMeter = Math.max(0, boostMeter - delta * (currentAircraft.boostDrain ?? 20));
   } else if (!boostRequested) {
@@ -10144,9 +10152,7 @@ function updateFlight(delta: number): void {
     1,
   );
   const liftFactor = airborneLiftFactor(forwardSpeed, angleOfAttack, throttle, stallFactor, currentAircraft);
-  const boostThrust = boostActive
-    ? currentAircraft.acceleration * ((currentAircraft.boostThrust ?? 1.35) - 1)
-    : 0;
+  const boostThrust = currentAircraft.acceleration * ((currentAircraft.boostThrust ?? 1.35) - 1) * boostVisualStrength;
   // Keep runway thrust at wheel release, then build airborne power gradually.
   // Heavy aircraft spool up more slowly; an already-airborne spawn stays at 1.
   const takeoffPowerSeconds = Math.max(8, 10 * Math.sqrt(currentAircraft.inertia));
@@ -10162,29 +10168,27 @@ function updateFlight(delta: number): void {
   const airbrakeDrag = airborneAirbrakeDeceleration(forwardSpeed, speedBrakeStrength, currentAircraft);
   const approachDrag = landingAssistActive ? baseDrag * 0.75 : 0;
   const normalDrag = (baseDrag + inducedDrag + approachDrag) / currentAircraft.inertia + airbrakeDrag;
-  const cruiseTarget = boostActive ? currentAircraft.maxSpeed * (currentAircraft.boostMaxSpeed ?? 1.35)
-    : throttleSpeedTarget(throttle, currentAircraft);
+  const cruiseTarget = THREE.MathUtils.lerp(throttleSpeedTarget(throttle, currentAircraft),
+    currentAircraft.maxSpeed * (currentAircraft.boostMaxSpeed ?? 1.35), boostVisualStrength);
   const thrust = controlledEngineThrust(forwardSpeed, cruiseTarget, availableThrust, normalDrag,
     throttleDecelerationResponse(throttle, currentAircraft));
   const normalSpeedLimit = currentAircraft.maxSpeed + speedBonus;
   const overspeed = Math.max(0, airspeed - normalSpeedLimit);
-  // Boost thrust stops at release, but the speed it already earned is momentum.
+  // Boost winds down smoothly at release; earned speed remains momentum.
   // Above normal max, aerodynamic drag first cancels any remaining engine
   // surplus, then bleeds excess speed over the aircraft's coasting time.
   // Airbrake/approach drag remains additive and intentionally slows it faster.
-  const coastDrag = !boostActive && overspeed > 0
-    ? Math.max(0, thrust - normalDrag) + overspeed / currentAircraft.overspeedDecaySeconds
+  const coastDrag = overspeed > 0
+    ? (Math.max(0, thrust - normalDrag) + overspeed / currentAircraft.overspeedDecaySeconds) * (1 - boostVisualStrength)
     : 0;
   const speedRequestThrottle = mobileThrottleTarget ?? throttle;
-  const requestedDeceleration = !boostActive
-    ? throttleTargetDeceleration(forwardSpeed, speedRequestThrottle, currentAircraft)
-    : 0;
+  const requestedDeceleration = throttleTargetDeceleration(forwardSpeed, speedRequestThrottle, currentAircraft) * (1 - boostVisualStrength);
   // The lever requests a continuous performance target. Above that target,
   // first cancel residual engine surplus and then shed the excess speed at an
   // aircraft-specific rate. Large lever reductions therefore bite at once,
   // while small corrections remain smooth and heavy aircraft retain inertia.
   const throttleTargetDrag = requestedDeceleration > 0
-    ? Math.max(0, thrust - normalDrag) + requestedDeceleration
+    ? Math.max(0, thrust - normalDrag) * (1 - boostVisualStrength) + requestedDeceleration
     : 0;
   const drag = normalDrag + Math.max(coastDrag, throttleTargetDrag);
 
@@ -10205,7 +10209,7 @@ function updateFlight(delta: number): void {
   velocity.addScaledVector(sideSlip, Math.min(1, delta * currentAircraft.alignmentRate * (0.42 + speedRatio * 0.58)));
   // A normal acceleration still obeys the base cap. An aircraft already above
   // it after Boost release retains the Boost ceiling while drag winds it down.
-  const maxAirSpeed = guidedTutorialActive ? Math.max(currentAircraft.takeoffSpeed * 2.5, 180) : boostActive || overspeed > 0
+  const maxAirSpeed = guidedTutorialActive ? Math.max(currentAircraft.takeoffSpeed * 2.5, 180) : boostActive || boostVisualStrength > 0 || overspeed > 0
     ? currentAircraft.maxSpeed * (currentAircraft.boostMaxSpeed ?? 1.15) + speedBonus
     : normalSpeedLimit;
   if (velocity.lengthSq() > maxAirSpeed * maxAirSpeed) velocity.setLength(maxAirSpeed);
@@ -10343,7 +10347,7 @@ function updateCamera(delta: number): void {
 
   refreshCameraFraming();
   const cameraFollow = currentAircraft.cameraDamping;
-  const targetChaseDistance = defaultChaseDistance * cameraDistanceMultiplier;
+  const targetChaseDistance = defaultChaseDistance * 0.92 * cameraDistanceMultiplier;
   smoothedChaseDistance = THREE.MathUtils.lerp(
     smoothedChaseDistance,
     targetChaseDistance,
@@ -10371,7 +10375,9 @@ function updateCamera(delta: number): void {
   chaseCameraPosition.copy(cameraOrbitOffset
     .set(
       0,
-      defaultChaseHeight * (0.82 + cameraDistanceMultiplier * 0.18),
+      // Reveal the wings and runway over the tail, including wider aircraft.
+      Math.max(defaultChaseHeight * 1.3, defaultChaseDistance * 0.28)
+        * (0.82 + cameraDistanceMultiplier * 0.18),
       smoothedChaseDistance,
     )
     .applyQuaternion(cameraChaseQuaternion))

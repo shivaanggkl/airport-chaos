@@ -1761,6 +1761,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .escort-health-hud { display: grid; gap: 3px; padding-top: 3px; border-top: 1px solid rgb(255 211 91 / 35%); }
 .escort-health-hud.hidden { display: none; }
 .escort-health-hud > div { display: grid; grid-template-columns: 72px minmax(0, 1fr) 4ch; align-items: center; gap: 7px; color: #ffd15b; font: 800 10px/1.1 var(--font-display); }
+.escort-health-hud.shows-health-points > div { grid-template-columns: 72px minmax(0, 1fr) auto; }
 .escort-health-hud strong { color: inherit; font: inherit; }
 .escort-health-hud > div > div { height: 7px; overflow: hidden; border: 1px solid rgb(227 168 41 / 40%); border-radius: 5px; background: rgb(16 41 67 / 12%); }
 .escort-health-hud i { display: block; width: var(--escort-health, 0%); height: 100%; background: linear-gradient(90deg, rgb(247 165 34 / 75%), rgb(255 227 91 / 75%)); transition: width 170ms linear; }

@@ -247,7 +247,10 @@ async function playJourneyMission(): Promise<void> {
     const response = await apiFetch(apiUrl(`/api/journey/dallas/${mission}/launch`), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
     });
-    if (!response.ok) throw new Error('Mission launch was not authorized');
+    if (!response.ok) {
+      const failure = await response.json().catch(() => undefined) as { error?: unknown } | undefined;
+      throw new Error(typeof failure?.error === 'string' ? failure.error : 'Unable to start this mission. Please try again.');
+    }
     const result = await response.json() as { attempt?: { attemptId?: string } };
     if (!result.attempt?.attemptId) throw new Error('Mission attempt was missing');
     journeyAttemptId = result.attempt.attemptId;
@@ -260,8 +263,8 @@ async function playJourneyMission(): Promise<void> {
     console.error('[journey] Mission launch failed', error);
     if (entryState === 'FLIGHT' && gameRoot.hidden) showMissionJourney(false, false);
     await refreshJourneyProgress();
-    if (mission === 'mission-13' || mission === 'mission-14') missionJourneyElement.querySelector<HTMLElement>('[data-mission-objective]')!.textContent =
-      error instanceof Error ? error.message : 'Mission 7 is unavailable. Please try again.';
+    missionJourneyElement.querySelector<HTMLElement>('[data-mission-objective]')!.textContent =
+      error instanceof Error ? error.message : 'Unable to start this mission. Please try again.';
   } finally {
     journeyLaunchPending = false;
   }

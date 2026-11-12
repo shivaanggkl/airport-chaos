@@ -1,5 +1,5 @@
 import {journeyDallas18,journeyDallas19,journeyDallas20,journeyDallas21,journeyDallas22,journeyDallas25} from '../../shared/journey-mission.mjs';
-import {hunterBallisticSolution} from './hunter-flight.js';
+import {hunterBallisticSolution,hunterObservedPosition} from './hunter-flight.js';
 import {aircraftPresentationMuzzleSockets} from '../../shared/aircraft-presentation-scale.mjs';
 import {ballisticShotSpeed,COMBAT_RANGE,AIM_ENVELOPE} from '../../shared/protocol.mjs';
 import {projectileImpactFraction} from '../../shared/projectile-collision.mjs';
@@ -30,7 +30,7 @@ const ast = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true
 function runtime(names, context) {
   const code = ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.includes(node.name?.text))
     .map(node => node.getText(ast)).join('\n');
-  const sandbox = vm.createContext({journeyDallas18,journeyDallas19,journeyDallas20,journeyDallas21,journeyDallas22,journeyDallas25,journeyDallas17:mission,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas23,recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
+  const sandbox = vm.createContext({hunterObservedPosition,journeyDallas18,journeyDallas19,journeyDallas20,journeyDallas21,journeyDallas22,journeyDallas25,journeyDallas17:mission,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas23,recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
   vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, sandbox);
   return sandbox;
 }
@@ -174,7 +174,7 @@ test('all three production aircraft keep their assigned levels, hulls, liveries 
   const config=mission.enemies[ordinal-1];
   const id = ctx.createBot('dallas', undefined, { attemptId: 'attempt', targetPlayerId: 'owner', target: {}, firstContact: true, ironHunter: true, contactOrdinal:ordinal });
   const enemy = players.get(id), spawn = { ...enemy.position };
-  assert.equal(enemy.bot.opponent.profile,enemyAiLevels[config.level]); assert.equal(enemy.bot.opponent.definition.personality,'aggressive'); assert.equal(enemy.aircraftType, config.aircraft); assert.equal(enemy.health, 200);
+  assert.equal(enemy.bot.opponent.profile,enemyAiLevels[config.level]); assert.equal(enemy.bot.opponent.definition.personality,'aggressive'); assert.equal(enemy.aircraftType, config.aircraft); assert.equal(enemy.health, config.health);
   assert.equal(enemy.position.y, 120 + config.altitude); assert.equal(Math.hypot(enemy.velocity.x, enemy.velocity.z), 400);
   assert.equal(sent.at(-1).equippedCosmetics[`livery:${config.aircraft}`], config.livery);
   let maxRadius = 0, minSpeed = Infinity;
@@ -215,7 +215,7 @@ test('Hard Mammoth and Very Hard wingmen produce real forward ballistic hits aga
  const normalize=v=>{const n=Math.hypot(v.x,v.y,v.z);return{x:v.x/n,y:v.y/n,z:v.z/n};},dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
  const ctx=runtime(['botFireSolution','muzzleTransform','rotateLocalYxz','forwardDirection','hunterForward'],{aircraftPresentationMuzzleSockets,aircraftFlightEnvelope,AIM_ENVELOPE,hunterBallisticSolution,smoothHunter:()=>true,runwayCombatProtected:()=>false,hunterFireCone:.2,hunterFireRange:COMBAT_RANGE,defenderDownwardFireAngle:.3,normalize,dot});
  for(const config of mission.enemies){
-  const shooter={aircraftType:config.aircraft,position:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-500},bot:{opponent:{profile:enemyAiLevels[config.level]}}};
+  const shooter={aircraftType:config.aircraft,position:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-500},bot:{journeyIronHunter:true,opponent:{profile:enemyAiLevels[config.level]}}};
   const target={aircraftType:'trainer',position:{x:0,y:1000,z:-1200},rotation:{x:0,y:0,z:0},velocity:{x:100,y:0,z:-300}};
   const solution=ctx.botFireSolution(shooter,target,false);assert.equal(solution.reason,undefined);
   const aim=opponentAim(enemyAiLevels[config.level],solution.aimX,solution.aimY,()=>.6),direction=normalize(ctx.rotateLocalYxz({x:aim.x,y:aim.y,z:-1},shooter.rotation)),origin=ctx.muzzleTransform(shooter).position,speed=ballisticShotSpeed(shooter.velocity,direction);
@@ -243,6 +243,7 @@ test('exit removes only the owned Mammoth, shots and targeting; armored enemy ca
  const player={assistedAim:{},aimSamples:[]},enemy={isBot:true,bot:{journeyAttemptId:'attempt',journeyTargetPlayerId:'owner',journeyIronHunter:true}},unrelated={isBot:true,bot:{journeyAttemptId:'another'}};
  const players=new Map([['owner',player],['enemy',enemy],['second',{...enemy}],['third',{...enemy}],['other',unrelated]]),removedShots=[],sent=[];
  const ctx=runtime(['removeJourneyHunter','removeBot','updateRepairStations'],{
+  journeyStore:{discardContinuation:()=>{}},journeyContinuations:new Map(),pursuitRecoveryPoses:new Map(),
   journeyDallas07:{id:'7'},journeyDallas08:{id:'8'},journeyDallas09:{id:'9'},journeyDallas10:{id:'10'},journeyDallas11:{id:'11'},journeyDallas12:{id:'12'},journeyDallas18:{id:'18'},journeyDallas19:{id:'19'},
   players,playerJourneyAttempts:new Map([['owner','attempt']]),setServerLock:()=>{},removePlayerProjectiles:id=>removedShots.push(id),clearPlayerRuntimeState:()=>{},portalFlights:new Map(),sendToPlayer:(_id,p)=>sent.push(p),broadcastToCity:()=>assert.fail('private removal leaked'),doubleHunterMotion:new Map(),crossfireFireCoordinators:new Map(),crossfireDefeatedHunters:new Map(),crossfireHunterMotion:new Map(),
   pausedJourneyPlayers:new Set(['owner','other']),pausedTrainingPlayers:new Set(),
