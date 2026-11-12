@@ -4,21 +4,21 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AirAssaultEncounter, AirAssaultRewards, incomingAssaultThreat, assaultShotDirection, assaultApproachSpeed, assaultObservedTurn, type AssaultPilot } from './air-assault.js';
-import { ballisticIntercept, ballisticShotSpeed } from '../../shared/protocol.mjs';
+import { ballisticIntercept, ballisticShotSpeed, COMBAT_RANGE } from '../../shared/protocol.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { PlayerProfileStore } from './player-profiles.js';
 import { airAssaultManifest, airAssaultTiers, airAssaultRules, airAssaultAirports, airAssaultQueuePosition, airAssaultHearts } from '../../shared/air-assault.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 const now = Date.UTC(2026, 10, 1, 12);
-function rig() {
+function rig(warn?: (id: string) => void) {
   const pilot: AssaultPilot = { position: { x: -22800, y: 600, z: -13600 }, velocity: { x: 0, y: 0, z: -200 }, rotation: { x: 0, y: 0, z: 0 }, health: 200, maxHealth: 200, airborne: true, fresh: true };
   const shots: Array<{
     id: string;
     at: number;
   }> = [];
   let at = now, heals = 0;
-  const encounter = new AirAssaultEncounter('dallas', 'pilot', { elevation: () => 100, activate() { }, move() { }, remove() { }, bullets: () => [], fire: e => { shots.push({ id: e.id, at }); return true; }, heal() { heals++; pilot.health = 200; }, finish: () => ({ reward: 0, dailyClaimed: false }) }, now);
+  const encounter = new AirAssaultEncounter('dallas', 'pilot', { elevation: () => 100, activate() { }, move() { }, remove() { }, bullets: () => [], warn, fire: e => { shots.push({ id: e.id, at }); return true; }, heal() { heals++; pilot.health = 200; }, finish: () => ({ reward: 0, dailyClaimed: false }) }, now);
   const tick = (t: number) => { at = t; encounter.tick(pilot, t); };
   const start = () => { encounter.ready(now); encounter.skip(now + 1000); tick(now + 4000); encounter.takeoff(now + 4100, 'dfw'); };
   return { encounter, pilot, tick, start, shots, heals: () => heals };
@@ -383,4 +383,19 @@ test('Holding Legendary aircraft still evade real incoming trajectories without 
   assert.ok(Math.abs(holding!.rotation.z)>.1);
   assert.equal(holding!.health,200);
   assert.deepEqual([...new Set(fired)],[attacker!.id]);
+});
+
+
+test('Air Assault admits attackers through the shared 6 km boundary, but not beyond it', () => {
+  for (const range of [5000, COMBAT_RANGE, COMBAT_RANGE + 1]) {
+    const warned: string[] = [];
+    const r = rig(id => warned.push(id)); r.start();
+    r.pilot.position = { x: 0, y: 600, z: 0 };
+    const enemy = r.encounter.enemies[0]!;
+    Object.assign(enemy, { phase: 'combat', position: { x: 0, y: 600, z: -range },
+      speed: 170, readyAt: now, fireAt: now });
+    r.tick(now + 4200);
+    assert.equal(warned.includes(enemy.id), range <= COMBAT_RANGE,
+      `attacker admission at ${range}m`);
+  }
 });

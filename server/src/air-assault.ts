@@ -258,11 +258,11 @@ export class AirAssaultEncounter {
     // Prefetch departures, not attacks: one Legendary pursues/fires while the others hold nearby.
     const legends = this.active().filter(e => e.tier === 'legendary' && e.phase === 'combat');
     const attacker = legends.find(e => e.id === this.legendaryAttackerId);
-    if (!attacker || distance(attacker.position, pilot.position) > 6000 && !this.hooks.enemyShotOwners?.().has(attacker.id)) {
+    if (!attacker || distance(attacker.position, pilot.position) > COMBAT_RANGE && !this.hooks.enemyShotOwners?.().has(attacker.id)) {
       this.legendaryAttackerId = legends.sort((a, b) => distance(a.position, pilot.position) - distance(b.position, pilot.position))[0]?.id;
     }
     const mayAttack = (e: Enemy) => e.tier !== 'legendary' || e.id === this.legendaryAttackerId;
-    const candidates = this.active().filter(e => mayAttack(e) && e.phase === 'combat' && now >= e.readyAt && distance(e.position, pilot.position) < 4500)
+    const candidates = this.active().filter(e => mayAttack(e) && e.phase === 'combat' && now >= e.readyAt && distance(e.position, pilot.position) <= COMBAT_RANGE)
       .sort((a, b) => distance(a.position, pilot.position) - distance(b.position, pilot.position)).slice(0, 2);
     if (now >= this.shooterLeaseUntil) {
       // A previous attacker's airborne rounds still occupy its firing slot.

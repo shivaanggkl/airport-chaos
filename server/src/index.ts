@@ -816,7 +816,7 @@ const botPopulationTickMs = 1_000;
 const maxBotsPerCity = 7;
 const maxBotsIncludingTemporaryDefenders = maxBotsPerCity + 2;
 const botKillRewardMultiplier = 0.35;
-const hunterDetectionRange = 4_500;
+const hunterDetectionRange = COMBAT_RANGE;
 const hunterPursuitRange = 6_500;
 const hunterFireRange = COMBAT_RANGE;
 const hunterFireCone = 0.20;
@@ -6813,7 +6813,7 @@ function botCombatTarget(botId: string, bot: PlayerState, now: number): [string,
       (!bot.bot?.journeyTargetPlayerId || id === bot.bot.journeyTargetPlayerId) &&
       (bot.cityId !== 'milwaukee' || target.milwaukeeBotsProvoked) && target.lifeState === 'alive' && target.hasRespawnTransform && now >= target.spawnProtectedUntil && now - target.lastStateAt < 1_500)
     .map(([id, target]) => ({ id, target, distance: Math.hypot(target.position.x - bot.position.x, target.position.y - bot.position.y, target.position.z - bot.position.z) }))
-    .filter((candidate) => candidate.distance > 90 && candidate.distance <
+    .filter((candidate) => candidate.distance > 90 && candidate.distance <=
       (bot.skyDuelPracticeOwnerId ? skyDuelAiTuning.detectionRange : hunterDetectionRange))
     .filter((candidate) => {
       const currentHunters = [...players.values()].filter((other) => other.isBot && other.lifeState === 'alive' && other.bot?.combatTargetId === candidate.id && isHunterCombatPhase(other.bot.phase)).length;
@@ -7399,7 +7399,7 @@ function updateBots(now: number, expertOnly = false): void {
       // separate, modest bot cone and random dispersion create pressure
       // without granting a bot the player's assisted LOCKED-hit contract.
       const canShoot = !target.isBot && target.lifeState === 'alive' && now >= target.spawnProtectedUntil &&
-        !solution.reason && (!bot.journeyFirstContact || bot.journeyIronHunter || bot.journeyFinalShowdown || solution.distance <= 2_500);
+        !solution.reason;
       const crossfireAllowed = !bot.journeyCrossfire || Boolean(bot.journeyAttemptId &&
         crossfireFireCoordinators.get(bot.journeyAttemptId)?.canInitiate(botId, canShoot, now));
       const escortFire = bot.journeyRearGuardEscort && bot.journeyAttemptId ? rearGuardFire.get(bot.journeyAttemptId) : undefined;

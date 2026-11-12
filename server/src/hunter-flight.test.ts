@@ -266,3 +266,29 @@ test('Legendary lead and swept hits share the accepted movement clock without en
  }
  assert.equal(correctedHits,4);assert.ok(oldAimHits<correctedHits);
 });
+
+test('ordinary AI acquires at 6 km and its firing solution rejects beyond the player range', () => {
+  const normalize = (v: { x: number; y: number; z: number }) => {
+    const length = Math.hypot(v.x, v.y, v.z); return { x: v.x / length, y: v.y / length, z: v.z / length };
+  };
+  const ctx = production(['botFireSolution', 'rotateLocalYxz', 'forwardDirection', 'hunterForward'], {
+    smoothHunter: () => true, hunterBallisticSolution, aircraftFlightEnvelope, normalize,
+    muzzleTransform: (p: ReturnType<typeof pilot>) => ({ position: p.position }),
+    dot: (a: any, b: any) => a.x * b.x + a.y * b.y + a.z * b.z,
+    hunterFireRange: COMBAT_RANGE, hunterFireCone: .2, defenderDownwardFireAngle: .3,
+  });
+  const shooter = pilot(); shooter.velocity = { x: 0, y: 0, z: 0 };
+  for (const distance of [5000, COMBAT_RANGE, COMBAT_RANGE + 1]) {
+    const target = { ...pilot(), position: { ...shooter.position, z: shooter.position.z - distance }, velocity: { x: 0, y: 0, z: 0 } };
+    assert.equal(ctx.botFireSolution(shooter, target, false).reason === undefined, distance <= COMBAT_RANGE);
+  }
+  assert.match(source, /const hunterDetectionRange = COMBAT_RANGE;/);
+  // Exercise the production attack eligibility expression for both introductory opponents.
+  const statement = source.match(/const canShoot = (!target\.isBot[\s\S]*?);/)!;
+  assert.ok(statement);
+  for (const journeySurpriseAttack of [false, true]) {
+    const eligible = vm.runInNewContext(statement[1], { target: { lifeState: 'alive', spawnProtectedUntil: 0 },
+      now: 1000, solution: { distance: COMBAT_RANGE }, bot: { journeyFirstContact: true, journeySurpriseAttack } });
+    assert.equal(eligible, true);
+  }
+});

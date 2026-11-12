@@ -3282,8 +3282,11 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   if (success) { if (missionClearAttemptId !== attempt.attemptId) audioManager.playReward(); if (legendaryMission) legendaryPilotUnlocked = true; }
 }
 
-let pendingJourneyAd: { failureKey: string; adAttemptId: string } | undefined;
+let pendingJourneyAd: { attemptId: string; failureKey: string; adAttemptId: string } | undefined;
 let journeyAdBusy = false;
+function journeyAdRecoveryPending(attempt: JourneyAttemptState): boolean {
+  return attempt.status === 'RACING' && pendingJourneyAd?.attemptId === attempt.attemptId;
+}
 function updateJourneyAdButton(attempt: JourneyAttemptState): void {
   const button = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-ad]')!;
   const notice = journeyResultElement.querySelector<HTMLElement>('[data-journey-ad-notice]')!;
@@ -3305,9 +3308,9 @@ function updateJourneyAdButton(attempt: JourneyAttemptState): void {
 journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-ad]')!.addEventListener('click', () => void continueJourneyWithAd());
 async function continueJourneyWithAd(): Promise<void> {
   const failed = journeyAttempt;
-  if (!failed || failed.status !== 'FAILED' || !failed.canContinueAfterAd || !rewardedAdProvider || journeyAdBusy) return;
+  if (!failed || !(failed.status === 'FAILED' && failed.canContinueAfterAd || journeyAdRecoveryPending(failed)) || !rewardedAdProvider || journeyAdBusy) return;
   journeyAdBusy = true;
-  const failureKey = `${failed.attemptId}:${failed.finishedAt}`;
+  const failureKey = journeyAdRecoveryPending(failed) ? pendingJourneyAd!.failureKey : `${failed.attemptId}:${failed.finishedAt}`;
   const notice = journeyResultElement.querySelector<HTMLElement>('[data-journey-ad-notice]')!;
   const buttons = [...journeyResultElement.querySelectorAll<HTMLButtonElement>('button')];
   buttons.forEach(button => { button.disabled = true; });
@@ -3325,14 +3328,14 @@ async function continueJourneyWithAd(): Promise<void> {
       if (!statusResponse.ok) throw new Error('Unable to check video. Try again.');
       const status = await statusResponse.json() as {attemptStatus:string};
       if (['REWARDED','PENDING_VERIFICATION','AD_STARTED'].includes(status.attemptStatus)) {
-        pendingJourneyAd={failureKey,adAttemptId:ad.attemptId};
+        pendingJourneyAd={attemptId:failed.attemptId,failureKey,adAttemptId:ad.attemptId};
       } else try {
         await rewardedAdProvider.load(ad);
         await post('event', { attemptId: ad.attemptId, event: 'started' });
         const shown = await rewardedAdProvider.show();
         await post('event', { attemptId: ad.attemptId, event: shown.state }).catch(() => undefined);
         if (shown.state !== 'qualified') throw new Error('Video was not completed. Your checkpoint is saved.');
-        pendingJourneyAd = { failureKey, adAttemptId: ad.attemptId };
+        pendingJourneyAd = { attemptId:failed.attemptId, failureKey, adAttemptId: ad.attemptId };
       } catch (error) {
         await post('event', { attemptId: ad.attemptId, event: 'failed' }).catch(() => undefined);
         throw error;
@@ -3352,9 +3355,18 @@ async function continueJourneyWithAd(): Promise<void> {
         await new Promise(resolve => window.setTimeout(resolve, 1500));
         continue;
       }
-      const response = await post('journey-continue', { attemptId: failed.attemptId, adAttemptId: pendingJourneyAd!.adAttemptId });
+      const payload = { attemptId: failed.attemptId, adAttemptId: pendingJourneyAd!.adAttemptId };
+      let response: Response;
+      try { response = await post('journey-continue', payload); }
+      catch {
+        // Redemption is idempotent: recover its live pose if the first response was lost.
+        notice.textContent = 'Reconnecting to your mission…';
+        if (journeyAttempt?.attemptId !== failed.attemptId) return;
+        response = await post('journey-continue', payload);
+      }
       if (response.ok) {
         const result = await response.json() as { health: number; maxHealth: number; resumeFlight: { position: NetworkVector; rotation: NetworkVector; velocity: NetworkVector } };
+        if (journeyAttempt?.attemptId !== failed.attemptId) return;
         const flight = result.resumeFlight;
         resetCrashPresentation(); cinematicDirector.resetFlight();
         crashed = false; runStarted = true; onGround = false; localLifeState = 'alive'; airplane.visible = true;
@@ -3378,7 +3390,7 @@ async function continueJourneyWithAd(): Promise<void> {
     await rewardedAdProvider.discard().catch(() => undefined);
     journeyAdBusy = false;
     buttons.forEach(button => { button.disabled = false; });
-    journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-ad]')!.disabled = !journeyAttempt?.canContinueAfterAd;
+    journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-ad]')!.disabled = !journeyAttempt || !(journeyAttempt.canContinueAfterAd || journeyAdRecoveryPending(journeyAttempt));
   }
 }
 
@@ -12280,7 +12292,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       resetCrashPresentation();
       monsterView?.dispose(); monsterView = undefined;
       transportView?.dispose(); transportView = undefined; transportViewAttemptId = '';
-      journeyResultElement.classList.add('hidden');
+      if (!journeyAdRecoveryPending(message.attempt)) journeyResultElement.classList.add('hidden');
     }
     journeyAttempt = message.attempt;
     if ((message.attempt.missionId !== journeyDallas13.id && message.attempt.missionId !== journeyDallas14.id && message.attempt.missionId !== journeyDallas15.id && message.attempt.missionId !== journeyDallas16.id && message.attempt.missionId !== journeyDallas17.id && message.attempt.missionId !== journeyDallas18.id && message.attempt.missionId !== journeyDallas08.id && message.attempt.missionId !== journeyDallas09.id && message.attempt.missionId !== journeyDallas10.id && message.attempt.missionId !== journeyDallas12.id && message.attempt.missionId !== journeyDallas07.id && message.attempt.missionId !== journeyDallas11.id) || ['FAILED','ABANDONED'].includes(message.attempt.status) ||
