@@ -197,15 +197,15 @@ test('all three production aircraft keep their assigned levels, hulls, liveries 
 
 
 
-test('M11 keeps identity, Executive runway, safe spawn, mixed HARD / VERY HARD and original rewards', () => {
+test('M11 keeps identity, Executive runway, safe spawn, VERY HARD opponents and original rewards', () => {
   const executive=cityAirports.dallas.find(a=>a.id===mission.startAirportId);
   assert.equal(journeyMissionSlot(mission.id),11);
   assert.equal(mission.name,'IRON HUNTER');assert.equal(mission.startAirportId,'executive');
   const distance=Math.hypot(mission.enemySpawn.x-executive.x,mission.enemySpawn.z-executive.z);
   assert.ok(distance>=14000&&distance<=20000);assert.equal(mission.enemyAltitude,800*DALLAS_WORLD_SCALE);
-  const enemy=createOpponent({aircraft:mission.enemyAircraft,livery:mission.enemyLivery,level:'HARD',personality:'aggressive',behavior:'patrol',cityId:'dallas',position:{...mission.enemySpawn,y:1000},rotation:{x:0,y:0,z:0},speed:mission.cruiseSpeed,health:mission.enemyHealth});
-  assert.equal(enemy.profile,enemyAiLevels.HARD);assert.equal(mission.enemyHealth,200);
-  assert.equal(projectileDamageForAircraft('trainer')*8,mission.enemyHealth);
+  const enemy=createOpponent({aircraft:mission.enemyAircraft,livery:mission.enemyLivery,level:mission.enemies[0].level,personality:'aggressive',behavior:'patrol',cityId:'dallas',position:{...mission.enemySpawn,y:1000},rotation:{x:0,y:0,z:0},speed:mission.cruiseSpeed,health:mission.enemyHealth});
+  assert.equal(enemy.profile,enemyAiLevels.VERY_HARD);assert.equal(mission.enemyHealth,300);
+  assert.equal(projectileDamageForAircraft('trainer')*12,mission.enemyHealth);
   assert.equal(mission.firstClearCredits,2250);assert.equal(mission.timeLimitMs,180000);
   for(const obsolete of ['heart','heartId','startHealthFraction','finishAirportId','requiredLandingScore'])assert.equal(obsolete in mission,false);
   assert.doesNotMatch(source,/collectCriticalHeart|recordCriticalLanding/);
@@ -253,4 +253,21 @@ test('exit removes only the owned Mammoth, shots and targeting; armored enemy ca
  assert.equal(players.has('enemy'),false);assert.equal(players.has('other'),true);
  assert.deepEqual(removedShots,['owner','enemy','second','third']);assert.equal(players.has('second')||players.has('third'),false);assert.equal(player.assistedAim,undefined);assert.equal(player.aimSamples,undefined);
  assert.equal(sent[0].type,'remove');assert.equal(sent[0].playerId,'enemy');
+});
+
+test('M11 revised roster uses per-aircraft hull health and Very Hard difficulty', () => {
+  assert.deepEqual(mission.enemies.map(({aircraft,health,level})=>({aircraft,health,level})), [
+    {aircraft:'cargo',health:300,level:'VERY_HARD'},
+    {aircraft:'privateJet',health:300,level:'VERY_HARD'},
+    {aircraft:'trainer',health:200,level:'VERY_HARD'},
+  ]);
+  const ctx=runtime(['transportEscortHealth'],{journeyDallas17:mission});
+  for(const [index,config] of mission.enemies.entries()) {
+    const enemy=createOpponent({aircraft:config.aircraft,livery:config.livery,level:config.level,
+      cityId:'dallas',position:{x:config.x,y:config.altitude,z:config.z},rotation:{x:0,y:0,z:0},
+      speed:mission.cruiseSpeed,health:config.health,behavior:'patrol'});
+    assert.equal(enemy.definition.health,config.health);
+    assert.equal(enemy.profile,enemyAiLevels.VERY_HARD);
+    assert.equal(ctx.transportEscortHealth({journeyFirstContact:true,journeyIronHunter:true,journeyContactOrdinal:index+1}),config.health);
+  }
 });

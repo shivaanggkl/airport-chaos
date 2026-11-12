@@ -6399,7 +6399,7 @@ function desiredBotCount(cityId: CityId): number {
 }
 
 function transportEscortHealth(bot: BotRuntime | undefined): number | undefined {
-  if (bot?.journeyFirstContact) return bot.journeyFinalShowdown ? journeyDallas18.enemies[(bot.journeyContactOrdinal ?? 1)-1]!.health : bot.journeyIronHunter ? journeyDallas17.enemyHealth : bot.journeySurpriseAttack ? journeyDallas14.enemyHealth : journeyDallas13.enemyHealth;
+  if (bot?.journeyFirstContact) return bot.journeyFinalShowdown ? journeyDallas18.enemies[(bot.journeyContactOrdinal ?? 1)-1]!.health : bot.journeyIronHunter ? journeyDallas17.enemies[(bot.journeyContactOrdinal ?? 1)-1]!.health : bot.journeySurpriseAttack ? journeyDallas14.enemyHealth : journeyDallas13.enemyHealth;
   if (!bot?.journeyRearGuardEscort) return undefined;
   return bot.journeyEscortMissionId === journeyDallas10.id || bot.journeyEscortMissionId === journeyDallas12.id
     ? (bot.journeyEscortMissionId === journeyDallas12.id ? journeyDallas12 : journeyDallas10).escortHealth[bot.journeyRearGuardEscort - 1]

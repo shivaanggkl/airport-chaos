@@ -116,22 +116,22 @@ export const journeyDallas14: Readonly<{
 }>;
 export const journeyDallas15: Readonly<{
   id: 'journey-dallas-15'; cityId: 'dallas'; name: 'HOT PURSUIT'; chapter: 'SKY HUNTERS';
-  firstClearCredits: 1950; startAirportId: 'addison'; bossName: 'ESCAPING MAMMOTH'; bossHealth: 200;
+  firstClearCredits: 1950; startAirportId: 'addison'; bossName: 'ESCAPING MAMMOTH'; bossHealth: 300;
   timeLimitMs: 180000; enemyAircraft:'cargo'; enemyLivery:'mammoth-sand'; enemyAltitude:2400;
   enemySpawn:Readonly<{x:number;z:number}>; cruiseSpeed:420; threatDistance:30000; arrivalRadius:1950;
   escapeRoute:readonly Readonly<{x:number;z:number}>[];
 }>;
 export const journeyDallas16: Readonly<{
   id:'journey-dallas-16';cityId:'dallas';name:'DOUBLE THREAT';chapter:'SKY HUNTERS';
-  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs: 180000;enemyHealth:200;aggressionDistance:8000;
+  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs: 180000;enemyHealth:300;aggressionDistance:8000;
   enemies:readonly Readonly<{aircraft:'privateJet'|'trainer';livery:string;x:number;z:number;altitude:number}>[];
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas17:Readonly<{
   id:'journey-dallas-17';cityId:'dallas';name:'IRON HUNTER';chapter:'SKY HUNTERS';firstClearCredits:2250;
-  startAirportId:'executive';timeLimitMs: 180000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:200;
+  startAirportId:'executive';timeLimitMs: 180000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:300;
   enemyAltitude:2400;aggressionDistance:6000;patrolRadius:6000;cruiseSpeed:400;enemySpawn:Readonly<{x:number;z:number}>;
-  enemies: readonly Readonly<{aircraft:'cargo'|'privateJet'|'trainer';livery:string;name:string;level:'HARD'|'VERY_HARD';health:200;x:number;z:number;altitude:number}>[];
+  enemies: readonly Readonly<{aircraft:'cargo'|'privateJet'|'trainer';livery:string;name:string;level:'HARD'|'VERY_HARD';health:200|300;x:number;z:number;altitude:number}>[];
 }>;
 export const journeyDallas18: Readonly<{
   id: 'journey-dallas-18'; cityId: 'dallas'; name: 'FINAL SHOWDOWN'; chapter: 'SKY HUNTERS'; firstClearCredits: 2400;
