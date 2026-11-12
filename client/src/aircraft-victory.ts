@@ -54,8 +54,18 @@ export class AircraftVictory {
     if (Number.isFinite(radius) && radius > 0) this.cameraClearance = Math.max(80, radius * 2.5);
   }
 
-  beginFromGameplayCamera(camera: THREE.PerspectiveCamera): void {
+  beginFromGameplayCamera(camera: THREE.PerspectiveCamera, launchOrigin?: THREE.Vector3): void {
     if (this.gameplayCamera || this.replayStarted || !this.replayReady) return;
+    if (launchOrigin) {
+      this.shotOrigin.copy(launchOrigin);
+      this.bulletPosition.copy(launchOrigin);
+      this.pilotMuzzlePosition.copy(launchOrigin);
+      this.pilotTravel = 0;
+      this.enemyVelocity.set(0, 0, 0);
+      this.enemyPosition.copy(this.position);
+      this.shotDirection.subVectors(this.impactPosition, launchOrigin).normalize();
+      this.cameraSide.crossVectors(this.shotDirection, THREE.Object3D.DEFAULT_UP).normalize();
+    }
     this.gameplayCamera = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), fov: camera.fov };
     this.launchHold = .25;
     this.replayDuration += this.launchHold;
@@ -117,10 +127,10 @@ export class AircraftVictory {
       this.shotDirection.subVectors(this.impactPosition, this.shotOrigin).normalize();
       this.cameraSide.crossVectors(this.shotDirection, THREE.Object3D.DEFAULT_UP).normalize();
     }
-    // M8's fast rear ambush must not become a second plane fly-by in the
+    // The introductory battles must not become a second plane fly-by in the
     // finishing replay. Hold its confirmed pose while the final bullet travels.
-    if (this.mission !== journeyDallas14 && velocity && [velocity.x,velocity.y,velocity.z].every(Number.isFinite)) this.enemyVelocity.copy(velocity);
-    if (this.mission === journeyDallas14) this.pilotTravel = 0;
+    if (this.mission !== journeyDallas13 && this.mission !== journeyDallas14 && velocity && [velocity.x,velocity.y,velocity.z].every(Number.isFinite)) this.enemyVelocity.copy(velocity);
+    if (this.mission === journeyDallas13 || this.mission === journeyDallas14) this.pilotTravel = 0;
     this.enemyPosition.copy(this.position).addScaledVector(this.enemyVelocity,-this.shotTravelSeconds);
     if (!this.replayReady) this.impactPosition.copy(this.position);
     this.enemyRotation.set(rotation?.x ?? 0, heading, rotation?.z ?? 0, 'YXZ');

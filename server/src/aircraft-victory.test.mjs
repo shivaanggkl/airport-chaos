@@ -212,9 +212,11 @@ for (const {mission, config, giant} of replayCases) test(`M${journeyMissionSlot(
  const airplane=new THREE.Group(),scene=new THREE.Scene(),events=[],created=[],liveries=[];
  const camera=new THREE.PerspectiveCamera(58);
  camera.position.set(11700,2470,-34500);
+ camera.lookAt(new THREE.Vector3().copy(hit.position));
+ airplane.position.set(11745,2456,-34562);
  const transport=giant ? {root:new THREE.Group(),finishFinishingShot:()=>events.push('giant crash')} : undefined;
  const ctx=vm.createContext({THREE,aircraftVictory:ending,aircraftVictoryReplay:null,aircraftVictoryQueue:[],aircraftVictoryCandidates:[],transportView:transport,aircraftVictoryTransport:transport,airplane,scene,
-  camera,createProjectileCore,fitRound,CAMERA_CHASE_FOV:58,skyDome:new THREE.Group(),window:{innerHeight:1080},aircraftType:'trainer',aircraftPresentationMuzzleSockets,serverProfile:{cosmetics:{equipped:{}}},applyEquippedLivery:(_plane,type,paint)=>liveries.push({type,paint}),
+  journeyDallas13,getCurrentMuzzlePosition:out=>out.copy(airplane.position).add(new THREE.Vector3(0,0,-5)),camera,createProjectileCore,fitRound,CAMERA_CHASE_FOV:58,skyDome:new THREE.Group(),window:{innerHeight:1080},aircraftType:'trainer',aircraftPresentationMuzzleSockets,serverProfile:{cosmetics:{equipped:{}}},applyEquippedLivery:(_plane,type,paint)=>liveries.push({type,paint}),
   createAirplane:type=>{created.push(type);const p=new THREE.Group();p.userData.airframeRoot=new THREE.Group();p.add(p.userData.airframeRoot);return p;},
   transport,audioManager:{playDestroyConfirm(){}},disposeAirplaneMaterials:()=>events.push('dispose'),
   createDestructionEffect:(position,type)=>{assert.equal(type,config.enemyAircraft);assert.deepEqual(position.toArray(),[12345,2456,-34567]);events.push('blast');},playDestructionSound(){},
@@ -248,8 +250,37 @@ for (const {mission, config, giant} of replayCases) test(`M${journeyMissionSlot(
  }
 });
 
-test('replay aircraft keep moving while the final bullet catches the opponent at its destruction position',()=>{
- const ending=new AircraftVictory('attempt','enemy','pilot');
+for (const {mission,config,giant} of replayCases) for (const aircraftType of ['trainer','privateJet','cargo','fighter']) test(`M${journeyMissionSlot(mission.id)} ${giant ? 'giant' : config.enemyLivery}: ${aircraftType} keeps its live pose and camera during the finishing shot`,()=>{
+ const ending=new AircraftVictory('attempt','enemy','pilot',config);
+ ending.recordProjectile({projectileId:'finish',ownerId:'pilot',position:{x:0,y:500,z:3000},speed:4000});
+ ending.recordFatalHit({playerId:'enemy',shooterId:'pilot',health:0,impactId:'finish',impactPosition:hit.position});
+ ending.confirmSuccess();ending.confirmDestruction(hit,0,undefined,{x:200,y:0,z:0});
+ const airplane=new THREE.Group(),airframe=new THREE.Group();airplane.add(airframe);airplane.userData.airframeRoot=airframe;
+ airplane.position.set(11745,2456,-34562);airplane.rotation.set(.1,.4,.2);
+ airframe.position.set(0,-2,0);airframe.scale.setScalar(aircraftPresentationScale[aircraftType]);
+ const camera=new THREE.PerspectiveCamera(58);camera.position.copy(airplane.position).add(new THREE.Vector3(0,20,100));camera.lookAt(airplane.position);
+ const launch=airplane.position.clone().add(new THREE.Vector3(2,1,-10));
+ const ctx=vm.createContext({THREE,aircraftVictoryReplay:null,journeyDallas13,journeyDallas17,journeyDallas18,airplane,camera,aircraftType,
+  aircraftPresentationMuzzleSockets,serverProfile:{cosmetics:{equipped:{}}},applyEquippedLivery(){},scene:new THREE.Scene(),createProjectileMesh:()=>new THREE.Group(),
+  getCurrentMuzzlePosition:out=>out.copy(launch),createAirplane:()=>{const p=new THREE.Group();p.userData.airframeRoot=new THREE.Group();p.add(p.userData.airframeRoot);return p;},ending,transport:giant ? {root:new THREE.Group()} : undefined});
+ vm.runInContext(code('prepareAircraftVictoryReplay')+'\nprepareAircraftVictoryReplay(ending, undefined, transport);',ctx);
+ const replay=ctx.aircraftVictoryReplay;
+ assert.deepEqual(replay.pilot.position.toArray(),airplane.position.toArray());
+ assert(replay.pilot.quaternion.angleTo(airplane.quaternion)<1e-7);
+ assert.deepEqual(replay.pilot.userData.airframeRoot.scale.toArray(),airframe.scale.toArray());
+ assert.deepEqual(replay.pilot.userData.airframeRoot.position.toArray(),airframe.position.toArray());
+ const initialCamera=camera.position.clone();ending.update(.2);ending.updateCamera(camera);
+ assert.deepEqual(camera.position.toArray(),initialCamera.toArray());
+ ending.update(.3);
+ assert.deepEqual(ending.pilotMuzzlePosition.toArray(),launch.toArray());
+ assert.deepEqual(ending.enemyPosition.toArray(),Object.values(hit.position));
+ assert(ending.bulletPosition.distanceTo(launch)>0);
+ assert(ending.update(2).blast);
+ assert.deepEqual(ending.bulletPosition.toArray(),Object.values(hit.position));
+});
+
+test('later replay aircraft keep moving while the final bullet catches the opponent at its destruction position',()=>{
+ const ending=new AircraftVictory('attempt','enemy','pilot',journeyDallas15);
  ending.recordProjectile({projectileId:'finish',ownerId:'pilot',position:{x:11345,y:2456,z:-34567},speed:1000});
  ending.recordFatalHit({playerId:'enemy',shooterId:'pilot',health:0,impactId:'finish',impactPosition:hit.position});
  ending.confirmSuccess();ending.confirmDestruction(hit,0,undefined,{x:200,y:0,z:0});

@@ -64,7 +64,7 @@ export function controlledEngineThrust(speed,target,available,drag,response){
 export function throttleSpeedTarget(throttle,envelope){
   const request=clamp(throttle,0,1);
   const speeds=[
-    envelope.stallSpeed*.72,
+    envelope.stallSpeed*.81,
     Math.max(envelope.stallSpeed*1.05,envelope.safeLandingSpeed*1.05),
     Math.max(envelope.safeLandingSpeed*1.45,envelope.maxSpeed*.25),
     envelope.maxSpeed*.45,

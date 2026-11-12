@@ -2414,12 +2414,20 @@ function clearAircraftVictoryReplay(): void {
 }
 function prepareAircraftVictoryReplay(ending: AircraftVictory, original?: THREE.Group, transport?: GiantIncomingView): void {
   if (!ending.hasReplay || aircraftVictoryReplay) return;
-  if (ending.mission === journeyDallas17 || ending.mission === journeyDallas18 || ending.mission.fromGameplayCamera) ending.beginFromGameplayCamera(camera);
   const root = new THREE.Group();
   const pilot = createAirplane(aircraftType);
   applyEquippedLivery(pilot, aircraftType, serverProfile.cosmetics.equipped);
-  pilot.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),ending.shotDirection);
-  const muzzle = new THREE.Vector3().copy(aircraftPresentationMuzzleSockets[aircraftType].position).applyQuaternion(pilot.quaternion);
+  pilot.quaternion.copy(airplane.quaternion);
+  const liveAirframe = airplane.userData.airframeRoot as THREE.Group | undefined;
+  const replayAirframe = pilot.userData.airframeRoot as THREE.Group;
+  if (liveAirframe) {
+    replayAirframe.position.copy(liveAirframe.position);
+    replayAirframe.scale.copy(liveAirframe.scale);
+  }
+  const liveMuzzle = new THREE.Vector3();
+  getCurrentMuzzlePosition(liveMuzzle);
+  const muzzle = liveMuzzle.clone().sub(airplane.position);
+  ending.beginFromGameplayCamera(camera, liveMuzzle);
   pilot.position.copy(ending.shotOrigin).sub(muzzle);
   const enemy = transport ? undefined : createAirplane(ending.mission.enemyAircraft);
   if (enemy) {

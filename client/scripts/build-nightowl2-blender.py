@@ -369,7 +369,7 @@ for side in (-1, 1):
 
 def cabin_wordmark(side):
     letters = bpy.data.curves.new("NIGHTOWL2 lettering", "FONT")
-    letters.body = "NIGHTOWL2"
+    letters.body = "NIGHTOWL"
     letters.size = 0.72
     letters.space_character = 1.04
     font_object = bpy.data.objects.new("NIGHTOWL2 lettering source", letters)
