@@ -199,10 +199,10 @@ function drawTallHouseCreative(
   }
 }
 
-function materialFor(creative: AdCreative, level: 'near' | 'mid' | 'far' = 'near', aspect = 3.2): THREE.MeshBasicMaterial {
+function materialFor(creative: AdCreative, level: 'near' | 'mid' | 'far' = 'near', aspect = 3.2, groundDepthOffset = 0): THREE.MeshBasicMaterial {
   const portrait = aspect < 1.35;
   const aspectKey = Math.max(0.2, Math.round(aspect * 10) / 10);
-  const key = `${creative.reference}|${level}|${aspectKey}`;
+  const key = `${creative.reference}|${level}|${aspectKey}|${groundDepthOffset}`;
   const cached = materialCache.get(key);
   if (cached) return cached;
 
@@ -320,7 +320,8 @@ function materialFor(creative: AdCreative, level: 'near' | 'mid' | 'far' = 'near
   texture.magFilter = THREE.LinearFilter;
   texture.generateMipmaps = true;
   texture.anisotropy = 4;
-  const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, toneMapped: false });
+  const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, toneMapped: false,
+    polygonOffset: groundDepthOffset !== 0, polygonOffsetFactor: groundDepthOffset, polygonOffsetUnits: groundDepthOffset });
   materialCache.set(key, material);
   if (creative.reference === sponsorCatalog['airport-chaos'].creative.reference) {
     void loadAirportChaosLogo().then((image) => {
@@ -588,7 +589,7 @@ function groundGeometryFor(placement: AdPlacement, heightAt?: (x: number, z: num
   return geometry;
 }
 
-function buildPlacement(placement: AdPlacement, groundHeightAt?: (x: number, z: number) => number): RenderedPlacement {
+function buildPlacement(placement: AdPlacement, groundHeightAt?: (x: number, z: number) => number, depthOffsetDirection = -1): RenderedPlacement {
   const group = new THREE.Group();
   const panels: THREE.Mesh[] = [];
   const creativeSize = skyCreativeSize(placement);
@@ -612,7 +613,9 @@ function buildPlacement(placement: AdPlacement, groundHeightAt?: (x: number, z: 
       ['mid', Math.max(450 * visibilityScale, placement.size.x * 12)],
       ['far', Math.max(1_300 * visibilityScale, placement.size.x * 30)],
     ] as const) {
-      const panel = new THREE.Mesh(ownedGeometry ?? panelGeometry, materialFor(placement.creative, level, placement.size.x / placement.size.y));
+      // Ground creatives are decals: bias them ahead of near-coplanar terrain
+      // and park surfaces, while retaining depth tests against buildings.
+      const panel = new THREE.Mesh(ownedGeometry ?? panelGeometry, materialFor(placement.creative, level, placement.size.x / placement.size.y, ground ? depthOffsetDirection * 4 : 0));
       if (!ground) panel.scale.set(placement.size.x, placement.size.y, 1);
       if (!ground) panel.position.z = 0.12;
       panel.name = `ad-${level}-${placement.id}`;
@@ -729,10 +732,11 @@ export class AdPlacementManager {
     groundHeightAt?: (x: number, z: number) => number,
     private readonly hasBuildingDetailAt?: (x: number, z: number) => boolean,
     quality: 'high' | 'low' = 'high',
+    private readonly depthOffsetDirection = -1,
   ) {
     this.rendered = placements
       .filter((placement) => placement.cityId === cityId && placement.type !== 'AIRCRAFT_LIVERY' && placement.type !== 'RING_SPONSOR' && placement.type !== 'EVENT_SPONSOR' && isActive(placement) && visibleAtQuality(placement, quality))
-      .map((placement) => buildPlacement(placement, groundHeightAt));
+      .map((placement) => buildPlacement(placement, groundHeightAt, depthOffsetDirection));
     for (const placement of placements) {
       if (placement.cityId === cityId && placement.type === 'AIRCRAFT_LIVERY' && isActive(placement)) {
         this.liveryMetrics.set(placement.id, {
@@ -814,7 +818,9 @@ export class AdPlacementManager {
         loaded.magFilter = THREE.LinearFilter;
         loaded.generateMipmaps = true;
         loaded.anisotropy = 4;
-        const material = new THREE.MeshBasicMaterial({ map: loaded, side: THREE.DoubleSide, toneMapped: false });
+        const groundDepthOffset = isGroundPlacement(rendered.placement.type) ? this.depthOffsetDirection * 4 : 0;
+        const material = new THREE.MeshBasicMaterial({ map: loaded, side: THREE.DoubleSide, toneMapped: false,
+          polygonOffset: groundDepthOffset !== 0, polygonOffsetFactor: groundDepthOffset, polygonOffsetUnits: groundDepthOffset });
         rendered.panels.forEach(panel => { panel.material = material; });
         this.sponsored.set(rendered.placement.id, { url, texture: loaded, material });
       }, undefined, () => {

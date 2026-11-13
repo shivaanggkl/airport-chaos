@@ -480,8 +480,8 @@ export const journeyDallasCapture01 = Object.freeze({
   id: 'journey-dallas-capture-01', cityId: 'dallas', name: 'CAPTURE 1 TERRITORY', difficulty: 'EASY',
   objective: 'Fly into the marked territory and stay inside until it is captured!',
   territoryId: captureTerritory.id, captureDurationMs: territoryCaptureDurationMs,
-  timeLimitMs: 240_000, firstClearCredits: 500,
-  airborneSpawn: Object.freeze({x: captureTerritory.bounds.minX - 2500, z: captureTerritory.center.z,
+  timeLimitMs: 180_000, firstClearCredits: 500,
+  airborneSpawn: Object.freeze({x: captureTerritory.bounds.minX - 15_000, z: captureTerritory.center.z,
     altitude: 800, heading: -Math.PI / 2, speed: 650}),
 });
 

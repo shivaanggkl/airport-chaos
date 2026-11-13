@@ -43,6 +43,38 @@ globalThis.document = { createElement: tag => new FakeElement(tag) };
 const { GameplayInfoCard } = await import('../../client/src/gameplay-info-card.ts');
 const { PlayersPanel, CityTerritoriesPanel } = await import('../../client/src/players-panel.ts');
 
+test('capture mission reuses the existing ownership list alongside mission details and restores other modes', () => {
+  const root = new FakeElement('div');
+  const mission = new FakeElement('strong');
+  root.append(mission);
+  const card = new GameplayInfoCard(root);
+  const list = card.territoriesRoot;
+  const panel = new CityTerritoriesPanel(list);
+  card.setMode('mission-territories');
+  assert.equal(root.children[1].hidden, false);
+  assert.equal(root.classList.contains('is-multiplayer'), false, 'mission details stay visible');
+  assert.equal(card.activeTab, 'territories');
+  assert.equal(list.hidden, false);
+  assert.equal(card.playersRoot.hidden, true);
+  assert.equal(root.children[1].children[1].textContent, 'TARGET TERRITORY');
+  assert.equal(root.children[1].children[1].hidden, false);
+  assert.equal(list.getAttribute('aria-labelledby'), 'gameplay-info-target-heading');
+  panel.update([{ name: 'LAS COLINAS', color: '#ffffff', contested: false, statusLabel: 'CAPTURING 45%' }], 'pilot');
+  assert.match(list.textContent, /LAS COLINASCAPTURING 45%/);
+  card.setCollapsed(true);
+  card.setMode('mission-territories');
+  assert.equal(root.classList.contains('is-collapsed'), true, 'HUD updates preserve collapse');
+  card.reset();
+  assert.equal(card.activeTab, 'territories');
+  card.setMode('mission');
+  assert.equal(root.children[1].hidden, true);
+  assert.equal(root.classList.contains('has-mission-territories'), false);
+  assert.equal(root.children[1].children[1].hidden, true);
+  card.setMode('multiplayer');
+  assert.equal(card.activeTab, 'players');
+  assert.equal(card.territoriesRoot, list, 'no duplicate territory panel');
+});
+
 test('one card swaps mission content for one multiplayer tab, then resets between sessions', () => {
   const root = new FakeElement('div');
   const mission = new FakeElement('strong');

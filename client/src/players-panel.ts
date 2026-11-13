@@ -89,6 +89,8 @@ export type CityTerritoryEntry = {
   controllerName?: string;
   contested: boolean;
   captureProgress?: number;
+  /** Optional mission presentation; never changes territory ownership. */
+  statusLabel?: string;
 };
 
 /** Displays server-owned territory state without changing the shared card size. */
@@ -140,7 +142,7 @@ export class CityTerritoriesPanel {
       const owner = !online ? 'OFFLINE' : !territory.controllerId ? 'NEUTRAL' :
         territory.controllerId === localId ? 'YOU' : territory.controllerName ?? 'PILOT';
       const progress = online && territory.captureProgress ? ` · ${Math.round(Math.min(100, Math.max(0, territory.captureProgress)))}%` : '';
-      const label = `${owner}${territory.contested ? ' · CONTESTED' : ''}${progress}`;
+      const label = territory.statusLabel ?? `${owner}${territory.contested ? ' · CONTESTED' : ''}${progress}`;
       if (slot.owner.textContent !== label) slot.owner.textContent = label;
       slot.owner.title = label;
       slot.row.classList.toggle('you', online && territory.controllerId === localId && !territory.contested);

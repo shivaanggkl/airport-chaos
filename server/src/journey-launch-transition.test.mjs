@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import ts from 'typescript';
-import { journeyMissionOrder } from '../../shared/journey-mission.mjs';
+import { journeyMissionOrder, journeyCatalog } from '../../shared/journey-mission.mjs';
 
 const source = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
 const tree = ts.createSourceFile('bootstrap.ts', source, ts.ScriptTarget.Latest, true);
@@ -35,7 +35,7 @@ function setup(missionNumber, failLoading = false) {
   } };
   const context = vm.createContext({
     journeyLaunchPending: false, dallasUnlocked: () => true, cityJourneyMode: 'missions',
-    missionJourney: journey, journeyMissionOrder, pendingAircraftSelection: undefined,
+    missionJourney: journey, journeyMissionOrder, journeyCatalog, pendingAircraftSelection: undefined,
     apiUrl: path => path, apiFetch: async () => ({ ok: true, json: async () => ({
       attempt: { attemptId: 'authorized-attempt' }, mission13: { definitionVersion: 1 }, mission14: { definitionVersion: 1 },
     }) }),
@@ -61,8 +61,9 @@ function setup(missionNumber, failLoading = false) {
     get restores() { return restores; }, get selectorRevealed() { return selectorRevealed; } };
 }
 
-test('all 24 Journey launches stay on Journey until the game is ready, without revealing city cards', async () => {
-  for (let slot = 1; slot <= 24; slot++) {
+test('every playable Journey launch stays on Journey until the game is ready, without revealing city cards', async () => {
+  for (const stage of journeyCatalog.filter(item => item.implementation === 'playable')) {
+    const slot = stage.number;
     const state = setup(slot);
     const launch = state.context.playJourneyMission();
     // Let authorization complete while world loading remains unresolved.
@@ -93,4 +94,15 @@ test('failed world loading keeps Journey visible and restores its navigation for
   assert.equal(state.root.hidden, true);
   assert.equal(state.selectorRevealed, false);
   assert.equal(state.context.journeyLaunchPending, false);
+});
+
+ test('placeholder mission buttons cannot launch a flight', async () => {
+  for (const stage of journeyCatalog.filter(item => item.implementation === 'placeholder')) {
+    const state = setup(stage.number);
+    await state.context.playJourneyMission();
+    assert.equal(state.loads, 0);
+    assert.equal(state.journey.hidden, false);
+    assert.equal(state.root.hidden, true);
+    assert.equal(state.context.journeyLaunchPending, false);
+  }
 });
