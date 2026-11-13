@@ -463,7 +463,20 @@ export class MissionJourney {
     const locked = this.cityLocked || (!completed && !eligible && !signInRequired);
     this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}`;
     this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card.title;
-    this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = card.description;
+    const objective = this.detail.querySelector<HTMLElement>('[data-mission-objective]')!;
+    objective.textContent = card.description;
+    if (card.id === 'journey-dallas-capture-01') {
+      const list = document.createElement('span');
+      list.className = 'mission-journey-instructions';
+      list.setAttribute('role', 'list');
+      for (const line of card.description.split('\n')) {
+        const item = document.createElement('span');
+        item.setAttribute('role', 'listitem');
+        item.textContent = line;
+        list.append(item);
+      }
+      objective.replaceChildren(list);
+    }
     const reward = this.detail.querySelector<HTMLElement>('[data-mission-reward]')!;
     reward.hidden = false;
     this.detail.querySelector<HTMLElement>('[data-mission-time]')!.hidden = false;

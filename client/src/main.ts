@@ -1,5 +1,5 @@
 import { rewardedAdProvider, type RewardedAdAttempt } from './rewarded-ads';
-import { missionJourneyDetails } from './mission-journey-content';
+import { missionJourneyDetails, captureMissionInstructions } from './mission-journey-content';
 import { CombatStatsHeader } from './combat-stats-header';
 import { horizontalDistanceSquared, isFiniteGuidancePosition, opponentAltitudeGuidance } from './opponent-altitude-guidance';
 import { AircraftVictory } from './aircraft-victory';
@@ -77,7 +77,7 @@ import { NavigationBeaconSystem, type NavigationDestination } from './navigation
 import { combatAimBlend, combatShotAimSample } from '../../shared/combat-aim.mjs';
 import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, fireIntervalMs, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, localFiringDirection, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase } from './firehawk-checkout';
-import { TERRITORY_WALL_HEIGHT_METERS, territoryCaptureCeilingAgl, territoriesForCity, territoryContains, type CityTerritory } from '../../shared/city-territories.mjs';
+import { TERRITORY_WALL_HEIGHT_METERS, territoriesForCity, territoryContains, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { missionHudObjective, missionHudProgress } from '../../shared/mission-hud.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
@@ -2178,6 +2178,23 @@ function drawRadarTerritories(direction: THREE.Vector3, onlyId?: string): void {
     radarContext.stroke();
     if (journeyTarget) {
       const label = project(definition.center.x, definition.center.z);
+      const offsetX = label.x - center, offsetY = label.y - center;
+      const distance = Math.hypot(offsetX, offsetY);
+      if (distance > radarRadius - 10) {
+        // Keep the target bearing visible even when the whole territory is off radar.
+        label.x = center + offsetX / distance * (radarRadius - 10);
+        label.y = center + offsetY / distance * (radarRadius - 10);
+        radarContext.globalAlpha = 1;
+        radarContext.beginPath();
+        radarContext.moveTo(label.x, label.y - 5);
+        radarContext.lineTo(label.x + 5, label.y);
+        radarContext.lineTo(label.x, label.y + 5);
+        radarContext.lineTo(label.x - 5, label.y);
+        radarContext.closePath();
+        radarContext.fill();
+        label.x = Math.max(center - radarRadius + 30, Math.min(center + radarRadius - 30, label.x));
+        label.y = Math.max(center - radarRadius + 24, Math.min(center + radarRadius - 4, label.y));
+      }
       radarContext.globalAlpha = 1;
       radarContext.fillStyle = state?.controllerId ? definition.fixedColor : neutralTerritoryColor;
       radarContext.font = 'bold 9px ui-monospace, monospace';
@@ -2584,7 +2601,7 @@ function ownedTerritoriesForPlayer(playerId: string): Array<{ name: string; colo
   const owned: Array<{ name: string; color: string }> = [];
   for (const definition of territoryDefinitions) {
     if (territoryState.get(definition.id)?.controllerId !== playerId) continue;
-    owned.push({ name: definition.displayName, color: definition.fixedColor });
+    owned.push({ name: territoryDisplayName(definition), color: definition.fixedColor });
   }
   return owned;
 }
@@ -2728,6 +2745,10 @@ function createTerritoryWallGeometry(definition: CityTerritory): THREE.BufferGeo
   return geometry;
 }
 
+function territoryDisplayName(definition: CityTerritory): string {
+  return journeyAttempt?.missionId === journeyDallasCapture01.id && definition.id === journeyDallasCapture01.territoryId
+    ? 'LAS COLINAS' : definition.displayName;
+}
 function createCityTerritoryBorders(){return territoryDefinitions.map((definition) => {
   const wall = new THREE.Mesh(createTerritoryWallGeometry(definition), territoryWallMaterial);
   wall.name = `territory-wall-${definition.id}`;
@@ -2737,11 +2758,11 @@ function createCityTerritoryBorders(){return territoryDefinitions.map((definitio
   const owner = document.createElement('span');
   label.className = 'territory-world-label';
   label.hidden = true;
-  title.textContent = definition.displayName.toUpperCase();
+  title.textContent = territoryDisplayName(definition).toUpperCase();
   label.append(title, owner);
   territoryLabelLayer.append(label);
   scene.add(wall);
-  return { definition, wall, label, owner, displayColor: neutralTerritoryColor, appearance: 'neutral' as TerritoryAppearance, missionTarget: false, pulseUntil: 0, styleSignature: '' };
+  return { definition, wall, label, title, owner, displayColor: neutralTerritoryColor, appearance: 'neutral' as TerritoryAppearance, missionTarget: false, pulseUntil: 0, styleSignature: '' };
 });}
 let territoryBorders = createCityTerritoryBorders();
 const territoryPulseMesh = new THREE.Mesh(new THREE.BufferGeometry(), territoryPulseMaterial);
@@ -2819,6 +2840,8 @@ function updateTerritoryBorderVisibility(now: number): void {
   territoryBorderRefreshAt = now + (activeBoundaryPulse ? 80 : 500);
   for (const entry of territoryBorders) {
     const { definition, wall } = entry;
+    const displayName = territoryDisplayName(definition).toUpperCase();
+    if (entry.title.textContent !== displayName) entry.title.textContent = displayName;
     const viewPosition = missionCaptureIntroPath && flightLaunchState === 'active' ? camera.position : airplane.position;
     const dx = Math.max(definition.bounds.minX - viewPosition.x, 0, viewPosition.x - definition.bounds.maxX);
     const dz = Math.max(definition.bounds.minZ - viewPosition.z, 0, viewPosition.z - definition.bounds.maxZ);
@@ -2897,7 +2920,7 @@ function journeyTerritoryCaptureLabel(): string {
   if (progress >= 100) return 'TERRITORY CAPTURED!';
   const target = territoryDefinitions.find(item => item.id === journeyDallasCapture01.territoryId)!;
   const agl = airplane.position.y - getTerrainHeight(airplane.position.x, airplane.position.z);
-  const inside = territoryContains(target, airplane.position) && agl > 0 && agl <= territoryCaptureCeilingAgl;
+  const inside = territoryContains(target, airplane.position) && agl > 0;
   return inside && journeyAttempt.status === 'RACING' ? 'STAY INSIDE LAS COLINAS'
     : progress ? 'RETURN TO LAS COLINAS' : 'FLY TO LAS COLINAS';
 }
@@ -2913,7 +2936,7 @@ function updateTerritoryPanel(allowDemonstration = true): void {
     const agl = airplane.position.y - getTerrainHeight(airplane.position.x, airplane.position.z);
     const capturing = demonstrationPercent !== undefined ? percent > 0
       : journeyAttempt.status === 'RACING' && !journeyPaused && connectionReady() && !crashed && !onGround &&
-        territoryContains(target, airplane.position) && agl > 0 && agl <= territoryCaptureCeilingAgl;
+        territoryContains(target, airplane.position) && agl > 0;
     const statusLabel = percent >= 100 ? 'CAPTURED!' : capturing ? `CAPTURING ${percent}%`
       : percent > 0 ? `PAUSED AT ${percent}%` : 'NOT CAPTURED';
     cityTerritoriesPanel.update([{ name: 'LAS COLINAS', color: percent >= 100 ? target.fixedColor : neutralTerritoryColor,
@@ -2945,7 +2968,7 @@ function cityTerritoryEntries(): CityTerritoryEntry[] {
   return territoryDefinitions.map((definition) => {
     const state = territoryState.get(definition.id);
     return {
-      name: definition.displayName, color: definition.fixedColor,
+      name: territoryDisplayName(definition), color: definition.fixedColor,
       controllerId: state?.controllerId, controllerName: state?.controllerName,
       contested: state?.contested ?? false,
       captureProgress: state?.captureProgress ?? 0,
@@ -3038,8 +3061,19 @@ function updateJourneyHud(): void {
     if (countdown !== null) journeyHudHeaderTimer.textContent = `${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, '0')}`;
   }
   if (journeyAttempt.missionId === journeyDallasCapture01.id) {
-    if (journeyHudObjective) journeyHudObjective.textContent = journeyDallasCapture01.objective;
-    if (journeyHudProgress) { journeyHudProgress.hidden = false; journeyHudProgress.textContent = journeyTerritoryCaptureLabel(); }
+    if (journeyHudObjective && !journeyHudObjective.querySelector('[role="list"]')) {
+      const list = document.createElement('span');
+      list.className = 'capture-mission-instructions';
+      list.setAttribute('role', 'list');
+      for (const instruction of captureMissionInstructions) {
+        const item = document.createElement('span');
+        item.setAttribute('role', 'listitem');
+        item.textContent = instruction;
+        list.append(item);
+      }
+      journeyHudObjective.replaceChildren(list);
+    }
+    if (journeyHudProgress) journeyHudProgress.hidden = true;
     const captureSegments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
     if (captureSegments) captureSegments.hidden = true;
     if (journeyHudEnemy) {
@@ -5224,7 +5258,28 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     if (missionCaptureIntroPath && !skipped) {
       updateTerritoryPanel();
       const text = missionCaptureIntroPath.text(elapsed);
-      if (flightLaunchTitle.firstElementChild?.textContent !== text) flightLaunchTitle.firstElementChild!.textContent = text;
+      if (elapsed >= 3_000) {
+        if (!flightLaunchTitle.querySelector('.capture-intro-instructions')) {
+          const list = document.createElement('ul');
+          list.className = 'capture-intro-instructions';
+          const lines = text.split('\n');
+          for (const line of lines.slice(0, 1)) {
+            const item = document.createElement('li');
+            item.textContent = line;
+            list.append(item);
+          }
+          const finalItem = document.createElement('li');
+          finalItem.append(captureMissionInstructions[1].split('LAS COLINAS')[0]);
+          const example = document.createElement('div');
+          new CityTerritoriesPanel(example).update([{ name: 'LAS COLINAS', color: neutralTerritoryColor,
+            contested: false, statusLabel: 'CAPTURING 100%' }], localPlayerId);
+          finalItem.append(example);
+          list.append(finalItem);
+          flightLaunchTitle.replaceChildren(list);
+        }
+      } else if (flightLaunchTitle.firstElementChild?.textContent !== text) {
+        flightLaunchTitle.replaceChildren(Object.assign(document.createElement('span'), { textContent: text }));
+      }
     }
     if((missionCombatIntroPath?.arrivalIntro||missionCombatIntroPath?.strikingIntro||missionCombatIntroPath?.huntingIntro)&&!skipped){
       const cut=missionCombatIntroPath.huntingIntro?(elapsed>=(missionCombatIntroPath.finalIntro?28000:24000)&&m19IntroSceneryCut<(missionCombatIntroPath.finalIntro?28000:24000)?(missionCombatIntroPath.finalIntro?28000:24000):0):missionCombatIntroPath.strikingIntro?(elapsed>=23000&&m19IntroSceneryCut<23000?23000:0):elapsed>=14000&&m19IntroSceneryCut<14000?14000:elapsed>=4000&&m19IntroSceneryCut<4000?4000:0;
@@ -6466,7 +6521,7 @@ function updateWorldMap(direction: THREE.Vector3): void {
       const state = territoryState.get(definition.id);
       return {
         id: definition.id,
-        label: definition.displayName,
+        label: territoryDisplayName(definition),
         bounds: definition.bounds,
         color: state?.controllerId ? definition.fixedColor : neutralTerritoryColor,
         missionTarget: missionTerritories.includes(definition.id) || definition.id === focusedTerritoryTargetId(),
@@ -7620,7 +7675,7 @@ function pilotMenuData(): PilotMenuData {
     const state = territoryState.get(definition.id);
     return {
       id: definition.id,
-      name: definition.displayName,
+      name: territoryDisplayName(definition),
       controller: state?.controllerName ? `Owned by ${state.controllerName}` : 'NEUTRAL',
       contested: state?.contested ?? false,
       color: state?.controllerId ? definition.fixedColor : neutralTerritoryColor,
@@ -7628,7 +7683,7 @@ function pilotMenuData(): PilotMenuData {
       progress: state?.captureProgress ?? 0,
       distance: Math.hypot(airplane.position.x - definition.center.x, airplane.position.z - definition.center.z),
       ownedByYou: Boolean(localPlayerId && state?.controllerId === localPlayerId),
-      setWaypoint: () => setWaypoint(definition.center.x, definition.center.z, definition.displayName),
+      setWaypoint: () => setWaypoint(definition.center.x, definition.center.z, territoryDisplayName(definition)),
     };
   }).sort((left, right) => left.distance - right.distance);
   const objectiveCycle = serverProfile.objectives[cityId];

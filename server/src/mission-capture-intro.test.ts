@@ -30,17 +30,14 @@ test('M05 camera lesson uses real Las Colinas, clear capture instructions, and u
   assert.deepEqual(chase, original, 'preview never changes authoritative spawn or chase');
   for (const [start, end, text] of [
     [0, 2999, 'CAPTURE 1 TERRITORY'],
-    [3000, 6999, 'Fly inside the marked Las Colinas boundary.'],
-    [7000, 10999, 'Stay inside for 24 seconds to capture it.'],
-    [11000, 13999, 'Progress fills as you stay inside.'],
-    [14000, 14999, 'Reach 100% to capture the territory.'],
+    [3000, 14999, 'Fly inside the marked TERRITORY.\nStay inside TERRITORY to capture it until: LAS COLINAS CAPTURING 100%.'],
   ] as const) for (const elapsed of [start, end]) assert.equal(intro.text(elapsed), text);
-  for (const elapsed of [0, 6999, 15000]) {
+  for (const elapsed of [0, 2999, 15000]) {
     assert.equal(intro.showsCaptureRow(elapsed), false);
     assert.equal(intro.demonstrationPercent(elapsed), undefined);
   }
-  for (const elapsed of [7000, 12000, 14999]) assert.equal(intro.showsCaptureRow(elapsed), true);
-  assert.equal(intro.demonstrationPercent(7000), 0);
+  for (const elapsed of [3000, 7000, 12000, 14999]) assert.equal(intro.showsCaptureRow(elapsed), true);
+  assert.equal(intro.demonstrationPercent(3000), 45);
   assert.equal(intro.demonstrationPercent(12350), 45);
   assert.equal(intro.demonstrationPercent(13340), 78);
   assert.equal(intro.demonstrationPercent(14000), 100);
@@ -59,7 +56,7 @@ test('M05 uses shared intro lifecycle, skip, retry and countdown protections wit
   assert.match(source, /classList.toggle\('capture-intro-row', Boolean\(missionCaptureIntroPath && !skipped && missionCaptureIntroPath.showsCaptureRow\(elapsed\)\)\)/);
   assert.match(source, /if \(missionCaptureIntroPath\) updateTerritoryPanel\(false\)/);
   const styles = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
-  assert.match(styles, /#game-root.launch-cinematic-active.capture-intro-row > #mission-status-layer\s*\{\s*opacity: 1 !important;/);
+  assert.match(styles, /#game-root.launch-cinematic-active.capture-intro-row > #mission-status-layer\s*\{\s*--launch-hud-opacity: 1;\s*opacity: 1 !important;/);
   const network = source.slice(source.indexOf('function sendLocalState('), source.indexOf('function sendLocalState(') + 1200);
   assert.match(network, /missionStartCountdownPending/); assert.match(network, /missionCaptureIntroPath/);
   assert.match(source, /missionCaptureIntroPath \|\| missionCombatIntroPath\) && matchMedia\('\(prefers-reduced-motion: reduce\)'\)/);

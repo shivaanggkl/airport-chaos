@@ -261,6 +261,7 @@ body.launch-cinematic-active #tutorial-help {
   opacity: 1 !important;
 }
 #game-root.launch-cinematic-active.capture-intro-row > #mission-status-layer {
+  --launch-hud-opacity: 1;
   opacity: 1 !important;
 }
 .flight-launch-title {
@@ -6475,12 +6476,29 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   outline-offset: 2px;
   border-radius: 4px;
 }
-#game-root.capture-intro-row .flight-launch-title {
-  top: max(8px, calc(var(--safe-area-top) + 8px));
-  width: min(620px, calc(100vw - 200px));
+#game-root.capture-intro-row .mission-intro-skip {
+  top: calc(var(--safe-area-top) + 16px);
+  bottom: auto;
+  height: 44px;
   box-sizing: border-box;
 }
-#game-root.capture-intro-row .flight-launch-title span { font-size: clamp(14px, 1.6vw, 20px); }
+#game-root.capture-intro-row .flight-launch-title {
+  top: calc(var(--safe-area-top) + 76px);
+  left: auto;
+  right: max(16px, calc(var(--safe-area-right) + 16px));
+  width: min(480px, 45vw);
+  transform: none;
+  box-sizing: border-box;
+  text-align: left;
+  white-space: pre-line;
+  line-height: 1.5;
+}
+#game-root.capture-intro-row .flight-launch-title > span,
+#game-root .capture-intro-instructions { font-size: clamp(14px, 1.6vw, 20px); }
+#game-root .capture-intro-instructions { margin: 0; padding-left: 1.2em; white-space: normal; }
+#game-root .capture-intro-instructions li + li { margin-top: 8px; }
+#game-root .capture-intro-instructions .gameplay-info-list { display: inline-block; width: 100%; vertical-align: middle; }
+#game-root .capture-intro-instructions .city-territory-row > span { font: inherit; color: inherit; }
 @media (orientation: portrait) {
   #game-root.capture-intro-row .flight-launch-title {
     top: auto;
@@ -7251,3 +7269,13 @@ html.custom-control-layout #game-root #radar-panel {
   .journey-result-checkpoint button { grid-template-columns: 40px minmax(0, 1fr); min-height: 48px; padding: 4px 12px; border-radius: 14px; font-size: 22px; }
   .journey-result-checkpoint [data-journey-ad-notice] { font-size: 11px; }
 }
+
+/* M05 replaces the old objective and separate navigation line within the same card. */
+#game-root .has-mission-territories .capture-mission-instructions {
+  display: block;
+  padding-left: 1em;
+  font-size: clamp(8px, .72vw, 10px);
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+#game-root .capture-mission-instructions > [role="listitem"] { display: list-item; list-style-type: disc; }
