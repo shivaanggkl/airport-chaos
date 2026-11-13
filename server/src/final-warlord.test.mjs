@@ -109,13 +109,13 @@ test('visible M24 retains legacy identity and historical clears without duplicat
 test('M24 restores the original running director and all three attacks without changing earlier monsters',()=>{
  assert.equal(finalWarlordSpecies.level,'LEGENDARY');
  assert.equal(finalWarlordSpecies.health,journeyDallas19.bossHealth);
- assert.deepEqual(finalWarlordSpecies.director,ashenWarlordSpecies.director);
+ assert.deepEqual(finalWarlordSpecies.director,{...ashenWarlordSpecies.director,combatDistance:3500,maintainCombatDistance:true});
  assert.deepEqual(finalWarlordSpecies.movement,ashenWarlordSpecies.movement);
  assert.equal(finalWarlordSpecies.hunting,undefined);
  assert(finalWarlordSpecies.movement.runOnly);
  assert.deepEqual(finalWarlordSpecies.abilities.map(a=>a.id),['fireball-barrage','hand-strike','charging-rampage']);
  const shot=finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile');
- assert.equal(shot.damage,25);assert.equal(shot.count,3);assert.equal(shot.moving,true);
+ assert.equal(shot.damage,25);assert.equal(shot.count,12);assert.equal(shot.burstSize,3);assert.equal(shot.moving,true);
  assert.equal(ashenWarlordSpecies.level,'HARD');assert.equal(ashenWarlordSpecies.health,2500);
  assert.equal(huntingWarlordSpecies.hunting.runSeconds,undefined);
  assert.equal(journeyMissionSlot(journeyDallas19.id),24);
@@ -209,4 +209,39 @@ test('M24 remains grounded on actual scaled Dallas terrain with compact building
   assert(Math.abs(e.frame.position.y-ground(e.frame.position.x,e.frame.position.z))<.01);
  }
  assert(traveled>4000,'actual Dallas terrain must allow running pursuit');disposeM19(e);
+});
+
+
+test('M24 releases four three-ball waves and keeps ranged pursuit at fighting distance',()=>{
+ const cfg=structuredClone(finalWarlordSpecies);cfg.id='m24-spacing';
+ cfg.abilities=cfg.abilities.filter(a=>a.mechanism==='projectile');
+ const e=new TitanEncounter('spacing',new SpeciesRegistry().register(cfg),{x:0,y:0,z:0},
+  {bounds:{minX:-40000,maxX:40000,minZ:-40000,maxZ:40000},ground:()=>0,traversable:()=>true,lineOfSight:()=>true,obstruction:()=>null});
+ const target={id:'p',encounterId:'spacing',authorized:true,alive:true,position:{x:0,y:1500,z:10000},velocity:zero,radius:18};
+ const releases=new Map();let minimum=Infinity;
+ for(let i=1;i<=800;i++){
+  const f=e.step(.05,[target],[]);
+  for(const p of f.projectiles){const attack=p.id.split(':shot:')[1].split(':')[0];if(!releases.has(attack))releases.set(attack,new Map());const wave=releases.get(attack);if(!wave.has(p.id))wave.set(p.id,i*.05);}
+  minimum=Math.min(minimum,Math.hypot(f.position.x-target.position.x,f.position.z-target.position.z));
+ }
+ const first=[...releases.values()][0];assert.equal(first.size,12);
+ const waves=[...new Set(first.values())];assert.equal(waves.length,4);
+ for(let i=0;i<waves.length;i++){assert.equal([...first.values()].filter(t=>t===waves[i]).length,3);if(i)assert(waves[i]-waves[i-1]>=.25-1e-8);}
+ assert(minimum>=3000,'ranged pursuit must brake before crowding the pilot');
+ assert(minimum<=4200,'monster must close into the targetable fighting band');
+ assert.equal(ashenWarlordSpecies.abilities.find(a=>a.mechanism==='projectile').count,3);
+ e.dispose();
+});
+
+
+test('M24 restores space when a pilot approaches, without changing close attacks',()=>{
+ const cfg=structuredClone(finalWarlordSpecies);cfg.id='m24-close-spacing';cfg.abilities=[];
+ const e=new TitanEncounter('close-spacing',new SpeciesRegistry().register(cfg),{x:0,y:0,z:0},
+  {bounds:{minX:-40000,maxX:40000,minZ:-40000,maxZ:40000},ground:()=>0,traversable:()=>true,lineOfSight:()=>true,obstruction:()=>null});
+ const target={id:'p',encounterId:'close-spacing',authorized:true,alive:true,position:{x:0,y:1500,z:1500},velocity:zero,radius:18};
+ for(let i=0;i<600;i++)e.step(.05,[target],[]);
+ const f=e.snapshot(),range=Math.hypot(f.position.x-target.position.x,f.position.z-target.position.z);
+ assert(range>=2900&&range<=4200,`must restore fighting space, got ${range}`);
+ for(const kind of ['sweep','charge'])assert.deepEqual(finalWarlordSpecies.abilities.find(a=>a.mechanism===kind),ashenWarlordSpecies.abilities.find(a=>a.mechanism===kind));
+ e.dispose();
 });

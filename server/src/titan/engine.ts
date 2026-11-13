@@ -648,7 +648,7 @@ export class TitanEncounter {
             else {
                 // Mobile ranged attacks must not hold a stale movement destination
                 // while the aircraft flies away during the authored attack.
-                if(active.definition.moving && horizontal>4000){
+                if(active.definition.moving && (d.maintainCombatDistance || horizontal>4000)){
                     this.#goal=this.#combatGoal(t);
                 }
                 return;
@@ -739,7 +739,7 @@ export class TitanEncounter {
             const reentry = this.#tactic === 'reengage', angle = Math.atan2(predicted.x - this.#position.x, predicted.z - this.#position.z);
             const flank = reentry ? Math.min(2500, horizontal * .35) * (this.#avoidSign) : 0;
             const standOff = Math.min(7000, Math.max(1500, Math.abs(t.position.y - this.#anchor('body').y) * 1.2));
-            const goal = this.#boundedGoal(!d.combatDistance && horizontal < standOff && !close.length ? { x: predicted.x - Math.sin(angle) * standOff + Math.cos(angle) * flank, y: this.#position.y, z: predicted.z - Math.cos(angle) * standOff - Math.sin(angle) * flank } : { x: predicted.x + Math.cos(angle) * flank, y: this.#position.y, z: predicted.z - Math.sin(angle) * flank });
+            const goal = d.maintainCombatDistance ? predicted : this.#boundedGoal(!d.combatDistance && horizontal < standOff && !close.length ? { x: predicted.x - Math.sin(angle) * standOff + Math.cos(angle) * flank, y: this.#position.y, z: predicted.z - Math.cos(angle) * standOff - Math.sin(angle) * flank } : { x: predicted.x + Math.cos(angle) * flank, y: this.#position.y, z: predicted.z - Math.sin(angle) * flank });
             const route = this.#routeTo(goal);
             this.#directorRoute = route ?? [];
             this.#goal = route?.[0] ?? this.#boundedGoal(predicted);
@@ -786,7 +786,7 @@ export class TitanEncounter {
         return null;
     }
     #start(a: Ability, t: Target, landing?: Vec) {
-        if(this.species.director&&!landing){const aim=intercept(this.#anchor(a.requires[0]),t.position,t.velocity,a.projectileSpeed??1600,a.maxRange/(a.projectileSpeed??1600))??t.position;const heading=Math.atan2(aim.x-this.#position.x,aim.z-this.#position.z);this.#navYaw=heading;this.#goal=this.#boundedGoal(a.moving?{x:aim.x+Math.sin(heading)*1800,y:this.#position.y,z:aim.z+Math.cos(heading)*1800}:aim);if(Math.abs(wrap(heading-this.#yaw))>this.species.director.facing||(!a.moving&&Math.hypot(this.#velocity.x,this.#velocity.z)>20))return false;}
+        if(this.species.director&&!landing){const aim=intercept(this.#anchor(a.requires[0]),t.position,t.velocity,a.projectileSpeed??1600,a.maxRange/(a.projectileSpeed??1600))??t.position;const heading=Math.atan2(aim.x-this.#position.x,aim.z-this.#position.z);this.#navYaw=heading;this.#goal=this.species.director.maintainCombatDistance&&a.moving?this.#combatGoal(t):this.#boundedGoal(a.moving?{x:aim.x+Math.sin(heading)*1800,y:this.#position.y,z:aim.z+Math.cos(heading)*1800}:aim);if(Math.abs(wrap(heading-this.#yaw))>this.species.director.facing||(!a.moving&&Math.hypot(this.#velocity.x,this.#velocity.z)>20))return false;}
         if (this.#active || (!landing && !this.#eligible(a, t)))
             return false;
         if(this.species.movement.idleBetweenActions&&!this.#idleCompleted&&(Math.hypot(this.#velocity.x,this.#velocity.z)>.5||this.#time-this.#lastTravelAt<this.species.movement.idleBetweenActions)){this.#stopForAction=true;return false;}
@@ -1132,7 +1132,7 @@ export class TitanEncounter {
         }
         const validTargets = targets.slice(0, 16).filter(v => v.authorized && v.alive && v.encounterId === this.id);
         if (def.mechanism === 'projectile') {
-            const count = def.count ?? 1, due = def.simultaneous ? count : Math.min(count, 1 + Math.floor(t.progress * count));
+            const count = def.count ?? 1, burst = def.burstSize ?? 1, waves = Math.ceil(count / burst), due = def.simultaneous ? count : Math.min(count, burst * (1 + Math.floor(t.progress * waves)));
             while (a.released < due) {
                 const index = a.released, debris = a.debris;
                 if (def.debris && !debris)
@@ -1144,9 +1144,9 @@ export class TitanEncounter {
                     break;
                 // Staggered attacks cannot compress overdue rounds into a burst;
                 // explicitly simultaneous volleys release together instead.
-                if(!def.simultaneous&&this.species.director&&a.lastReleaseAt!==undefined&&this.#time-a.lastReleaseAt+1e-9<def.active/count)break;
-                a.released++;a.lastReleaseAt=this.#time;
-                const dir = unit(from, point), angle = (index - (count - 1) / 2) * (def.spread ?? 0), c = Math.cos(angle), s = Math.sin(angle);
+                if(!def.simultaneous&&index%burst===0&&this.species.director&&a.lastReleaseAt!==undefined&&this.#time-a.lastReleaseAt+1e-9<def.active/waves)break;
+                a.released++;if(index%burst===0)a.lastReleaseAt=this.#time;
+                const dir = unit(from, point), angle = ((def.burstSize ? index % burst : index) - ((def.burstSize ? burst : count) - 1) / 2) * (def.spread ?? 0), c = Math.cos(angle), s = Math.sin(angle);
                 const shot: Shot = { id: `${this.id}:shot:${a.serial}:${index}`, position: { ...from }, velocity: { x: (dir.x * c + dir.z * s) * speed, y: dir.y * speed, z: (dir.z * c - dir.x * s) * speed }, radius: debris?.radius ?? def.radius, damage: def.damage, life: def.maxRange / speed, ability: def.id, attack: a.serial, live: true };
                 if(this.species.director&&!this.#directorShots.has(a.serial))this.#directorShots.set(a.serial,false);
                 const slot = this.#shots.findIndex(v => !v.live);
