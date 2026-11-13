@@ -29,7 +29,7 @@ test('all retained missions continue only after a bound verified ad, preserving 
       // Fixture represents an authoritative mid-flight checkpoint, including damaged enemies.
       db.prepare(`UPDATE journey_attempts SET status='RACING',started_at=?,deadline_at=?,gate_index=2,rookie_gate_index=2,lake_gate_index=2,ascent_gate_index=2,
         slalom_gate_index=2,needle_gate_index=2,golden_championship_gate_index=2,championship_gate_index=2,monster_health=137,
-        fortress_left_health=0,fortress_right_health=42,rear_guard_kills=1,crossfire_kills=1 WHERE attempt_id=?`)
+        fortress_left_health=0,fortress_right_health=42,rear_guard_kills=1,crossfire_kills=1,capture_ms=8000 WHERE attempt_id=?`)
         .run(start, start + definition.timeLimitMs, ready.attemptId);
       const elapsed = index % 3 === 0 ? 1_000 : index % 3 === 1 ? 90_000 : definition.timeLimitMs;
       const failedAt = start + elapsed;
@@ -59,7 +59,7 @@ test('all retained missions continue only after a bound verified ad, preserving 
       assert.equal(resumed.deadlineAt! - now, Math.min(definition.timeLimitMs, Math.max(0, definition.timeLimitMs - elapsed) + 60_000));
       assert.equal(resumed.startedAt! - failure.startedAt!, now - failedAt, 'ad wait is excluded');
       assert.equal(resumed.status, 'RACING'); assert.equal(resumed.failureReason, null);
-      for (const field of ['gateIndex','monsterHealth','fortressLeftHealth','fortressRightHealth','rearGuardKills','crossfireKills','targetId','secondaryTargetId'] as const)
+      for (const field of ['captureMs','gateIndex','monsterHealth','fortressLeftHealth','fortressRightHealth','rearGuardKills','crossfireKills','targetId','secondaryTargetId'] as const)
         assert.equal(resumed[field], failure[field], `${missionId}: ${field}`);
       assert.equal(journeys.continueAfterAd('pilot', ready.attemptId, adId, now + 1), undefined, 'no duplicate redemption');
       assert.equal(ads.grantVerifiedReward(reward, now + 1).duplicate, true);

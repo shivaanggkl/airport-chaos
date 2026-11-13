@@ -55,7 +55,7 @@ import { updateOsmCityChunks } from './osm-city';
 import { SkyChallengeSystem } from './sky-challenges';
 import { JourneyGateSystem } from './journey-gates';
 import { ObjectiveGuidance, confirmedGateObjective, formatObjectiveDistance, climbGateInstruction, climbDepartureTurnSide, precisionGateBearing, gravityDropGuidance, pendulumGateGuidance, type MissionObjective, type PrecisionTurnSide } from './objective-guidance';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas24, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas25, journeyDallas19, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
+import { journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas24, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas25, journeyDallas19, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
 import type { FormationStatus } from '../../shared/journey-formation.mjs';
 import { missionFocusForAttempt, type MissionFocusConfig } from '../../shared/mission-focus.mjs';
 import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } from './stunt-combo';
@@ -77,7 +77,7 @@ import { NavigationBeaconSystem, type NavigationDestination } from './navigation
 import { combatAimBlend, combatShotAimSample } from '../../shared/combat-aim.mjs';
 import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, fireIntervalMs, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, localFiringDirection, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase } from './firehawk-checkout';
-import { TERRITORY_WALL_HEIGHT_METERS, territoriesForCity, territoryContains, type CityTerritory } from '../../shared/city-territories.mjs';
+import { TERRITORY_WALL_HEIGHT_METERS, territoryCaptureCeilingAgl, territoriesForCity, territoryContains, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { missionHudObjective, missionHudProgress } from '../../shared/mission-hud.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
@@ -957,6 +957,7 @@ function applyMissionFocus(attempt: JourneyAttemptState | null): void {
   navigationBeacons.setEnabled(!skyDuelMode && navigationMarkersEnabled && (next?.showUnrelatedAirportLabels ?? true) && (next?.showUnrelatedLandmarkLabels ?? true));
   ambientTraffic?.setMissionFocus(next !== null && !next.showAmbientAIAircraft);
   territoryBorderRefreshAt = 0;
+  if (attempt?.missionId === journeyDallasCapture01.id) refreshTerritoryBorders();
   if (next) for (const entry of territoryBorders) { entry.wall.visible = false; entry.label.hidden = true; }
   if (selectedCombatTarget?.remote.isBot && unrelatedFocusedBot(selectedCombatTarget.remote.playerId)) clearCombatTarget();
   if (focusedBotsAreSafe()) for (const [id, projectile] of clientProjectiles) {
@@ -1351,7 +1352,7 @@ gameplayInfoCard.setMode(journeyMode ? 'mission' : launchMode === 'free-fly' && 
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
 const journeyHudHeaderTimer = skyChallengeElement.querySelector<HTMLElement>('[data-journey-header-timer]');
 const m19MissionObjective = 'Destroy The MONSTER Before Time Runs Out.';
-const journeyMissionDefinitions = [
+const journeyMissionDefinitions = [journeyDallasCapture01,
   journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
   journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18,
   journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12,
@@ -2163,7 +2164,7 @@ function drawRadarTerritories(direction: THREE.Vector3, onlyId?: string): void {
       else radarContext.lineTo(point.x, point.y);
     });
     radarContext.closePath();
-    const journeyTarget = definition.id === twoFrontsTargetId();
+    const journeyTarget = definition.id === focusedTerritoryTargetId();
     radarContext.strokeStyle = state?.controllerId || journeyTarget ? definition.fixedColor : neutralTerritoryColor;
     radarContext.globalAlpha = journeyTarget ? 0.9 : state?.contested ? 0.58 : 0.28;
     radarContext.lineWidth = journeyTarget ? 2.5 : state?.contested ? 2 : 1;
@@ -2207,7 +2208,7 @@ function updateRadar(direction: THREE.Vector3): void {
   radarContext.lineTo(width - 8, center);
   radarContext.stroke();
   if (!missionFocus || missionFocus.showUnrelatedTerritoryLabels) drawRadarTerritories(direction);
-  else if (journeyAttempt?.missionId === journeyDallas21.id && twoFrontsTargetId()) drawRadarTerritories(direction, twoFrontsTargetId()!);
+  else if (journeyAttempt?.missionId === journeyDallasCapture01.id && focusedTerritoryTargetId()) drawRadarTerritories(direction, focusedTerritoryTargetId()!);
   const activeMission = serverProfile.missions[cityId]?.active;
   const activeMissionDefinition = activeMission && missionForCity(cityId, activeMission.missionId);
 
@@ -2754,18 +2755,18 @@ function refreshTerritoryBorders(): void {
   for (const entry of territoryBorders) {
     const { definition } = entry;
     const state = territoryState.get(definition.id);
-    const appearance: TerritoryAppearance = state?.contested ? 'contested' : !state?.controllerId ? 'neutral' : state.controllerId === localPlayerId ? 'own' : 'enemy';
+    const appearance: TerritoryAppearance = definition.id === focusedTerritoryTargetId() ? 'neutral' : state?.contested ? 'contested' : !state?.controllerId ? 'neutral' : state.controllerId === localPlayerId ? 'own' : 'enemy';
     entry.appearance = appearance;
     entry.missionTarget = missionTerritories.includes(definition.id) ||
-      definition.id === twoFrontsTargetId();
+      definition.id === focusedTerritoryTargetId();
     entry.displayColor = state?.controllerId || entry.missionTarget ? definition.fixedColor : neutralTerritoryColor;
     applyTerritoryBorderStyle(entry);
-    entry.owner.textContent = definition.id === twoFrontsTargetId()
-      ? `FRONT ${definition.id === journeyDallas21.alphaTerritoryId ? 'ALPHA' : 'BRAVO'} · CAPTURE`
+    entry.owner.textContent = definition.id === focusedTerritoryTargetId()
+      ? 'MISSION TARGET · CAPTURE'
       : state?.contested ? 'CONTESTED' : state?.controllerId ? `Owned by ${state.controllerName ?? 'another pilot'}` : 'NEUTRAL';
     entry.label.style.setProperty('--territory-accent', entry.displayColor);
     entry.label.classList.toggle('mission', entry.missionTarget);
-    entry.label.classList.toggle('journey-target', definition.id === twoFrontsTargetId());
+    entry.label.classList.toggle('journey-target', definition.id === focusedTerritoryTargetId());
     entry.label.classList.toggle('contested', appearance === 'contested');
   }
 }
@@ -2778,7 +2779,7 @@ function updateTerritoryBorderVisibility(now: number): void {
     const dx = Math.max(definition.bounds.minX - airplane.position.x, 0, airplane.position.x - definition.bounds.maxX);
     const dz = Math.max(definition.bounds.minZ - airplane.position.z, 0, airplane.position.z - definition.bounds.maxZ);
     const distanceSquared = dx * dx + dz * dz;
-    const focusedTerritory = Boolean(missionFocus && (definition.id === twoFrontsTargetId()));
+    const focusedTerritory = Boolean(missionFocus && (definition.id === focusedTerritoryTargetId()));
     wall.visible = !territoryWallsQaDisabled && !guidedTutorialActive && (!missionFocus || focusedTerritory) &&
       distanceSquared < territoryWallCullDistance * territoryWallCullDistance;
   }
@@ -2793,13 +2794,14 @@ function updateTerritoryBorderVisibility(now: number): void {
 }
 
 function updateTerritoryLabels(): void {
-  if (missionFocus?.showUnrelatedTerritoryLabels === false) {
+  if (missionFocus?.showUnrelatedTerritoryLabels === false && !focusedTerritoryTargetId()) {
     for (const entry of territoryBorders) entry.label.hidden = true;
     return;
   }
   let first = -1, second = -1, firstPriority = Infinity, secondPriority = Infinity;
   for (let index = 0; index < territoryBorders.length; index += 1) {
     const entry = territoryBorders[index];
+    if (missionFocus && entry.definition.id !== focusedTerritoryTargetId()) continue;
     const dx = entry.definition.center.x - airplane.position.x;
     const dz = entry.definition.center.z - airplane.position.z;
     const distanceSquared = dx * dx + dz * dz;
@@ -2845,7 +2847,25 @@ function applyTerritoryState(states: readonly NetworkTerritoryState[]): void {
   refreshPilotMenu();
 }
 
+function journeyTerritoryCaptureLabel(): string {
+  if (!journeyAttempt) return '';
+  const progress = Math.min(100, Math.floor(journeyAttempt.captureMs * 100 / journeyDallasCapture01.captureDurationMs));
+  if (progress >= 100) return 'TERRITORY CAPTURED!';
+  const target = territoryDefinitions.find(item => item.id === journeyDallasCapture01.territoryId)!;
+  const agl = airplane.position.y - getTerrainHeight(airplane.position.x, airplane.position.z);
+  const inside = territoryContains(target, airplane.position) && agl > 0 && agl <= territoryCaptureCeilingAgl;
+  return inside && journeyAttempt.status === 'RACING' ? `CAPTURE LAS COLINAS — ${progress}%`
+    : progress ? `RETURN TO LAS COLINAS — ${progress}%` : 'FLY TO LAS COLINAS';
+}
+
 function updateCaptureHud(): void {
+  if (focusedTerritoryTargetId() && journeyAttempt) {
+    const progress = Math.min(100, Math.floor(journeyAttempt.captureMs * 100 / journeyDallasCapture01.captureDurationMs));
+    territoryCaptureElement.classList.toggle('hidden', journeyAttempt.status !== 'RACING' || progress === 0);
+    const text = journeyTerritoryCaptureLabel();
+    if (territoryCaptureElement.textContent !== text) territoryCaptureElement.textContent = text;
+    return;
+  }
   const capturing = localPlayerId ? territoryDefinitions.find((definition) => {
     const state = territoryState.get(definition.id);
     return state?.capturingPlayerId === localPlayerId &&
@@ -2953,6 +2973,16 @@ function updateJourneyHud(): void {
   if (journeyHudHeaderTimer) {
     journeyHudHeaderTimer.hidden = countdown === null;
     if (countdown !== null) journeyHudHeaderTimer.textContent = `${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, '0')}`;
+  }
+  if (journeyAttempt.missionId === journeyDallasCapture01.id) {
+    if (journeyHudObjective) journeyHudObjective.textContent = journeyDallasCapture01.objective;
+    if (journeyHudProgress) { journeyHudProgress.hidden = false; journeyHudProgress.textContent = journeyTerritoryCaptureLabel(); }
+    const captureSegments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
+    if (captureSegments) captureSegments.hidden = true;
+    if (journeyHudEnemy) journeyHudEnemy.hidden = true;
+    monsterBossHud.classList.add('hidden'); escortHealthHud.classList.add('hidden');
+    updateCaptureHud();
+    return;
   }
   const segments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
   if (segments) segments.hidden = crossfireMission || elevatorMission || formationMission || firstContactMission || surpriseMission || aceMission || ironMission || showdownMission || breakoutMission || huntMission || pursuitMission || legendaryMission;
@@ -3242,7 +3272,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   const finishTime = formatResultTime(attempt.finishTimeMs ?? 0);
   const bestTime = formatResultTime(attempt.bestTimeMs ?? attempt.finishTimeMs ?? 0);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
-    ? (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 GOLDEN GATES CLEARED · TIME: ${finishTime} · BEST: ${bestTime}`
+    ? attempt.missionId === journeyDallasCapture01.id ? 'TERRITORY CAPTURED!' : (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 GOLDEN GATES CLEARED · TIME: ${finishTime} · BEST: ${bestTime}`
       : legendaryMission ? `AIRPORT CHAOS — JOURNEY COMPLETE · 20/20 PLAYABLE MISSIONS · PRECISION FLIGHT — COMPLETE · LEGENDARY ACE — DEFEATED · PERFECT LANDING — ACHIEVED · SCORE: ${attempt.landingScore ?? 0}/1000 · LEGENDARY PILOT UNLOCKED`
       : pursuitMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
       : monsterShowdownMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
@@ -3464,7 +3494,7 @@ const missionClearDirection = new THREE.Vector3();
 const missionClearLevel = new THREE.Quaternion();
 const missionClearVelocity = new THREE.Vector3();
 const missionClearCruiseVelocity = new THREE.Vector3();
-const missionClearMissionIds = new Set<string>([journeyDallas01.id, journeyDallas02.id, journeyDallas03.id,
+const missionClearMissionIds = new Set<string>([journeyDallasCapture01.id, journeyDallas01.id, journeyDallas02.id, journeyDallas03.id,
   journeyDallas04.id, journeyDallas05.id, journeyDallas06.id]);
 const MISSION_CLEAR_DURATION_MS = 4_200;
 const MISSION_CLEAR_REVEAL_MS = 700;
@@ -6351,14 +6381,14 @@ function updateWorldMap(direction: THREE.Vector3): void {
       const progress = discoverySystem?.getProgress();
       return progress ? { cityName: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', ...progress } : undefined;
     })(),
-    territories: territoryDefinitions.map((definition) => {
+    territories: territoryDefinitions.filter(definition => !focusedTerritoryTargetId() || definition.id === focusedTerritoryTargetId()).map((definition) => {
       const state = territoryState.get(definition.id);
       return {
         id: definition.id,
         label: definition.displayName,
         bounds: definition.bounds,
-        color: state?.controllerId ? definition.fixedColor : neutralTerritoryColor,
-        missionTarget: missionTerritories.includes(definition.id),
+        color: state?.controllerId || definition.id === focusedTerritoryTargetId() ? definition.fixedColor : neutralTerritoryColor,
+        missionTarget: missionTerritories.includes(definition.id) || definition.id === focusedTerritoryTargetId(),
         controllerName: state?.controllerName,
         status: state?.contested ? 'Contested' : state?.controllerId === localPlayerId ? 'Owned by you' : state?.controllerName ? `Owned by ${state.controllerName}` : 'Neutral',
         captureProgress: state?.captureProgress ?? 0,
@@ -7512,7 +7542,7 @@ function pilotMenuData(): PilotMenuData {
       name: definition.displayName,
       controller: state?.controllerName ? `Owned by ${state.controllerName}` : 'NEUTRAL',
       contested: state?.contested ?? false,
-      color: state?.controllerId ? definition.fixedColor : neutralTerritoryColor,
+      color: state?.controllerId || definition.id === focusedTerritoryTargetId() ? definition.fixedColor : neutralTerritoryColor,
       fixedColor: definition.fixedColor,
       progress: state?.captureProgress ?? 0,
       distance: Math.hypot(airplane.position.x - definition.center.x, airplane.position.z - definition.center.z),
@@ -9240,8 +9270,11 @@ function syncLeaderObjective(): void {
   missionObjective = next;
   missionObjectiveGuidance?.setObjective(next);
 }
-/** M21 no longer assigns shared territory markers. */
-function twoFrontsTargetId(): string | null {return null;}
+/** Only the active capture attempt exposes a mission territory marker. */
+function focusedTerritoryTargetId(): string | null {
+  return journeyAttempt?.missionId === journeyDallasCapture01.id &&
+    (journeyAttempt.status === 'APPROACH' || journeyAttempt.status === 'RACING') ? journeyDallasCapture01.territoryId : null;
+}
 function updateRemotePlayers(delta: number): void {
   for (const remote of remotePlayers.values()) {
     remote.timeSinceUpdate += delta;
@@ -12537,6 +12570,11 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
               : null;
     if (missionObjective && [journeyDallas01,journeyDallas02,journeyDallas03,journeyDallas04,journeyDallas05,journeyDallas06].some(mission => mission.id === message.attempt.missionId))
       missionObjective = { ...missionObjective, fixedTop: false, peripheralCue: true };
+    if (focusedTerritoryTargetId()) {
+      const target = territoryDefinitions.find(item => item.id === focusedTerritoryTargetId())!;
+      missionObjective = {id: `${message.attempt.attemptId}:territory`, label:'LAS COLINAS',
+        position:new THREE.Vector3(target.center.x,getTerrainHeight(target.center.x,target.center.z)+800,target.center.z),radius:1000, peripheralCue:true};
+    }
     missionObjectiveGuidance?.setObjective(missionObjective);
 
     syncTransportEscortObjective();

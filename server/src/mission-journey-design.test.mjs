@@ -57,10 +57,10 @@ test('mission selection supports pointer, keyboard and compact landscape layout'
 });
 
 test('all playable details preserve gameplay rewards, clocks and objectives by stable identity', () => {
-  assert.equal(missionJourneyDetails.length, 20);
+  assert.equal(missionJourneyDetails.length, 21);
   assert.deepEqual(missionJourneyDetails.map(detail=>detail.id),journeyMissions.journeyMissionOrder);
   for (const detail of missionJourneyDetails) {
-    const definition = journeyMissions[`journeyDallas${detail.id.slice(-2)}`];
+    const definition = Object.values(journeyMissions).find(definition => definition?.id === detail.id);
     const slot = journeyMissions.journeyCatalog.find(slot => slot.id === detail.id);
     assert.equal(detail.title, slot.title);
     assert.equal(detail.rewardCredits, definition.firstClearCredits);
@@ -71,9 +71,9 @@ test('all playable details preserve gameplay rewards, clocks and objectives by s
   }
 });
 
-test('all ten interspersed placeholders remain gray, selectable and unlaunchable even in local QA',()=>{
+test('all nine interspersed placeholders remain gray, selectable and unlaunchable even in local QA',()=>{
  const placeholders=missionJourneyStages.filter(s=>s.implementation==='placeholder');
- assert.deepEqual(placeholders.map(s=>s.number),[5,7,8,12,15,16,20,21,26,27]);
+ assert.deepEqual(placeholders.map(s=>s.number),[7,8,12,15,16,20,21,26,27]);
  for(const completed of [Array(30).fill(false),Array(30).fill(true)]){
   const state=missionJourneyStatuses(completed,Array(30).fill(true),false);
   assert(placeholders.every(s=>state.statuses[s.number-1]==='locked'));

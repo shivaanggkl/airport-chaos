@@ -78,3 +78,16 @@ export const cityTerritories = Object.fromEntries(Object.entries(baseCityTerrito
 export function territoriesForCity(cityId) {
   return cityTerritories[cityId] ?? [];
 }
+
+// Shared capture rules; mission progress remains separate from world ownership.
+export const territoryCaptureDurationMs = 24_000;
+export const territoryCaptureCeilingAgl = 10_000 * 0.3048;
+export function territoryCaptureProgress(definition, elapsedMs) {
+  return 100 * Math.max(0, elapsedMs) * definition.captureWeight / territoryCaptureDurationMs;
+}
+export function territoryCaptureFlightEligible(definition, position, groundY, speed, airborne) {
+  const agl = position.y - groundY;
+  return Number.isFinite(position.x) && Number.isFinite(position.y) && Number.isFinite(position.z) &&
+    Number.isFinite(groundY) && Number.isFinite(speed) &&
+    airborne && speed >= 12 && agl > 0 && agl <= territoryCaptureCeilingAgl && territoryContains(definition, position);
+}
