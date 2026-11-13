@@ -15,7 +15,7 @@ import { createOpponent, hasClientOpponentOverride, opponentAim, opponentReactio
 import { enemyAiLevels } from '../../shared/enemy-ai.mjs';
 import { ambushApproach, ambushCanFire, ambushCruiseSpeed, type AmbushState } from './surprise-attack.js';
 import { advanceHunterFlight, hunterFlightIntercept, hunterBallisticSolution, hunterObservedPosition } from './hunter-flight.js';
-import { journeyMissionSlot, isMonsterJourneyMission } from '../../shared/journey-mission.mjs';
+import { journeyMissionSlot, journeyCatalog, isMonsterJourneyMission } from '../../shared/journey-mission.mjs';
 import {milwaukeeTerrainHeight} from '../../shared/milwaukee-terrain.mjs';
 import {PortalTransitionStore,type PortalFlight} from './portal-transitions.js';
 import {portalForCity,portalExit,sweptPortalCrossing,portalModeAllowed,portalRules,type PortalPose,type PortalGate} from '../../shared/intercity-portals.mjs';
@@ -2371,7 +2371,8 @@ const httpServer = createServer(async (request, response) => {
       if (!journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft)) { jsonResponse(response, 403, { error: 'Aircraft is unavailable.' }); return; }
       const missionId = journeyAction[1] === 'mission-25' ? journeyDallas25.id : journeyAction[1] === 'mission-24' ? journeyDallas24.id : journeyAction[1] === 'mission-23' ? journeyDallas23.id : journeyAction[1] === 'mission-22' ? journeyDallas22.id : journeyAction[1] === 'mission-21' ? journeyDallas21.id : journeyAction[1] === 'mission-20' ? journeyDallas20.id : journeyAction[1] === 'mission-19' ? journeyDallas19.id : journeyAction[1] === 'mission-18' ? journeyDallas18.id : journeyAction[1] === 'mission-17' ? journeyDallas17.id : journeyAction[1] === 'mission-16' ? journeyDallas16.id : journeyAction[1] === 'mission-15' ? journeyDallas15.id : journeyAction[1] === 'mission-14' ? journeyDallas14.id : journeyAction[1] === 'mission-13' ? journeyDallas13.id : journeyAction[1] === 'mission-12' ? journeyDallas12.id : journeyAction[1] === 'mission-11' ? journeyDallas11.id : journeyAction[1] === 'mission-10' ? journeyDallas10.id : journeyAction[1] === 'mission-09' ? journeyDallas09.id : journeyAction[1] === 'mission-08' ? journeyDallas08.id : journeyAction[1] === 'mission-07' ? journeyDallas07.id : journeyAction[1] === 'mission-06' ? journeyDallas06.id : journeyAction[1] === 'mission-05' ? journeyDallas05.id : journeyAction[1] === 'mission-04' ? journeyDallas04.id : journeyAction[1] === 'mission-03' ? journeyDallas03.id : journeyAction[1] === 'mission-02' ? journeyDallas02.id : journeyDallas01.id;
       if (!journeyStore.canAccessMission(identity.pilotId, missionId)) {
-        jsonResponse(response, 403, { error: `Complete Mission ${journeyMissionSlot(missionId) - 1} first.` }); return;
+        jsonResponse(response, 403, { error: journeyMissionOrder.includes(missionId)
+          ? `Complete Mission ${journeyMissionSlot(journeyMissionOrder[journeyMissionOrder.indexOf(missionId) - 1] ?? '')} first.` : 'Mission unavailable.' }); return;
       }
       if (Object.values(journeyProfile.missions).some(state => state?.active)) {
         jsonResponse(response, 409, { error: 'Finish or leave your current flight mission first.' }); return;
@@ -3204,7 +3205,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
   sendToPlayer(playerId, { type: 'journeyAttempt', attempt: {
     ...attempt, canContinueAfterAd: attempt.status === 'FAILED' && Boolean(journeyStore.continuation(attempt.pilotId, attempt.attemptId)), aiIsolated: missionFocusedPlayers.has(playerId),
     firstContactSupported: attempt.missionId === journeyDallas13.id ? true : undefined,
-    chapterOneComplete: attempt.missionId === journeyDallas06.id && attempt.status === 'COMPLETED'
+    chapterOneComplete: journeyCatalog.find(slot => slot.chapter === 1 && slot.number === 9)?.id === attempt.missionId && attempt.status === 'COMPLETED'
       && journeyStore.chapterOneComplete(attempt.pilotId),
     bestTimeMs: (attempt.status === 'COMPLETED' || attempt.status === 'FAILED') ? attempt.missionId === journeyDallas01.id
       ? journeyStore.rookieRushBestTime(attempt.pilotId) : attempt.missionId === journeyDallas02.id
@@ -3541,18 +3542,20 @@ function captureJourneyRecovery(playerId: string, attempt: JourneyAttempt, now: 
       bot, opponent: opponent && { definition: opponent.definition, detectedAt: opponent.detectedAt, detectedTarget: opponent.detectedTarget,
         dodgeAt: Number.isFinite(opponent.dodgeAt) ? opponent.dodgeAt : 0, dodgeUntil: opponent.dodgeUntil, tactics: opponent.tactics } });
   }
-  const slot = journeyMissionSlot(attempt.missionId);
-  const enemyCounts: Record<number,number>={7:1,8:1,9:1,10:2,11:3,12:4,13:0,14:2,15:3,16:4,17:0,18:2};
-  const defeated = slot <= 12 ? attempt.crossfireKills ?? 0 : attempt.rearGuardKills ?? 0;
-  const count = enemyCounts[slot] ?? 0;
+  const fighterIds: readonly string[] = [journeyDallas13.id,journeyDallas14.id,journeyDallas15.id,journeyDallas16.id,journeyDallas17.id,journeyDallas18.id];
+  const transportIds: readonly string[] = [journeyDallas07.id,journeyDallas08.id,journeyDallas09.id,journeyDallas10.id,journeyDallas11.id,journeyDallas12.id];
+  const fighterIndex = fighterIds.indexOf(attempt.missionId);
+  const transportIndex = transportIds.indexOf(attempt.missionId);
+  const count = fighterIndex >= 0 ? [1,1,1,2,3,4][fighterIndex]! : transportIndex >= 0 ? [0,2,3,4,0,2][transportIndex]! : 0;
+  const defeated = fighterIndex >= 0 ? attempt.crossfireKills ?? 0 : attempt.rearGuardKills ?? 0;
   const remaining = Array.from({length:count},(_,i)=>i).filter(i=>(defeated & (1<<i))===0).length;
-  if (slot >= 7 && slot <= 18 && bots.length !== remaining) return undefined;
+  if ((fighterIndex >= 0 || transportIndex >= 0) && bots.length !== remaining) return undefined;
   const transport = transportEncounters.get(attempt.attemptId);
   const monster = monsterEncounters.get(attempt.attemptId);
-  if (slot >= 13 && slot <= 18 && !transport || slot >= 19 && !monster) return undefined;
+  if (transportIndex >= 0 && !transport || isMonsterJourneyMission(attempt.missionId) && !monster) return undefined;
   let position = { ...player.lastAcceptedPosition }, heading = player.rotation.y;
-  if (slot <= 6) {
-    const mission = [journeyDallas01,journeyDallas02,journeyDallas03,journeyDallas04,journeyDallas05,journeyDallas06][slot-1]!;
+  const mission = [journeyDallas01,journeyDallas02,journeyDallas03,journeyDallas04,journeyDallas05,journeyDallas06].find(mission => mission.id === attempt.missionId);
+  if (mission) {
     const gate = mission.gates[attempt.gateIndex];
     if (!gate) return undefined;
     const prior = mission.gates[attempt.gateIndex-1] ?? mission.airborneSpawn;

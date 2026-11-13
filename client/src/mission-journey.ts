@@ -30,63 +30,16 @@ export class MissionJourney {
   private dragged = false;
   private suppressTap = false;
   private panelOpen = false;
-  private stageOneCompleted = false;
-  private stageOneEligible = false;
+  private progress: Readonly<Record<string, { eligible?: boolean; completed?: boolean }>> = {};
   private signInRequired = false;
   private cityLocked = false;
-  private stageTwoCompleted = false;
-  private stageTwoEligible = false;
-  private stageThreeCompleted = false;
-  private stageThreeEligible = false;
-  private stageFourCompleted = false;
-  private stageFourEligible = false;
-  private stageFiveCompleted = false;
-  private stageFiveEligible = false;
-  private stageSixCompleted = false;
-  private stageSixEligible = false;
-  private stageSevenCompleted = false;
-  private stageSevenEligible = false;
-  private stageEightCompleted = false;
-  private stageEightEligible = false;
-  private stageNineCompleted = false;
-  private stageNineEligible = false;
-  private stageTenCompleted = false;
-  private stageTenEligible = false;
-  private stageElevenCompleted = false;
-  private stageElevenEligible = false;
-  private stageTwelveCompleted = false;
-  private stageTwelveEligible = false;
-  private stageThirteenCompleted = false;
-  private stageThirteenEligible = false;
-  private stageFourteenCompleted = false;
-  private stageFourteenEligible = false;
-  private stageFifteenCompleted = false;
-  private stageFifteenEligible = false;
-  private stageSixteenCompleted = false;
-  private stageSixteenEligible = false;
-  private stageSeventeenCompleted = false;
-  private stageSeventeenEligible = false;
-  private stageEighteenCompleted = false;
-  private stageEighteenEligible = false;
-  private stageNineteenCompleted = false;
-  private stageNineteenEligible = false;
-  private stageTwentyCompleted = false;
-  private stageTwentyEligible = false;
-  private stageTwentyOneCompleted = false;
-  private stageTwentyOneEligible = false;
-  private stageTwentyTwoCompleted = false;
-  private stageTwentyTwoEligible = false;
-  private stageTwentyThreeCompleted = false;
-  private stageTwentyThreeEligible = false;
-  private stageTwentyFourCompleted = false;
-  private stageTwentyFourEligible = false;
 
   constructor(private readonly element: HTMLElement, onPlayMission: () => void, private readonly onPanelOpen: () => void, _onPanelClose: () => void) {
     element.classList.add('mission-journey');
     element.style.setProperty('--journey-stage-gaps', String(missionJourneyStages.length - 1));
     element.setAttribute('aria-label', 'Dallas Mission Journey');
     element.innerHTML = `
-      <div class="mission-journey-viewport" aria-label="Dallas missions, five chapters" tabindex="0">
+      <div class="mission-journey-viewport" aria-label="Dallas missions, four chapters" tabindex="0">
         <div class="mission-journey-map">
           <svg class="mission-journey-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
           <div class="mission-journey-chapters" aria-hidden="true"></div>
@@ -153,14 +106,15 @@ export class MissionJourney {
       const heading = document.createElement('div');
       heading.className = 'mission-journey-chapter-heading';
       heading.dataset.chapter = String(chapter);
-      const first = missionJourneyStages[(chapter - 1) * 6]!;
-      const last = missionJourneyStages[chapter * 6 - 1]!;
+      const stages = missionJourneyStages.filter(stage => stage.chapter === chapter);
+      const first = stages[0]!;
+      const last = stages[stages.length - 1]!;
       heading.style.left = `${(first.x + last.x) / 2}%`;
       heading.style.top = `max(0px, calc(${(first.y + last.y) / 2}% - var(--chapter-heading-offset)))`;
       heading.innerHTML = `<strong>CHAPTER ${chapter}</strong><span>${chapterNames[chapter - 1]}</span>`;
       chapters.append(heading);
       if (chapter < chapterNames.length) {
-        const next = missionJourneyStages[chapter * 6]!;
+        const next = missionJourneyStages[last.number]!;
         const divider = document.createElement('span');
         divider.className = 'mission-journey-chapter-divider';
         divider.style.left = `${(last.x + next.x) / 2}%`;
@@ -178,7 +132,7 @@ export class MissionJourney {
       path.setAttribute('d', `M ${from.x} ${from.y} Q ${midX} ${midY} ${to.x} ${to.y}`);
       path.classList.add('mission-journey-segment');
       path.dataset.from = String(number);
-      if (number % 6 === 0) path.classList.add('is-transition');
+      if (from.chapter !== to.chapter) path.classList.add('is-transition');
       routes.append(path); this.routeSegments.push(path);
     }
     const nodes = element.querySelector<HTMLElement>('.mission-journey-nodes')!;
@@ -187,7 +141,7 @@ export class MissionJourney {
       button.type = 'button'; button.className = 'mission-journey-node is-locked';
       button.dataset.stage = String(stage.number);
       button.style.left = `${stage.x}%`; button.style.top = `${stage.y}%`;
-      button.innerHTML = `${stage.number % 6 === 0 ? '<em class="mission-journey-crown" aria-hidden="true"><svg viewBox="0 0 40 30"><path d="M3 8 11 16 20 3 29 16 37 8 34 25 6 25Z" fill="currentColor"/><path d="M7 28h26" fill="none" stroke="currentColor" stroke-width="3"/></svg></em>' : ''}<span class="mission-journey-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4.5 12 5 5 10-10" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="mission-journey-number">${stage.number}</span>`;
+      button.innerHTML = `${stage.implementation === 'playable' && missionJourneyStages[stage.number]?.chapter !== stage.chapter ? '<em class="mission-journey-crown" aria-hidden="true"><svg viewBox="0 0 40 30"><path d="M3 8 11 16 20 3 29 16 37 8 34 25 6 25Z" fill="currentColor"/><path d="M7 28h26" fill="none" stroke="currentColor" stroke-width="3"/></svg></em>' : ''}<span class="mission-journey-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4.5 12 5 5 10-10" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="mission-journey-number">${stage.number}</span>`;
       const lock = document.createElement('span');
       lock.className = 'mission-journey-lock';
       lock.setAttribute('aria-hidden', 'true');
@@ -198,7 +152,7 @@ export class MissionJourney {
       nodes.append(button); this.stageButtons.push(button);
     }
     this.select(1, false);
-    this.setStageOneProgress(false, false);
+    this.setProgress({});
   }
 
   get isOpen(): boolean { return !this.element.hidden; }
@@ -215,198 +169,18 @@ export class MissionJourney {
     this.renderProgress();
   }
 
-  setStageOneProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageOneCompleted;
-    this.stageOneEligible = eligible;
-    this.stageOneCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = this.stageFiveCompleted ? 6 : this.stageFourCompleted ? 5 : this.stageThreeCompleted ? 4 : this.stageTwoCompleted ? 3 : 2;
-    this.renderProgress();
-  }
-
-  setStageTwoProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageTwoCompleted;
-    this.stageTwoEligible = eligible;
-    this.stageTwoCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = this.stageFiveCompleted ? 6 : this.stageFourCompleted ? 5 : this.stageThreeCompleted ? 4 : 3;
-    this.renderProgress();
-  }
-
-  setStageThreeProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageThreeCompleted;
-    this.stageThreeEligible = eligible;
-    this.stageThreeCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = this.stageFiveCompleted ? 6 : this.stageFourCompleted ? 5 : 4;
-    this.renderProgress();
-  }
-
-  setStageFourProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageFourCompleted;
-    this.stageFourEligible = eligible;
-    this.stageFourCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = this.stageFiveCompleted ? 6 : 5;
-    this.renderProgress();
-  }
-
-  setStageFiveProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageFiveCompleted;
-    this.stageFiveEligible = eligible;
-    this.stageFiveCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 6;
-    this.renderProgress();
-  }
-
-  setStageSixProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageSixCompleted;
-    this.stageSixEligible = eligible;
-    this.stageSixCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 7;
-    this.renderProgress();
-  }
-
-  setStageSevenProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageSevenCompleted;
-    this.stageSevenEligible = eligible;
-    this.stageSevenCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 8;
-    this.renderProgress();
-  }
-
-  setStageEightProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageEightCompleted;
-    this.stageEightEligible = eligible;
-    this.stageEightCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 9;
-    this.renderProgress();
-  }
-
-  setStageNineProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageNineCompleted;
-    this.stageNineEligible = eligible;
-    this.stageNineCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 10;
-    this.renderProgress();
-  }
-
-  setStageTenProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageTenCompleted;
-    this.stageTenEligible = eligible;
-    this.stageTenCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 11;
-    this.renderProgress();
-  }
-
-  setStageElevenProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageElevenCompleted;
-    this.stageElevenEligible = eligible;
-    this.stageElevenCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 12;
-    this.renderProgress();
-  }
-
-  setStageTwelveProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageTwelveCompleted;
-    this.stageTwelveEligible = eligible;
-    this.stageTwelveCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 13;
-    this.renderProgress();
-  }
-
-  setStageThirteenProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageThirteenCompleted;
-    this.stageThirteenEligible = eligible;
-    this.stageThirteenCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 14;
-    this.renderProgress();
-  }
-
-  setStageFourteenProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageFourteenCompleted;
-    this.stageFourteenEligible = eligible;
-    this.stageFourteenCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 15;
-    this.renderProgress();
-  }
-
-  setStageFifteenProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageFifteenCompleted;
-    this.stageFifteenEligible = eligible;
-    this.stageFifteenCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 16;
-    this.renderProgress();
-  }
-
-  setStageSixteenProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageSixteenCompleted;
-    this.stageSixteenEligible = eligible; this.stageSixteenCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 17;
-    this.renderProgress();
-  }
-
-  setStageSeventeenProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageSeventeenCompleted;
-    this.stageSeventeenEligible = eligible; this.stageSeventeenCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 18;
-    this.renderProgress();
-  }
-
-  setStageEighteenProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageEighteenCompleted;
-    this.stageEighteenEligible = eligible; this.stageEighteenCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 19;
-    this.renderProgress();
-  }
-
-  setStageNineteenProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageNineteenCompleted;
-    this.stageNineteenEligible = eligible; this.stageNineteenCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 20;
-    this.renderProgress();
-  }
-
-  setStageTwentyProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageTwentyCompleted;
-    this.stageTwentyEligible = eligible; this.stageTwentyCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 21;
-    this.renderProgress();
-  }
-
-  setStageTwentyOneProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageTwentyOneCompleted;
-    this.stageTwentyOneEligible = eligible; this.stageTwentyOneCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 22;
-    this.renderProgress();
-  }
-
-  setStageTwentyTwoProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageTwentyTwoCompleted;
-    this.stageTwentyTwoEligible = eligible; this.stageTwentyTwoCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 23;
-    this.renderProgress();
-  }
-
-  setStageTwentyThreeProgress(eligible: boolean, completed: boolean): void {
-    const newlyCompleted = completed && !this.stageTwentyThreeCompleted;
-    this.stageTwentyThreeEligible = eligible; this.stageTwentyThreeCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 24;
-    this.renderProgress();
-  }
-
-  setStageTwentyFourProgress(eligible: boolean, completed: boolean): void {
-    this.stageTwentyFourEligible = eligible; this.stageTwentyFourCompleted = completed;
+  setProgress(progress: Readonly<Record<string, { eligible?: boolean; completed?: boolean }>>): void {
+    this.progress = progress;
     this.renderProgress();
   }
 
   private isStageEligible(number: number): boolean {
-    return [this.stageOneEligible, this.stageTwoEligible, this.stageThreeEligible, this.stageFourEligible, this.stageFiveEligible, this.stageSixEligible, this.stageSevenEligible, this.stageEightEligible, this.stageNineEligible, this.stageTenEligible, this.stageElevenEligible, this.stageTwelveEligible, this.stageThirteenEligible, this.stageFourteenEligible, this.stageFifteenEligible, this.stageSixteenEligible, this.stageSeventeenEligible, this.stageEighteenEligible, this.stageNineteenEligible, this.stageTwentyEligible, this.stageTwentyOneEligible, this.stageTwentyTwoEligible, this.stageTwentyThreeEligible, this.stageTwentyFourEligible][number - 1] === true;
+    const stage = missionJourneyStages[number - 1];
+    return stage?.implementation === 'playable' && this.progress[stage.id]?.eligible === true;
   }
 
   private completedStages(): readonly boolean[] {
-    return [this.stageOneCompleted, this.stageTwoCompleted, this.stageThreeCompleted, this.stageFourCompleted,
-      this.stageFiveCompleted, this.stageSixCompleted, this.stageSevenCompleted, this.stageEightCompleted,
-      this.stageNineCompleted, this.stageTenCompleted, this.stageElevenCompleted, this.stageTwelveCompleted,
-      this.stageThirteenCompleted, this.stageFourteenCompleted, this.stageFifteenCompleted, this.stageSixteenCompleted,
-      this.stageSeventeenCompleted, this.stageEighteenCompleted, this.stageNineteenCompleted, this.stageTwentyCompleted,
-      this.stageTwentyOneCompleted, this.stageTwentyTwoCompleted, this.stageTwentyThreeCompleted, this.stageTwentyFourCompleted];
+    return missionJourneyStages.map(stage => stage.implementation === 'playable' && this.progress[stage.id]?.completed === true);
   }
 
   private renderProgress(): void {
@@ -414,11 +188,12 @@ export class MissionJourney {
     const { currentMission, statuses } = missionJourneyStatuses(completed, completed.map((_, index) => !this.cityLocked && this.isStageEligible(index + 1)), !this.cityLocked && this.signInRequired);
     this.currentMission = currentMission;
     if (this.progressingFrom !== null) this.selectedStage = this.progressingFrom;
-    else if (!this.userSelectedStage) this.selectedStage = this.currentMission || (completed.every(Boolean) ? 24 : 1);
+    else if (!this.userSelectedStage) this.selectedStage = this.currentMission || (missionJourneyStages.every((stage, index) => stage.implementation === 'placeholder' || completed[index]) ? 30 : 1);
     this.stageButtons.forEach((button, index) => {
       const number = index + 1;
-      const status = this.progressingFrom === number - 1 ? 'locked' : statuses[index]!;
+      const status = this.progressingFrom !== null && number === this.currentMission ? 'locked' : statuses[index]!;
       button.classList.toggle('is-locked', status === 'locked');
+      button.classList.toggle('is-placeholder', missionJourneyStages[index]!.implementation === 'placeholder');
       button.classList.toggle('is-completed', status === 'completed');
       button.classList.toggle('is-current', status === 'current');
       button.classList.toggle('is-selected', number === this.selectedStage);
@@ -430,7 +205,10 @@ export class MissionJourney {
     });
     for (const segment of this.routeSegments) {
       const from = Number(segment.dataset.from);
-      segment.classList.toggle('is-lit', from !== this.progressingFrom && completed[from - 1] === true && (completed[from] === true || this.currentMission === from + 1));
+      const previous = missionJourneyStages.slice(0, from).reverse().find(stage => stage.implementation === 'playable');
+      const next = missionJourneyStages.slice(from).find(stage => stage.implementation === 'playable');
+      segment.classList.toggle('is-lit', this.progressingFrom === null && Boolean(previous && next &&
+        completed[previous.number - 1] && (completed[next.number - 1] || this.currentMission === next.number)));
     }
     this.renderDetails();
   }
@@ -491,7 +269,7 @@ export class MissionJourney {
   celebrateCompletion(number: number, collectCredits?: (source: DOMRect) => number): void {
     if (!this.isOpen || !this.completedStages()[number - 1]) return;
     this.cancelProgressAnimation();
-    const next = number + 1;
+    const next = missionJourneyStages.find(stage => stage.number > number && stage.implementation === 'playable')?.number ?? 0;
     if (this.currentMission !== next || !this.stageButtons[next - 1] || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       this.userSelectedStage = false;
       this.select(number);
@@ -502,7 +280,8 @@ export class MissionJourney {
       return;
     }
 
-    const segment = this.routeSegments.find(path => Number(path.dataset.from) === number);
+    const segments = this.routeSegments.filter(path => Number(path.dataset.from) >= number && Number(path.dataset.from) < next);
+    const segment = segments[0];
     if (!segment) {
       this.select(number);
       this.revealMission(number, false);
@@ -526,25 +305,31 @@ export class MissionJourney {
       this.stageButtons[number - 1]?.classList.add('is-newly-completed');
       const creditFlightMs = collectCredits?.(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect()) ?? 0;
 
-      const length = segment.getTotalLength();
+      const lengths = segments.map(path => path.getTotalLength());
+      const length = lengths.reduce((sum, value) => sum + value, 0);
       this.progressSegment = segment;
-      segment.classList.add('is-advancing');
-      segment.style.strokeDasharray = String(length);
-      segment.style.strokeDashoffset = String(length);
+      segments.forEach((path, index) => {
+        path.classList.add('is-advancing');
+        path.style.strokeDasharray = String(lengths[index]!);
+        path.style.strokeDashoffset = String(lengths[index]!);
+      });
       const startPoint = segment.getPointAtLength(0);
       marker.style.left = `${startPoint.x}%`;
       marker.style.top = `${startPoint.y}%`;
-      const duration = number === 12 ? 1_900 : 1_250;
+      const duration = missionJourneyStages[number - 1]?.chapter !== missionJourneyStages[next - 1]?.chapter ? 1_900 : 1_250;
       let startedAt: number | null = null;
       const animate = (now: number): void => {
         if (this.progressingFrom !== number || !this.isOpen) return;
         startedAt ??= now;
         const progress = Math.min(1, (now - startedAt) / duration);
         const eased = progress * progress * (3 - 2 * progress);
-        const point = segment.getPointAtLength(length * eased);
+        let distance = length * eased;
+        let part = 0;
+        while (part < lengths.length - 1 && distance > lengths[part]!) distance -= lengths[part++]!;
+        const point = segments[part]!.getPointAtLength(distance);
         marker.style.left = `${point.x}%`;
         marker.style.top = `${point.y}%`;
-        segment.style.strokeDashoffset = String(length * (1 - eased));
+        segments.forEach((path, index) => { path.style.strokeDashoffset = String(index < part ? 0 : index === part ? lengths[index]! - distance : lengths[index]!); });
         if (progress < 1) {
           this.progressAnimationFrame = window.requestAnimationFrame(animate);
           return;
@@ -581,13 +366,15 @@ export class MissionJourney {
     if (this.unlockTimer) window.clearTimeout(this.unlockTimer);
     this.unlockTimer = 0;
     if (this.progressingFrom !== null) this.stageButtons[this.progressingFrom - 1]?.classList.remove('is-newly-completed');
-    if (this.progressingFrom !== null) this.stageButtons[this.progressingFrom]?.classList.remove('is-unlocking');
+    if (this.progressingFrom !== null) this.stageButtons.forEach(button => button.classList.remove('is-unlocking'));
     this.progressingFrom = null;
     this.progressMarker?.remove();
     this.progressMarker = null;
-    this.progressSegment?.classList.remove('is-advancing');
-    this.progressSegment?.style.removeProperty('stroke-dasharray');
-    this.progressSegment?.style.removeProperty('stroke-dashoffset');
+    for (const path of this.routeSegments) {
+      path.classList.remove('is-advancing');
+      path.style.removeProperty('stroke-dasharray');
+      path.style.removeProperty('stroke-dashoffset');
+    }
     this.progressSegment = null;
     this.element.classList.remove('is-advancing');
   }
@@ -662,14 +449,14 @@ export class MissionJourney {
     this.detail.querySelector<HTMLElement>('.mission-journey-detail-facts')!.hidden = placeholder;
     if (placeholder) {
       this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${stage.number}`;
-      this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = 'COMING SOON';
-      this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = 'New missions are in preparation.';
+      this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = stage.title;
+      this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = 'COMING SOON';
       const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
       play.hidden = false; play.disabled = true; play.textContent = 'COMING SOON';
       this.detail.classList.remove('is-locked');
       return;
     }
-    const card = missionJourneyDetails[stage.number - 1]!;
+    const card = missionJourneyDetails.find(card => card.id === stage.id)!;
     const completed = !this.cityLocked && this.completedStages()[stage.number - 1] === true;
     const eligible = this.isStageEligible(stage.number);
     const signInRequired = this.signInRequired && stage.number === 1 && !completed;

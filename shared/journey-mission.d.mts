@@ -184,6 +184,9 @@ export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIn
   mission?: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;
 
+export type JourneyCatalogSlot = Readonly<{ id: string; number: number; title: string; chapter: 1 | 2 | 3 | 4; implementation: 'playable' | 'placeholder' }>;
+export declare const journeyChapters: readonly string[];
+export declare const journeyCatalog: readonly JourneyCatalogSlot[];
 export declare const journeyMissionOrder: readonly string[];
 export declare function journeyMissionSlot(missionId:string):number;
 

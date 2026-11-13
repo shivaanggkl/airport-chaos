@@ -97,3 +97,8 @@
 @media (prefers-reduced-motion: reduce) { .mission-journey *, .mission-journey *::before, .mission-journey *::after { animation: none !important; transition: none !important; } }
 
 .mission-journey-detail.is-placeholder { grid-template-columns: minmax(0, 1fr) minmax(160px, 255px); }
+
+/* Planned slots remain selectable, but distinct from progression-locked missions. */
+.mission-journey-node.is-placeholder { border-color: #aeb3ba; color: #e0e2e5; background: radial-gradient(circle at 35% 20%, #92969d, #646970 68%, #484d55); box-shadow: inset 0 2px #c0c4ca, 0 2px 4px #071630; }
+.mission-journey-node.is-placeholder .mission-journey-number { transform: none; }
+.mission-journey-node.is-placeholder .mission-journey-lock { display: none; }

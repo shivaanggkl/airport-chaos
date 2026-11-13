@@ -16,7 +16,7 @@ import {M19_INTRO,M19_DOWNTOWN,m19IntroText} from './m19-intro';
 import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
 import { CombatMissionIntroPath } from './mission-combat-intro';
 import { HunterMotionBuffer } from '../../shared/hunter-motion.mjs';
-import { journeyMissionSlot, isMonsterJourneyMission } from '../../shared/journey-mission.mjs';
+import { journeyMissionSlot, journeyCatalog, isMonsterJourneyMission } from '../../shared/journey-mission.mjs';
 import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import { IntercityVisuals, disposeCityScene, prepareCityGpu, cityPreparationStep } from './intercity-visuals';
 import { portalForCity, portalModeAllowed, sweptPortalCrossing, portalRules, type PortalGate, type PortalPose } from '../../shared/intercity-portals.mjs';
@@ -1350,15 +1350,17 @@ const gameplayInfoCard = new GameplayInfoCard(gameplayInfoElement);
 gameplayInfoCard.setMode(journeyMode ? 'mission' : launchMode === 'free-fly' && !trainingRequested ? 'multiplayer' : 'none');
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
 const journeyHudHeaderTimer = skyChallengeElement.querySelector<HTMLElement>('[data-journey-header-timer]');
-const m19MissionObjective = missionJourneyDetails.find(mission => mission.id === journeyDallas25.id)!.description;
+const m19MissionObjective = 'Destroy The MONSTER Before Time Runs Out.';
 const journeyMissionDefinitions = [
   journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
   journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18,
   journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12,
   journeyDallas25, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas19,
 ] as const;
-const journeyMissionHeadings = journeyMissionDefinitions.map((mission, index) =>
-  `M${index + 1}: ${index>=12&&index<18?mission.name:mission.name.toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase())}`);
+function journeyMissionHeading(id: string): string {
+  const slot = journeyCatalog.find(slot => slot.id === id);
+  return slot ? `M${slot.number}: ${slot.title}` : 'MISSION';
+}
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
 const journeyHudProgress = skyChallengeElement.querySelector<HTMLElement>('[data-journey-progress]');
 const journeyHudTarget = skyChallengeElement.querySelector<HTMLElement>('[data-journey-target]');
@@ -2941,8 +2943,8 @@ function updateJourneyHud(): void {
   }
   const missionNumber = journeyMissionSlot(journeyAttempt.missionId);
   if (journeyHudHeading) journeyHudHeading.textContent = missionNumber
-    ? journeyMissionHeadings[Number(missionNumber) - 1] ?? 'MISSION' : 'MISSION';
-  const missionDefinition = missionNumber ? journeyMissionDefinitions[Number(missionNumber) - 1] : undefined;
+    ? journeyMissionHeading(journeyAttempt.missionId) : 'MISSION';
+  const missionDefinition = journeyMissionDefinitions.find(mission => mission.id === journeyAttempt?.missionId);
   const initialLimit = missionDefinition && 'timeLimitMs' in missionDefinition ? missionDefinition.timeLimitMs : null;
   const hasCountdown = initialLimit != null || huntMission;
   const countdown = !hasCountdown ? null : journeyAttempt.deadlineAt !== null
@@ -3231,9 +3233,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   journeyResultElement.querySelector<HTMLElement>('.journey-result-status-mark')!.textContent = success ? '✓' : '';
   const resultSlot = journeyMissionSlot(attempt.missionId);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = `M${resultSlot}`;
-  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = success
-    ? journeyMissionDefinitions.find(mission => mission.id === attempt.missionId)?.name ?? 'MISSION'
-    : legendaryMission ? 'LEGENDARY CHAMPIONSHIP' : finalBossMission ? 'FINAL MONSTER BATTLE' : pursuitMission ? 'MONSTER PURSUIT' : monsterShowdownMission ? 'MONSTER SHOWDOWN' : huntMission ? 'MONSTER HUNT' : apexMission ? 'MONSTER STRIKES' : breakoutMission ? '' : showdownMission ? 'FINAL SHOWDOWN' : ironMission ? 'IRON HUNTER' : crossfireMission ? 'DOUBLE THREAT' : aceMission ? 'HOT PURSUIT' : surpriseMission ? 'SURPRISE ATTACK' : firstContactMission ? 'FIRST CONTACT' : finaleMission ? 'ARMORED GIANT PLANE & TWO ESCORTS' : gravityMission ? 'ARMORED GIANT PLANE' : gunshipMission ? 'GIANT PLANE & FOUR ESCORTS' : attempt.missionId === journeyDallas09.id ? 'GIANT PLANE & THREE ESCORTS' : formationMission ? 'GIANT PLANE & TWO ESCORTS' : elevatorMission ? 'GIANT PLANE' : championshipMission ? 'GOLDEN CHAMPIONSHIP' : precisionMission ? 'NEEDLE RUSH' : downtownMission ? 'DOWNTOWN SLALOM' : ascentMission ? 'GOLDEN ASCENT' : lakeMission ? 'LAKE RACER' : 'ROOKIE RUSH';
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = journeyCatalog.find(slot => slot.id === attempt.missionId)?.title ?? 'MISSION';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success ? 'MISSION PASSED' : 'MISSION FAILED';
   const formatResultTime = (milliseconds: number): string => {
     const seconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -3243,14 +3243,14 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   const bestTime = formatResultTime(attempt.bestTimeMs ?? attempt.finishTimeMs ?? 0);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
     ? (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 GOLDEN GATES CLEARED · TIME: ${finishTime} · BEST: ${bestTime}`
-      : legendaryMission ? `AIRPORT CHAOS — JOURNEY COMPLETE · 24/24 MISSIONS · PRECISION FLIGHT — COMPLETE · LEGENDARY ACE — DEFEATED · PERFECT LANDING — ACHIEVED · SCORE: ${attempt.landingScore ?? 0}/1000 · LEGENDARY PILOT UNLOCKED`
+      : legendaryMission ? `AIRPORT CHAOS — JOURNEY COMPLETE · 20/20 PLAYABLE MISSIONS · PRECISION FLIGHT — COMPLETE · LEGENDARY ACE — DEFEATED · PERFECT LANDING — ACHIEVED · SCORE: ${attempt.landingScore ?? 0}/1000 · LEGENDARY PILOT UNLOCKED`
       : pursuitMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
       : monsterShowdownMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
       : huntMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
       : apexMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
       : elevatorMission ? `${gravityMission || finaleMission ? 'Fortress core' : gunshipMission ? 'Gunship' : 'Transport'} destroyed. Time: ${finishTime}`
       : breakoutMission ? `Monster defeated. Downtown saved. Time: ${finishTime}`
-      : showdownMission ? 'ALL FOUR ENEMIES DEFEATED · CHAPTER 2 COMPLETE'
+      : showdownMission ? 'ALL FOUR ENEMIES DEFEATED'
       : ironMission ? 'ALL THREE ENEMIES DESTROYED'
       : crossfireMission ? 'BOTH ENEMIES DESTROYED'
       : firstContactMission ? 'RED NIGHTOWL DESTROYED'
@@ -3491,7 +3491,7 @@ function beginMissionClear(attempt: JourneyAttemptState): void {
   cameraOrbitRecenterAt = performance.now() + 400;
   cinematicDirector.clearPresentation();
   journeyResultElement.classList.add('hidden');
-  const missionName = journeyMissionDefinitions.find(mission => mission.id === attempt.missionId)?.name ?? 'MISSION';
+  const missionName = journeyCatalog.find(slot => slot.id === attempt.missionId)?.title ?? 'MISSION';
   missionClearElement.setAttribute('aria-label', `Mission cleared: ${missionName}`);
   missionClearElement.querySelector<HTMLElement>('.mission-clear-name')!.textContent = missionName;
   missionClearElement.classList.remove('is-exiting');
@@ -4840,6 +4840,7 @@ function clearMissionCombatIntroAircraft(): void {
 
 async function prepareMissionCombatIntro(attemptId: string, missionId: string): Promise<void> {
   clearMissionCombatIntroAircraft();
+  // Cinematic variants are selected by historical mission identity, not displayed Journey slots.
   const missionNumber = missionId === journeyDallas14.id ? 8 : missionId === journeyDallas15.id ? 9 : missionId === journeyDallas16.id ? 10 : missionId === journeyDallas17.id ? 11 : missionId === journeyDallas18.id ? 12 : 7;
   const singleMission = missionNumber === 12 ? journeyDallas18 : missionNumber === 11 ? journeyDallas17 : missionNumber === 9 ? journeyDallas15 : missionNumber === 8 ? journeyDallas14 : journeyDallas13;
   const stage = new THREE.Group();
@@ -5014,7 +5015,7 @@ function beginFlightLaunchCinematic(): void {
   if(missionImageStory)missionImageStory.update(0);
   missionIntroSkip.hidden = !(missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath || missionCombatIntroPath);
   if (!missionIntroSkip.hidden)
-    missionIntroSkip.setAttribute('aria-label', `Skip Mission ${missionCombatIntroPath ? missionCombatIntroPath.missionNumber : missionSixIntroPath ? 6 : missionFiveIntroPath ? 5 : missionFourIntroPath ? 4 : missionThreeIntroPath ? 3 : missionTwoIntroPath ? 2 : 1} intro`);
+    missionIntroSkip.setAttribute('aria-label', `Skip Mission ${journeyAttempt ? journeyMissionSlot(journeyAttempt.missionId) : 1} intro`);
   setFlightLaunchChrome(0);
   if ((missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath || missionCombatIntroPath) && matchMedia('(prefers-reduced-motion: reduce)').matches) completeFlightLaunchCinematic();
 }
@@ -7531,11 +7532,10 @@ function pilotMenuData(): PilotMenuData {
   }));
 
   const flightMissionDefinition = journeyAttempt ? journeyMissionDefinitions.find(mission => mission.id === journeyAttempt?.missionId) : undefined;
-  const flightMissionNumber = journeyAttempt ? journeyMissionDefinitions.findIndex(mission => mission.id === journeyAttempt?.missionId) + 1 : 0;
   const flightGateCount = flightMissionDefinition && 'gates' in flightMissionDefinition ? flightMissionDefinition.gates.length : 0;
   return {
     flightMission: journeyMode && journeyAttempt ? {
-      name: journeyMissionHeadings[flightMissionNumber - 1] ?? 'MISSION',
+      name: journeyAttempt ? journeyMissionHeading(journeyAttempt.missionId) : 'MISSION',
       objective: journeyHudObjective?.textContent ?? '',
       progress: flightGateCount ? `GATE ${journeyAttempt.gateIndex} / ${flightGateCount}` : journeyHudProgress?.textContent ?? '',
       time: journeyHudTimer?.textContent ?? '',
@@ -12535,8 +12535,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
             : message.attempt.missionId === journeyDallas07.id
               ? confirmedGateObjective(message.attempt, journeyDallas07.gates, getTerrainHeight)
               : null;
-    const gateMissionNumber = journeyMissionSlot(message.attempt.missionId);
-    if (missionObjective && gateMissionNumber >= 1 && gateMissionNumber <= 6)
+    if (missionObjective && [journeyDallas01,journeyDallas02,journeyDallas03,journeyDallas04,journeyDallas05,journeyDallas06].some(mission => mission.id === message.attempt.missionId))
       missionObjective = { ...missionObjective, fixedTop: false, peripheralCue: true };
     missionObjectiveGuidance?.setObjective(missionObjective);
 

@@ -12,7 +12,7 @@ import { RewardedAdStore, type RewardedAdConfiguration } from './rewarded-ads.js
 const adUnitId = 'ca-app-pub-3940256099942544/5224354917';
 const configuration: RewardedAdConfiguration = { enabled: true, ios: { enabled: false }, android: { enabled: true, adUnitId }, webEnabled: false, providerRewardAmount: '1' };
 
-test('all 24 missions continue only after a bound verified ad, preserving progress and capping bonus time', () => {
+test('all retained missions continue only after a bound verified ad, preserving progress and capping bonus time', () => {
   const directory = mkdtempSync(join(tmpdir(), 'journey-continuation-'));
   try {
     const path = join(directory, 'profiles.sqlite');

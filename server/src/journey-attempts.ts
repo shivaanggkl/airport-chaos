@@ -1,4 +1,4 @@
-import { journeyMissionOrder, journeyMissionSlot } from '../../shared/journey-mission.mjs';
+import { journeyMissionOrder, journeyCatalog } from '../../shared/journey-mission.mjs';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
@@ -107,7 +107,7 @@ export class JourneyAttemptStore {
   private remember(current: JourneyAttempt | undefined, pilotId: string): void {
     if (this.transactionActive) return;
     this.activeSnapshots.delete(pilotId);
-    if (!current || current.pausedAt !== null || !['READY', 'APPROACH', 'RACING'].includes(current.status) ||
+    if (!current || !journeyMissionOrder.includes(current.missionId) || current.pausedAt !== null || !['READY', 'APPROACH', 'RACING'].includes(current.status) ||
         current.deadlineAt !== null && current.deadlineAt <= Date.now()) return;
     if (this.activeSnapshots.size >= 512) this.activeSnapshots.delete(this.activeSnapshots.keys().next().value!);
     const snapshot = Object.freeze({ ...current,
@@ -135,6 +135,7 @@ export class JourneyAttemptStore {
       return cached.attempt;
     }
     const current = this.get(pilotId, attemptId);
+    if (current && !journeyMissionOrder.includes(current.missionId)) return undefined;
     return this.activeSnapshots.get(pilotId)?.attempt ?? current;
   }
 
@@ -180,6 +181,37 @@ export class JourneyAttemptStore {
         FOREIGN KEY(pilot_id) REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT
       );
     `);
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS journey_catalog_versions (version TEXT PRIMARY KEY);
+      CREATE TABLE IF NOT EXISTS journey_access_grants (
+        pilot_id TEXT NOT NULL REFERENCES player_profiles(pilot_id), mission_id TEXT NOT NULL,
+        PRIMARY KEY(pilot_id, mission_id)
+      );
+    `);
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      if (!this.database.prepare('SELECT 1 FROM journey_catalog_versions WHERE version=?').get('dallas-30')) {
+        const previous = [1,2,3,4,5,6,13,14,15,16,17,18,7,8,9,10,11,12,25,20,21,22,23,19]
+          .map(number => `journey-dallas-${String(number).padStart(2, '0')}`);
+        const grant = this.database.prepare(`INSERT OR IGNORE INTO journey_access_grants(pilot_id,mission_id)
+          SELECT pilot_id,? FROM journey_completions WHERE mission_id=?`);
+        for (const id of journeyMissionOrder) {
+          const index = previous.indexOf(id);
+          if (index > 0) grant.run(id, previous[index - 1]!);
+          this.database.prepare(`INSERT OR IGNORE INTO journey_access_grants(pilot_id,mission_id)
+            SELECT pilot_id,mission_id FROM journey_attempts WHERE mission_id=?`).run(id);
+        }
+        this.database.prepare('INSERT INTO journey_catalog_versions(version) VALUES(?)').run('dallas-30');
+      }
+      // Retire only unfinished encounters. Completion history and wallet receipts are untouched.
+      for (const id of ['journey-dallas-25','journey-dallas-20','journey-dallas-21','journey-dallas-22','journey-dallas-24']) {
+        this.database.prepare(`UPDATE journey_attempts SET status='ABANDONED',finished_at=?,failure_reason='MISSION_RETIRED'
+          WHERE mission_id=? AND status IN ('READY','APPROACH','RACING')`).run(Date.now(), id);
+        this.database.prepare(`DELETE FROM journey_continuations WHERE attempt_id IN
+          (SELECT attempt_id FROM journey_attempts WHERE mission_id=?) AND consumed_at IS NULL`).run(id);
+      }
+      this.database.exec('COMMIT');
+    } catch (error) { this.database.exec('ROLLBACK'); throw error; }
     const columns = this.database.prepare('PRAGMA table_info(journey_attempts)').all() as { name: string }[];
     if (!columns.some(column => column.name === 'definition_revision'))
       this.database.exec('ALTER TABLE journey_attempts ADD COLUMN definition_revision INTEGER NOT NULL DEFAULT 0');
@@ -376,15 +408,15 @@ export class JourneyAttemptStore {
   }
 
   canAccessMission(pilotId: string, missionId: string): boolean {
-    if(missionId===journeyDallas24.id)return false; // Slot 19 is reserved; retire its former challenge.
-    const playable=journeyMissionOrder.filter(id=>id!==journeyDallas24.id);
-    const slot=playable.indexOf(missionId);
-    return slot>=0&&(this.qaMissionAccess(pilotId)||slot===0||this.progress(pilotId,missionId).completed||this.progress(pilotId,playable[slot-1]!).completed);
+    const slot = journeyMissionOrder.indexOf(missionId);
+    return slot >= 0 && (this.qaMissionAccess(pilotId) || slot === 0 || this.progress(pilotId, missionId).completed ||
+      Boolean(this.database.prepare('SELECT 1 FROM journey_access_grants WHERE pilot_id=? AND mission_id=?').get(pilotId, missionId)) ||
+      this.progress(pilotId, journeyMissionOrder[slot - 1]!).completed);
   }
 
   chapterOneComplete(pilotId: string): boolean {
-    return [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06]
-      .every(mission => this.progress(pilotId, mission.id).completed);
+    return journeyCatalog.filter(slot => slot.chapter === 1 && slot.implementation === 'playable')
+      .every(slot => this.progress(pilotId, slot.id).completed);
   }
 
   /** Preserve historical records while comparing only the current Rookie Rush course. */
@@ -935,7 +967,7 @@ export class JourneyAttemptStore {
         AND j.attempt_id<>journey_continuations.attempt_id AND j.status IN ('READY','APPROACH','RACING'))`)
       .get(attemptId, pilotId, now) as {failed_at: number; expires_at: number; payload: string} | undefined;
     const current = this.get(pilotId, attemptId);
-    if (!row || current?.status !== 'FAILED' || current.finishedAt !== row.failed_at) return undefined;
+    if (!row || !current || !journeyMissionOrder.includes(current.missionId) || current.status !== 'FAILED' || current.finishedAt !== row.failed_at) return undefined;
     try { return { failedAt: row.failed_at, expiresAt: row.expires_at, data: JSON.parse(row.payload) as T }; }
     catch { return undefined; }
   }

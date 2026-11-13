@@ -1,7 +1,8 @@
-import { journeyMissionOrder } from '../../shared/journey-mission.mjs';
-export type ChapterNumber = 1 | 2 | 3 | 4 | 5;
+import { journeyCatalog, journeyChapters } from '../../shared/journey-mission.mjs';
+export type ChapterNumber = 1 | 2 | 3 | 4;
 export type MissionJourneyStage = Readonly<{
   id: string;
+  title: string;
   number: number;
   chapter: ChapterNumber;
   implementation: 'playable' | 'placeholder';
@@ -12,18 +13,11 @@ export type MissionJourneyStatus = 'completed' | 'current' | 'available' | 'lock
 
 // Percentages share one coordinate system with the SVG route. Every mission
 // moves right and slightly upward, including the chapter transitions.
-const stageCount = journeyMissionOrder.length + 6;
-const missionXs = Array.from({ length: stageCount }, (_, index) => 2.5 + index * 95 / (stageCount - 1));
-const missionYs = Array.from({ length: stageCount }, (_, index) => 74 - index * 40 / (stageCount - 1));
-export const chapterNames = ['GOLDEN GATES', 'SKY BATTLES', 'GIANT PLANE BATTLES', 'DR. BOSS RISING', 'COMING SOON'] as const;
-
-export const missionJourneyStages: readonly MissionJourneyStage[] = missionXs.map((x, index) => ({
-  id: journeyMissionOrder[index] ?? `placeholder-dallas-${index + 1}`,
-  number: index + 1,
-  chapter: (Math.floor(index / 6) + 1) as ChapterNumber,
-  implementation: index < journeyMissionOrder.length ? 'playable' : 'placeholder',
-  x,
-  y: missionYs[index]!,
+export const chapterNames = journeyChapters;
+export const missionJourneyStages: readonly MissionJourneyStage[] = journeyCatalog.map(slot => ({
+  ...slot,
+  x: 2.5 + (slot.number - 1) * 95 / (journeyCatalog.length - 1),
+  y: 74 - (slot.number - 1) * 40 / (journeyCatalog.length - 1),
 }));
 
 export function missionJourneyStatuses(completed: readonly boolean[], eligible: readonly boolean[], signInRequired: boolean): {

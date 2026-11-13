@@ -9,7 +9,7 @@ import { JourneyAttemptStore } from './journey-attempts.js';
 
 const missions = catalog.journeyMissionOrder.map(id => catalog[`journeyDallas${id.slice(-2)}`]);
 
-test('one isolated pilot unlocks the 24 stages in order and keeps completion across sessions', () => {
+test('one isolated pilot unlocks the 20 playable stages in order and keeps completion across sessions', () => {
   const directory = mkdtempSync(join(tmpdir(), 'airport-journey-chain-'));
   const path = join(directory, 'profiles.sqlite');
   try {
@@ -17,10 +17,10 @@ test('one isolated pilot unlocks the 24 stages in order and keeps completion acr
     database.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('qa-pilot',0,0),('other-pilot',0,0)");
     database.close();
     const store = new JourneyAttemptStore(path);
-    assert.equal(missions.length, 24);
-    assert.equal(new Set(missions.map(mission => mission.id)).size, 24);
+    assert.equal(missions.length, 20);
+    assert.equal(new Set(missions.map(mission => mission.id)).size, 20);
     assert.deepEqual(missions.slice(18).map(mission => mission.firstClearCredits),
-      [2550, 2700, 2850, 3000, 3150, 4000]);
+      [3150, 4000]);
     for (const [index, mission] of missions.entries()) {
       if (index > 0) assert.throws(() => store.launch('qa-pilot', 'trainer', index * 1000, mission.id), /locked/);
       if (index > 0) {
@@ -36,15 +36,15 @@ test('one isolated pilot unlocks the 24 stages in order and keeps completion acr
     }
     const seed = new DatabaseSync(path);
     seed.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,0)')
-      .run('qa-pilot', missions[23].id, 'fixture-24', 25000);
+      .run('qa-pilot', missions[19].id, 'fixture-24', 25000);
     seed.close();
     const reopened = new JourneyAttemptStore(path);
-    assert.equal(missions.filter(mission => reopened.progress('qa-pilot', mission.id).completed).length, 24);
-    assert.equal(reopened.progress('qa-pilot', missions[23].id).completed, true);
-    assert.equal(reopened.launch('qa-pilot', 'trainer', 26000, 'journey-dallas-25').missionId, 'journey-dallas-25');
+    assert.equal(missions.filter(mission => reopened.progress('qa-pilot', mission.id).completed).length, 20);
+    assert.equal(reopened.progress('qa-pilot', missions[19].id).completed, true);
+    assert.throws(() => reopened.launch('qa-pilot', 'trainer', 26000, 'journey-dallas-25'), /locked/);
     assert.throws(() => reopened.launch('qa-pilot', 'trainer', 26001, 'journey-dallas-26'), /Unknown Journey mission/);
     assert.throws(() => reopened.launch('qa-pilot', 'trainer', 26002, 'journey-dallas-24'), /locked/);
-    assert.equal(reopened.launch('qa-pilot', 'trainer', 27000, missions[23].id).missionId, missions[23].id);
+    assert.equal(reopened.launch('qa-pilot', 'trainer', 27000, missions[19].id).missionId, missions[19].id);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -91,8 +91,8 @@ test('staging-era Journey rows and progress survive the additive mission schema 
     assert.equal(store.get('existing-pilot', 'old-attempt')?.missionId, catalog.journeyDallas13.id);
     assert.equal(store.get('existing-pilot', 'old-rookie')?.gateIndex, 4);
     assert.equal(store.progress('existing-pilot', missions[0].id).bestTimeMs, 49000);
-    assert.equal(store.progress('existing-pilot', missions[5].id).completed, true);
-    assert.equal(store.progress('existing-pilot', missions[5].id).bestTimeMs, undefined);
+    assert.equal(store.progress('existing-pilot', catalog.journeyDallas06.id).completed, true);
+    assert.equal(store.progress('existing-pilot', catalog.journeyDallas06.id).bestTimeMs, undefined);
     assert.equal(store.get('existing-pilot', 'old-championship-flight')?.status, 'ABANDONED');
     assert.equal(store.rookieRushBestTime('existing-pilot'), undefined, 'four-gate history is not a ten-gate best');
     assert.equal(store.launch('existing-pilot', 'trainer', 300, catalog.journeyDallas14.id).missionId, catalog.journeyDallas14.id);

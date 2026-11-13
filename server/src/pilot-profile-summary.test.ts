@@ -34,20 +34,20 @@ test('public profile counts only authoritative earnings and completions, with st
     assert.equal(summaries.summary('pilot-a').singlePlayer.aircraftOwned, 2);
     assert.equal(summaries.summary('pilot-a').singlePlayer.totalScore, 1800);
     const now = Date.UTC(2026, 9, 14, 12);
-    for (let mission = 1; mission <= 6; mission += 1) {
+    for (const [index, mission] of [1,2,13,3,14,7].entries()) {
       db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)')
-        .run('pilot-a', `journey-dallas-${String(mission).padStart(2, '0')}`, `attempt-${mission}`, now - (7 - mission) * 60_000, 90_000);
+        .run('pilot-a', `journey-dallas-${String(mission).padStart(2, '0')}`, `attempt-${mission}`, now - (7 - index) * 60_000, 90_000);
     }
     const after = summaries.summary('pilot-a', now);
     assert.deepEqual([after.singlePlayer.missionsCompleted, after.singlePlayer.missionsTotal,
       after.singlePlayer.chaptersCompleted, after.singlePlayer.chaptersTotal,
-      after.singlePlayer.citiesCompleted, after.singlePlayer.citiesTotal], [6, 24, 1, 4, 0, 1]);
-    assert.equal(after.singlePlayer.overallProgress, 25);
+      after.singlePlayer.citiesCompleted, after.singlePlayer.citiesTotal], [6, 20, 1, 4, 0, 1]);
+    assert.equal(after.singlePlayer.overallProgress, 30);
     assert.equal(after.latestAchievements.some(item => item.key === 'first_mission'), true);
-    assert.equal(after.latestAchievements.some(item => item.key === 'chapter:dallas:1'), true);
-    assert.equal((db.prepare('SELECT COUNT(*) AS count FROM pilot_achievements WHERE pilot_id=?').get('pilot-a') as { count: number }).count, 2);
+    assert.equal(after.latestAchievements.some(item => item.key === 'chapter-v2:dallas:1'), true);
+    assert.equal((db.prepare('SELECT COUNT(*) AS count FROM pilot_achievements WHERE pilot_id=?').get('pilot-a') as { count: number }).count, 3);
     summaries.summary('pilot-a', now);
-    assert.equal((db.prepare('SELECT COUNT(*) AS count FROM pilot_achievements WHERE pilot_id=?').get('pilot-a') as { count: number }).count, 2);
+    assert.equal((db.prepare('SELECT COUNT(*) AS count FROM pilot_achievements WHERE pilot_id=?').get('pilot-a') as { count: number }).count, 3);
     db.close();
     assert.equal(new PilotProfileSummaryStore(path).summary('pilot-a').publicPilotId, before.publicPilotId);
   } finally { rmSync(directory, { recursive: true, force: true }); }

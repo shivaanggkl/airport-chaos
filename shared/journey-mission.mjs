@@ -474,9 +474,45 @@ export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
   return journeyGateCrossing(from, to, gateIndex, terrainHeight) === 'VALID';
 }
 
-// Journey slots can change without renaming persisted mission identities or reward receipts.
-export const journeyMissionOrder = Object.freeze([1,2,3,4,5,6,13,14,15,16,17,18,7,8,9,10,11,12,25,20,21,22,23,19].map(number => `journey-dallas-${String(number).padStart(2,'0')}`));
-export function journeyMissionSlot(missionId) { return journeyMissionOrder.indexOf(missionId) + 1; }
-
-// Displayed M19–M24 retain their historical internal mission IDs.
-export function isMonsterJourneyMission(id) { return id==='journey-dallas-25' || id==='journey-dallas-20' || id==='journey-dallas-21' || id==='journey-dallas-22' || id==='journey-dallas-23' || id==='journey-dallas-19'; }
+// Display slots are presentation; persisted gameplay and receipts keep their historical IDs.
+export const journeyChapters = Object.freeze(['ROOKIE PILOT', 'RISING ACE', 'SKY COMMANDER', 'DR. BOSS RISING']);
+export const journeyCatalog = Object.freeze([
+  [1, 'Rookie Rush'],
+  [2, 'Lake Racer'],
+  [13, 'First Contact'],
+  [3, 'Golden Ascent'],
+  [null, 'Capture 1 Territory'],
+  [14, 'Surprise Attack'],
+  [null, 'Airport Hop'],
+  [null, 'Precision Landing'],
+  [7, 'Giant Plane'],
+  [4, 'Downtown Slalom'],
+  [15, 'Hot Pursuit'],
+  [null, 'Dallas Coin Hunt'],
+  [8, 'Giant Plane & Two Escorts'],
+  [5, 'Needle Rush'],
+  [null, 'VIP Escort'],
+  [null, 'Territory Defense'],
+  [16, 'Double Threat'],
+  [9, 'Giant Plane & Three Escorts'],
+  [6, 'Golden Championship'],
+  [null, 'Ace Intercept'],
+  [null, 'Capture 3 Territories'],
+  [10, 'Giant Plane & Four Escorts'],
+  [17, 'Iron Hunter'],
+  [11, 'Armored Giant Plane'],
+  [18, 'Final Showdown'],
+  [null, 'Most Wanted Survival'],
+  [null, 'Triple Territory Defense'],
+  [12, 'Armored Giant & Two Escorts'],
+  [23, 'Monster Pursuit'],
+  [19, 'Final Monster Battle'],
+].map(([identity, title], index) => Object.freeze({
+  id: identity === null ? `placeholder-dallas-${String(index + 1).padStart(2, '0')}` : `journey-dallas-${String(identity).padStart(2, '0')}`,
+  number: index + 1, title,
+  chapter: index < 9 ? 1 : index < 18 ? 2 : index < 28 ? 3 : 4,
+  implementation: identity === null ? 'placeholder' : 'playable',
+})));
+export const journeyMissionOrder = Object.freeze(journeyCatalog.filter(slot => slot.implementation === 'playable').map(slot => slot.id));
+export function journeyMissionSlot(missionId) { return journeyCatalog.find(slot => slot.id === missionId)?.number ?? 0; }
+export function isMonsterJourneyMission(id) { return id === 'journey-dallas-23' || id === 'journey-dallas-19'; }
