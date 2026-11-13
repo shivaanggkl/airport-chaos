@@ -7328,3 +7328,33 @@ html.custom-control-layout #game-root #radar-panel {
 #game-root.launch-cinematic-active.sharpshooter-aim-intro > #acquisition-circle {
   opacity: 1 !important;
 }
+
+/* M12 augments the shared flight header without displacing wallet or instruments. */
+.coin-hunt-counter {
+  position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  display:grid;grid-template-columns:30px auto;column-gap:6px;align-items:center;
+  border:1px solid #ffd54b;border-radius:8px;padding:4px 10px;background:rgb(13 43 68 / 88%);
+  color:#fff2b1;font:700 clamp(11px,1.4vw,17px)/1.2 var(--font-display);white-space:nowrap;
+}
+.coin-hunt-counter[hidden] {display:none;}
+.coin-hunt-counter img {width:30px;height:30px;grid-row:span 2;object-fit:contain;}
+.coin-hunt-counter small {font-size:.65em;color:#ffe5a0;}
+.coin-hunt-flying-credit {position:fixed;width:30px;height:30px;object-fit:contain;pointer-events:none;z-index:100;}
+#game-root.launch-cinematic-active.coin-hunt-intro-details > #mission-status-layer,
+#game-root.launch-cinematic-active.coin-hunt-intro-details > #unified-flight-hud {opacity:1 !important;--launch-hud-opacity:1;}
+#game-root.coin-hunt-intro .flight-launch-title {top:clamp(110px,22vh,190px);max-width:55vw;white-space:normal;}
+@media(max-width:600px) {
+ .coin-hunt-counter {left:55%;grid-template-columns:22px auto;padding:3px 6px;}
+ .coin-hunt-counter img {width:22px;height:22px;}
+ #game-root.coin-hunt-intro .flight-launch-title {max-width:47vw;left:auto;right:10px;transform:none;top:25vh;font-size:13px;letter-spacing:.02em;}
+}
+
+#game-root.coin-hunt-intro-details .flight-launch-title {
+  left:auto;right:16px;transform:none;max-width:calc(100vw - 360px);font-size:clamp(14px,2vw,26px);
+}
+@media(max-width:600px) and (orientation:portrait) {
+ .coin-hunt-counter {left:14px;transform:none;}
+ .unified-flight-hud .coin-hunt-counter strong {font-size:inherit;}
+ #game-root.coin-hunt-active .mission-status-layer {top:max(140px,calc(var(--safe-area-top) + 134px));}
+ #game-root.coin-hunt-intro .flight-launch-title {left:14px;right:14px;top:auto;bottom:max(24px,var(--safe-area-bottom));max-width:none;}
+}

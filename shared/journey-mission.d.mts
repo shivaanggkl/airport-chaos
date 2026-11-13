@@ -214,3 +214,10 @@ export const journeyDallasSharpshooter01: Readonly<{
  targetHealth:25;targetCount:3;targetRadius:220;
  airborneSpawn:Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
 }>;
+
+export const journeyDallasCoinHunt01: Readonly<{
+ id:'journey-dallas-coin-hunt-01'; cityId:'dallas'; name:'DALLAS COIN HUNT'; difficulty:'MEDIUM';
+ objective:string; timeLimitMs:number; firstClearCredits:number; coinCount:number; requiredCoins:number;
+ creditsPerCoin:number; pickupRadius:number;
+ airborneSpawn:Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
+}>;

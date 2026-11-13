@@ -1,3 +1,4 @@
+import { animateCreditFlight } from './credit-flight';
 import { CombatStatsHeader } from './combat-stats-header';
 import { competitiveModes } from '../../shared/competitive-modes.mjs';
 import { dallasDisplayNames } from '../../shared/dallas-display-names.mjs';
@@ -863,15 +864,7 @@ export class SkyDuelUi {
         coin.style.left = `${startX}px`; coin.style.top = `${startY}px`;
         this.panel.append(coin);
         this.coinElements.push(coin);
-        const timing = { duration: creditCollectionDurationMs, delay: index * creditCollectionStaggerMs, fill: 'forwards' as const };
-        this.coinAnimations.push(coin.animate([
-          { transform: 'translate(-50%, -50%) scale(1)' },
-          { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(.72)` },
-        ], { ...timing, easing: 'cubic-bezier(.3, 0, .2, 1)' }));
-        this.coinAnimations.push(coin.animate([
-          { opacity: 0, offset: 0 }, { opacity: 1, offset: .08 },
-          { opacity: 1, offset: .88 }, { opacity: 0, offset: 1 },
-        ], timing));
+        this.coinAnimations.push(...animateCreditFlight(coin,startX,startY,endX,endY,creditCollectionDurationMs,index*creditCollectionStaggerMs));
       }
     }
   }

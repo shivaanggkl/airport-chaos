@@ -120,7 +120,7 @@ test('production intro frames all three targets with steady instructions and res
  const views=new Map([0,1,2].map(stage=>{const t=target(stage);return [t.x,t.y,t.z];}).map((p,i)=>[i,{root:{position:new THREE.Vector3(...p)}}]));
  const context=createContext({THREE,SharpshooterIntro,scene:new THREE.Scene(),sharpshooterIntroPresentation:undefined,
   impactFlashes:[],impactFlashPool:[],spawnFlash(){},window:{innerHeight:1080},
-  sharpshooterViews:views,journeyDallasSharpshooter01:mission,flightLaunchState:'active',missionSharpshooterIntro:true,missionOneIntroPath:null,
+  sharpshooterViews:views,journeyDallasSharpshooter01:mission,flightLaunchState:'active',missionCoinHuntIntro:false,missionSharpshooterIntro:true,missionOneIntroPath:null,
   missionTwoIntroPath:null,missionThreeIntroPath:null,missionFourIntroPath:null,missionFiveIntroPath:null,missionSixIntroPath:null,
   performance:{now:()=>now},flightLaunchStartedAt:0,flightLaunchSkipStartedAt:undefined,FLIGHT_LAUNCH_SKIP_BLEND_MS:500,
   flightLaunchCurrentTarget:new THREE.Vector3(),flightLaunchOrbitPosition:new THREE.Vector3(),

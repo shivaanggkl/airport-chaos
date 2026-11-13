@@ -1,4 +1,4 @@
-import { journeyDallasSharpshooter01, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from './journey-mission.mjs';
+import { journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from './journey-mission.mjs';
 
 const activeStatuses = new Set(['APPROACH', 'RACING']);
 
@@ -14,7 +14,7 @@ const journeyFocus = Object.freeze({
 
 /** Only a server-confirmed active Journey attempt enables focus. */
 export function missionFocusForAttempt(attempt) {
-  return (attempt?.missionId === journeyDallasSharpshooter01.id || attempt?.missionId === journeyDallasAirportHop01.id || attempt?.missionId === journeyDallasCapture01.id || attempt?.missionId === journeyDallas01.id || attempt?.missionId === journeyDallas02.id ||
+  return (attempt?.missionId === journeyDallasCoinHunt01.id || attempt?.missionId === journeyDallasSharpshooter01.id || attempt?.missionId === journeyDallasAirportHop01.id || attempt?.missionId === journeyDallasCapture01.id || attempt?.missionId === journeyDallas01.id || attempt?.missionId === journeyDallas02.id ||
     attempt?.missionId === journeyDallas03.id || attempt?.missionId === journeyDallas04.id ||
     attempt?.missionId === journeyDallas05.id || attempt?.missionId === journeyDallas06.id ||
     attempt?.missionId === journeyDallas07.id || attempt?.missionId === journeyDallas08.id ||
