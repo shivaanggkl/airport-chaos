@@ -479,7 +479,7 @@ const captureTerritory = territoriesForCity('dallas').find(territory => territor
 export const journeyDallasSharpshooter01 = Object.freeze({
   id: 'journey-dallas-sharpshooter-01', cityId: 'dallas', name: 'SKY SHARPSHOOTER', difficulty: 'MEDIUM',
   objective: 'Shoot all three targets before time runs out!',
-  timeLimitMs: 180_000, firstClearCredits: 800, targetHealth: 25, targetCount: 3, targetRadius: 110,
+  timeLimitMs: 180_000, firstClearCredits: 800, targetHealth: 25, targetCount: 3, targetRadius: 220,
   airborneSpawn: Object.freeze({x: cityAirports.dallas.find(a => a.id === 'love').x,
     z: cityAirports.dallas.find(a => a.id === 'love').z, altitude: 800, heading: 0, speed: 180}),
 });

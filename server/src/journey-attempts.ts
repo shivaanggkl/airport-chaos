@@ -26,7 +26,7 @@ export type JourneyAttempt = {
   deadlineAt: number | null; lastGateAt: number | null; finishedAt: number | null;
   pausedAt: number | null;
   finishTimeMs: number | null; firstClearCredits: number; failureReason: string | null;
-  sharpshooter: { destroyed:number; target:SharpshooterTarget|null } | null;
+  sharpshooter: { destroyed:number; targets:SharpshooterTarget[] } | null;
   airportHopStage: number;
   holdMs: number; holdUpdatedAt: number | null;
   rearGuardThirdId:string|null; rearGuardFourthId:string|null; rearGuardKills:number; crossfireKills:number; captureMs: number;
@@ -538,10 +538,10 @@ export class JourneyAttemptStore {
     return current?.status === 'APPROACH' ? current : undefined;
   }
 
-  prepareSharpshooter(pilotId:string,attemptId:string,target:SharpshooterTarget):JourneyAttempt|undefined {
+  prepareSharpshooter(pilotId:string,attemptId:string,targets:SharpshooterTarget[]):JourneyAttempt|undefined {
     this.database.prepare(`UPDATE journey_attempts SET sharpshooter_state=? WHERE pilot_id=? AND attempt_id=?
-      AND mission_id=? AND status IN ('APPROACH','RACING') AND sharpshooter_state IS NULL`)
-      .run(JSON.stringify({destroyed:0,target}),pilotId,attemptId,journeyDallasSharpshooter01.id);
+      AND mission_id=? AND status IN ('APPROACH','RACING') AND (sharpshooter_state IS NULL OR json_type(sharpshooter_state,'$.targets') IS NULL)`)
+      .run(JSON.stringify({destroyed:3-targets.length,targets}),pilotId,attemptId,journeyDallasSharpshooter01.id);
     return this.get(pilotId,attemptId);
   }
 
@@ -552,17 +552,16 @@ export class JourneyAttemptStore {
     return changed?this.get(pilotId,attemptId):undefined;
   }
 
-  /** Only the server projectile contact handler calls this. Stage compare-and-swap
-   * prevents an already-consumed round from advancing another target. */
-  hitSharpshooter(pilotId:string,attemptId:string,stage:number,nextTarget:SharpshooterTarget|null,now=Date.now()):JourneyAttempt|undefined {
+  /** Server collision/validated-lock handlers remove a target atomically.
+   * Replayed contacts cannot count the same target twice. */
+  hitSharpshooter(pilotId:string,attemptId:string,stage:number,now=Date.now()):JourneyAttempt|undefined {
     return this.transaction(pilotId,wallet=>{
       const a=this.get(pilotId,attemptId);
       if(a?.missionId!==journeyDallasSharpshooter01.id||a.status!=='RACING'||a.pausedAt!==null||
-        a.deadlineAt===null||now>=a.deadlineAt||a.sharpshooter?.destroyed!==stage||a.sharpshooter.target?.stage!==stage||
-        (stage<2?nextTarget?.stage!==stage+1:nextTarget!==null))return undefined;
-      const destroyed=stage+1;
+        a.deadlineAt===null||now>=a.deadlineAt||!a.sharpshooter?.targets?.some(target=>target.stage===stage))return undefined;
+      const destroyed=a.sharpshooter!.destroyed+1;
       this.database.prepare('UPDATE journey_attempts SET sharpshooter_state=? WHERE pilot_id=? AND attempt_id=?')
-        .run(JSON.stringify({destroyed,target:nextTarget}),pilotId,attemptId);
+        .run(JSON.stringify({destroyed,targets:a.sharpshooter!.targets.filter(target=>target.stage!==stage)}),pilotId,attemptId);
       if(destroyed===journeyDallasSharpshooter01.targetCount){
         const elapsed=now-a.startedAt!;
         const first=this.database.prepare(`INSERT OR IGNORE INTO journey_completions

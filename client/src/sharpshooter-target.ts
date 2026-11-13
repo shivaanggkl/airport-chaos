@@ -4,11 +4,21 @@ import { journeyDallasSharpshooter01 } from '../../shared/journey-mission.mjs';
 
 /** One procedural model reused across all stages; no target actors or AI. */
 export class SharpshooterTargetView {
+  private static shared:SharpshooterTargetView|undefined;
+  private static users=0;
   readonly root=new THREE.Group();
   private readonly pulse:THREE.Mesh;
   private readonly geometries:THREE.BufferGeometry[]=[];
   private readonly materials:THREE.Material[]=[];
   constructor(scene:THREE.Scene){
+    const shared=SharpshooterTargetView.shared;
+    SharpshooterTargetView.users++;
+    if(shared){
+      for(const child of shared.root.children)this.root.add(child.clone());
+      this.pulse=this.root.children[this.root.children.length-1] as THREE.Mesh;
+      this.root.visible=false;scene.add(this.root);return;
+    }
+    SharpshooterTargetView.shared=this;
     const radius=journeyDallasSharpshooter01.targetRadius;
     const colors=[0x061a32,0x39e6ff,0xffffff,0xff646e,0xffffff,0xff646e];
     const sizes=[1,.96,.86,.65,.43,.20];
@@ -32,5 +42,11 @@ export class SharpshooterTargetView {
     sharpshooterTargetPose(target,elapsedMs,this.root.position);this.root.lookAt(pilot);this.root.visible=true;
     this.pulse.scale.setScalar(1+Math.sin(elapsedMs*.002)*.012);
   }
-  dispose():void{this.root.removeFromParent();for(const geometry of this.geometries)geometry.dispose();for(const material of this.materials)material.dispose();}
+  dispose():void{
+    this.root.removeFromParent();
+    if(--SharpshooterTargetView.users===0){const shared=SharpshooterTargetView.shared!;
+      for(const geometry of shared.geometries)geometry.dispose();for(const material of shared.materials)material.dispose();
+      SharpshooterTargetView.shared=undefined;
+    }
+  }
 }

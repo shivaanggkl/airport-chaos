@@ -1,3 +1,4 @@
+import { sharpshooterTargetPose } from '../../shared/sharpshooter-target.mjs';
 import { createSharpshooterTarget, sharpshooterHitFraction } from './sharpshooter-target.js';
 import { territoryCaptureProgress, territoryCaptureFlightEligible, territoryCaptureCeilingAgl } from '../../shared/city-territories.mjs';
 import { journeyMissionOrder } from '../../shared/journey-mission.mjs';
@@ -276,7 +277,6 @@ type CityEvent = {
 type ChaosQaEvent = 'mostWanted' | 'supplyDrop' | 'goldenDrop' | 'skyRush' | 'stormRisk' | 'lowAltitudeRisk' | 'highAltitudeRisk' | 'downtownRisk' | 'aceIntercept' | 'vipEscort' | 'goldenSkyRun' | 'cityEmergency' | 'stormLanding' | 'fogApproach' | 'cargoRush' | 'soloAirportSprint';
 
 type ProjectileState = {
-  sharpshooterStage?: number;
   projectileId: string;
   ownerId: string;
   cityId: CityId;
@@ -2766,7 +2766,7 @@ function refreshCityLocks(cityId: CityId, now: number): void {
     // Bot locks are refreshed by updateBots from botFireSolution; only human
     // assisted locks use currentLockedTarget and assistedAim samples.
     if (player.cityId !== cityId || player.isBot || !player.lockedTargetId) continue;
-    if (!validFortressLock(playerId, player, now) && !validMonsterLock(playerId,player,now) && !currentLockedTarget(playerId, player, player.lockedTargetId, now)) setServerLock(playerId, player);
+    if (!validSharpshooterLock(playerId,player,now) && !validFortressLock(playerId, player, now) && !validMonsterLock(playerId,player,now) && !currentLockedTarget(playerId, player, player.lockedTargetId, now)) setServerLock(playerId, player);
   }
 }
 
@@ -3185,16 +3185,18 @@ function sendToPlayer(playerId: string, message: object): void {
 }
 function sharpshooterClearanceAt(x:number,z:number):number {
   let top=dallasTerrain.elevationAt(x,z);
-  queryBuildings(transportBuildings,x-110,x+110,z-110,z+110,b=>{top=Math.max(top,b.top);return false;});
+  queryBuildings(transportBuildings,x-journeyDallasSharpshooter01.targetRadius,x+journeyDallasSharpshooter01.targetRadius,z-journeyDallasSharpshooter01.targetRadius,z+journeyDallasSharpshooter01.targetRadius,b=>{top=Math.max(top,b.top);return false;});
   return top;
 }
 
 function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
   const sharpPilot=players.get(playerId);
-  if(attempt.missionId===journeyDallasSharpshooter01.id&&!attempt.sharpshooter&&sharpPilot&&
+  if(attempt.missionId===journeyDallasSharpshooter01.id&&!attempt.sharpshooter?.targets&&sharpPilot&&
     (attempt.status==='APPROACH'||attempt.status==='RACING')) {
+    const legacyTarget=(attempt.sharpshooter as {target?:ReturnType<typeof createSharpshooterTarget>}|null)?.target;
     attempt=journeyStore.prepareSharpshooter(attempt.pilotId,attempt.attemptId,
-      createSharpshooterTarget(0,sharpPilot.position,sharpPilot.rotation.y,0,sharpshooterClearanceAt)) ?? attempt;
+      Array.from({length:3},(_,stage)=>legacyTarget?.stage===stage?legacyTarget:createSharpshooterTarget(stage,sharpPilot.position,sharpPilot.rotation.y,0,sharpshooterClearanceAt))
+        .filter(target=>target.stage>=(attempt.sharpshooter?.destroyed??0))) ?? attempt;
   }
   if (attempt.status === 'COMPLETED' || attempt.status === 'FAILED' || attempt.status === 'ABANDONED')
     journeyCountdownComplete.delete(attempt.attemptId);
@@ -5417,6 +5419,30 @@ function monsterLockSolution(ownerId:string,owner:PlayerState,now:number){
   if(!impact)return undefined;
   return {id:`monster:${attemptId}`,local:best.local,position:impact};
 }
+function sharpshooterLockSolution(ownerId:string,owner:PlayerState,now:number,targetId?:string,transform:Transform=owner){
+  const id=playerJourneyAttempts.get(ownerId),attempt=id?journeyStore.activeSnapshot(owner.pilotId,id):undefined;
+  if(attempt?.missionId!==journeyDallasSharpshooter01.id||attempt.status!=='RACING'||attempt.pausedAt!==null||
+    now>=attempt.deadlineAt!||owner.lifeState!=='alive'||owner.cityId!=='dallas'||now-owner.lastStateAt>combatTransformFreshMs)return undefined;
+  let best:{id:string;local:Vector3;position:Vector3;target:NonNullable<JourneyAttempt['sharpshooter']>['targets'][number];elapsed:number}|undefined,score=Infinity;
+  const elapsed=now-attempt.startedAt!;
+  for(const target of attempt.sharpshooter?.targets??[]){
+    const name=`bullseye:${id}:${target.stage}`;if(targetId&&targetId!==name)continue;
+    const position=sharpshooterTargetPose(target,elapsed,{x:0,y:0,z:0}),local=targetInAircraftSpace(transform,{position});
+    const distance=Math.hypot(local.x,local.y,local.z),angle=Math.atan2(Math.hypot(local.x,local.y),-local.z);
+    if(local.z>=0||distance>COMBAT_RANGE||angle>AIM_ENVELOPE)continue;
+    const origin=muzzleTransform(transform).position;
+    if(segmentBlockedByBuildings(origin,position,transportBuildings))continue;
+    const rank=aimTargetScore(angle,distance)-(owner.assistedAim?.targetId===name?AIM_SWITCH_MARGIN:0);
+    if(rank<score){best={id:name,local,position,target,elapsed};score=rank;}
+  }
+  return best;
+}
+function validSharpshooterLock(ownerId:string,owner:PlayerState,now:number):boolean{
+  if(!owner.lockedTargetId?.startsWith('bullseye:')||owner.assistedAim?.targetId!==owner.lockedTargetId||now-owner.assistedAim.updatedAt>500)return false;
+  const target=sharpshooterLockSolution(ownerId,owner,now,owner.lockedTargetId);
+  return !!target&&insideDynamicLock(target.local.x,target.local.y,target.local.z,owner.assistedAim);
+}
+
 function validMonsterLock(ownerId:string,owner:PlayerState,now:number):boolean{
   if(!owner.lockedTargetId?.startsWith('monster:') || owner.assistedAim?.targetId!==owner.lockedTargetId || now-owner.assistedAim.updatedAt>500)return false;
   const target=monsterLockSolution(ownerId,owner,now);
@@ -5435,7 +5461,7 @@ function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, man
   let candidate = (!transport || transport.missionId===journeyDallas08.id || transport.missionId===journeyDallas09.id ||
     transport.missionId===journeyDallas10.id || transport.missionId===journeyDallas12.id) && owner.lifeState==='alive' && now-owner.lastStateAt<=combatTransformFreshMs
     ? closestLockTarget(ownerId,owner,forwardDirection(owner),now) : undefined;
-  let component = transport ? fortressLockSolution(ownerId,owner,now,undefined,manualHorizontal,manualVertical) : monsterLockSolution(ownerId,owner,now);
+  let component = sharpshooterLockSolution(ownerId,owner,now) ?? (transport ? fortressLockSolution(ownerId,owner,now,undefined,manualHorizontal,manualVertical) : monsterLockSolution(ownerId,owner,now));
   if (component && candidate) {
     const local=targetInAircraftSpace(owner,candidate[1]);
     const score=(point:Vector3,id:string)=>aimTargetScore(Math.atan2(Math.hypot(point.x,point.y),-point.z),Math.hypot(point.x,point.y,point.z))-
@@ -5580,9 +5606,7 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
   const transform = fireTransform ?? player;
   const { position, direction } = muzzleTransform(transform, aim);
   const privateId=playerJourneyAttempts.get(playerId);
-  const sharpAttempt=privateId?journeyStore.activeSnapshot(player.pilotId,privateId):undefined;
   const projectile: ProjectileState = {
-    sharpshooterStage: sharpAttempt?.missionId===journeyDallasSharpshooter01.id ? sharpAttempt.sharpshooter?.destroyed : undefined,
     projectileId: randomUUID(),
     ownerId: playerId,
     airAssaultId: player.airAssaultId,
@@ -6067,6 +6091,25 @@ function createFortressAssistedShot(playerId: string, player: PlayerState, targe
   return true;
 }
 
+function createSharpshooterAssistedShot(playerId:string,player:PlayerState,targetId:string,clientShotId:string|undefined,
+    fireTransform:Transform|undefined,shotAim:{x:number;y:number}):boolean {
+  const now=Date.now();
+  if(!validSharpshooterLock(playerId,player,now)||player.lockedTargetId!==targetId||!canFire(player,now,playerId))return false;
+  const target=sharpshooterLockSolution(playerId,player,now,targetId,fireTransform??player);
+  if(!target||!insideDynamicLock(target.local.x,target.local.y,target.local.z,shotAim))return false;
+  const origin=muzzleTransform(fireTransform??player,shotAim).position;
+  if(sharpshooterHitFraction(target.target,target.target.stage,origin,target.position,target.elapsed,0.000001,(fireTransform??player).position)===null)return false;
+  const attemptId=playerJourneyAttempts.get(playerId)!;
+  const advanced=journeyStore.hitSharpshooter(player.pilotId,attemptId,target.target.stage,now);
+  if(!advanced)return false;
+  player.lastFireAt=now;
+  sendToPlayer(playerId,{type:'assistedShot',shotId:randomUUID(),ownerId:playerId,targetId,origin,
+    targetPosition:target.position,speed:assistedTracerSpeed(player.velocity,origin,target.position),clientShotId});
+  sendJourneyState(playerId,advanced);
+  if(advanced.status==='COMPLETED')sendProfile(playerId,profileStore.getOrCreate(player.pilotId,player.displayName),undefined,undefined,journeyDallasSharpshooter01.name);
+  return true;
+}
+
 function createAssistedShot(
   playerId: string,
   player: PlayerState,
@@ -6075,6 +6118,7 @@ function createAssistedShot(
   fireTransform: Transform | undefined,
   shotAim: { x: number; y: number },
 ): boolean {
+  if (targetId.startsWith('bullseye:')) return createSharpshooterAssistedShot(playerId,player,targetId,clientShotId,fireTransform,shotAim);
   if (targetId.startsWith('transport:')) return createFortressAssistedShot(playerId,player,targetId,clientShotId,fireTransform,shotAim);
   const now = Date.now();
   const target = currentLockedTarget(playerId, player, targetId, now, fireTransform);
@@ -6394,16 +6438,17 @@ function updateProjectiles(deltaSeconds: number): void {
     const missionAttempt = missionAttemptId ? journeyStore.activeSnapshot(owner.pilotId, missionAttemptId) : undefined;
     const transportMissionId = missionAttempt?.missionId;
     if(missionAttempt?.missionId===journeyDallasSharpshooter01.id){
-      const target=missionAttempt.sharpshooter?.target;
-      if(target&&projectile.privateAttemptId===missionAttempt.attemptId&&!owner.isBot&&
+      const targets=missionAttempt.sharpshooter?.targets??[];
+      if(targets.length&&projectile.privateAttemptId===missionAttempt.attemptId&&!owner.isBot&&
         missionAttempt.status==='RACING'&&missionAttempt.pausedAt===null&&now<missionAttempt.deadlineAt!){
         const elapsed=now-missionAttempt.startedAt!;
         const start={x:previousX,y:previousY,z:previousZ};
-        const fraction=sharpshooterHitFraction(target,projectile.sharpshooterStage,start,projectile.position,elapsed,deltaSeconds,owner.position);
-        if(fraction!==null){
+        let target:typeof targets[number]|undefined,fraction:number|null=null;
+        for(const item of targets){const contact=sharpshooterHitFraction(item,item.stage,start,projectile.position,elapsed,deltaSeconds,owner.position);
+          if(contact!==null&&(fraction===null||contact<fraction)){target=item;fraction=contact;}}
+        if(fraction!==null&&target){
           const impact={x:previousX+(projectile.position.x-previousX)*fraction,y:previousY+(projectile.position.y-previousY)*fraction,z:previousZ+(projectile.position.z-previousZ)*fraction};
-          const next=target.stage<2?createSharpshooterTarget(target.stage+1,owner.position,owner.rotation.y,elapsed,sharpshooterClearanceAt):null;
-          const advanced=journeyStore.hitSharpshooter(owner.pilotId,missionAttempt.attemptId,target.stage,next,now);
+          const advanced=journeyStore.hitSharpshooter(owner.pilotId,missionAttempt.attemptId,target.stage,now);
           removeProjectile(projectile.projectileId,undefined,impact);
           if(advanced){sendJourneyState(projectile.ownerId,advanced);
             if(advanced.status==='COMPLETED')sendProfile(projectile.ownerId,profileStore.getOrCreate(owner.pilotId,owner.displayName),undefined,undefined,journeyDallasSharpshooter01.name);}
@@ -9364,6 +9409,7 @@ server.on('connection', (socket, request) => {
         if (playerJourneyRunwayPrep.has(playerId)) return;
         const firingAttemptId = playerJourneyAttempts.get(playerId);
         const firingAttempt = firingAttemptId ? journeyStore.activeSnapshot(player.pilotId, firingAttemptId) : undefined;
+        if(firingAttempt?.missionId===journeyDallasSharpshooter01.id&&(firingAttempt.status!=='RACING'||firingAttempt.pausedAt!==null||now>=firingAttempt.deadlineAt!))return;
         if (((firingAttempt?.missionId===journeyDallas19.id||firingAttempt?.missionId===journeyDallas25.id||firingAttempt?.missionId===journeyDallas21.id||firingAttempt?.missionId===journeyDallas22.id||firingAttempt?.missionId===journeyDallas23.id)||firingAttempt?.missionId===journeyDallas20.id || firingAttempt?.missionId === journeyDallas07.id || firingAttempt?.missionId === journeyDallas08.id || firingAttempt?.missionId === journeyDallas09.id || firingAttempt?.missionId === journeyDallas10.id || firingAttempt?.missionId === journeyDallas11.id || firingAttempt?.missionId === journeyDallas12.id) &&
           (firingAttempt.status !== 'RACING' || now - player.lastAcceptedTransformAt > combatTransformFreshMs)) return;
         if((firingAttempt?.missionId===journeyDallas13.id || firingAttempt?.missionId===journeyDallas14.id || firingAttempt?.missionId===journeyDallas17.id || firingAttempt?.missionId===journeyDallas18.id || firingAttempt?.missionId===journeyDallas07.id || firingAttempt?.missionId===journeyDallas08.id || firingAttempt?.missionId===journeyDallas09.id || firingAttempt?.missionId===journeyDallas10.id || firingAttempt?.missionId===journeyDallas11.id || firingAttempt?.missionId===journeyDallas12.id) && (firingAttempt.deadlineAt===null||now>=firingAttempt.deadlineAt))return;

@@ -65,8 +65,8 @@ export function throttleSpeedTarget(throttle,envelope){
   const request=clamp(throttle,0,1);
   const speeds=[
     envelope.stallSpeed*.81,
-    Math.max(envelope.stallSpeed*1.05,envelope.safeLandingSpeed*1.05),
-    Math.max(envelope.safeLandingSpeed*1.45,envelope.maxSpeed*.25),
+    Math.max(envelope.stallSpeed*1.05,envelope.safeLandingSpeed*.75),
+    envelope.safeLandingSpeed*.95,
     envelope.maxSpeed*.45,
     Math.max(envelope.safeLandingSpeed*1.75,envelope.maxSpeed*.90),
     envelope.maxSpeed,
@@ -78,6 +78,26 @@ export function throttleSpeedTarget(throttle,envelope){
     }
   }
   return speeds[speeds.length-1];
+}
+
+// Cover the full landing lever range through SLOW, including intermediate
+// positions. MED, FAST and Boost keep their existing targets.
+export function landingApproachSpeedTarget(throttle,envelope){
+  const slowThrottle=cruiseThrottleStops[1];
+  if(throttle>slowThrottle)return undefined;
+  return Math.max(envelope.stallSpeed*1.05,envelope.safeLandingSpeed*(.55+.40*clamp(throttle/slowThrottle,0,1)));
+}
+
+// Keep low-power taxi unchanged; build runway power continuously toward FAST.
+// Cruise speeds and lift physics remain independent of this ground-roll scale.
+export function runwayPowerScale(throttle){
+  const slow=cruiseThrottleStops[1],fast=cruiseThrottleStops[3];
+  const power=clamp((throttle-slow)/(fast-slow),0,1);
+  return 1+.5*power*power*(3-2*power);
+}
+
+export function runwayRotationSpeed(envelope){
+  return envelope.takeoffSpeed*1.5;
 }
 
 export function throttleDecelerationResponse(throttle,envelope){
