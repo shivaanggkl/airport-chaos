@@ -246,7 +246,7 @@ body.launch-cinematic-pending:has(#game-root.journey-flight) #tutorial-help {
 /* The world canvas stays live while the normal-flight launch camera hands off.
    Every gameplay layer shares one fade and remains non-interactive until the
    exact chase-camera pose is restored. */
-#game-root.launch-cinematic-active > :not(canvas):not(.flight-launch-title):not(.mission-intro-skip):not(.image-story-sequence):not(#hit-marker):not(#damage-flash):not(.transport-crash-flash) {
+#game-root.launch-cinematic-active > :not(canvas):not(.flight-launch-title):not(.mission-intro-skip):not(.image-story-sequence):not(.airport-hop-route):not(#hit-marker):not(#damage-flash):not(.transport-crash-flash) {
   opacity: var(--launch-hud-opacity, 0) !important;
   pointer-events: none !important;
   transition: opacity var(--launch-hud-fade-duration, 500ms) ease;
@@ -7290,3 +7290,29 @@ html.custom-control-layout #game-root #radar-panel {
   font-size: clamp(17px, 2.3vw, 26px);
   line-height: 1.2;
 }
+#game-root.launch-cinematic-active > .airport-hop-route {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+.airport-hop-route > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.airport-hop-route line { stroke: #ffe49a; stroke-width: 3; vector-effect: non-scaling-stroke; }
+.airport-hop-stop {
+  position: absolute;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: clamp(110px, 17vw, 200px);
+  transform: translate(-50%, -18px);
+  text-align: center;
+  color: #fff5c9;
+  font: 800 clamp(10px, 1.2vw, 16px)/1.2 var(--font-display);
+  text-shadow: 0 2px 4px #071c32;
+}
+.airport-hop-number { display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid #fff2ae; border-radius: 50%; color: #09233e; background: linear-gradient(#fff4ba, #f2b821); font-size: 22px; text-shadow: none; box-shadow: 0 0 16px #ffd96a80; }
+.airport-hop-stop strong { padding: 5px 7px; border: 1px solid #ffe49a; border-radius: 5px; background: #09233ee8; }
+.airport-hop-stop > span { padding: 3px 5px; border-radius: 4px; background: #09233ed9; font-size: .8em; color: #e9fbff; }
+
+#game-root .airport-hop-instructions { display: block; padding-left: 1em; line-height: 1.15; letter-spacing: 0; }
+#game-root .airport-hop-instructions > [role="listitem"] { display: list-item; list-style-type: disc; }

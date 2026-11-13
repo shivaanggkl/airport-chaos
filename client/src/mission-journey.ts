@@ -465,7 +465,7 @@ export class MissionJourney {
     this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card.title;
     const objective = this.detail.querySelector<HTMLElement>('[data-mission-objective]')!;
     objective.textContent = card.description;
-    if (card.id === 'journey-dallas-capture-01') {
+    if (card.id === 'journey-dallas-capture-01' || card.id === 'journey-dallas-airport-hop-01') {
       const list = document.createElement('span');
       list.className = 'mission-journey-instructions';
       list.setAttribute('role', 'list');

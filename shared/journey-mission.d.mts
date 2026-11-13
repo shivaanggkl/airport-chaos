@@ -203,7 +203,7 @@ export const journeyDallasCapture01: Readonly<{
 
 export const journeyDallasAirportHop01: Readonly<{
   id: 'journey-dallas-airport-hop-01'; cityId: 'dallas'; name: 'AIRPORT HOP'; difficulty: 'MEDIUM';
-  objective: 'Take off, land at two airports, and complete your journey.';
+  objective: 'TAKE OFF from METROPLEX INTERNATIONAL runway.\nFLY to METRO CENTRAL AIRPORT and LAND.\nTAKE OFF from METRO CENTRAL AIRPORT. FLY to NORTH METRO AIRFIELD and LAND.';
   startAirportId: 'dfw'; firstAirportId: 'love'; finishAirportId: 'addison';
   timeLimitMs: 480000; firstClearCredits: 750;
 }>;

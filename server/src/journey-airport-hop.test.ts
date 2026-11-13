@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createContext, runInContext } from 'node:vm';
 import ts from 'typescript';
+import * as THREE from 'three';
 import * as missions from '../../shared/journey-mission.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
@@ -36,7 +37,7 @@ test('M07 identity, 8-minute clock, all aircraft, one destination and isolated e
     assert.equal(missionFocusForAttempt(started)!.showAmbientAIAircraft,false);
   }}finally{f.close();}
   assert.match(indexSource,/spawnAirportId = journeyAttempt\?\.missionId === journeyDallasAirportHop01.id/);
-  assert.match(clientSource,/missionAirportHopIntro[\s\S]*elapsed >= 12_000/);
+  assert.match(clientSource,/missionAirportHopIntro[\s\S]*elapsed - 10_500[\s\S]*1_500/);
   assert.match(clientSource,/function rewardLanding[^]*?journeyDallasAirportHop01.id[^]*?return;/);
 });
 test('ordered takeoffs and landings; wrong airports reset only the current leg, durable checkpoints, reward once',()=>{
@@ -147,3 +148,49 @@ test('server accepted touchdown required; taxi, low pass and forged claims canno
  assert.equal(messages.at(-1).credits,0);assert.equal(messages.at(-1).grade,'ROUGH');
  }finally{f.close();}
 });
+
+test('M07 radar points to the next landing airport even before takeoff and keeps distant bearings visible',()=>{
+ const calls:any[][]=[], arcs:any[][]=[], texts:any[][]=[];
+ const attempt={missionId:mission.id,status:'RACING',airportHopStage:0};
+ const context=createContext({...missions,Math,journeyAttempt:attempt,airports:cityAirports.dallas,
+  missionFocus:{showUnrelatedAirportLabels:false},radarAirportLabels:{},
+  drawRadarMarker:(...args:any[])=>calls.push(args),direction:{x:0,z:-1}});
+ const destination=clientSource.slice(clientSource.indexOf('function airportHopDestination('),clientSource.indexOf('\nfunction updateJourneyHud('));
+ const loopStart=clientSource.indexOf('  const hopDestination = airportHopDestination(true);');
+ const loop=clientSource.slice(loopStart,clientSource.indexOf('  if (!skyDuelMode)',loopStart));
+ runInContext(ts.transpileModule(destination,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+ for(const [stage,id,label] of [[0,'love','AIRPORT 2'],[1,'love','AIRPORT 2'],[2,'addison','AIRPORT 3'],[3,'addison','AIRPORT 3']] as const){
+  attempt.airportHopStage=stage;calls.length=0;
+  runInContext(`{${ts.transpileModule(loop,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText}}`,context);
+  const airport=cityAirports.dallas.find(a=>a.id===id)!;
+  assert.equal(calls.length,1);assert.deepEqual(calls[0].slice(1),[airport.x,airport.z,'mission',label]);
+ }
+ const canvas={width:180,height:180};
+ const radarContext={beginPath(){},fill(){},stroke(){},arc:(...args:any[])=>arcs.push(args),fillText:(...args:any[])=>texts.push(args)};
+ Object.assign(context,{radarCanvas:canvas,radarContext,radarRange:3000,airplane:{position:{x:0,z:0}},visualLanguage:{mission:{color:'#ffd865'}}});
+ const marker=clientSource.slice(clientSource.indexOf('function drawRadarMarker('),clientSource.indexOf('\nfunction drawRadarTerritories('));
+ runInContext(ts.transpileModule(marker,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+ for(const [x,z] of [[100000,0],[-100000,0],[0,100000],[0,-100000]]){
+  arcs.length=0;texts.length=0;
+  runInContext(`drawRadarMarker({x:0,z:-1},${x},${z},'mission','2 LAND')`,context);
+  assert.ok(Math.abs(Math.hypot(arcs[0][0]-90,arcs[0][1]-90)-77)<.001);
+  assert.ok(texts[0][1]>=40&&texts[0][1]<=140);assert.ok(texts[0][2]>=30&&texts[0][2]<=135);
+ }
+});
+
+ test('M07 victory retains touchdown height and attitude while rolling smoothly to rest',()=>{
+  const airplane={position:new THREE.Vector3(100,7,200),quaternion:new THREE.Quaternion().setFromEuler(new THREE.Euler(0,.4,0))};
+  const pose=airplane.quaternion.clone();
+  const context=createContext({...missions,Math,performance:{now:()=>1000},MISSION_CLEAR_DURATION_MS:4200,MISSION_CLEAR_REVEAL_MS:700,
+   missionClearStartedAt:0,journeyAttempt:{missionId:mission.id},airplane,
+   missionClearVelocity:new THREE.Vector3(0,0,-30),velocity:new THREE.Vector3(0,0,-30),currentSpeed:30,verticalSpeed:0,
+   missionClearElement:{classList:{contains:()=>false,toggle(){}}},
+   getTerrainHeight:()=>{throw Error('Must not apply airborne victory clearance');}});
+  const source=clientSource.slice(clientSource.indexOf('function updateMissionClear('),clientSource.indexOf('\nfunction eventObjectiveForLocal('));
+  runInContext(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+  for(let i=0;i<180;i++)runInContext('updateMissionClear(1/60)',context);
+  assert.equal(airplane.position.y,7);assert.ok(airplane.quaternion.equals(pose));
+  assert.ok(airplane.position.z>185&&airplane.position.z<186);
+  assert.ok(context.currentSpeed<.1);assert.equal(context.verticalSpeed,0);
+  assert.ok(clientSource.includes('attempt.missionId !== journeyDallasAirportHop01.id && missionClearVelocity.lengthSq() < 1'));
+ });
