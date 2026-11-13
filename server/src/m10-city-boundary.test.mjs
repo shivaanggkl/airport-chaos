@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { cityRegistry } from '../../shared/city-registry.mjs';
-import { journeyDallas10, journeyDallas16 } from '../../shared/journey-mission.mjs';
+import { journeyDallas10, journeyDallas12, journeyDallas16 } from '../../shared/journey-mission.mjs';
 import { advanceHunterFlight } from './hunter-flight.ts';
 import { dallasEscortSteeringTarget, keepDallasEscortInside } from './journey-hunter-airspace.ts';
 
@@ -17,7 +17,7 @@ const half = cityRegistry.dallas.worldSize / 2;
 function fixture(aircraftType, x, z, heading) {
   const player = { cityId: 'dallas', aircraftType, position: { x, y: 2000, z }, rotation: { x: 0, y: heading, z: 0 }, velocity: { x: 0, y: 0, z: 0 } };
   const bot = { journeyCrossfire: true, phase: 'cruise', speed: aircraftFlightEnvelope[aircraftType].maxSpeed, bankControl: 0, combatTurnSign: 1 };
-  const ctx = vm.createContext({ aircraftFlightEnvelope, journeyDallas10, advanceHunterFlight, dallasEscortSteeringTarget, keepDallasEscortInside,
+  const ctx = vm.createContext({ aircraftFlightEnvelope, journeyDallas10, journeyDallas12, advanceHunterFlight, dallasEscortSteeringTarget, keepDallasEscortInside,
     wrapAngle: value => Math.atan2(Math.sin(value), Math.cos(value)), botRunwayHeight: () => 0, smoothHunter: () => true,
     hunterForward: p => ({ x: -Math.sin(p.rotation.y), y: 0, z: -Math.cos(p.rotation.y) }), botCruiseFactor: () => .78,
     hunterClearance: () => 100, botSafeFloor: () => 0, player, bot });
@@ -52,3 +52,23 @@ for (const { aircraft } of journeyDallas16.enemies) {
     assert.deepEqual(f.bot, expectedBot);
   });
 }
+
+
+for (const aircraft of journeyDallas12.escortAircraft) test(`M18 ${aircraft}: both surviving escorts stay in Dallas after the giant is destroyed`, () => {
+  for (const [sx,sz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
+    const f=fixture(aircraft,sx*(half-21),sz*(half-21),Math.atan2(-sx,-sz));
+    f.bot.journeyCrossfire=false;
+    f.bot.journeyRearGuardEscort=aircraft==='privateJet'?1:2;
+    f.bot.journeyEscortMissionId=journeyDallas12.id;
+    f.bot.journeyAttemptId='destroyed-transport';
+    const target={x:sx*(half+60000),y:2000,z:sz*(half+60000)};
+    for(let tick=0;tick<600;tick++) {
+      const before={...f.player.position},speed=f.bot.speed;
+      f.tick(target);
+      assert(Math.abs(f.player.position.x)<=half-20 && Math.abs(f.player.position.z)<=half-20);
+      assert(Math.hypot(f.player.position.x-before.x,f.player.position.z-before.z)<=Math.max(speed,f.bot.speed)*.2+1e-6,'no boundary teleport');
+      assert(Number.isFinite(f.player.velocity.x)&&Number.isFinite(f.player.velocity.z));
+    }
+    assert(Math.hypot(f.player.position.x,f.player.position.z)<Math.hypot(sx*(half-21),sz*(half-21)),'escort turns back into the city');
+  }
+});

@@ -161,7 +161,7 @@ export class AshenWarlordModel {
     private footAt = [-10, -10];
     private temp = new THREE.Vector3();
     private core = new THREE.Vector3();
-    constructor(source?: Promise<GLTF>,private readonly stationary=false,private readonly striking=false,private readonly hunting=false,private readonly pursuit=false) { this.ready = (source ?? load()).then(g => { if (this.disposed)
+    constructor(source?: Promise<GLTF>,private readonly stationary=false,private readonly striking=false,private readonly hunting=false,private readonly pursuit=false,originalCombat=false) { this.ready = (source ?? load()).then(g => { if (this.disposed)
         return; const object = cloneSkeleton(g.scene) as THREE.Group; object.name = 'ashen-warlord-supplied-mixamo'; object.scale.setScalar(model.height); this.instance = object; this.root.add(object); object.traverse(o => { if (o instanceof THREE.SkinnedMesh) {
         this.mesh = o;
         o.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, .55, 0), 1.8);
@@ -169,7 +169,7 @@ export class AshenWarlordModel {
         o.material = Array.isArray(o.material) ? o.material.map(clone) : clone(o.material);
     } }); this.mixer = new THREE.AnimationMixer(object); for (const clip of g.animations) {
         // Walk and Shoot are cinematic-only for M19; combat retains its four approved motions.
-        if(!(this.stationary&&clip.name===model.clips.walk!.name)&&clip.name!==model.clips.shoot!.name&&!((this.stationary||this.striking)?(this.striking?(this.pursuit?pursuitWarlord:this.hunting?huntingWarlord:strikingWarlord).motions:['idle','punch','roar','defeat']).map(key=>model.clips[key]!.name).includes(clip.name):motionNames.has(clip.name)))continue;
+        if(!(originalCombat&&motionNames.has(clip.name))&&!(this.stationary&&clip.name===model.clips.walk!.name)&&clip.name!==model.clips.shoot!.name&&!((this.stationary||this.striking)?(this.striking?(this.pursuit?pursuitWarlord:this.hunting?huntingWarlord:strikingWarlord).motions:['idle','punch','roar','defeat']).map(key=>model.clips[key]!.name).includes(clip.name):motionNames.has(clip.name)))continue;
         if((this.stationary||this.striking)&&![model.clips.idle!.name,model.clips.turn!.name,...(this.stationary?[model.clips.walk!.name]:[]),...(this.hunting?[model.clips.walk!.name]:[]),...(this.pursuit?[model.clips.run!.name]:[])].includes(clip.name)){const action=this.mixer.clipAction(clip);action.setLoop(THREE.LoopOnce,1);action.clampWhenFinished=true;}
         const action = this.mixer.clipAction(clip);
         action.play();

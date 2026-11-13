@@ -67,3 +67,25 @@ test('new state packets cannot restore a dead transport objective; render loop r
  assert.match(source,/missionObjective = transportMissionHasLiveTarget\(message.attempt\) && transportView\?\.hasState/);
  assert.match(source,/syncLegendaryObjective\(\);\s*syncTransportEscortObjective\(\);/);
 });
+
+
+test('M18 keeps both live escorts on radar after the giant is destroyed and removes each defeated escort',()=>{
+ const f=fixture(missions.journeyDallas12.id);
+ f.ctx.journeyAttempt.rearGuardKills=0;
+ f.ctx.journeyAttempt.rearGuardThirdId=null;f.ctx.journeyAttempt.rearGuardFourthId=null;
+ for(const r of f.remotes)r.plane.userData.rearGuardEscort=true;
+ const markers=[];
+ let radarEscorts;
+ function find(node){
+  if(ts.isIfStatement(node)&&node.expression.getText(ast).includes('journeyDallas08.id')&&node.thenStatement.getText(ast).includes("'mission', 'ESCORT'"))radarEscorts=node.getText(ast);
+  ts.forEachChild(node,find);
+ }
+ find(ast);assert(radarEscorts);
+ f.ctx.drawRadarMarker=(_direction,x,z,kind,label)=>markers.push({x,z,kind,label});f.ctx.direction=new THREE.Vector3(0,0,-1);
+ // Only assigned escorts are present; ordinary AI radar range/visibility is irrelevant.
+ f.ctx.remotePlayers=new Map(f.remotes.slice(0,2).map(r=>[r.playerId,r]));
+ const run=()=>{markers.length=0;vm.runInContext(ts.transpileModule(radarEscorts,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,f.ctx);return markers.length;};
+ assert.equal(run(),2);
+ f.ctx.journeyAttempt.rearGuardKills=1;assert.equal(run(),1);assert.equal(markers[0].x,f.remotes[1].plane.position.x);
+ f.ctx.journeyAttempt.rearGuardKills=3;assert.equal(run(),0);
+});

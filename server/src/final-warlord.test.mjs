@@ -1,4 +1,3 @@
-import {DALLAS_WORLD_SCALE} from '../../shared/dallas-world-scale.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
@@ -10,15 +9,18 @@ import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {createFinalWarlordEncounter,finalWarlordSpecies} from './final-warlord.js';
 import {createAshenPose} from './ashen-warlord-pose.js';
 import {SpeciesRegistry} from './titan/definitions.js';
-import {ashenWarlordGeometry as geometry} from '../../shared/ashen-warlord-geometry.mjs';
 import {createM19Encounter,stepM19,disposeM19,permittedM19Damage} from './m19-titan.js';
 import {JourneyAttemptStore} from './journey-attempts.js';
 import {journeyDallas19,journeyDallas25,journeyDallas24,journeyMissionSlot} from '../../shared/journey-mission.mjs';
 import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
-import {finalWarlord as timing} from '../../shared/final-warlord.mjs';
-import {authorizedJourneyAirborneSpawn} from './journey-airborne-spawn.js';
-import {createHuntingWarlordEncounter,huntingWarlordSpecies} from './hunting-warlord.js';
+import {ashenWarlordSpecies} from './ashen-warlord.js';
+import {ashenWarlordGeometry as geometry} from '../../shared/ashen-warlord-geometry.mjs';
+import {TitanEncounter} from './titan/engine.js';
+import {dallasElevationAt} from './dallas-elevation.js';
 import {loadMonsterDistrictBuildings} from './monster-arrival.js';
+import {cityRegistry} from '../../shared/city-registry.mjs';
+import {authorizedJourneyAirborneSpawn} from './journey-airborne-spawn.js';
+import {huntingWarlordSpecies} from './hunting-warlord.js';
 import {titanAnchor} from '../../shared/titan-pose.mjs';
 import {AshenWarlordModel} from '../../client/src/ashen-warlord-model.js';
 import {MonsterArrivalView} from '../../client/src/monster-arrival.js';
@@ -55,90 +57,23 @@ test('M24 victory, timeout, replay, mission migration, and first-clear credits r
         rmSync(dir, { recursive: true, force: true });
     }
 });
-test('M24 uses only its nine clips, walks physically, turns smoothly, and casts an authorized three-fireball volley', async () => {
- const e=encounter(),spawn={...e.frame.position},initialYaw=e.frame.yaw;
- const actor=new AshenWarlordModel(source,false,true,true,true);await actor.ready;
- const allowed=new Set(timing.motions.map(k=>model.clips[k].name));
- assert.equal(actor.actions.size,27);
- assert([...actor.actions.keys()].every(k=>allowed.has(k.replace(/#(?:upper|lower)$/,''))));
- assert.equal(journeyDallas19.name,'FINAL MONSTER BATTLE');assert.equal(journeyDallas19.bossHealth,1500);
- assert.equal(finalWarlordSpecies.level,'HARD');
- const punch=finalWarlordSpecies.abilities.find(a=>a.mechanism==='sweep'),shot=finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile');
- assert.equal(punch.damage,25);assert.equal(punch.cooldown,3.5);assert.equal(shot.damage,25);assert.equal(shot.cooldown,5);assert.equal(shot.count,3);
- const seen=new Set(),roars=[],releases=[],shots=new Map();let traveled=0,lastPosition={...spawn},lastYaw=initialYaw,maxAnchorError=0,projectileHits=0;
- for(let i=1;i<=2400;i++){
-  const now=100000+i*50,angle=initialYaw+(i>600?2:1);
-  const target={x:spawn.x+Math.sin(angle)*4200,y:spawn.y+1500,z:spawn.z+Math.cos(angle)*4200};
-  stepM19(e,target,zero,20,now);const f=e.frame;
-  const stride=Math.hypot(f.position.x-lastPosition.x,f.position.z-lastPosition.z);traveled+=stride;lastPosition={...f.position};
-  assert(stride<=finalWarlordSpecies.movement.run*.05+.01);
-  assert(Math.hypot(f.position.x-spawn.x,f.position.z-spawn.z)<=timing.roamRadius+1);
-  assert.equal(f.position.y,135);assert(!['jump','charge','sidestep'].includes(f.locomotion));
-  if(f.ability)assert(Math.hypot(f.velocity.x,f.velocity.z)<.5,'attacks start only after stopping');
-  assert(Math.abs(Math.atan2(Math.sin(f.yaw-lastYaw),Math.cos(f.yaw-lastYaw)))<=.45*.05+1e-6);lastYaw=f.yaw;
 
-  seen.add(f.animation.clip);assert(allowed.has(f.animation.clip));
-  assert(![model.clips.jump.name,model.clips.landing.name,model.clips.hit.name].includes(f.animation.clip));
-  if(f.ability?.stage==='ACTIVE')assert.equal(f.animation.clip,model.clips.shoot.name);
-  for(const event of f.events){
-   assert(!['jump','land','shockwave','contact'].includes(event.type));
-   if(event.type==='roar')roars.push(now);
-   if(event.type==='release'){
-    assert.equal(event.ability,'fireball-barrage');assert.equal(f.animation.clip,model.clips.shoot.name);if(releases.at(-1)!==now)releases.push(now);
-    const hand=f.limbs['hand-right'];assert(Math.hypot(event.position.x-hand.x,event.position.y-hand.y,event.position.z-hand.z)<5);
-    shots.set(event.attackId??f.ability.eventId,(shots.get(event.attackId??f.ability.eventId)??0)+1);
-   }
-   if(event.kind==='damage'){projectileHits++;assert.equal(event.type,'projectile');assert.equal(event.amount,25);const damage=permittedM19Damage(e,event,now);assert.equal(damage,25);assert.equal(permittedM19Damage(e,event,now),0);}
-  }
-  if(i%10===0){
-   actor.root.position.set(f.position.x,f.position.y,f.position.z);actor.root.rotation.y=f.yaw;actor.setTitanPose(f);actor.update(.05,0,0);
-   const p=new THREE.Vector3();actor.handPosition('right',p);const hand=f.limbs['hand-right'];maxAnchorError=Math.max(maxAnchorError,p.distanceTo(new THREE.Vector3(hand.x,hand.y,hand.z)));
-  }
- }
- for(const key of ['idle','walk','run','turn','roar','charge','shoot'])assert(seen.has(model.clips[key].name),key);
- assert(traveled>300&&roars.length>=2&&shots.size>=2);assert(projectileHits>0);
- for(let i=1;i<roars.length;i++)assert(roars[i]-roars[i-1]>=16000);
- for(let i=1;i<releases.length;i++)assert(releases[i]-releases[i-1]>=5000);
- assert([...shots.values()].every(n=>n===3));assert(maxAnchorError<1);
- actor.dispose();disposeM19(e);
-});
-test('M24 punch needs actual fist collision, respects cooldown, and missed punches do no damage',()=>{
- const e=encounter(),hits=[],limbs={};
- createAshenPose(1500,false,true,true)(limbs,{},e.frame.position,e.frame.yaw,{}, {time:.7,health:1500,gait:0,velocity:zero,yawVelocity:0,airborne:false,ability:{id:'hand-strike',stage:'ACTIVE',progress:.5,elapsed:.7,active:.3,warning:.35,windup:.2,recovery:1.4}});
- const contact=limbs['hand-left'];
- for(let i=1;i<=330;i++){
-  const p=contact;
-  stepM19(e,p,zero,25,100000+i*50);
-  for(const event of e.events)if(event.kind==='damage'&&event.type==='sweep'){
-   assert.equal(event.type,'sweep');assert.equal(event.amount,25);hits.push(100000+i*50);
-   assert.equal(permittedM19Damage(e,event,100000+i*50),25);assert.equal(permittedM19Damage(e,event,100000+i*50),0);
-  }
- }
- assert(hits.length>0);for(let i=1;i<hits.length;i++)assert(hits[i]-hits[i-1]>=3500);disposeM19(e);
- const miss=encounter();let warned=false;
- for(let i=1;i<=140;i++){
-  const p=warned?titanAnchor(miss.frame.position,miss.frame.yaw,{x:0,y:1800,z:5000}):contact;
-  stepM19(miss,p,zero,20,100000+i*50);warned||=miss.frame.ability?.id==='hand-strike';
-  assert(!miss.events.some(v=>v.kind==='damage'&&v.type==='sweep'));
- }
- assert(warned);disposeM19(miss);
-});
 test('M24 requires 60 confirmed Bluejay hits, rejects replays and foreign hits, then completes the shared blast and dissolve before success',async()=>{
  const e=encounter();
  const target=titanAnchor(e.frame.position,e.frame.yaw,{x:0,y:1500,z:4200});
- for(let i=1;i<=40;i++)stepM19(e,target,zero,20,100000+i*50);
- assert(e.frame.ability);const body=e.frame.limbs.body;
+ for(let i=1;i<=100;i++)stepM19(e,target,zero,20,100000+i*50);
+ const body=e.frame.limbs.body;
  for(let sequence=1;sequence<=60;sequence++){
   const shot={encounterId:e.attemptId,source:'p',sequence,from:{x:body.x-4000,y:body.y,z:body.z},to:{x:body.x+4000,y:body.y,z:body.z},amount:25,radius:1,delta:0};
   assert.equal(e.engine.damage({...shot,encounterId:'foreign'}),0);assert.equal(e.engine.damage(shot),25);assert.equal(e.engine.damage(shot),0);
  }
- stepM19(e,body,zero,20,102050);assert.equal(e.frame.health,0);assert.equal(e.frame.ability,null);assert.equal(e.frame.projectiles.length,0);assert(!e.events.some(v=>v.kind==='damage'));disposeM19(e);
- const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model,false,true,true,true);await view.ready;
+ stepM19(e,body,zero,20,105050);assert.equal(e.frame.health,0);assert.equal(e.frame.ability,null);assert.equal(e.frame.projectiles.length,0);assert(!e.events.some(v=>v.kind==='damage'));disposeM19(e);
+ const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model,false,true,true,true,true);await view.ready;
  let ended=0;view.onEndingComplete=()=>ended++;view.finish('defeat');view.finish('defeat');
  for(let i=0;i<130;i++)view.update(.05);
  assert.equal(ended,0);assert(view.creature.root.visible);assert(scene.getObjectByName('m19-victory-rising-ash'));assert(scene.getObjectByName('m19-victory-smoke').visible);
  for(let i=0;i<20;i++)view.update(.05);assert.equal(ended,1);assert(!view.creature.root.visible);view.dispose();assert.equal(scene.children.length,0);
- const timeout=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model,false,true,true,true);await timeout.ready;
+ const timeout=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model,false,true,true,true,true);await timeout.ready;
  let released=0,impacts=0;timeout.onProjectile=()=>released++;timeout.onDestruction=()=>impacts++;
  timeout.onEndingComplete=()=>ended++;timeout.finish('timeout');for(let i=0;i<100;i++)timeout.update(.05);
  assert.equal(released,1);assert.equal(impacts,1);assert.equal(ended,1,'failure waits for the city destruction');assert(timeout.timeoutCinematicActive);assert(scene.getObjectByName('m19-downtown-timeout-blast'));
@@ -146,19 +81,6 @@ test('M24 requires 60 confirmed Bluejay hits, rejects replays and foreign hits, 
  assert.equal(ended,2);timeout.dispose();assert.equal(scene.children.length,0);
 });
 
-test('the single projectile leaves a genuine dodge opportunity and disposed encounters stay clean',()=>{
- const e=encounter(),origin={...e.frame.position},yaw=e.frame.yaw;
- let released=false,warned=false,damage=0;
- for(let i=1;i<=280;i++){
-  const p=titanAnchor(origin,yaw,{x:released?5000:0,y:1500,z:4200});
-  stepM19(e,p,zero,20,100000+i*50);
-  warned||=e.frame.ability?.stage==='WARNING';
-  released||=e.frame.projectiles.length>0;
-  damage+=e.events.filter(v=>v.kind==='damage').length;
- }
- assert(warned&&released);assert.equal(damage,0);
- disposeM19(e);disposeM19(e);assert(e.disposed);assert.equal(e.engine.snapshot().projectiles.length,0);
-});
 
 test('visible M24 retains legacy identity and historical clears without duplicating its first-clear reward',()=>{
  const dir=mkdtempSync(join(tmpdir(),'final-history-')),path=join(dir,'profiles.sqlite');
@@ -183,104 +105,108 @@ test('visible M24 retains legacy identity and historical clears without duplicat
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
 });
 
-function loadDallasTerrain(){
-    const data=JSON.parse(readFileSync(new URL('../../client/src/data/dallas-elevation.json',import.meta.url),'utf8'));
-    const bytes=Buffer.from(data.elevations,'base64'),samples=new Uint16Array(bytes.buffer,bytes.byteOffset,bytes.byteLength/2);
-    const ground=(wx,wz)=>{
-        const x=Math.max(0,Math.min(1,(wx-data.bounds.minX)/(data.bounds.maxX-data.bounds.minX)))*(data.width-1);
-        const z=Math.max(0,Math.min(1,(wz-data.bounds.minZ)/(data.bounds.maxZ-data.bounds.minZ)))*(data.height-1);
-        const x0=Math.floor(x),z0=Math.floor(z),x1=Math.min(data.width-1,x0+1),z1=Math.min(data.height-1,z0+1);
-        const at=(a,b)=>data.baseElevation+samples[b*data.width+a]*data.scale;
-        return(at(x0,z0)*(1-x+x0)+at(x1,z0)*(x-x0))*(1-z+z0)+(at(x0,z1)*(1-x+x0)+at(x1,z1)*(x-x0))*(z-z0);
-    };
-    return ground;
-}
 
-test('M24 stays grounded on real Dallas terrain and uses existing scenery collision checks',()=>{
- const ground=loadDallasTerrain();
- // Isolate locomotion from lengthy planted casts and roar pauses.
- const species=new SpeciesRegistry().register({...structuredClone(finalWarlordSpecies),id:'showdown-terrain',abilities:[]});
- const e=createM19Encounter('terrain','p',0,ground,loadMonsterDistrictBuildings(),1500,species,
-  {geometry,spawn:journeyDallas19.monster,environmentDamage:false,articulate:createAshenPose(1500,false,true,true)});
- const start={...e.frame.position},yaw=e.frame.yaw;let walked=0;
- for(let i=1;i<=800;i++){
-  const old={...e.frame.position};
-  const p=titanAnchor(start,yaw,{x:2000,y:1500,z:7500});stepM19(e,p,zero,20,i*50);
-  assert(Math.abs(e.frame.position.y-ground(e.frame.position.x,e.frame.position.z))<.01);
-  walked+=Math.hypot(e.frame.position.x-old.x,e.frame.position.z-old.z);
-  assert(e.frame.position.x>=-22000&&e.frame.position.x<=14000&&e.frame.position.z>=-22000&&e.frame.position.z<=14000);
- }
- assert(walked>100,`real encounter must be able to walk: ${walked}`);disposeM19(e);
+test('M24 restores the original running director and all three attacks without changing earlier monsters',()=>{
+ assert.equal(finalWarlordSpecies.level,'LEGENDARY');
+ assert.equal(finalWarlordSpecies.health,journeyDallas19.bossHealth);
+ assert.deepEqual(finalWarlordSpecies.director,ashenWarlordSpecies.director);
+ assert.deepEqual(finalWarlordSpecies.movement,ashenWarlordSpecies.movement);
+ assert.equal(finalWarlordSpecies.hunting,undefined);
+ assert(finalWarlordSpecies.movement.runOnly);
+ assert.deepEqual(finalWarlordSpecies.abilities.map(a=>a.id),['fireball-barrage','hand-strike','charging-rampage']);
+ const shot=finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile');
+ assert.equal(shot.damage,25);assert.equal(shot.count,3);assert.equal(shot.moving,true);
+ assert.equal(ashenWarlordSpecies.level,'HARD');assert.equal(ashenWarlordSpecies.health,2500);
+ assert.equal(huntingWarlordSpecies.hunting.runSeconds,undefined);
+ assert.equal(journeyMissionSlot(journeyDallas19.id),24);
 });
 
-test('Hard shooting leads moving aircraft more accurately than Medium without perfect tracking',()=>{
- function lead(factory){
-  const e=factory(),root={...e.frame.position},yaw=e.frame.yaw;
-  const right={x:Math.cos(yaw),y:0,z:-Math.sin(yaw)},forward={x:Math.sin(yaw),y:0,z:Math.cos(yaw)};
-  const velocity={x:right.x*180,y:0,z:right.z*180};let fraction;
-  for(let i=1;i<=360&&fraction===undefined;i++){
-   const p={x:root.x+forward.x*6000+velocity.x*i*.05,y:root.y+1500,z:root.z+forward.z*6000+velocity.z*i*.05};
-   stepM19(e,p,velocity,20,100000+i*50);
-   const release=e.events.find(v=>v.type==='release'),shot=e.frame.projectiles.find(p=>p.id.endsWith(':1'));
-   if(release&&shot){
-    const relative={x:p.x-release.position.x,y:p.y-release.position.y,z:p.z-release.position.z};
-    const distance=Math.hypot(relative.x,relative.y,relative.z),directSide=(relative.x*right.x+relative.z*right.z)/distance;
-    const shotSide=(shot.velocity.x*right.x+shot.velocity.z*right.z)/1400;
-    const travel=distance/1400,full={x:relative.x+velocity.x*travel,y:relative.y,z:relative.z+velocity.z*travel};
-    const fullSide=(full.x*right.x+full.z*right.z)/Math.hypot(full.x,full.y,full.z);
-    fraction=(shotSide-directSide)/(fullSide-directSide);
+test('M24 runs continuously beyond the retired 6 km leash and shoots at a receding pilot',()=>{
+ const e=encounter(),origin={...e.frame.position},half=Number(cityRegistry.dallas.worldSize)/2;
+ let running=0;const shots=new Set();let previous={...origin};
+ for(let i=1;i<=1000;i++){
+  const target={x:origin.x+9000+i*.05*250,y:1800,z:origin.z};
+  stepM19(e,target,{x:250,y:0,z:0},18,100000+i*50);
+  const f=e.frame;
+  if(f.locomotion==='run')running++;
+  for(const shot of f.projectiles)shots.add(shot.id);
+  assert(Math.hypot(f.position.x-previous.x,f.position.z-previous.z)<=finalWarlordSpecies.movement.chargeSpeed*.05+.01);
+  assert(Math.abs(f.position.x)<=half&&Math.abs(f.position.z)<=half);
+  assert.equal(f.position.y,135);previous={...f.position};
+ }
+ assert(running>100,'continuous authored running must replace short bursts');
+ assert(shots.size>=3,'running pursuit must release real fireballs');
+ assert(e.frame.position.x>origin.x+6000,'pursuit must not stop at the retired local leash');
+ const checkpoint=e.engine.checkpoint();e.engine.restoreCheckpoint(checkpoint);
+ assert.equal(e.engine.snapshot().health,journeyDallas19.bossHealth);
+ assert.deepEqual(e.engine.checkpoint(),checkpoint);
+ disposeM19(e);assert.equal(e.engine.snapshot().projectiles.length,0);
+});
+
+test('M24 accepted pressure triggers committed retreat and re-engagement without teleporting',()=>{
+ const cfg=structuredClone(finalWarlordSpecies);cfg.id='final-director-test';cfg.abilities=[];
+ const e=new TitanEncounter('director',new SpeciesRegistry().register(cfg),{x:0,y:0,z:0},
+  {bounds:{minX:-25000,maxX:25000,minZ:-25000,maxZ:25000},ground:()=>0,traversable:()=>true,lineOfSight:()=>true,obstruction:()=>null});
+ const target={id:'p',encounterId:'director',authorized:true,alive:true,position:{x:10000,y:2000,z:2000},velocity:{x:100,y:0,z:0},radius:18};
+ let retreat=false,reentry=false,previous=e.snapshot();
+ for(let i=1;i<=700;i++){
+  if(i===70){const p=e.snapshot().limbs.body;for(let sequence=1;sequence<=6;sequence++)e.damage({encounterId:'director',source:'p',sequence,from:{x:p.x+5000,y:p.y,z:p.z},to:p,amount:25,radius:1,delta:0});}
+  const f=e.step(.05,[target],[]);retreat||=f.tactic==='retreat';if(retreat&&f.tactic==='reengage')reentry=true;
+  assert(Math.hypot(f.position.x-previous.position.x,f.position.z-previous.position.z)<=cfg.movement.chargeSpeed*.05+.01);previous=f;
+ }
+ assert(retreat&&reentry);e.dispose();
+});
+
+test('M24 restored attacks use authored clips that the cinematic-capable renderer can play',async()=>{
+ const visual=new AshenWarlordModel(source,false,true,true,true,true);await visual.ready;
+ for(const key of ['run','punch','shoot','hit'])assert(visual.actions.has(model.clips[key].name));
+ const pose=createAshenPose(journeyDallas19.bossHealth),root={x:0,y:135,z:0},velocity={x:0,y:0,z:finalWarlordSpecies.movement.run};
+ for(const ability of finalWarlordSpecies.abilities){
+  const animation=pose({}, {},root,0,{}, {time:2,health:1500,gait:0,velocity,yawVelocity:0,airborne:false,
+   ability:{id:ability.id,stage:'ACTIVE',progress:.5,elapsed:ability.warning+ability.windup+.1,active:ability.active,warning:ability.warning,windup:ability.windup,recovery:ability.recovery}});
+  assert(visual.actions.has(animation.clip),ability.id);
+  if(ability.moving)assert.equal(animation.locomotion.clip,model.clips.run.name);
+ }
+ visual.dispose();
+});
+
+test('M24 punch, moving volley and restored charge warn and deal server-confirmed damage with matching rendered anchors',async()=>{
+ for(const ability of finalWarlordSpecies.abilities){
+  const cfg=structuredClone(finalWarlordSpecies);cfg.director=undefined;cfg.abilities=[{...ability,unlockBelow:1}];
+  cfg.movement.walk=.01;cfg.movement.run=.01;cfg.movement.turnRate=.00001;
+  const e=createM19Encounter('attack-'+ability.id,'p',0,()=>135,[],1500,new SpeciesRegistry().register(cfg),
+   {geometry,spawn:journeyDallas19.monster,environmentDamage:false,articulate:createAshenPose(1500)});
+  const offsets=ability.mechanism==='sweep'?{x:300,y:1070,z:750}:ability.mechanism==='charge'?{x:0,y:1200,z:1100}:{x:0,y:1460,z:1600};
+  const target=titanAnchor(e.frame.position,e.frame.yaw,offsets);
+  const visual=new AshenWarlordModel(source,false,true,true,true,true);await visual.ready;
+  let warned=false,active=false,damage=0;
+  for(let i=1;i<=280;i++){
+   stepM19(e,target,zero,18,i*50);const f=e.frame;
+   warned||=f.ability?.stage==='WARNING';active||=f.ability?.stage==='ACTIVE';
+   for(const event of e.events.filter(v=>v.kind==='damage'&&v.ability===ability.id)){
+    const accepted=permittedM19Damage(e,event,i*50);damage+=accepted;
+    assert.equal(permittedM19Damage(e,event,i*50),0,'duplicate damage must not replay');
+   }
+   visual.root.position.set(f.position.x,f.position.y,f.position.z);visual.root.rotation.y=f.yaw;
+   visual.setTitanPose(f);visual.update(0,2000,0);visual.root.updateMatrixWorld(true);
+   for(const [key,side] of [['hand-left','left'],['hand-right','right'],['gem',null]]){
+    const p=new THREE.Vector3();if(side)visual.handPosition(side,p);else visual.corePosition(p);
+    assert(p.distanceTo(new THREE.Vector3(f.limbs[key].x,f.limbs[key].y,f.limbs[key].z))<.02,ability.id+' pose mismatch');
    }
   }
-  disposeM19(e);assert.notEqual(fraction,undefined);return fraction;
+  assert(warned&&active,ability.id+' must play its attack');assert(damage>0,ability.id+' must cause validated damage');
+  visual.dispose();disposeM19(e);
  }
- const medium=lead(()=>createHuntingWarlordEncounter('medium','p',100000,()=>135,[])),hard=lead(encounter);
- assert(hard>medium+.1);assert(hard<.9);assert(medium>.3);
 });
 
-test('Hard responds to a real direction change with a committed reposition while Medium keeps its existing pursuit',()=>{
- function behavior(base,id){
-  const species=new SpeciesRegistry().register({...structuredClone(base),id,abilities:[]});
-  const e=createM19Encounter(id,'p',0,()=>135,[],species.health,species,
-   {geometry,spawn:journeyDallas19.monster,environmentDamage:false,articulate:createAshenPose(species.health,false,true,true)});
-  const root={...e.frame.position},yaw=e.frame.yaw,velocity={x:150,y:0,z:0};let reposition=false;
-  let p=titanAnchor(root,yaw,{x:2500,y:1500,z:9000});
-  for(let i=1;i<=240;i++){
-   if(i===100){velocity.x=0;velocity.z=150;}
-   p={x:p.x+velocity.x*.05,y:p.y,z:p.z+velocity.z*.05};
-   const old={...e.frame.position};stepM19(e,p,velocity,20,i*50);
-   assert(Math.hypot(e.frame.position.x-old.x,e.frame.position.z-old.z)<=base.movement.run*.05+.01);
-   reposition||=e.frame.tactic==='reposition';
-  }
-  disposeM19(e);return reposition;
+test('M24 remains grounded on actual scaled Dallas terrain with compact building data',()=>{
+ const ground=(x,z)=>dallasElevationAt(x,z),e=createFinalWarlordEncounter('terrain','p',0,ground,loadMonsterDistrictBuildings());
+ const origin={...e.frame.position};let traveled=0;
+ for(let i=1;i<=600;i++){
+  const before={...e.frame.position};
+  stepM19(e,{x:origin.x+12000,y:origin.y+1500,z:origin.z+4000},zero,18,i*50);
+  traveled+=Math.hypot(e.frame.position.x-before.x,e.frame.position.z-before.z);
+  assert(Math.abs(e.frame.position.y-ground(e.frame.position.x,e.frame.position.z))<.01);
  }
- assert.equal(behavior(finalWarlordSpecies,'hard-turn'),true);
- assert.equal(behavior(huntingWarlordSpecies,'medium-turn'),false);
-});
-
-test('M24 Run is physical locomotion only, lasts at most four seconds and rests eight seconds between bursts',()=>{
- const species=new SpeciesRegistry().register({...structuredClone(finalWarlordSpecies),id:'pursuit-movement',abilities:[]});
- const e=createM19Encounter('runs','p',0,()=>135,[],1500,species,
-  {geometry,spawn:journeyDallas19.monster,environmentDamage:false,articulate:createAshenPose(1500,false,true,true)});
- const origin={...e.frame.position},yaw=e.frame.yaw,bursts=[];let current,walked=0;
- for(let i=1;i<=1400;i++){
-  const t=i*.05,angle=yaw+t*.01;
-  const p={x:origin.x+Math.sin(angle)*14000,y:origin.y+1100,z:origin.z+Math.cos(angle)*14000};
-  const velocity={x:Math.cos(angle)*140,y:0,z:-Math.sin(angle)*140};
-  const old={...e.frame.position};stepM19(e,p,velocity,20,i*50);const f=e.frame;
-  const distance=Math.hypot(f.position.x-old.x,f.position.z-old.z);walked+=distance;
-  assert(distance<=species.movement.run*.05+.01);
-  assert(Math.hypot(f.position.x-origin.x,f.position.z-origin.z)<=timing.roamRadius+1);
-  assert(!f.events.some(v=>v.kind==='damage'));assert.equal(f.ability,null);
-  const runClip=f.animation.clip===model.clips.run.name;
-  const running=runClip||f.animation.previousClip===model.clips.run.name&&f.animation.blend<1;
-  if(running){assert(Math.hypot(f.velocity.x,f.velocity.z)>.5);if(runClip)assert(Math.hypot(f.velocity.x,f.velocity.z)>species.movement.walk);if(!current)current={start:t,end:t};current.end=t;}
-  else if(current){bursts.push(current);current=undefined;}
- }
- if(current)bursts.push(current);
- assert(walked>1500);assert(bursts.length>=2,JSON.stringify(bursts));
- for(let i=0;i<bursts.length;i++){
-  assert(bursts[i].end-bursts[i].start+.05<=4.001,JSON.stringify(bursts));
-  if(i>0)assert(bursts[i].start-bursts[i-1].end>=8);
- }
- disposeM19(e);
+ assert(traveled>4000,'actual Dallas terrain must allow running pursuit');disposeM19(e);
 });

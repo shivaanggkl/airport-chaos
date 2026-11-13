@@ -7047,8 +7047,8 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
   width: auto; min-width: 44%; max-width: 90%; justify-content: center; padding: 0 14px;
 }
 .city-mission-count::before { border-radius: 10px; }
-.city-mission-count.is-unavailable { color: #414b56; }
-.city-mission-count.is-unavailable::before {
+.home-mode-flag.is-unavailable { color: #414b56; }
+.home-mode-flag.is-unavailable::before {
   background: linear-gradient(#e1e4e8, #a9afb8); border-top-color: #f0f2f4;
 }
 

@@ -739,7 +739,9 @@ function cityJourneyState(entry: CityJourneyEntry): { detail: string; status: st
   if (!city) return { detail: 'COMING SOON', status: 'CITY LOCKED', cta: 'LOCKED', disabled: true };
   if (cityJourneyMode === 'solo-free-fly') return city.id === 'dallas'
     ? {city,detail:'SOLO EXPLORATION',status:'NO MISSIONS · NO COMBAT',cta:'EXPLORE DALLAS'}
-    : {city,detail:'FREE FLY',status:'UNAVAILABLE IN THIS CITY',cta:'UNAVAILABLE',disabled:true};
+    : city.id === 'milwaukee'
+      ? {city,detail:'PRACTICE FREE FLY',status:'TRAINING CITY',cta:'EXPLORE TRAINING CITY'}
+      : {city,detail:'FREE FLY',status:'UNAVAILABLE IN THIS CITY',cta:'UNAVAILABLE',disabled:true};
   if (cityJourneyMode === 'multiplayer') {
     const mode = homeMultiplayerModes.find(mode => mode.id === selectedHomeMultiplayerMode)!;
     if (!mode.playable) return { city, detail: mode.title, status: 'COMING SOON', cta: 'COMING SOON', disabled: true };
@@ -806,6 +808,7 @@ function createCityJourneyCards(): void {
       const statusTag = document.createElement('span');
       statusTag.className = 'home-mode-flag city-mission-count';
       const comingSoon = entry.id === 'california' || entry.id === 'new-york';
+      artwork.querySelector('.home-mode-flag')!.classList.toggle('is-unavailable', comingSoon);
       statusTag.classList.toggle('is-unavailable', comingSoon);
       statusTag.textContent = comingSoon ? 'COMING SOON'
         : entry.id === 'milwaukee' ? 'PRACTICE' : `${journeyMissionOrder.length} MISSIONS`;
@@ -866,7 +869,11 @@ function renderCityJourney(): void {
     view.card.setAttribute('aria-selected', offset === 0 ? 'true' : 'false');
     positionMenuCarouselCard(view.card, offset);
     view.card.classList.toggle('is-full-card-display', fullCardDisplay);
-    view.card.querySelectorAll<HTMLElement>('.home-mode-flag').forEach(tag => { tag.hidden = cityJourneyMode !== 'missions'; });
+    view.card.querySelectorAll<HTMLElement>('.home-mode-flag').forEach(tag => {
+      const freeFlyComingSoon = (cityJourneyMode === 'solo-free-fly' || cityJourneyMode === 'free-fly')
+        && (entry.id === 'california' || newYorkFullCard) && tag.classList.contains('city-mission-count');
+      tag.hidden = cityJourneyMode !== 'missions' && !freeFlyComingSoon;
+    });
     view.card.classList.toggle('is-california-single-player', entry.id === 'california' && cityJourneyMode === 'missions');
     if (dallasFullCard || entry.id === 'california' || newYorkFullCard) {
       const image = view.card.querySelector<HTMLImageElement>('.city-journey-full-card-image');
@@ -2342,9 +2349,9 @@ function chooseCity(city: CityDefinition): void {
   if (city.status !== 'available') return;
   recordProductIntent('city_selected', { cityId: city.id });
   if(cityJourneyMode === 'solo-free-fly'){
-    if(city.id!=='dallas')return;
+    if(city.id!=='dallas' && city.id!=='milwaukee')return;
     abandonPendingJourneyLaunch();
-    void enterCity(city,'day',false,'solo-free-fly').catch(()=>showSelector('Unable to load Free Fly.',{mode:'solo-free-fly',preferDallas:true}));
+    void enterCity(city,'day',false,city.id==='milwaukee'?'free-fly':'solo-free-fly').catch(()=>showSelector('Unable to load Free Fly.',{mode:'solo-free-fly',preferDallas:true}));
     return;
   }
   if (cityJourneyMode === 'multiplayer') {
@@ -2615,8 +2622,9 @@ async function start(): Promise<void> {
       if (completedIndex >= 0) pendingJourneyCelebration = { mission: completedIndex + 1, credits: earnedCredits };
     }
   } else if (directMultiplayerEntry) {
+    // Returning from Sky Duel must stop at the mode cards. Opening its city
+    // selector auto-enters Dallas and would immediately restart matchmaking.
     await showHome();
-    showSelector('', { preferDallas: true, mode: 'multiplayer' });
   } else if ((url.searchParams.get('launchMode')==='solo-free-fly'||url.searchParams.get('launchMode')==='free-fly')&&getCity(url.searchParams.get('city'))){
     const mode=url.searchParams.get('launchMode') as 'solo-free-fly'|'free-fly';
     cityJourneyMode=mode;await enterCity(getCity(url.searchParams.get('city'))!,resolveCityTimePreset(getCity(url.searchParams.get('city'))!,url.searchParams.get('time')),false,mode,true);
