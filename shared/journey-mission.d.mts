@@ -207,3 +207,10 @@ export const journeyDallasAirportHop01: Readonly<{
   startAirportId: 'dfw'; firstAirportId: 'love'; finishAirportId: 'addison';
   timeLimitMs: 480000; firstClearCredits: 750;
 }>;
+
+export const journeyDallasSharpshooter01: Readonly<{
+ id:'journey-dallas-sharpshooter-01';cityId:'dallas';name:'SKY SHARPSHOOTER';difficulty:'MEDIUM';
+ objective:'Shoot all three targets before time runs out!';timeLimitMs:180000;firstClearCredits:800;
+ targetHealth:25;targetCount:3;targetRadius:110;
+ airborneSpawn:Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
+}>;

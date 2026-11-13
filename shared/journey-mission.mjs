@@ -476,6 +476,13 @@ export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
 }
 
 const captureTerritory = territoriesForCity('dallas').find(territory => territory.id === 'las-colinas');
+export const journeyDallasSharpshooter01 = Object.freeze({
+  id: 'journey-dallas-sharpshooter-01', cityId: 'dallas', name: 'SKY SHARPSHOOTER', difficulty: 'MEDIUM',
+  objective: 'Shoot all three targets before time runs out!',
+  timeLimitMs: 180_000, firstClearCredits: 800, targetHealth: 25, targetCount: 3, targetRadius: 110,
+  airborneSpawn: Object.freeze({x: cityAirports.dallas.find(a => a.id === 'love').x,
+    z: cityAirports.dallas.find(a => a.id === 'love').z, altitude: 800, heading: 0, speed: 180}),
+});
 export const journeyDallasAirportHop01 = Object.freeze({
   id: 'journey-dallas-airport-hop-01', cityId: 'dallas', name: 'AIRPORT HOP', difficulty: 'MEDIUM',
   objective: 'TAKE OFF from METROPLEX INTERNATIONAL runway.\nFLY to METRO CENTRAL AIRPORT and LAND.\nTAKE OFF from METRO CENTRAL AIRPORT. FLY to NORTH METRO AIRFIELD and LAND.',
@@ -502,7 +509,7 @@ export const journeyCatalog = Object.freeze([
   [journeyDallasCapture01.id, 'Capture 1 Territory'],
   [14, 'Surprise Attack'],
   [journeyDallasAirportHop01.id, 'Airport Hop'],
-  [null, 'Precision Landing'],
+  [journeyDallasSharpshooter01.id, 'Sky Sharpshooter'],
   [7, 'Giant Plane'],
   [4, 'Downtown Slalom'],
   [15, 'Hot Pursuit'],

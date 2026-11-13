@@ -7316,3 +7316,15 @@ html.custom-control-layout #game-root #radar-panel {
 
 #game-root .airport-hop-instructions { display: block; padding-left: 1em; line-height: 1.15; letter-spacing: 0; }
 #game-root .airport-hop-instructions > [role="listitem"] { display: list-item; list-style-type: disc; }
+
+#game-root.launch-cinematic-active.sharpshooter-intro > #mission-status-layer {
+  --launch-hud-opacity: 1;
+  opacity: 1 !important;
+}
+#game-root.launch-cinematic-active.sharpshooter-intro #sky-challenge.journey-hud {
+  opacity: 1 !important;
+}
+
+#game-root.launch-cinematic-active.sharpshooter-aim-intro > #acquisition-circle {
+  opacity: 1 !important;
+}

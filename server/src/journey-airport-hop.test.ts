@@ -27,7 +27,7 @@ function fixture() {
 }
 test('M07 identity, 8-minute clock, all aircraft, one destination and isolated existing systems',()=>{
   assert.equal(missions.journeyCatalog.length,30);assert.equal(missions.journeyCatalog[6]!.id,mission.id);
-  assert.equal(missions.journeyCatalog[7]!.implementation,'placeholder');assert.equal(missions.journeyCatalog[8]!.id,missions.journeyDallas07.id);
+  assert.equal(missions.journeyCatalog[7]!.id,missions.journeyDallasSharpshooter01.id);assert.equal(missions.journeyCatalog[8]!.id,missions.journeyDallas07.id);
   assert.equal(mission.difficulty,'MEDIUM');assert.equal(mission.firstClearCredits,750);
   const f=fixture();try{for(const type of Object.keys(aircraftFlightEnvelope)){
     const a=f.store.launch('pilot',type,f.now,mission.id);assert.equal(a.airportHopStage,0);assert.equal(a.deadlineAt,null);
