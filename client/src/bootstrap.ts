@@ -1,4 +1,4 @@
-import { journeyMissionOrder } from '../../shared/journey-mission.mjs';
+import { journeyMissionOrder, journeyCatalog } from '../../shared/journey-mission.mjs';
 import { createMenuCarouselCard, createMenuCarouselArtwork, setMenuCarouselArtwork, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
 import { missionTimePreset } from './mission-time-presets';
 import './style.css';
@@ -150,77 +150,26 @@ function abandonPendingJourneyLaunch(): void {
   }).catch(() => undefined);
 }
 
-async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAttemptId?: string; mission02?: { completed: boolean; firstAttemptId?: string }; mission03?: { completed: boolean; firstAttemptId?: string }; mission04?: { completed: boolean; firstAttemptId?: string }; mission05?: { completed: boolean; firstAttemptId?: string }; mission06?: { completed: boolean; firstAttemptId?: string }; mission07?: { completed: boolean; firstAttemptId?: string }; mission08?: { completed: boolean; firstAttemptId?: string }; mission09?: { completed: boolean; firstAttemptId?: string }; mission10?: { completed: boolean; firstAttemptId?: string }; mission11?: { completed: boolean; firstAttemptId?: string }; mission12?: { completed: boolean; firstAttemptId?: string }; mission13?: { completed: boolean; firstAttemptId?: string }; mission14?: { completed: boolean; firstAttemptId?: string }; mission15?: { completed: boolean; firstAttemptId?: string }; mission16?: { completed: boolean; firstAttemptId?: string }; mission17?: { completed: boolean; firstAttemptId?: string }; mission18?: { completed: boolean; firstAttemptId?: string }; mission19?: { completed: boolean; firstAttemptId?: string }; mission20?: { completed: boolean; firstAttemptId?: string }; mission21?: { completed: boolean; firstAttemptId?: string }; mission22?: { completed: boolean; firstAttemptId?: string }; mission23?: { completed: boolean; firstAttemptId?: string }; mission24?: { completed: boolean; firstAttemptId?: string } } | undefined> {
+type JourneyProgressEntry = { eligible?: boolean; completed?: boolean; firstAttemptId?: string };
+type JourneyProgressResponse = JourneyProgressEntry & { [key: `mission${string}`]: JourneyProgressEntry | undefined };
+function missionProgress(progress: JourneyProgressResponse, id: string): JourneyProgressEntry | undefined {
+  return id === 'journey-dallas-01' ? progress : progress[`mission${id.slice(-2)}`];
+}
+async function refreshJourneyProgress(): Promise<JourneyProgressResponse | undefined> {
   try {
     const response = await apiFetch(apiUrl('/api/journey/dallas'), { cache: 'no-store' });
-    if (!response.ok) { if (response.status === 403 && hubAccount.state === 'account') await refreshHubPilotData(); missionJourney.setSignInRequired(false); missionJourney.setStageOneProgress(false, false); missionJourney.setStageTwoProgress(false, false); missionJourney.setStageThreeProgress(false, false); missionJourney.setStageFourProgress(false, false); missionJourney.setStageFiveProgress(false, false); missionJourney.setStageSixProgress(false, false); missionJourney.setStageThirteenProgress(false, false); missionJourney.setStageFourteenProgress(false, false); missionJourney.setStageFifteenProgress(false, false); missionJourney.setStageSixteenProgress(false, false); missionJourney.setStageSeventeenProgress(false, false); missionJourney.setStageEighteenProgress(false, false); missionJourney.setStageSevenProgress(false, false); missionJourney.setStageEightProgress(false, false); missionJourney.setStageNineProgress(false, false); missionJourney.setStageTenProgress(false, false); missionJourney.setStageElevenProgress(false, false); missionJourney.setStageTwelveProgress(false, false); return undefined; }
-    const progress = await response.json() as { eligible?: boolean; completed?: boolean; firstAttemptId?: string; mission02?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission03?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission04?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission05?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission06?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission07?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission08?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission09?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission10?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission11?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission12?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission13?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission14?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission15?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission16?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission17?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission18?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission19?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission20?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission21?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission22?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission23?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission24?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string } };
+    if (!response.ok) {
+      if (response.status === 403 && hubAccount.state === 'account') await refreshHubPilotData();
+      missionJourney.setSignInRequired(false);
+      missionJourney.setProgress({});
+      return undefined;
+    }
+    const progress = await response.json() as JourneyProgressResponse;
     missionJourney.setSignInRequired(false);
-    missionJourney.setStageOneProgress(progress.eligible === true, progress.completed === true);
-    missionJourney.setStageTwoProgress(progress.mission02?.eligible === true, progress.mission02?.completed === true);
-    missionJourney.setStageThreeProgress(progress.mission03?.eligible === true, progress.mission03?.completed === true);
-    missionJourney.setStageFourProgress(progress.mission04?.eligible === true, progress.mission04?.completed === true);
-    missionJourney.setStageFiveProgress(progress.mission05?.eligible === true, progress.mission05?.completed === true);
-    missionJourney.setStageSixProgress(progress.mission06?.eligible === true, progress.mission06?.completed === true);
-    missionJourney.setStageThirteenProgress(progress.mission07?.eligible === true, progress.mission07?.completed === true);
-    missionJourney.setStageFourteenProgress(progress.mission08?.eligible === true, progress.mission08?.completed === true);
-    missionJourney.setStageFifteenProgress(progress.mission09?.eligible === true, progress.mission09?.completed === true);
-    missionJourney.setStageSixteenProgress(progress.mission10?.eligible === true, progress.mission10?.completed === true);
-    missionJourney.setStageSeventeenProgress(progress.mission11?.eligible === true, progress.mission11?.completed === true);
-    missionJourney.setStageEighteenProgress(progress.mission12?.eligible === true, progress.mission12?.completed === true);
-    missionJourney.setStageSevenProgress(progress.mission13?.eligible === true, progress.mission13?.completed === true);
-    missionJourney.setStageEightProgress(progress.mission14?.eligible === true, progress.mission14?.completed === true);
-    missionJourney.setStageNineProgress(progress.mission15?.eligible === true, progress.mission15?.completed === true);
-    missionJourney.setStageTenProgress(progress.mission16?.eligible === true, progress.mission16?.completed === true);
-    missionJourney.setStageElevenProgress(progress.mission17?.eligible === true, progress.mission17?.completed === true);
-    missionJourney.setStageTwelveProgress(progress.mission18?.eligible === true, progress.mission18?.completed === true);
-    missionJourney.setStageNineteenProgress((progress as {mission25?:{eligible?:boolean}}).mission25?.eligible===true,(progress as {mission25?:{completed?:boolean}}).mission25?.completed===true);
-    missionJourney.setStageTwentyProgress(progress.mission20?.eligible === true, progress.mission20?.completed === true);
-    missionJourney.setStageTwentyOneProgress(progress.mission21?.eligible === true, progress.mission21?.completed === true);
-    missionJourney.setStageTwentyTwoProgress(progress.mission22?.eligible === true, progress.mission22?.completed === true);
-    missionJourney.setStageTwentyThreeProgress(progress.mission23?.eligible === true, progress.mission23?.completed === true);
-    missionJourney.setStageTwentyFourProgress(progress.mission19?.eligible === true, progress.mission19?.completed === true);
-    return { completed: progress.completed === true, firstAttemptId: progress.firstAttemptId,
-      mission02: { completed: progress.mission02?.completed === true, firstAttemptId: progress.mission02?.firstAttemptId },
-      mission03: { completed: progress.mission03?.completed === true, firstAttemptId: progress.mission03?.firstAttemptId },
-      mission04: { completed: progress.mission04?.completed === true, firstAttemptId: progress.mission04?.firstAttemptId },
-      mission05: { completed: progress.mission05?.completed === true, firstAttemptId: progress.mission05?.firstAttemptId },
-      mission06: { completed: progress.mission06?.completed === true, firstAttemptId: progress.mission06?.firstAttemptId },
-      mission07: { completed: progress.mission07?.completed === true, firstAttemptId: progress.mission07?.firstAttemptId },
-      mission08: { completed: progress.mission08?.completed === true, firstAttemptId: progress.mission08?.firstAttemptId },
-      mission09: { completed: progress.mission09?.completed === true, firstAttemptId: progress.mission09?.firstAttemptId },
-      mission10: { completed: progress.mission10?.completed === true, firstAttemptId: progress.mission10?.firstAttemptId },
-      mission11: { completed: progress.mission11?.completed === true, firstAttemptId: progress.mission11?.firstAttemptId },
-      mission12: { completed: progress.mission12?.completed === true, firstAttemptId: progress.mission12?.firstAttemptId },
-      mission13: { completed: progress.mission13?.completed === true, firstAttemptId: progress.mission13?.firstAttemptId },
-      mission14: { completed: progress.mission14?.completed === true, firstAttemptId: progress.mission14?.firstAttemptId },
-      mission15: { completed: progress.mission15?.completed === true, firstAttemptId: progress.mission15?.firstAttemptId },
-      mission16: { completed: progress.mission16?.completed === true, firstAttemptId: progress.mission16?.firstAttemptId },
-      mission17: { completed: progress.mission17?.completed === true, firstAttemptId: progress.mission17?.firstAttemptId },
-      mission18: { completed: progress.mission18?.completed === true, firstAttemptId: progress.mission18?.firstAttemptId },
-      mission19: { completed: progress.mission19?.completed === true, firstAttemptId: progress.mission19?.firstAttemptId },
-      mission20: { completed: progress.mission20?.completed === true, firstAttemptId: progress.mission20?.firstAttemptId },
-      mission21: { completed: progress.mission21?.completed === true, firstAttemptId: progress.mission21?.firstAttemptId },
-      mission22: { completed: progress.mission22?.completed === true, firstAttemptId: progress.mission22?.firstAttemptId },
-      mission23: { completed: progress.mission23?.completed === true, firstAttemptId: progress.mission23?.firstAttemptId },
-      mission24: { completed: progress.mission24?.completed === true, firstAttemptId: progress.mission24?.firstAttemptId } };
+    missionJourney.setProgress(Object.fromEntries(journeyMissionOrder.map(id => [id, missionProgress(progress, id) ?? {}])));
+    return progress;
   } catch {
-    missionJourney.setStageOneProgress(false, false);
-    missionJourney.setStageTwoProgress(false, false);
-    missionJourney.setStageThreeProgress(false, false);
-    missionJourney.setStageFourProgress(false, false);
-    missionJourney.setStageFiveProgress(false, false);
-    missionJourney.setStageSixProgress(false, false);
-    missionJourney.setStageThirteenProgress(false, false);
-    missionJourney.setStageFourteenProgress(false, false);
-    missionJourney.setStageFifteenProgress(false, false);
-    missionJourney.setStageSixteenProgress(false, false);
-    missionJourney.setStageSeventeenProgress(false, false);
-    missionJourney.setStageEighteenProgress(false, false);
-    missionJourney.setStageSevenProgress(false, false); missionJourney.setStageEightProgress(false, false);
-    missionJourney.setStageNineProgress(false, false); missionJourney.setStageTenProgress(false, false);
-    missionJourney.setStageElevenProgress(false, false); missionJourney.setStageTwelveProgress(false, false);
-    missionJourney.setStageNineteenProgress(false, false); missionJourney.setStageTwentyProgress(false, false); missionJourney.setStageTwentyOneProgress(false, false);
+    missionJourney.setProgress({});
     return undefined;
   }
 }
@@ -230,14 +179,16 @@ async function playJourneyMission(): Promise<void> {
   if (!dallasUnlocked()) return;
   cityJourneyMode = 'missions';
   const missionNumber = missionJourney.selectedMissionNumber;
-  const mission = journeyMissionOrder[missionNumber - 1]!.replace('journey-dallas-', 'mission-') as typeof journeyAttemptMission;
+  const stage = journeyCatalog[missionNumber - 1];
+  if (stage?.implementation !== 'playable') return;
+  const mission = stage.id.replace('journey-dallas-', 'mission-') as typeof journeyAttemptMission;
   journeyLaunchPending = true;
   try {
     if (pendingAircraftSelection && !await pendingAircraftSelection) throw new Error('Aircraft change was not confirmed');
     if (mission === 'mission-13') {
       const readiness = await apiFetch(apiUrl('/api/journey/dallas'), { cache: 'no-store' });
       const progress = readiness.ok ? await readiness.json() as { mission13?: { definitionVersion?: number } } : undefined;
-      if (progress?.mission13?.definitionVersion !== 1) throw new Error('Mission 7 needs a server update. Please try again later.');
+      if (progress?.mission13?.definitionVersion !== 1) throw new Error('First Contact needs a server update. Please try again later.');
     }
     if (mission === 'mission-14') {
       const readiness = await apiFetch(apiUrl('/api/journey/dallas'), { cache: 'no-store' });
@@ -2614,12 +2565,9 @@ async function start(): Promise<void> {
     const progress = await refreshJourneyProgress();
     const earnedCredits = journeyReceipt ? takeJourneyRewardReceipt(journeyReceipt, garageIdentity.pilotId) : 0;
     if (journeyReceipt && progress) {
-      const missions = [progress, ...Array.from({ length: missionJourneyStages.length - 1 }, (_, index) => {
-        const mission = progress[`mission${String(index + 2).padStart(2, '0')}` as keyof typeof progress];
-        return mission && typeof mission === 'object' ? mission : undefined;
-      })];
-      const completedIndex = missions.findIndex(mission => mission?.completed && mission.firstAttemptId === journeyReceipt);
-      if (completedIndex >= 0) pendingJourneyCelebration = { mission: completedIndex + 1, credits: earnedCredits };
+      const completed = journeyCatalog.find(slot => slot.implementation === 'playable' &&
+        missionProgress(progress, slot.id)?.completed && missionProgress(progress, slot.id)?.firstAttemptId === journeyReceipt);
+      if (completed) pendingJourneyCelebration = { mission: completed.number, credits: earnedCredits };
     }
   } else if (directMultiplayerEntry) {
     // Returning from Sky Duel must stop at the mode cards. Opening its city

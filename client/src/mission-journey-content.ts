@@ -1,3 +1,4 @@
+import { journeyCatalog } from '../../shared/journey-mission.mjs';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 
 const missions = [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
@@ -38,10 +39,13 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
 const formatTimeLimit = (milliseconds: number | undefined): string => milliseconds === undefined
   ? 'NO LIMIT' : `${Math.floor(milliseconds / 60_000)}:${String(Math.floor(milliseconds / 1_000) % 60).padStart(2, '0')}`;
 
-export const missionJourneyDetails = missions.map(mission => ({
-  id: mission.id,
-  title: mission.name,
-  description: descriptions[mission.id],
-  rewardCredits: mission.firstClearCredits,
-  timeLimit: formatTimeLimit('timeLimitMs' in mission ? mission.timeLimitMs : undefined),
-}));
+export const missionJourneyDetails = journeyCatalog.filter(slot => slot.implementation === 'playable').map(slot => {
+  const mission = missions.find(mission => mission.id === slot.id)!;
+  return {
+    id: mission.id,
+    title: slot.title,
+    description: descriptions[mission.id],
+    rewardCredits: mission.firstClearCredits,
+    timeLimit: formatTimeLimit('timeLimitMs' in mission ? mission.timeLimitMs : undefined),
+  };
+});

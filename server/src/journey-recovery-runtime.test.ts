@@ -67,8 +67,8 @@ test('giant recovery retains turret damage and firing clocks without stale proje
 });
 
 test('monster recovery preserves live health, location and attack clock through serialization',()=>{
-  const f=fixture(),a={attemptId:'a',missionId:missions.journeyDallas25.id,startedAt:1000,finishedAt:5000,monsterHealth:137};
-  const e=createStationaryWarlordEncounter('a','owner',1000,()=>100,[],137);
+  const f=fixture(),a={attemptId:'a',missionId:missions.journeyDallas23.id,startedAt:1000,finishedAt:5000,monsterHealth:137};
+  const e=createPursuitWarlordEncounter('a','owner',1000,()=>100,[],137);
   f.monsterEncounters.set('a',e);
   const recovery=JSON.parse(JSON.stringify(f.api.captureJourneyRecovery('owner',a,5000,false)));
   f.monsterEncounters.clear();f.api.restoreJourneyRecovery('owner',a,recovery);
@@ -91,7 +91,7 @@ test('HTTP and WebSocket resume persisted checkpoints for each family, with idem
   const db=new DatabaseSync(path),now=Date.now(),fixtures:any[]=[],sockets:any[]=[];
   let child:ReturnType<typeof spawn>|undefined;
   try {
-    for(const mission of [missions.journeyDallas01,missions.journeyDallas13,missions.journeyDallas07,missions.journeyDallas25]) {
+    for(const mission of [missions.journeyDallas01,missions.journeyDallas13,missions.journeyDallas07,missions.journeyDallas23]) {
       const session=sessions.issue(undefined,false,now);profiles.getOrCreate(session.pilotId,'Pilot');
       db.prepare("UPDATE pilot_tutorial_state SET status='completed',updated_at=?,completed_at=? WHERE pilot_id=?").run(now,now,session.pilotId);
       const a=journeys.launch(session.pilotId,'trainer',now-4000,mission.id);
@@ -107,7 +107,7 @@ test('HTTP and WebSocket resume persisted checkpoints for each family, with idem
             attackFireAfter:0,combatTurnSign:1,bankControl:0,blindZoneEscapeUntil:0}});
       }
       if(mission.id===missions.journeyDallas07.id) f.transportEncounters.set(a.attemptId,createTransportEncounter(a.attemptId,'owner',now-3000,2000,mission.timeLimitMs,true,false,mission.id));
-      if(mission.id===missions.journeyDallas25.id) f.monsterEncounters.set(a.attemptId,createStationaryWarlordEncounter(a.attemptId,'owner',now-3000,()=>100,[],137));
+      if(mission.id===missions.journeyDallas23.id) f.monsterEncounters.set(a.attemptId,createPursuitWarlordEncounter(a.attemptId,'owner',now-3000,()=>100,[],137));
       const active=journeys.get(session.pilotId,a.attemptId)!;
       const checkpoint=f.api.captureJourneyRecovery('owner',active,now,false);assert.ok(checkpoint);
       journeys.fail(session.pilotId,a.attemptId,'CRASHED',now);assert.equal(journeys.saveContinuation(session.pilotId,a.attemptId,now,checkpoint),true);
@@ -116,6 +116,10 @@ test('HTTP and WebSocket resume persisted checkpoints for each family, with idem
       assert.equal(ads.grantVerifiedReward({adUnit:adUnitId,customData:issued.attempt.attemptId,rewardAmount:'1',rewardItem:'reward',timestamp:now+2,transactionId:a.attemptId},now+2).rewarded,true);
       fixtures.push({session,attemptId:a.attemptId,adAttemptId:issued.attempt.attemptId});
     }
+    const retiredSession=sessions.issue(undefined,false,now);
+    profiles.getOrCreate(retiredSession.pilotId,'Pilot');
+    db.prepare(`INSERT INTO journey_attempts(attempt_id,pilot_id,mission_id,city_id,aircraft_type,status,created_at,definition_revision)
+      VALUES('retired-ws',?,'journey-dallas-25','dallas','trainer','RACING',?,2)`).run(retiredSession.pilotId,now);
     const probe=createServer();await new Promise<void>(r=>probe.listen(0,'127.0.0.1',r));
     const port=(probe.address() as {port:number}).port;await new Promise<void>(r=>probe.close(()=>r()));
     child=spawn(process.execPath,['--import','tsx','server/src/index.ts'],{cwd:resolve(import.meta.dirname,'../..'),
@@ -123,6 +127,25 @@ test('HTTP and WebSocket resume persisted checkpoints for each family, with idem
     let output='';child.stdout!.on('data',d=>output+=String(d));child.stderr!.on('data',d=>output+=String(d));
     const deadline=Date.now()+15000;while(!output.includes('listening')&&Date.now()<deadline&&child.exitCode===null)await new Promise(r=>setTimeout(r,50));
     assert.ok(output.includes('listening'),output);
+    for (const internal of ['25','20','21','22','24']) {
+      const denied=await fetch(`http://127.0.0.1:${port}/api/journey/dallas/mission-${internal}/launch`, {
+        method:'POST',headers:{Origin:'capacitor://localhost',Cookie:`airport_chaos_session=${retiredSession.cookie}`,'Content-Type':'application/json'},body:'{}'});
+      assert.equal(denied.status,403,`retired mission ${internal}`);
+      assert.equal((await denied.json() as {error:string}).error,'Mission unavailable.');
+    }
+    for (const slot of missions.journeyCatalog.filter(slot=>slot.implementation==='placeholder')) {
+      const denied=await fetch(`http://127.0.0.1:${port}/api/journey/dallas/${slot.id}/launch`, {
+        method:'POST',headers:{Origin:'capacitor://localhost',Cookie:`airport_chaos_session=${retiredSession.cookie}`,'Content-Type':'application/json'},body:'{}'});
+      assert.equal(denied.status,405,slot.id);
+    }
+    const rejected=new WebSocket(`ws://127.0.0.1:${port}/?city=dallas&launchMode=missions&protocol=${PROTOCOL_VERSION}&journeyAttempt=retired-ws`, {
+      origin:`http://127.0.0.1:${port}`,headers:{Cookie:`airport_chaos_session=${retiredSession.cookie}`}});
+    sockets.push(rejected);
+    const rejectedMessages:any[]=[];
+    rejected.on('message',d=>rejectedMessages.push(JSON.parse(String(d))));
+    const closeCode=await new Promise<number>((resolve,reject)=>{rejected.once('close',resolve);rejected.once('error',reject);});
+    assert.equal(closeCode,4003);
+    assert.equal(rejectedMessages.some(message=>message.type==='journeyAttempt'),false);
     for(const f of fixtures) {
       const messages:any[]=[],socket=new WebSocket(`ws://127.0.0.1:${port}/?city=dallas&launchMode=missions&protocol=${PROTOCOL_VERSION}&pilotId=${f.session.pilotId}&journeyAttempt=${f.attemptId}`,{origin:`http://127.0.0.1:${port}`,headers:{Cookie:`airport_chaos_session=${f.session.cookie}`}});
       sockets.push(socket);socket.on('message',d=>messages.push(JSON.parse(String(d))));

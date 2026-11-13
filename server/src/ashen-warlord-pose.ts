@@ -7,7 +7,7 @@ import type { Environment, AuthoredPoseContext } from './titan/engine.js';
 const asset = readTitanAnimationAsset(readFileSync(new URL('../../client/public/assets/models/monsters/ashen-warlord.glb', import.meta.url)));
 const H = model.height, clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 /** One sampler/transition state per encounter. All bone motion comes from supplied animation tracks. */
-export function createAshenPose(initialHealth = 2500, stationary = false, striking = false, hunting = false): Environment['articulate'] {
+export function createAshenPose(initialHealth = 2500, stationary = false, striking = false, hunting = false, walking = false): Environment['articulate'] {
     const sampler = new TitanAnimationSampler(asset);
     const coreMatrix = new Float64Array(16);
     let old: AuthoredAnimation | undefined, transition: AuthoredAnimation | undefined, transitionAt = 0, lastTime = 0, gaitPhase = 0, turnTime = 0, lastRoot: {
@@ -55,7 +55,7 @@ export function createAshenPose(initialHealth = 2500, stationary = false, striki
         if (c.health < lastHealth && c.time - hitAt > 1.2 && (!c.ability || c.ability.stage === 'RECOVERY'))
             hitAt = c.time;
         lastHealth = c.health;
-        const speed = Math.hypot(c.velocity.x, c.velocity.z), forward = c.velocity.x * Math.sin(yaw) + c.velocity.z * Math.cos(yaw), gait = 'run';
+        const speed = Math.hypot(c.velocity.x, c.velocity.z), forward = c.velocity.x * Math.sin(yaw) + c.velocity.z * Math.cos(yaw), gait = walking && c.ability?.id!=='charging-rampage' ? 'walk' : 'run';
         if (!c.airborne && speed > .5)
             gaitPhase = (gaitPhase + (forward < 0 ? -1 : 1) * distance / model.clips[gait]!.stride! + 1) % 1;
         const a = c.ability;
@@ -85,7 +85,7 @@ export function createAshenPose(initialHealth = 2500, stationary = false, striki
             turnTime -= dt * c.yawVelocity / (3.1997298216058336 / model.clips.turn!.duration);
             time = turnTime;
         }
-        const clip = model.clips[key]!, frame: AuthoredAnimation = { clip: clip.name, time: ['run', 'idle', 'turn'].includes(key) ? (time % clip.duration + clip.duration) % clip.duration : clamp(time, 0, clip.duration), blend: 1, offsetY: 0 };
+        const clip = model.clips[key]!, frame: AuthoredAnimation = { clip: clip.name, time: ['walk', 'run', 'idle', 'turn'].includes(key) ? (time % clip.duration + clip.duration) % clip.duration : clamp(time, 0, clip.duration), blend: 1, offsetY: 0 };
         if (!c.airborne && speed > .5)
             frame.locomotion = { clip: model.clips[gait]!.name, time: titanGaitTime(model.clips[gait]!, gaitPhase) };
         frame.aim = [{ node: model.boneNodes.neck!, yaw: clamp(c.headYaw ?? 0, -.7, .7) * .2, pitch: -clamp(c.headPitch ?? 0, -.6, .6) * .15 }, { node: model.boneNodes.head!, yaw: clamp(c.headYaw ?? 0, -.7, .7) * .3, pitch: -clamp(c.headPitch ?? 0, -.6, .6) * .25 }];

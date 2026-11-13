@@ -11,7 +11,7 @@ import {createAshenPose} from './ashen-warlord-pose.js';
 import {SpeciesRegistry} from './titan/definitions.js';
 import {createM19Encounter,stepM19,disposeM19,permittedM19Damage} from './m19-titan.js';
 import {JourneyAttemptStore} from './journey-attempts.js';
-import {journeyDallas19,journeyDallas25,journeyDallas24,journeyMissionSlot} from '../../shared/journey-mission.mjs';
+import {journeyDallas19,journeyDallas23,journeyDallas25,journeyDallas24,journeyMissionSlot} from '../../shared/journey-mission.mjs';
 import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
 import {ashenWarlordSpecies} from './ashen-warlord.js';
 import {ashenWarlordGeometry as geometry} from '../../shared/ashen-warlord-geometry.mjs';
@@ -20,6 +20,7 @@ import {dallasElevationAt} from './dallas-elevation.js';
 import {loadMonsterDistrictBuildings} from './monster-arrival.js';
 import {cityRegistry} from '../../shared/city-registry.mjs';
 import {authorizedJourneyAirborneSpawn} from './journey-airborne-spawn.js';
+import {pursuitWarlordSpecies} from './pursuit-warlord.js';
 import {huntingWarlordSpecies} from './hunting-warlord.js';
 import {titanAnchor} from '../../shared/titan-pose.mjs';
 import {AshenWarlordModel} from '../../client/src/ashen-warlord-model.js';
@@ -244,4 +245,36 @@ test('M24 restores space when a pilot approaches, without changing close attacks
  assert(range>=9000&&range<=10500,`must restore fighting space, got ${range}`);
  for(const kind of ['sweep','charge'])assert.deepEqual(finalWarlordSpecies.abilities.find(a=>a.mechanism===kind),ashenWarlordSpecies.abilities.find(a=>a.mechanism===kind));
  e.dispose();
+});
+
+
+for(const [name,species] of [['M23',pursuitWarlordSpecies],['M24',finalWarlordSpecies]])test(name+' counts distinct simultaneous fireball hits at 25 each and rejects duplicates',()=>{
+ const cfg=structuredClone(species);cfg.director=undefined;cfg.hunting=undefined;
+ cfg.abilities=cfg.abilities.filter(a=>a.mechanism==='projectile').map(a=>({...a,spread:0}));
+ cfg.movement.walk=.01;cfg.movement.run=.01;cfg.movement.turnRate=.00001;
+ const e=createM19Encounter('multi-hit','p',0,()=>135,[],cfg.health,new SpeciesRegistry().register(cfg),
+  {geometry,spawn:journeyDallas19.monster,environmentDamage:false,articulate:createAshenPose(cfg.health,false,false,false,name==='M23')});
+ const target=titanAnchor(e.frame.position,e.frame.yaw,{x:0,y:1460,z:1600});
+ let simultaneous=false,total=0;
+ for(let i=1;i<=180&&!simultaneous;i++){
+  stepM19(e,target,zero,100,i*50);
+  const hits=e.events.filter(v=>v.kind==='damage'&&v.type==='projectile');
+  if(hits.length>=2){let firstTwo=0;for(const event of hits){const amount=permittedM19Damage(e,event,i*50);assert.equal(amount,25);total+=amount;if(firstTwo<50)firstTwo+=amount;assert.equal(permittedM19Damage(e,event,i*50),0);}
+   assert.equal(firstTwo,50);simultaneous=true;}
+ }
+ assert(simultaneous);assert(total>=50);disposeM19(e);
+});
+
+
+test('M23 rushing charge inflicts 20 damage through the authoritative contact path',()=>{
+ const cfg=structuredClone(pursuitWarlordSpecies);cfg.director=undefined;
+ cfg.abilities=cfg.abilities.filter(a=>a.mechanism==='charge');
+ const e=createM19Encounter('charge-hit','p',0,()=>135,[],1000,new SpeciesRegistry().register(cfg),
+  {geometry,spawn:journeyDallas23.monster,environmentDamage:false,articulate:createAshenPose(1000,false,false,false,true)});
+ const target=titanAnchor(e.frame.position,e.frame.yaw,{x:0,y:1200,z:1100});let charged=false,damage=0;
+ for(let i=1;i<=240;i++){
+  stepM19(e,target,zero,18,i*50);charged||=e.frame.locomotion==='charge';
+  for(const event of e.events)if(event.kind==='damage'&&event.type==='charge'){assert.equal(event.amount,20);damage+=permittedM19Damage(e,event,i*50);assert.equal(permittedM19Damage(e,event,i*50),0);}
+ }
+ assert(charged);assert(damage>=20);disposeM19(e);
 });

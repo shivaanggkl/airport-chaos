@@ -1,4 +1,4 @@
-import { journeyMissionSlot } from '../../shared/journey-mission.mjs';
+import { journeyCatalog, journeyChapters } from '../../shared/journey-mission.mjs';
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
@@ -6,12 +6,8 @@ import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, jou
 
 // Add released journeys here as cities go live. Counts are derived from this
 // catalog, never from a client-supplied progress value.
-const releasedJourneys = [{ cityId: 'dallas', chapters: [
-  [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06],
-  [journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12],
-  [journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18],
-  [journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24],
-] }] as const;
+const releasedJourneys = [{ cityId: 'dallas', chapters: journeyChapters.map((_, index) =>
+  journeyCatalog.filter(slot => slot.chapter === index + 1 && slot.implementation === 'playable')) }];
 
 const combatMissions = new Set<string>([journeyDallas07.id, journeyDallas15.id,
   journeyDallas19.id, journeyDallas23.id, journeyDallas24.id]);
@@ -130,7 +126,7 @@ export class PilotProfileSummaryStore {
     for (const city of releasedJourneys) {
       for (const [chapterIndex, chapter] of city.chapters.entries()) {
         if (chapter.every(mission => trusted(completions.get(mission.id) ?? 0))) {
-          this.grant(pilotId, `chapter:${city.cityId}:${chapterIndex + 1}`,
+          this.grant(pilotId, `chapter-v2:${city.cityId}:${chapterIndex + 1}`,
             Math.max(...chapter.map(mission => completions.get(mission.id)!)), now);
         }
       }
@@ -165,12 +161,14 @@ export class PilotProfileSummaryStore {
         aircraftTotal: aircraftDisplayOrder.length,
       },
       latestAchievements: achievements.flatMap(({ achievement_key, earned_at }) => {
-        const chapter = /^chapter:([^:]+):(\d+)$/.exec(achievement_key);
+        const chapter = /^chapter-v2:([^:]+):(\d+)$/.exec(achievement_key);
+        const legacyChapter = /^chapter:([^:]+):(\d+)$/.exec(achievement_key);
         const city = /^city:([^:]+)$/.exec(achievement_key);
         const chapterMissions = chapter ? releasedJourneys.find(city => city.cityId === chapter[1])?.chapters[Number(chapter[2]) - 1] : undefined;
-        const chapterSlot = chapterMissions ? Math.ceil(journeyMissionSlot(chapterMissions[0]!.id) / 6) : chapter?.[2];
+        const chapterSlot = chapterMissions ? chapterMissions[0]!.chapter : chapter?.[2];
         const copy = chapter
           ? { title: `CHAPTER ${chapterSlot} COMPLETE`, description: `Finished ${chapter[1]} Chapter ${chapterSlot}.` }
+          : legacyChapter ? { title: 'LEGACY CHAPTER COMPLETE', description: `Finished an earlier ${legacyChapter[1]} chapter.` }
           : city ? { title: 'CITY COMPLETE', description: `Finished every ${city[1]} mission.` }
             : achievementCopy[achievement_key];
         return copy ? [{ key: achievement_key, ...copy, category: 'MISSION' as const, earnedAt: earned_at }] : [];

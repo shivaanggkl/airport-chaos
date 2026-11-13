@@ -17,8 +17,8 @@ export type StoreItem = {
 // Store visibility only: all cosmetics and existing entitlements remain registered.
 const paintOrder = [
   'bluejay-classic',
-  'mammoth-sand',
   'nightowl-sunset-red',
+  'mammoth-sand',
   'firehawk-inferno', 'firehawk-stealth-gray',
 ];
 
@@ -45,7 +45,7 @@ export const storePaints = paintOrder.map((id): StoreItem => {
   };
 });
 
-const featuredIds = ['fighter', 'privateJet', 'cargo'];
+const featuredIds = ['fighter', 'privateJet'];
 export const storeFeatured = featuredIds.map(id => [...storeAircraft, ...storePaints].find(item => item.id === id)!);
 export const storeItems = [...storeAircraft, ...storePaints];
 
