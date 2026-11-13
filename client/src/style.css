@@ -257,7 +257,10 @@ body.launch-cinematic-active #tutorial-help {
   transition: opacity var(--launch-hud-fade-duration, 500ms) ease;
 }
 #game-root.launch-cinematic-active > canvas { opacity: 1; transition: opacity 180ms ease-out; }
-#game-root.launch-cinematic-active.capture-intro-bar > #sky-challenge.journey-hud {
+#game-root.launch-cinematic-active.capture-intro-row #sky-challenge.journey-hud {
+  opacity: 1 !important;
+}
+#game-root.launch-cinematic-active.capture-intro-row > #mission-status-layer {
   opacity: 1 !important;
 }
 .flight-launch-title {
@@ -6463,8 +6466,28 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   padding-top: 5px;
   border-top: 1px solid rgb(130 181 207 / 35%);
 }
-#game-root .has-mission-territories #gameplay-info-tab-players { display: none; }
-#game-root .has-mission-territories #city-territories { max-height: min(150px, 24dvh); }
+#game-root .has-mission-territories .gameplay-info-tabs { display: none; }
+#game-root .has-mission-territories #city-territories { overflow: hidden; }
+#game-root .gameplay-info-target-heading { font: inherit; color: #ffdf75; }
+#game-root .gameplay-info-target-heading[hidden] { display: none; }
+#game-root.capture-intro-row .has-mission-territories #city-territories {
+  outline: 1px solid #6beeff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+#game-root.capture-intro-row .flight-launch-title {
+  top: max(8px, calc(var(--safe-area-top) + 8px));
+  width: min(620px, calc(100vw - 200px));
+  box-sizing: border-box;
+}
+#game-root.capture-intro-row .flight-launch-title span { font-size: clamp(14px, 1.6vw, 20px); }
+@media (orientation: portrait) {
+  #game-root.capture-intro-row .flight-launch-title {
+    top: auto;
+    bottom: max(20px, calc(var(--safe-area-bottom) + 16px));
+    width: calc(100vw - 32px);
+  }
+}
 #game-root .gameplay-info-card.is-multiplayer .journey-hud-toggle { top: 6px; width: 32px; height: 32px; }
 #game-root .gameplay-info-list {
   min-width: 0;

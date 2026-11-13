@@ -6,7 +6,7 @@ type CaptureTerritory = Readonly<{
   center: Readonly<{ x: number; z: number }>;
 }>;
 
-/** Camera-only lesson. Reuses the real territory wall; never moves the player or capture state. */
+/** Presentation-only lesson. Never moves the player or changes capture state. */
 export class MissionCaptureIntroPath {
   readonly sweepMs = 14_000;
   readonly durationMs = 15_000;
@@ -27,14 +27,20 @@ export class MissionCaptureIntroPath {
 
   text(elapsed: number): string {
     if (elapsed < 3_000) return 'CAPTURE 1 TERRITORY';
-    if (elapsed < 7_000) return 'Fly inside the marked boundary.';
-    if (elapsed < 11_000) return `Keep flying inside for ${this.captureMs / 1_000} seconds.`;
-    return 'Fill the capture bar before time runs out!';
+    if (elapsed < 7_000) return 'Fly inside the marked Las Colinas boundary.';
+    if (elapsed < 11_000) return `Stay inside for ${this.captureMs / 1_000} seconds to capture it.`;
+    if (elapsed < 14_000) return 'Progress fills as you stay inside.';
+    return 'Reach 100% to capture the territory.';
   }
 
   showsTerritory(elapsed: number): boolean { return elapsed >= 2_500 && elapsed < this.sweepMs + 500; }
 
-  showsCaptureBar(elapsed: number): boolean { return elapsed >= 11_000 && elapsed < this.sweepMs + 500; }
+  showsCaptureRow(elapsed: number): boolean { return elapsed >= 7_000 && elapsed < this.durationMs; }
+
+  demonstrationPercent(elapsed: number): number | undefined {
+    if (!this.showsCaptureRow(elapsed)) return undefined;
+    return Math.round(THREE.MathUtils.clamp((elapsed - 11_000) / 3_000, 0, 1) * 100);
+  }
 
   sample(elapsed: number, position: THREE.Vector3, target: THREE.Vector3,
     chasePosition: THREE.Vector3, chaseTarget: THREE.Vector3, aspect = 16 / 9): void {

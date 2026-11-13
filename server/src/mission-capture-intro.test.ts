@@ -28,12 +28,22 @@ test('M05 camera lesson uses real Las Colinas, clear capture instructions, and u
     assert.ok(intro.wipe(elapsed) >= 0 && intro.wipe(elapsed) <= 1);
   }
   assert.deepEqual(chase, original, 'preview never changes authoritative spawn or chase');
-  assert.match(intro.text(0), /CAPTURE 1 TERRITORY/);
-  assert.match(intro.text(4000), /inside.*marked boundary/);
-  assert.match(intro.text(8000), /Keep flying inside for 24 seconds/);
-  assert.match(intro.text(12000), /capture bar.*time runs out/);
-  for (const elapsed of [0, 10999, 14500, 15000]) assert.equal(intro.showsCaptureBar(elapsed), false);
-  for (const elapsed of [11000, 12000, 14499]) assert.equal(intro.showsCaptureBar(elapsed), true);
+  for (const [start, end, text] of [
+    [0, 2999, 'CAPTURE 1 TERRITORY'],
+    [3000, 6999, 'Fly inside the marked Las Colinas boundary.'],
+    [7000, 10999, 'Stay inside for 24 seconds to capture it.'],
+    [11000, 13999, 'Progress fills as you stay inside.'],
+    [14000, 14999, 'Reach 100% to capture the territory.'],
+  ] as const) for (const elapsed of [start, end]) assert.equal(intro.text(elapsed), text);
+  for (const elapsed of [0, 6999, 15000]) {
+    assert.equal(intro.showsCaptureRow(elapsed), false);
+    assert.equal(intro.demonstrationPercent(elapsed), undefined);
+  }
+  for (const elapsed of [7000, 12000, 14999]) assert.equal(intro.showsCaptureRow(elapsed), true);
+  assert.equal(intro.demonstrationPercent(7000), 0);
+  assert.equal(intro.demonstrationPercent(12350), 45);
+  assert.equal(intro.demonstrationPercent(13340), 78);
+  assert.equal(intro.demonstrationPercent(14000), 100);
   assert.equal(intro.wipe(2500), 1); assert.equal(intro.wipe(14500), 1);
 });
 
@@ -44,10 +54,12 @@ test('M05 uses shared intro lifecycle, skip, retry and countdown protections wit
   assert.match(source, /missionSixIntroPath \?\? missionCaptureIntroPath \?\? missionCombatIntroPath/);
   const reset = source.slice(source.indexOf('function clearFlightLaunchPresentation'), source.indexOf('function completeFlightLaunchCinematic'));
   assert.match(reset, /missionCaptureIntroPath = undefined/);
-  assert.match(reset, /classList.remove\('golden-gates-intro', 'capture-intro-bar'\)/);
-  assert.match(source, /classList.toggle\('capture-intro-bar', Boolean\(missionCaptureIntroPath && !skipped && missionCaptureIntroPath.showsCaptureBar\(elapsed\)\)\)/);
+  assert.match(reset, /classList.remove\('golden-gates-intro', 'capture-intro-row'\)/);
+  assert.match(reset, /updateTerritoryPanel\(\)/);
+  assert.match(source, /classList.toggle\('capture-intro-row', Boolean\(missionCaptureIntroPath && !skipped && missionCaptureIntroPath.showsCaptureRow\(elapsed\)\)\)/);
+  assert.match(source, /if \(missionCaptureIntroPath\) updateTerritoryPanel\(false\)/);
   const styles = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
-  assert.match(styles, /#game-root.launch-cinematic-active.capture-intro-bar > #sky-challenge.journey-hud\s*\{\s*opacity: 1 !important;/);
+  assert.match(styles, /#game-root.launch-cinematic-active.capture-intro-row > #mission-status-layer\s*\{\s*opacity: 1 !important;/);
   const network = source.slice(source.indexOf('function sendLocalState('), source.indexOf('function sendLocalState(') + 1200);
   assert.match(network, /missionStartCountdownPending/); assert.match(network, /missionCaptureIntroPath/);
   assert.match(source, /missionCaptureIntroPath \|\| missionCombatIntroPath\) && matchMedia\('\(prefers-reduced-motion: reduce\)'\)/);

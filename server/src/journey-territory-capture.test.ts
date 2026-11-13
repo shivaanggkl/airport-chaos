@@ -14,6 +14,7 @@ import {PlayerProfileStore} from './player-profiles.js';
 import {JourneyAttemptStore} from './journey-attempts.js';
 import {authorizedJourneyAirborneSpawn} from './journey-airborne-spawn.js';
 import {dallasElevationAt} from './dallas-elevation.js';
+import {MissionCaptureIntroPath} from '../../client/src/mission-capture-intro.js';
 import {loadDallasCombatBuildings as sourceBuildings} from './dallas-collision-source.js';
 
 const target=territoriesForCity('dallas').find(item=>item.id===mission.territoryId)!;
@@ -148,8 +149,8 @@ test('shared capture HUD follows approach, capture, return and victory; existing
  const label=()=>runInContext('journeyTerritoryCaptureLabel()',context);
  assert.equal(label(),'FLY TO LAS COLINAS');
  Object.assign(airplane.position,target.center);attempt.status='RACING';attempt.captureMs=10800;
- assert.equal(label(),'CAPTURE LAS COLINAS — 45%');
- airplane.position.x=target.bounds.minX-1;assert.equal(label(),'RETURN TO LAS COLINAS — 45%');
+ assert.equal(label(),'STAY INSIDE LAS COLINAS');
+ airplane.position.x=target.bounds.minX-1;assert.equal(label(),'RETURN TO LAS COLINAS');
  attempt.captureMs=24000;assert.equal(label(),'TERRITORY CAPTURED!');
  const styles=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
  assert.match(main,/classList.toggle\('territory-capture-focus', next !== null && attempt\?\.missionId === journeyDallasCapture01.id\)/);
@@ -158,4 +159,50 @@ test('shared capture HUD follows approach, capture, return and victory; existing
  assert.match(main,/drawRadarTerritories\(direction, focusedTerritoryTargetId\(\)!\)/);
  assert.match(main,/entry.displayColor = state\?\.controllerId \? definition.fixedColor/);
  assert.match(main,/territories: territoryDefinitions.filter[\s\S]*?missionTarget: missionTerritories.includes\(definition.id\) \|\| definition.id === focusedTerritoryTargetId\(\)/);
+});
+
+test('M05 target row isolates cinematic examples and restores authoritative progress after skip, pause, disconnect and handoff',()=>{
+ const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+ let now=0,online=true,rows:any[]=[];
+ const context=createContext({journeyMode:true,journeyAttempt:{missionId:mission.id,status:'APPROACH',captureMs:0},
+  journeyDallasCapture01:mission,territoryDefinitions:territoriesForCity('dallas'),territoryContains,territoryCaptureCeilingAgl,
+  airplane:{position:{x:target.bounds.minX-100,y:900,z:target.center.z}},getTerrainHeight:()=>100,
+  neutralTerritoryColor:'#f4f7ff',localPlayerId:'pilot',journeyPaused:false,crashed:false,onGround:false,
+  connectionReady:()=>online,flightLaunchState:'complete',flightLaunchSkipStartedAt:undefined,flightLaunchStartedAt:0,
+  missionCaptureIntroPath:undefined,performance:{now:()=>now},
+  cityTerritoriesPanel:{update:(value:any[])=>{rows=value;}},cityTerritoryEntries:()=>[{name:'GLOBAL OWNER',controllerId:'other'}]});
+ const start=main.indexOf('function updateTerritoryPanel('),end=main.indexOf('function updateCaptureHud(',start);
+ runInContext(ts.transpileModule(main.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+ const render=()=>{runInContext('updateTerritoryPanel()',context);assert.equal(rows.length,1);return rows[0];};
+ assert.equal(render().name,'LAS COLINAS');assert.equal(render().statusLabel,'NOT CAPTURED');
+ context.journeyAttempt={missionId:mission.id,status:'RACING',captureMs:10800};
+ Object.assign(context.airplane.position,target.center);
+ assert.equal(render().statusLabel,'CAPTURING 45%');assert.equal(render().color,'#f4f7ff');
+ context.airplane.position.x=target.bounds.minX-1;assert.equal(render().statusLabel,'PAUSED AT 45%');
+ Object.assign(context.airplane.position,target.center);assert.equal(render().statusLabel,'CAPTURING 45%');
+ context.journeyPaused=true;assert.equal(render().statusLabel,'PAUSED AT 45%');context.journeyPaused=false;
+ online=false;assert.equal(render().statusLabel,'PAUSED AT 45%');online=true;
+ context.journeyAttempt.captureMs=24000;assert.equal(render().statusLabel,'CAPTURED!');assert.equal(render().color,target.fixedColor);
+ context.journeyAttempt={missionId:mission.id,status:'APPROACH',captureMs:0};
+ context.missionCaptureIntroPath=new MissionCaptureIntroPath(target,mission.captureDurationMs,()=>100);
+ context.flightLaunchState='active';
+ const original=JSON.stringify(context.journeyAttempt);
+ for(const [time,label] of [[7000,'NOT CAPTURED'],[12350,'CAPTURING 45%'],[13340,'CAPTURING 78%'],[14000,'CAPTURED!']] as const){
+  now=time;assert.equal(render().statusLabel,label);assert.equal(JSON.stringify(context.journeyAttempt),original);
+  assert.equal(rows[0].controllerId,undefined,'demo never impersonates global ownership');
+ }
+ runInContext('updateTerritoryPanel(false)',context);assert.equal(rows[0].statusLabel,'NOT CAPTURED');
+ context.flightLaunchSkipStartedAt=now;assert.equal(render().statusLabel,'NOT CAPTURED');
+ context.flightLaunchSkipStartedAt=undefined;context.journeyPaused=true;assert.equal(render().statusLabel,'NOT CAPTURED');
+ context.journeyPaused=false;online=false;assert.equal(render().statusLabel,'NOT CAPTURED');online=true;
+ context.flightLaunchState='complete';assert.equal(render().statusLabel,'NOT CAPTURED');
+ context.missionCaptureIntroPath=undefined;context.journeyAttempt={missionId:mission.id,status:'RACING',captureMs:4800};
+ assert.equal(render().statusLabel,'CAPTURING 20%');
+ context.journeyAttempt={missionId:journeyDallas03.id,status:'RACING',captureMs:0};
+ assert.equal(render().name,'GLOBAL OWNER','other missions restore normal ownership list');
+ const captureStart=main.indexOf('if (journeyAttempt.missionId === journeyDallasCapture01.id) {',main.indexOf('function updateJourneyHud('));
+ const captureBranch=main.slice(captureStart,main.indexOf('const segments =',captureStart));
+ assert.match(captureBranch,/journeyHudEnemy.hidden = true/);
+ assert.doesNotMatch(captureBranch,/--enemy-health/);
+ assert.match(main,/territoryCaptureElement.classList.add\('hidden'\)/);
 });

@@ -56,8 +56,11 @@ test('capture mission reuses the existing ownership list alongside mission detai
   assert.equal(card.activeTab, 'territories');
   assert.equal(list.hidden, false);
   assert.equal(card.playersRoot.hidden, true);
-  panel.update([{ name: 'CANAL DISTRICT', color: '#ffffff', controllerId: 'pilot', controllerName: 'Pilot', contested: false, captureProgress: 0 }], 'pilot');
-  assert.match(list.textContent, /CANAL DISTRICT.*YOU/);
+  assert.equal(root.children[1].children[1].textContent, 'TARGET TERRITORY');
+  assert.equal(root.children[1].children[1].hidden, false);
+  assert.equal(list.getAttribute('aria-labelledby'), 'gameplay-info-target-heading');
+  panel.update([{ name: 'LAS COLINAS', color: '#ffffff', contested: false, statusLabel: 'CAPTURING 45%' }], 'pilot');
+  assert.match(list.textContent, /LAS COLINASCAPTURING 45%/);
   card.setCollapsed(true);
   card.setMode('mission-territories');
   assert.equal(root.classList.contains('is-collapsed'), true, 'HUD updates preserve collapse');
@@ -66,6 +69,7 @@ test('capture mission reuses the existing ownership list alongside mission detai
   card.setMode('mission');
   assert.equal(root.children[1].hidden, true);
   assert.equal(root.classList.contains('has-mission-territories'), false);
+  assert.equal(root.children[1].children[1].hidden, true);
   card.setMode('multiplayer');
   assert.equal(card.activeTab, 'players');
   assert.equal(card.territoriesRoot, list, 'no duplicate territory panel');

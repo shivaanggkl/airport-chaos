@@ -2885,7 +2885,7 @@ function applyTerritoryState(states: readonly NetworkTerritoryState[]): void {
     if (remote.ownershipSignature !== ownedTerritoriesForPlayer(remote.playerId).map(({ color }) => color).join('|')) refreshPlayerIdentityTag(remote);
   }
   playersPanel.update([...cityHumanRoster.values()], localPlayerId, ownedTerritoriesForPlayer);
-  cityTerritoriesPanel.update(cityTerritoryEntries(), localPlayerId);
+  updateTerritoryPanel();
   updateCaptureHud();
   updateMissionHud();
   refreshPilotMenu();
@@ -2898,16 +2898,34 @@ function journeyTerritoryCaptureLabel(): string {
   const target = territoryDefinitions.find(item => item.id === journeyDallasCapture01.territoryId)!;
   const agl = airplane.position.y - getTerrainHeight(airplane.position.x, airplane.position.z);
   const inside = territoryContains(target, airplane.position) && agl > 0 && agl <= territoryCaptureCeilingAgl;
-  return inside && journeyAttempt.status === 'RACING' ? `CAPTURE LAS COLINAS — ${progress}%`
-    : progress ? `RETURN TO LAS COLINAS — ${progress}%` : 'FLY TO LAS COLINAS';
+  return inside && journeyAttempt.status === 'RACING' ? 'STAY INSIDE LAS COLINAS'
+    : progress ? 'RETURN TO LAS COLINAS' : 'FLY TO LAS COLINAS';
+}
+
+function updateTerritoryPanel(allowDemonstration = true): void {
+  if (journeyMode && journeyAttempt?.missionId === journeyDallasCapture01.id) {
+    const demonstrationPercent = allowDemonstration && flightLaunchState === 'active' && flightLaunchSkipStartedAt === undefined &&
+      journeyAttempt.status === 'APPROACH' && !journeyPaused && connectionReady()
+      ? missionCaptureIntroPath?.demonstrationPercent(performance.now() - flightLaunchStartedAt) : undefined;
+    const target = territoryDefinitions.find(item => item.id === journeyDallasCapture01.territoryId)!;
+    const percent = demonstrationPercent ?? Math.max(0, Math.min(100,
+      Math.floor(journeyAttempt.captureMs * 100 / journeyDallasCapture01.captureDurationMs)));
+    const agl = airplane.position.y - getTerrainHeight(airplane.position.x, airplane.position.z);
+    const capturing = demonstrationPercent !== undefined ? percent > 0
+      : journeyAttempt.status === 'RACING' && !journeyPaused && connectionReady() && !crashed && !onGround &&
+        territoryContains(target, airplane.position) && agl > 0 && agl <= territoryCaptureCeilingAgl;
+    const statusLabel = percent >= 100 ? 'CAPTURED!' : capturing ? `CAPTURING ${percent}%`
+      : percent > 0 ? `PAUSED AT ${percent}%` : 'NOT CAPTURED';
+    cityTerritoriesPanel.update([{ name: 'LAS COLINAS', color: percent >= 100 ? target.fixedColor : neutralTerritoryColor,
+      contested: false, statusLabel }], localPlayerId);
+    return;
+  }
+  cityTerritoriesPanel.update(cityTerritoryEntries(), localPlayerId);
 }
 
 function updateCaptureHud(): void {
   if (focusedTerritoryTargetId() && journeyAttempt) {
-    const progress = Math.min(100, Math.floor(journeyAttempt.captureMs * 100 / journeyDallasCapture01.captureDurationMs));
-    territoryCaptureElement.classList.toggle('hidden', journeyAttempt.status !== 'RACING' || progress === 0);
-    const text = journeyTerritoryCaptureLabel();
-    if (territoryCaptureElement.textContent !== text) territoryCaptureElement.textContent = text;
+    territoryCaptureElement.classList.add('hidden');
     return;
   }
   const capturing = localPlayerId ? territoryDefinitions.find((definition) => {
@@ -3025,10 +3043,9 @@ function updateJourneyHud(): void {
     const captureSegments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
     if (captureSegments) captureSegments.hidden = true;
     if (journeyHudEnemy) {
-      journeyHudEnemy.hidden = false;
-      const percent = Math.max(0, Math.min(100, journeyAttempt.captureMs / journeyDallasCapture01.captureDurationMs * 100));
-      journeyHudEnemy.style.setProperty('--enemy-health', `${percent}%`);
+      journeyHudEnemy.hidden = true;
     }
+    updateTerritoryPanel();
     monsterBossHud.classList.add('hidden'); escortHealthHud.classList.add('hidden');
     updateCaptureHud();
     return;
@@ -5123,7 +5140,8 @@ function clearFlightLaunchPresentation(): void {
   cameraRelativeOffsetInitialized = false;
   flightLaunchTitle.classList.remove('is-visible','is-monster-arrival');
   missionIntroSkip.hidden = true;
-  flightGameRoot.classList.remove('golden-gates-intro', 'capture-intro-bar');
+  flightGameRoot.classList.remove('golden-gates-intro', 'capture-intro-row');
+  if (journeyAttempt?.missionId === journeyDallasCapture01.id) updateTerritoryPanel();
   flightGameRoot.style.removeProperty('--golden-gates-wipe-opacity');
   flightGameRoot.classList.remove('launch-cinematic-pending', 'launch-cinematic-active', 'launch-cinematic-handoff');
   flightGameRoot.style.removeProperty('--launch-hud-opacity');
@@ -5163,6 +5181,8 @@ function cancelPendingFlightLaunch(): void {
 }
 
 function requestFlightLaunchSkip(): void {
+  flightGameRoot.classList.remove('capture-intro-row');
+  if (missionCaptureIntroPath) updateTerritoryPanel(false);
   if (flightLaunchState !== 'active' || flightLaunchSkipStartedAt !== undefined) return;
   const now = performance.now();
   if (!missionOneIntroPath && !missionTwoIntroPath && !missionThreeIntroPath && !missionFourIntroPath && !missionFiveIntroPath && !missionSixIntroPath && !missionCaptureIntroPath && !missionCombatIntroPath && now - flightLaunchStartedAt < FLIGHT_LAUNCH_MIN_SKIP_MS) return;
@@ -5200,8 +5220,9 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
       }
     }
     elapsed=Math.max(0,elapsed-m19StoryOffsetMs);
-    flightGameRoot.classList.toggle('capture-intro-bar', Boolean(missionCaptureIntroPath && !skipped && missionCaptureIntroPath.showsCaptureBar(elapsed)));
+    flightGameRoot.classList.toggle('capture-intro-row', Boolean(missionCaptureIntroPath && !skipped && missionCaptureIntroPath.showsCaptureRow(elapsed)));
     if (missionCaptureIntroPath && !skipped) {
+      updateTerritoryPanel();
       const text = missionCaptureIntroPath.text(elapsed);
       if (flightLaunchTitle.firstElementChild?.textContent !== text) flightLaunchTitle.firstElementChild!.textContent = text;
     }
@@ -5257,7 +5278,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     if(missionCombatIntroPath?.strikingIntro)flightLaunchEngineLift=elapsed>=23000?.14*(1-THREE.MathUtils.smoothstep(elapsed/1000,M20_INTRO.handoff,M20_INTRO.duration)):0;
     if(missionCombatIntroPath?.arrivalIntro)flightLaunchEngineLift=elapsed>=14000?.14*(1-THREE.MathUtils.smoothstep(elapsed/1000,M19_INTRO.handoff,M19_INTRO.duration)):0;
     setFlightLaunchChrome(missionCombatIntroPath?.huntingIntro&&!skipped?THREE.MathUtils.smoothstep(elapsed/1000,huntingTiming.handoff,huntingTiming.duration):missionCombatIntroPath?.strikingIntro&&!skipped?THREE.MathUtils.smoothstep(elapsed/1000,M20_INTRO.handoff,M20_INTRO.duration):missionCombatIntroPath?.arrivalIntro&&!skipped?THREE.MathUtils.smoothstep(elapsed/1000,M19_INTRO.handoff,M19_INTRO.duration):cutToChase ? 1 : 0);
-    if (cutToChase) {
+    if (cutToChase && (!missionCaptureIntroPath || skipped)) {
       flightLaunchTitle.classList.remove('is-visible');
       missionIntroSkip.hidden = true;
     }
