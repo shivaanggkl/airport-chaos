@@ -2614,7 +2614,7 @@ async function start(): Promise<void> {
     const progress = await refreshJourneyProgress();
     const earnedCredits = journeyReceipt ? takeJourneyRewardReceipt(journeyReceipt, garageIdentity.pilotId) : 0;
     if (journeyReceipt && progress) {
-      const missions = [progress, ...Array.from({ length: missionJourneyStages.length - 1 }, (_, index) => {
+      const missions = [progress, ...Array.from({ length: journeyMissionOrder.length - 1 }, (_, index) => {
         const mission = progress[`mission${String(index + 2).padStart(2, '0')}` as keyof typeof progress];
         return mission && typeof mission === 'object' ? mission : undefined;
       })];

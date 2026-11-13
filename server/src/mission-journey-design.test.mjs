@@ -10,12 +10,12 @@ const styles = readFileSync(new URL('../../client/src/mission-journey.css', impo
 const shell = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
 const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
 
-test('all 24 unique missions occupy four ordered, balanced chapters', () => {
-  assert.equal(missionJourneyStages.length, 24);
-  assert.deepEqual(missionJourneyStages.map(stage => stage.number), Array.from({ length: 24 }, (_, index) => index + 1));
-  assert.equal(new Set(missionJourneyStages.map(stage => stage.id)).size, 24);
-  assert.equal(chapterNames.length, 4);
-  for (let chapter = 1; chapter <= 4; chapter++) {
+test('24 playable missions and six placeholders occupy five balanced chapters', () => {
+  assert.equal(missionJourneyStages.length, 30);
+  assert.deepEqual(missionJourneyStages.map(stage => stage.number), Array.from({ length: 30 }, (_, index) => index + 1));
+  assert.equal(new Set(missionJourneyStages.map(stage => stage.id)).size, 30);
+  assert.equal(chapterNames.length, 5);
+  for (let chapter = 1; chapter <= 5; chapter++) {
     const stages = missionJourneyStages.filter(stage => stage.chapter === chapter);
     assert.deepEqual(stages.map(stage => stage.number), Array.from({ length: 6 }, (_, index) => (chapter - 1) * 6 + index + 1));
   }
@@ -40,14 +40,14 @@ test('mission state follows progression, including chapter boundaries and full c
   completed.fill(true);
   state = missionJourneyStatuses(completed, eligible, false);
   assert.equal(state.currentMission, 0);
-  assert.ok(state.statuses.every(status => status === 'completed'));
+  assert.ok(state.statuses.slice(0,24).every(status => status === 'completed'));
 });
 
 test('locked missions show details while only their Play action stays disabled', () => {
   assert.doesNotMatch(view, /button\.disabled = this\.cityLocked \|\| status === 'locked'/);
   assert.doesNotMatch(styles, /\.mission-journey-node\.is-locked[^\n]*pointer-events: none/);
   assert.match(view, /this\.detail\.querySelector<HTMLElement>\('\[data-mission-objective\]'\)!\.textContent = card\.description/);
-  assert.match(view, /if \(playButton\.disabled\) return/);
+  assert.match(view, /if \(playButton\.disabled \|\|[^\n]+\) return/);
   assert.match(view, /play\.disabled = locked/);
   assert.match(view, /play\.hidden = false/);
   assert.match(view, /completed \? 'REPLAY MISSION/);
@@ -115,4 +115,20 @@ test('all 24 mission details use live titles, rewards, objectives and clocks', (
   assert.doesNotMatch(view, /mission-journey-detail-image|>OBJECTIVE</);
   assert.match(view, /context-action context-action--gold mission-journey-play/);
   assert.match(view, /\/media\/hub\/credits\.avif/);
+});
+
+
+test('Chapter 5 placeholders cannot unlock, complete, or alias a real mission even in local QA',()=>{
+ assert.deepEqual(missionJourneyStages.slice(0,24).map(s=>s.id),journeyMissions.journeyMissionOrder);
+ const placeholders=missionJourneyStages.slice(24);
+ assert.deepEqual(placeholders.map(s=>s.number),[25,26,27,28,29,30]);
+ assert(placeholders.every(s=>s.chapter===5&&s.implementation==='placeholder'&&!journeyMissions.journeyMissionOrder.includes(s.id)));
+ for(const completed of [Array(30).fill(false),Array(30).fill(true)]){
+  const state=missionJourneyStatuses(completed,Array(30).fill(true),false);
+  assert.deepEqual(state.statuses.slice(24),Array(6).fill('locked'));
+  assert(state.currentMission<=24);
+ }
+ assert.match(view,/if \(placeholder\) \{/);
+ assert.match(view,/play.hidden = false; play.disabled = true; play.textContent = 'COMING SOON'/);
+ assert.match(view,/chapter <= chapterNames.length/);
 });

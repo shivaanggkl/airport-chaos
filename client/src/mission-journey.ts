@@ -83,9 +83,10 @@ export class MissionJourney {
 
   constructor(private readonly element: HTMLElement, onPlayMission: () => void, private readonly onPanelOpen: () => void, _onPanelClose: () => void) {
     element.classList.add('mission-journey');
+    element.style.setProperty('--journey-stage-gaps', String(missionJourneyStages.length - 1));
     element.setAttribute('aria-label', 'Dallas Mission Journey');
     element.innerHTML = `
-      <div class="mission-journey-viewport" aria-label="Dallas missions, four chapters" tabindex="0">
+      <div class="mission-journey-viewport" aria-label="Dallas missions, five chapters" tabindex="0">
         <div class="mission-journey-map">
           <svg class="mission-journey-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
           <div class="mission-journey-chapters" aria-hidden="true"></div>
@@ -144,11 +145,11 @@ export class MissionJourney {
     const playButton = element.querySelector<HTMLButtonElement>('[data-mission-play]')!;
     playButton.addEventListener('click', () => {
       if (this.progressingFrom !== null) return;
-      if (playButton.disabled) return;
+      if (playButton.disabled || missionJourneyStages[this.selectedStage - 1]?.implementation !== 'playable') return;
       hapticsManager.emit('confirmation'); onPlayMission();
     });
     const chapters = element.querySelector<HTMLElement>('.mission-journey-chapters')!;
-    for (let chapter = 1; chapter <= 4; chapter++) {
+    for (let chapter = 1; chapter <= chapterNames.length; chapter++) {
       const heading = document.createElement('div');
       heading.className = 'mission-journey-chapter-heading';
       heading.dataset.chapter = String(chapter);
@@ -158,7 +159,7 @@ export class MissionJourney {
       heading.style.top = `max(0px, calc(${(first.y + last.y) / 2}% - var(--chapter-heading-offset)))`;
       heading.innerHTML = `<strong>CHAPTER ${chapter}</strong><span>${chapterNames[chapter - 1]}</span>`;
       chapters.append(heading);
-      if (chapter < 4) {
+      if (chapter < chapterNames.length) {
         const next = missionJourneyStages[chapter * 6]!;
         const divider = document.createElement('span');
         divider.className = 'mission-journey-chapter-divider';
@@ -654,6 +655,18 @@ export class MissionJourney {
       this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.hidden = true;
       this.detail.querySelector<HTMLElement>('[data-mission-time]')!.hidden = true;
       this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!.hidden = true;
+      return;
+    }
+    const placeholder = stage.implementation === 'placeholder';
+    this.detail.classList.toggle('is-placeholder', placeholder);
+    this.detail.querySelector<HTMLElement>('.mission-journey-detail-facts')!.hidden = placeholder;
+    if (placeholder) {
+      this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${stage.number}`;
+      this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = 'COMING SOON';
+      this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = 'New missions are in preparation.';
+      const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
+      play.hidden = false; play.disabled = true; play.textContent = 'COMING SOON';
+      this.detail.classList.remove('is-locked');
       return;
     }
     const card = missionJourneyDetails[stage.number - 1]!;
