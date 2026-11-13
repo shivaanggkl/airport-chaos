@@ -11,7 +11,7 @@ import {cityRegistry} from '../../shared/city-registry.mjs';
 export const finalWarlordSpecies=new SpeciesRegistry().register({
  ...structuredClone(ashenWarlordSpecies),id:'final-warlord',level:'LEGENDARY',
  health:journeyDallas19.bossHealth,contactDamage:25,
- director:{...ashenWarlordSpecies.director!,combatDistance:3500,maintainCombatDistance:true},
+ director:{...ashenWarlordSpecies.director!,combatDistance:9600,maintainCombatDistance:true},
  abilities:ashenWarlordSpecies.abilities.map(a=>a.id==='fireball-barrage'?{...a,damage:25,count:12,burstSize:3}:structuredClone(a)),
 });
 export function createFinalWarlordEncounter(id:string,playerId:string,started:number,ground:(x:number,z:number)=>number,buildings:DistrictBuildings,health:number=journeyDallas19.bossHealth){

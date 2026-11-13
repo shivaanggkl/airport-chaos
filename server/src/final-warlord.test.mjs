@@ -109,7 +109,7 @@ test('visible M24 retains legacy identity and historical clears without duplicat
 test('M24 restores the original running director and all three attacks without changing earlier monsters',()=>{
  assert.equal(finalWarlordSpecies.level,'LEGENDARY');
  assert.equal(finalWarlordSpecies.health,journeyDallas19.bossHealth);
- assert.deepEqual(finalWarlordSpecies.director,{...ashenWarlordSpecies.director,combatDistance:3500,maintainCombatDistance:true});
+ assert.deepEqual(finalWarlordSpecies.director,{...ashenWarlordSpecies.director,combatDistance:9600,maintainCombatDistance:true});
  assert.deepEqual(finalWarlordSpecies.movement,ashenWarlordSpecies.movement);
  assert.equal(finalWarlordSpecies.hunting,undefined);
  assert(finalWarlordSpecies.movement.runOnly);
@@ -204,7 +204,7 @@ test('M24 remains grounded on actual scaled Dallas terrain with compact building
  const origin={...e.frame.position};let traveled=0;
  for(let i=1;i<=600;i++){
   const before={...e.frame.position};
-  stepM19(e,{x:origin.x+12000,y:origin.y+1500,z:origin.z+4000},zero,18,i*50);
+  stepM19(e,{x:origin.x+22000,y:origin.y+1500,z:origin.z+4000},zero,18,i*50);
   traveled+=Math.hypot(e.frame.position.x-before.x,e.frame.position.z-before.z);
   assert(Math.abs(e.frame.position.y-ground(e.frame.position.x,e.frame.position.z))<.01);
  }
@@ -227,8 +227,8 @@ test('M24 releases four three-ball waves and keeps ranged pursuit at fighting di
  const first=[...releases.values()][0];assert.equal(first.size,12);
  const waves=[...new Set(first.values())];assert.equal(waves.length,4);
  for(let i=0;i<waves.length;i++){assert.equal([...first.values()].filter(t=>t===waves[i]).length,3);if(i)assert(waves[i]-waves[i-1]>=.25-1e-8);}
- assert(minimum>=3000,'ranged pursuit must brake before crowding the pilot');
- assert(minimum<=4200,'monster must close into the targetable fighting band');
+ assert(minimum>=9000,'ranged pursuit must brake before entering the 9 km separation');
+ assert(minimum<=10500,'monster must still pursue to the configured fighting distance');
  assert.equal(ashenWarlordSpecies.abilities.find(a=>a.mechanism==='projectile').count,3);
  e.dispose();
 });
@@ -239,9 +239,9 @@ test('M24 restores space when a pilot approaches, without changing close attacks
  const e=new TitanEncounter('close-spacing',new SpeciesRegistry().register(cfg),{x:0,y:0,z:0},
   {bounds:{minX:-40000,maxX:40000,minZ:-40000,maxZ:40000},ground:()=>0,traversable:()=>true,lineOfSight:()=>true,obstruction:()=>null});
  const target={id:'p',encounterId:'close-spacing',authorized:true,alive:true,position:{x:0,y:1500,z:1500},velocity:zero,radius:18};
- for(let i=0;i<600;i++)e.step(.05,[target],[]);
+ for(let i=0;i<1800;i++)e.step(.05,[target],[]);
  const f=e.snapshot(),range=Math.hypot(f.position.x-target.position.x,f.position.z-target.position.z);
- assert(range>=2900&&range<=4200,`must restore fighting space, got ${range}`);
+ assert(range>=9000&&range<=10500,`must restore fighting space, got ${range}`);
  for(const kind of ['sweep','charge'])assert.deepEqual(finalWarlordSpecies.abilities.find(a=>a.mechanism===kind),ashenWarlordSpecies.abilities.find(a=>a.mechanism===kind));
  e.dispose();
 });
