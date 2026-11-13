@@ -7008,7 +7008,7 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
     const cruise = bot.journeyPursuit ? journeyDallas15.cruiseSpeed : ambushTarget ? ambushCruiseSpeed(ambushTarget.velocity) : bot.journeyFirstContact ? (bot.journeyFinalShowdown ? journeyDallas18 : bot.journeyIronHunter ? journeyDallas17 : bot.journeySurpriseAttack ? journeyDallas14 : journeyDallas13).cruiseSpeed
       : envelope.maxSpeed * (bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : botCruiseFactor(bot.personality));
     bot.expertControl = bot.opponent?.profile.tactics.expert;
-    const boundedDallasOpponent = bot.journeyEscortMissionId === journeyDallas10.id ||
+    const boundedDallasOpponent = bot.journeyEscortMissionId === journeyDallas10.id || bot.journeyEscortMissionId === journeyDallas12.id ||
       player.cityId === 'dallas' && bot.journeyCrossfire === true;
     // Apply the same boundary during smooth flight, including M10's early-return path.
     const waypoint = boundedDallasOpponent ? { ...target, ...dallasEscortSteeringTarget(player.position, hunterForward(player), target) } : target;

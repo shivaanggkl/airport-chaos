@@ -2251,7 +2251,7 @@ function updateRadar(direction: THREE.Vector3): void {
     const hunter = remotePlayers.get(activeMission.targetId);
     if (hunter?.lifeState === 'alive') drawRadarMarker(direction, hunter.plane.position.x, hunter.plane.position.z, 'mission', 'HUNTER');
   }
-  if (journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id) {
+  if (journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas12.id) {
     for (const escort of remotePlayers.values()) {
       if (escort.plane.userData.rearGuardEscort && escort.lifeState === 'alive' && !transportEscortInactive(escort))
         drawRadarMarker(direction, escort.plane.position.x, escort.plane.position.z, 'mission', 'ESCORT');
@@ -12443,7 +12443,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       if (!monsterView) {
         monsterView = new MonsterArrivalView(scene,
           getTerrainHeight(journeyDallas19.monster.x, journeyDallas19.monster.z),
-          getTerrainHeight(M19_DOWNTOWN.x, M19_DOWNTOWN.z), camera, undefined, getTerrainHeight, () => renderer.domElement.height,ashenWarlordModel,message.attempt.missionId===journeyDallas25.id,(message.attempt.missionId===journeyDallas20.id||message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),(message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),(message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id));
+          getTerrainHeight(M19_DOWNTOWN.x, M19_DOWNTOWN.z), camera, undefined, getTerrainHeight, () => renderer.domElement.height,ashenWarlordModel,message.attempt.missionId===journeyDallas25.id,(message.attempt.missionId===journeyDallas20.id||message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),(message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),(message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),message.attempt.missionId===journeyDallas19.id);
         {titanAssetsReady=false;const id=message.attempt.attemptId;void monsterView.ready.then(()=>{if(journeyAttempt?.attemptId===id){titanAssetsReady=true;beginMissionStartCountdown();}}).catch(()=>showProgressMessage('Character could not load. Exit and retry.'));}
         monsterView.onCasting=()=>audioManager.playTone(110,.45,'sawtooth',.05,290,0,'weapons');
         monsterView.onRoar=()=>audioManager.playTitanRoar();
