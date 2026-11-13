@@ -117,9 +117,8 @@ body:has(.app-shell-header.is-page:not([hidden])) .store-heading {
 .store-art-role { height: var(--store-spec-height); box-sizing: border-box; }
 .store-art-role > span { display: grid; align-content: center; gap: 4px; min-width: 0; padding-inline: 2px; text-align: center; white-space: nowrap; }
 .store-spec-label { display: flex; justify-content: center; align-items: center; gap: 3px; font-size: clamp(7px, 2.6cqw, 13px); }
-.store-spec-label svg { flex: none; width: 1em; height: 1em; }
+.store-spec-label :is(img, svg) { flex: none; width: clamp(12px, 5cqw, 20px); height: clamp(12px, 5cqw, 20px); object-fit: contain; }
 .store-art-role strong { color: #ffdb39; font-size: clamp(9px, 3.2cqw, 17px); line-height: 1.15; }
-.store-art-role > span:last-child svg { color: #ff5266; fill: currentColor; }
 .store-art-role > span + span { border-left: 1px solid #a5b6c9; }
 .store-art-swatches { bottom: calc(var(--store-spec-height) + 7px); }
 .store-status-badge {
