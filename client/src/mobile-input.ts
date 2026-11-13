@@ -1,3 +1,4 @@
+import { fireCrosshairGeometry } from './fire-icon';
 import { cruiseThrottleSelection, cruiseThrottleStops } from '../../shared/flight-control-rules.mjs';
 import { arrangeControls, fitControl, type LayoutBox } from './control-layout-geometry';
 import type { FlightAction } from './flight-input';
@@ -157,6 +158,8 @@ export class MobileInputControls {
     private setAction: (action: FlightAction, active: boolean) => void,
     private onThrottleInput?: (throttle: number) => void,
   ) {
+    const fireIcon = root.querySelector<SVGElement>('[data-touch-control="fire"] svg');
+    if (fireIcon) fireIcon.innerHTML = fireCrosshairGeometry;
     root.querySelectorAll<HTMLElement>('[data-hold]').forEach((button) => {
       this.bindHold(button, button.dataset.hold as FlightAction);
     });
