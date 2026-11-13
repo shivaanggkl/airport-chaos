@@ -8,7 +8,9 @@ import { HorizontalRail } from './horizontal-rail';
 import { confirmCatalogPurchase } from './purchase-confirmation';
 import { StoreAircraftPreviews } from './store-aircraft-previews';
 import { createAircraftDetailPanel, renderAircraftDetailPanel } from './aircraft-detail-panel';
-import { aircraftRoles } from './visual-language';
+import { aircraftFlightEnvelope, MPH_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
+import { FIRE_RATE_PER_SECOND } from '../../shared/protocol.mjs';
+import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { aircraftDefinitions } from './aircraft';
 import type { PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
 import { storeAircraft, storeFeatured, storeItemById, storeItemState, storePaints, storePurchaseTarget, type StoreCategory, type StoreItem } from './store-catalog';
@@ -45,11 +47,21 @@ function artwork(item: StoreItem): HTMLElement {
     for (const value of item.colors) { const dot = document.createElement('i'); dot.style.backgroundColor = color(value); swatches.append(dot); }
     art.append(swatches);
   }
-  const role = document.createElement('span'); role.className = 'store-art-role';
-  for (const highlight of aircraftRoles[item.aircraftType].split(' • ')) {
-    const label = document.createElement('span'); label.textContent = highlight; role.append(label);
+  const specs = document.createElement('span'); specs.className = 'store-art-role';
+  const type = item.aircraftType;
+  const speed = Math.round(aircraftFlightEnvelope[type].maxSpeed * MPH_PER_METER_PER_SECOND).toLocaleString('en-US');
+  const columns = [
+    { label: 'MAX SPEED', value: `${speed} MPH`, icon: '<path d="M3 17a9 9 0 1 1 18 0M5 12l2 1m3-7 1 3m7-1-4 6m5-2 2-1"/><circle cx="12" cy="16" r="2"/>' },
+    { label: 'FIRE RATE', value: `${FIRE_RATE_PER_SECOND[type]} shots/sec`, icon: '<circle cx="12" cy="12" r="7"/><path d="M12 2v6m0 8v6M2 12h6m8 0h6"/>' },
+    { label: 'HEALTH', value: `${maxHealthForAircraft(type)} HP`, icon: '<path d="M12 21 3.5 12.5C-2 6 7 0 12 6c5-6 14 0 8.5 6.5Z"/>' },
+  ];
+  for (const { label, value, icon } of columns) {
+    const column = document.createElement('span');
+    // Only fixed labels and shared numeric settings enter this markup.
+    column.innerHTML = `<span class="store-spec-label"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>${label}</span><strong>${value}</strong>`;
+    specs.append(column);
   }
-  art.append(role);
+  art.append(specs);
   return art;
 }
 
