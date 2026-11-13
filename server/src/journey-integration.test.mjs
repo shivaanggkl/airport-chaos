@@ -9,7 +9,7 @@ import { JourneyAttemptStore } from './journey-attempts.js';
 
 const missions = catalog.journeyMissionOrder.map(id => Object.values(catalog).find(definition => definition?.id === id));
 
-test('one isolated pilot unlocks the 21 playable stages in order and keeps completion across sessions', () => {
+test('one isolated pilot unlocks the 22 playable stages in order and keeps completion across sessions', () => {
   const directory = mkdtempSync(join(tmpdir(), 'airport-journey-chain-'));
   const path = join(directory, 'profiles.sqlite');
   try {
@@ -17,8 +17,8 @@ test('one isolated pilot unlocks the 21 playable stages in order and keeps compl
     database.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('qa-pilot',0,0),('other-pilot',0,0)");
     database.close();
     const store = new JourneyAttemptStore(path);
-    assert.equal(missions.length, 21);
-    assert.equal(new Set(missions.map(mission => mission.id)).size, 21);
+    assert.equal(missions.length, 22);
+    assert.equal(new Set(missions.map(mission => mission.id)).size, 22);
     assert.deepEqual(missions.slice(-2).map(mission => mission.firstClearCredits),
       [3150, 4000]);
     for (const [index, mission] of missions.entries()) {
@@ -39,7 +39,7 @@ test('one isolated pilot unlocks the 21 playable stages in order and keeps compl
       .run('qa-pilot', missions.at(-1).id, 'fixture-24', 25000);
     seed.close();
     const reopened = new JourneyAttemptStore(path);
-    assert.equal(missions.filter(mission => reopened.progress('qa-pilot', mission.id).completed).length, 21);
+    assert.equal(missions.filter(mission => reopened.progress('qa-pilot', mission.id).completed).length, 22);
     assert.equal(reopened.progress('qa-pilot', missions.at(-1).id).completed, true);
     assert.throws(() => reopened.launch('qa-pilot', 'trainer', 26000, 'journey-dallas-25'), /locked/);
     assert.throws(() => reopened.launch('qa-pilot', 'trainer', 26001, 'journey-dallas-26'), /Unknown Journey mission/);

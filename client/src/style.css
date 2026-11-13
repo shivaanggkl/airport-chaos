@@ -260,6 +260,7 @@ body.launch-cinematic-active #tutorial-help {
 #game-root.launch-cinematic-active.capture-intro-row #sky-challenge.journey-hud {
   opacity: 1 !important;
 }
+#game-root.launch-cinematic-active.airport-hop-intro > #mission-status-layer,
 #game-root.launch-cinematic-active.capture-intro-row > #mission-status-layer {
   --launch-hud-opacity: 1;
   opacity: 1 !important;
@@ -7279,3 +7280,13 @@ html.custom-control-layout #game-root #radar-panel {
   letter-spacing: 0;
 }
 #game-root .capture-mission-instructions > [role="listitem"] { display: list-item; list-style-type: disc; }
+
+#game-root.airport-hop-intro .flight-launch-title {
+  top: auto;
+  bottom: max(24px, calc(env(safe-area-inset-bottom) + 6vh));
+  width: max-content;
+  max-width: min(85vw, 700px);
+  box-sizing: border-box;
+  font-size: clamp(17px, 2.3vw, 26px);
+  line-height: 1.2;
+}
