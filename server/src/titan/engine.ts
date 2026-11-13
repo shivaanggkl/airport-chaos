@@ -722,7 +722,7 @@ export class TitanEncounter {
         const predicted = this.#combatGoal(t);
         const close = available.filter(a => a.mechanism === 'sweep');
         const ranged = available.filter(a => a.mechanism === 'projectile' || a.mechanism === 'beam');
-        const choices = available.map(a => ({ a, score: (a.mechanism === 'sweep' ? 2.1 : a.mechanism === 'projectile' ? (horizontal > 8000 && !this.#directorReentry ? .1 : 1.1) : a.mechanism === 'beam' ? 1.2 : a.mechanism === 'charge' ? .85 : a.mechanism === 'leap' ? .75 : pressured || closing > 100 && horizontal < 1500 ? 1.3 : -1) - (a.id === this.#lastAbility ? .35 + Math.min(.35, this.#misses * .15) : 0) + (this.#directorReentry && a.mechanism === 'projectile' ? .3 : 0) })).filter(v => v.score > .3).sort((a, b) => b.score - a.score || a.a.id.localeCompare(b.a.id));
+        const choices = available.map(a => ({ a, score: (a.mechanism === 'sweep' ? 2.1 : a.mechanism === 'projectile' ? (horizontal > (d.maintainCombatDistance ? Math.max(8000,(d.combatDistance??0)+4000) : 8000) && !this.#directorReentry ? .1 : 1.1) : a.mechanism === 'beam' ? 1.2 : a.mechanism === 'charge' ? .85 : a.mechanism === 'leap' ? .75 : pressured || closing > 100 && horizontal < 1500 ? 1.3 : -1) - (a.id === this.#lastAbility ? .35 + Math.min(.35, this.#misses * .15) : 0) + (this.#directorReentry && a.mechanism === 'projectile' ? .3 : 0) })).filter(v => v.score > .3).sort((a, b) => b.score - a.score || a.a.id.localeCompare(b.a.id));
         // Keep pursuing receding aircraft, but mobile weapons can fire during that pursuit.
         const candidate=choices[0]?.a;
         const shot = horizontal>4000&&closing < -50&&!candidate?.moving ? undefined : candidate;
