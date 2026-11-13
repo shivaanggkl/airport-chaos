@@ -1,4 +1,4 @@
-export type GameplayInfoMode = 'mission' | 'multiplayer' | 'tutorial' | 'none';
+export type GameplayInfoMode = 'mission' | 'mission-territories' | 'multiplayer' | 'tutorial' | 'none';
 export type GameplayInfoTab = 'players' | 'territories';
 
 /** One upper-left flight card for mission details or authoritative multiplayer lists. */
@@ -30,6 +30,7 @@ export class GameplayInfoCard {
       button.append(label, count);
       this.bindTap(button, () => this.setTab(tab));
       button.addEventListener('keydown', event => {
+        if (this.mode === 'mission-territories') return;
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         event.preventDefault();
         const next = event.key === 'Home' ? 'players' : event.key === 'End' ? 'territories'
@@ -98,13 +99,15 @@ export class GameplayInfoCard {
     this.mode = mode;
     this.root.classList.toggle('hidden', mode === 'none');
     this.root.classList.toggle('is-multiplayer', mode === 'multiplayer');
+    this.root.classList.toggle('has-mission-territories', mode === 'mission-territories');
     this.root.classList.toggle('is-tutorial', mode === 'tutorial');
-    this.multiplayer.hidden = mode !== 'multiplayer';
+    this.multiplayer.hidden = mode !== 'multiplayer' && mode !== 'mission-territories';
     this.setTab('players');
     this.setCollapsed(false);
   }
 
   setTab(tab: GameplayInfoTab): void {
+    if (this.mode === 'mission-territories') tab = 'territories';
     this.tab = tab;
     for (const key of ['players', 'territories'] as const) {
       const active = key === tab;

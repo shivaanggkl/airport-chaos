@@ -28,9 +28,9 @@ function fixture() {
 
 test('M05 stable identity, easy configuration and actual Dallas spawn/approach are safe for Bluejay and every aircraft',()=>{
  assert.equal(journeyCatalog[4]!.id,mission.id);assert.equal(journeyCatalog[4]!.implementation,'playable');
- assert.equal(mission.difficulty,'EASY');assert.equal(mission.timeLimitMs,240000);assert.equal(mission.firstClearCredits,500);
+ assert.equal(mission.difficulty,'EASY');assert.equal(mission.timeLimitMs,180000);assert.equal(mission.firstClearCredits,500);
  const spawn=authorizedJourneyAirborneSpawn({missionId:mission.id,status:'APPROACH'},mission,dallasElevationAt)!;
- assert.equal(target.bounds.minX-spawn.position.x,2500);assert.equal(spawn.position.z,target.center.z);
+ assert.equal(target.bounds.minX-spawn.position.x,15000);assert.equal(spawn.position.z,target.center.z);
  assert.ok(Math.abs(spawn.position.y-dallasElevationAt(spawn.position.x,spawn.position.z)-800)<1e-9);
  assert.ok(-Math.sin(spawn.heading)>.9999);assert.equal(spawn.speed,650);
  assert.equal(authorizedJourneyAirborneSpawn({missionId:mission.id,status:'READY'},mission,dallasElevationAt),undefined);
@@ -77,7 +77,7 @@ test('progress pauses outside/above altitude, survives reopen and pause, and rej
  const ready=f.store.launch('pilot','trainer',f.now,mission.id);
  assert.equal(f.store.advanceTerritoryCapture('pilot',ready.attemptId,true,f.now+400),undefined);
  f.store.approach('pilot',ready.attemptId,f.now);const a=f.store.startTerritoryCapture('pilot',ready.attemptId,f.now+400)!;let time=a.startedAt!;
- assert.equal(a.deadlineAt,time+240000);
+ assert.equal(a.deadlineAt,time+180000);
  assert.equal(f.store.advanceTerritoryCapture('other',a.attemptId,true,time+400),undefined);
  for(let i=0;i<10;i++)f.store.advanceTerritoryCapture('pilot',a.attemptId,true,time+=400);
  assert.equal(f.store.get('pilot',a.attemptId)!.captureMs,4000);
@@ -156,6 +156,6 @@ test('shared capture HUD follows approach, capture, return and victory; existing
  assert.match(styles,/\.territory-capture-focus #territory-capture:not\(\.hidden\):not\(\[hidden\]\) \{ display: block !important; \}/);
  assert.match(main,/const missionClearMissionIds = new Set<string>\(\[journeyDallasCapture01.id/);
  assert.match(main,/drawRadarTerritories\(direction, focusedTerritoryTargetId\(\)!\)/);
- assert.match(main,/entry.displayColor = state\?\.controllerId \|\| entry.missionTarget \? definition.fixedColor/);
+ assert.match(main,/entry.displayColor = state\?\.controllerId \? definition.fixedColor/);
  assert.match(main,/territories: territoryDefinitions.filter[\s\S]*?missionTarget: missionTerritories.includes\(definition.id\) \|\| definition.id === focusedTerritoryTargetId\(\)/);
 });
