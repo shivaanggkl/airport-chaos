@@ -1,6 +1,6 @@
 import { CollectibleTrailView } from './collectible-trail';
 import { CoinHuntIntro, coinHuntIntroTexts } from './coin-hunt-intro';
-import { dallasCoinTrail, coinCollected, type CoinHuntState } from '../../shared/collectible-trail.mjs';
+import { dallasCoinTrail, coinCollected, queryCoinTrail, type CoinHuntState } from '../../shared/collectible-trail.mjs';
 import { SharpshooterIntro } from './sharpshooter-intro';
 import { SharpshooterTargetView } from './sharpshooter-target';
 import { type SharpshooterTarget } from '../../shared/sharpshooter-target.mjs';
@@ -3065,15 +3065,17 @@ function updateSkyChallengeHud(): void {
   skyChallengeElement.textContent = `${challenge.name} · GATE ${challenge.gate}/${challenge.total} · COMBO x${challenge.combo} · ${Math.ceil(challenge.timeRemaining)}s`;
 }
 
+let coinObjectiveRefreshAt=0;
 function updateCoinObjective():void {
   const a=journeyAttempt;
   if(a?.missionId!==journeyDallasCoinHunt01.id||!a.coinHunt||!['APPROACH','RACING'].includes(a.status))return;
+  const now=performance.now();if(now<coinObjectiveRefreshAt)return;coinObjectiveRefreshAt=now+250;
   let nearest=-1,distance=Infinity;
-  for(let i=0;i<dallasCoinTrail.length;i++){
-    if(coinCollected(a.coinHunt.mask,i))continue;
+  const choose=(i:number)=>{if(coinCollected(a.coinHunt!.mask,i))return;
     const p=dallasCoinTrail[i]!,d=(p.x-airplane.position.x)**2+(p.z-airplane.position.z)**2;
-    if(d<distance){distance=d;nearest=i;}
-  }
+    if(d<distance){distance=d;nearest=i;}};
+  queryCoinTrail(airplane.position.x-4000,airplane.position.x+4000,airplane.position.z-4000,airplane.position.z+4000,choose);
+  if(nearest<0){for(let i=a.coinHunt.lastIndex??0;i<dallasCoinTrail.length;i++)if(!coinCollected(a.coinHunt.mask,i)){nearest=i;break;}}
   coinObjectiveIndex=nearest;
   if(nearest>=0){
     const p=dallasCoinTrail[nearest]!;coinObjectivePosition.set(p.x,a.coinHunt.altitude,p.z);
@@ -3153,7 +3155,7 @@ function updateJourneyHud(): void {
   }
   if(journeyAttempt.missionId===journeyDallasCoinHunt01.id){
     if(journeyHudObjective)journeyHudObjective.textContent=journeyDallasCoinHunt01.objective;
-    if(journeyHudProgress)journeyHudProgress.hidden=true;
+    if(journeyHudProgress){journeyHudProgress.hidden=false;journeyHudProgress.textContent='BONUS ROUND';}
     if(journeyHudTarget){journeyHudTarget.hidden=coinObjectiveIndex<0;journeyHudTarget.textContent=coinObjectiveIndex<0?'':`COIN TRAIL · ${formatObjectiveDistance(airplane.position.distanceTo(coinObjectivePosition)*WORLD_METERS_PER_UNIT)}`;}
     if(journeyHudTimer)journeyHudTimer.hidden=true;
     if(journeyHudHint)journeyHudHint.hidden=true;
@@ -3497,7 +3499,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   const resultSlot = journeyMissionSlot(attempt.missionId);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = `M${resultSlot}`;
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = journeyCatalog.find(slot => slot.id === attempt.missionId)?.title ?? 'MISSION';
-  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success ? 'MISSION PASSED' : 'MISSION FAILED';
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success ? attempt.missionId===journeyDallasCoinHunt01.id ? 'BONUS ROUND COMPLETE' : 'MISSION PASSED' : 'MISSION FAILED';
   const formatResultTime = (milliseconds: number): string => {
     const seconds = Math.max(0, Math.floor(milliseconds / 1000));
     return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
@@ -3505,7 +3507,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   const finishTime = formatResultTime(attempt.finishTimeMs ?? 0);
   const bestTime = formatResultTime(attempt.bestTimeMs ?? attempt.finishTimeMs ?? 0);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
-    ? attempt.missionId === journeyDallasCoinHunt01.id ? attempt.firstClearCredits>0 ? '90 COINS COLLECTED — 900 CREDITS EARNED!' : '90 COINS COLLECTED — REWARD ALREADY CLAIMED' : attempt.missionId === journeyDallasSharpshooter01.id ? 'TARGETS 3/3 — MISSION COMPLETE!' : attempt.missionId === journeyDallasAirportHop01.id ? `LANDINGS 2/2 · TIME: ${finishTime}` : attempt.missionId === journeyDallasCapture01.id ? 'TERRITORY CAPTURED!' : (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 GOLDEN GATES CLEARED · TIME: ${finishTime} · BEST: ${bestTime}`
+    ? attempt.missionId === journeyDallasCoinHunt01.id ? `${attempt.coinHunt?.collected??0} CREDITS COLLECTED · ${attempt.firstClearCredits} CREDITS AWARDED` : attempt.missionId === journeyDallasSharpshooter01.id ? 'TARGETS 3/3 — MISSION COMPLETE!' : attempt.missionId === journeyDallasAirportHop01.id ? `LANDINGS 2/2 · TIME: ${finishTime}` : attempt.missionId === journeyDallasCapture01.id ? 'TERRITORY CAPTURED!' : (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 GOLDEN GATES CLEARED · TIME: ${finishTime} · BEST: ${bestTime}`
       : legendaryMission ? `AIRPORT CHAOS — JOURNEY COMPLETE · 20/20 PLAYABLE MISSIONS · PRECISION FLIGHT — COMPLETE · LEGENDARY ACE — DEFEATED · PERFECT LANDING — ACHIEVED · SCORE: ${attempt.landingScore ?? 0}/1000 · LEGENDARY PILOT UNLOCKED`
       : pursuitMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
       : monsterShowdownMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
@@ -4471,6 +4473,10 @@ function endRun(message: EndReason, title: string = message, reportCrash = true)
   clearCombatTarget();
   if (crashed) return;
   if (journeyPreflightActive()) return;
+  if(journeyAttempt?.missionId===journeyDallasCoinHunt01.id&&journeyAttempt.status==='RACING'){
+    if(reportCrash&&connectionReady())socket.send(JSON.stringify({type:'journeyCrash'}));
+    crashed=true;runStarted=false;return;
+  }
   if(airAssaultMode){if(reportCrash&&connectionReady()){sendLocalState();socket.send(JSON.stringify({type:'airAssaultCrash'}));}crashed=true;runStarted=false;return;}
   if (skyDuelMode) {
     if (reportCrash && connectionReady()) {
@@ -5418,8 +5424,8 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     if(flightLaunchTitle.firstElementChild?.textContent!==text)
       flightLaunchTitle.replaceChildren(Object.assign(document.createElement('span'),{textContent:text}));
     flightLaunchTitle.classList.toggle('is-visible',handoff<.5);
-    flightGameRoot.classList.toggle('coin-hunt-intro-details',elapsed>=9000);
-    if(elapsed>=9400&&flightLaunchSkipStartedAt===undefined)coinTrailView?.demonstrate();
+    flightGameRoot.classList.add('coin-hunt-intro-details');
+    if(elapsed>=6500&&flightLaunchSkipStartedAt===undefined)coinTrailView?.demonstrate();
     if(handoff>=1)completeFlightLaunchCinematic();
     return true;
   }
@@ -5896,7 +5902,7 @@ type ServerMessage =
       killerReward?: number;
       cause?: 'combat' | 'collision';
     }
-  | { type: 'respawn'; playerId: string; health: number; maxHealth: number; lifeState?: PlayerLifeState; spawnPosition?: NetworkVector; spawnHeading?: number }
+  | { type: 'respawn'; playerId: string; health: number; maxHealth: number; lifeState?: PlayerLifeState; spawnPosition?: NetworkVector; spawnHeading?: number; bonusRecovery?: {speed:number} }
   | ({ type: 'playerState'; health: number; maxHealth: number; lifeState: PlayerLifeState } & NetworkPlayer)
   | { type: 'eventState'; event: NetworkCityEvent }
   | { type: 'eventClear' }
@@ -7933,7 +7939,7 @@ function pilotMenuData(): PilotMenuData {
         ? formatJourneyPauseRemaining(journeyPauseDeadlineAt) : undefined,
     } : undefined,
     resumeFlight: () => pilotMenu.close(),
-    restartFlight: () => {
+    restartFlight: journeyAttempt?.missionId===journeyDallasCoinHunt01.id ? undefined : () => {
       if (!journeyMode || !journeyAttempt) return;
       showFlightDialog('Restart mission?', 'Progress from this attempt will be lost.', [
         { label: 'STAY', secondary: true, run: () => undefined },
@@ -11549,7 +11555,7 @@ function animate(): void {
     updateNavigationHud();
     updateEngineAudio();
   }
-  coinTrailView?.update(camera,performance.now());
+  coinTrailView?.update(camera,performance.now(),missionCoinHuntIntro&&flightLaunchState==='active'&&coinHuntIntro?coinHuntIntro.target:airplane.position,heading);
   const qaRenderStartedAt = stabilityQaTiming ? performance.now() : 0;
   if (stabilityQaTiming) {
     const updateMs = qaRenderStartedAt - qaFrameStartedAt;
@@ -12320,6 +12326,12 @@ function requestFlightExit(openFirehawkGarage = false): void {
     } else void exitFlightToHub();
     return;
   }
+  if (journeyMode&&journeyAttempt?.missionId===journeyDallasCoinHunt01.id&&['APPROACH','RACING'].includes(journeyAttempt.status)) {
+    showFlightDialog('END BONUS ROUND?', 'Collect your earned Credits now and finish this bonus round? This ends your one-time reward, even with 0 Credits.', [
+      {label:'KEEP FLYING',secondary:true,run:()=>undefined},
+      {label:'COLLECT & EXIT',run:()=>{void exitFlightToHub(false,true);}},
+    ]);return;
+  }
   if (journeyMode) {
     showFlightDialog('Exit mission?', 'Return to Mission Journey?', [
       { label: 'STAY', secondary: true, run: () => undefined },
@@ -12348,14 +12360,22 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   pendingTransportResultId=null;
   flightGameRoot.classList.remove('transport-defeat-cinematic');
   championshipLandingIntentPending = undefined;
-  const completedJourneyExit = returnToJourney && journeyMode && journeyAttempt?.status === 'COMPLETED';
+  let completedJourneyExit = returnToJourney && journeyMode && journeyAttempt?.status === 'COMPLETED';
   closeFlightDialog();
   if (returnToJourney && journeyMode && journeyAttempt && ['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status)) {
     try {
-      await apiFetch(apiUrl(`/api/journey/dallas/${journeyAttempt.missionId.replace('journey-dallas-', 'mission-')}/abandon`), {
+      const exitResponse=await apiFetch(apiUrl(`/api/journey/dallas/${journeyAttempt.missionId.replace('journey-dallas-', 'mission-')}/abandon`), {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attemptId: journeyAttemptId }),
       });
-    } catch { /* Closing the socket also interrupts an unfinished attempt. */ }
+      if(!exitResponse.ok)throw new Error('Cash-out unavailable');
+      if(journeyAttempt.missionId===journeyDallasCoinHunt01.id){
+        const result=await exitResponse.json() as {attempt?:JourneyAttemptState};
+        if(result.attempt?.attemptId!==journeyAttemptId||result.attempt.status!=='COMPLETED')throw new Error('Cash-out incomplete');
+        journeyAttempt=result.attempt;completedJourneyExit=true;
+      }
+    } catch {
+      if(journeyAttempt.missionId===journeyDallasCoinHunt01.id){flightExitPending=false;showProgressMessage('Unable to finish bonus round. Please try again.');return;}
+    }
   }
   const activeMission = soloExploreMode ? undefined : profileActiveMissionAttempt(serverProfile);
   if (activeMission && !flightTestMode) {
@@ -12438,6 +12458,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
 }
 
 async function retryJourneyMission(): Promise<void> {
+  if(journeyAttempt?.missionId===journeyDallasCoinHunt01.id)return;
   if (!journeyMode || !journeyAttempt || journeyAttempt.status === 'COMPLETED') return;
   const retryButton = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!;
   if (retryButton.disabled) return;
@@ -13325,7 +13346,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       setFlightState(onGround ? 'TAXI' : 'FLYING');
       updateCamera(1);
       }
-      if(journeyMode)setJourneyPaused(true);
+      if(journeyMode&&(journeyAttempt?.missionId!==journeyDallasCoinHunt01.id||journeyAttempt.pausedAt!==null))setJourneyPaused(true);
     }
     applySocialState(message.social);
     reconcileRemotePlayers(message.players);
@@ -13890,12 +13911,16 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       cinematicDirector.resetFlight();
       if (message.spawnPosition && [message.spawnPosition.x, message.spawnPosition.y, message.spawnPosition.z, message.spawnHeading].every(Number.isFinite)) {
         spawnPosition.set(message.spawnPosition.x, message.spawnPosition.y, message.spawnPosition.z);
-        spawnPosition.y = groundPlaneY(spawnPosition.x, spawnPosition.z);
+        if(!message.bonusRecovery)spawnPosition.y = groundPlaneY(spawnPosition.x, spawnPosition.z);
         spawnHeading = message.spawnHeading!;
         airplane.position.copy(spawnPosition);
         airplane.rotation.set(0, spawnHeading, 0, 'YXZ');
         heading = spawnHeading;
-        if (portalEligible) {
+        if(message.bonusRecovery&&journeyAttempt?.missionId===journeyDallasCoinHunt01.id){
+          resetCrashPresentation();crashed=false;runStarted=true;onGround=false;pitch=0;roll=0;verticalSpeed=0;
+          currentSpeed=message.bonusRecovery.speed;velocity.set(-Math.sin(heading)*currentSpeed,0,-Math.cos(heading)*currentSpeed);
+          boostActive=false;setFlightState('FLYING');cameraRelativeOffsetInitialized=false;updateCamera(1);sendLocalState();
+        }else if (portalEligible) {
           restartGame(false);
           cameraRelativeOffsetInitialized = false;
           updateCamera(1);

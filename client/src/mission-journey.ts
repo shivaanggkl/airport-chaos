@@ -480,9 +480,9 @@ export class MissionJourney {
     const reward = this.detail.querySelector<HTMLElement>('[data-mission-reward]')!;
     reward.hidden = false;
     this.detail.querySelector<HTMLElement>('[data-mission-time]')!.hidden = false;
-    reward.setAttribute('aria-label', `${card.rewardCredits.toLocaleString()} Credits${completed ? ', claimed' : ''}`);
-    this.detail.querySelector<HTMLElement>('[data-mission-reward-label]')!.textContent = completed ? 'REWARD CLAIMED' : 'REWARD';
-    this.detail.querySelector<HTMLElement>('[data-mission-reward-amount]')!.textContent = card.rewardCredits.toLocaleString();
+    reward.setAttribute('aria-label', stage.id==='journey-dallas-coin-hunt-01'&&completed ? 'Replay reward: 0 Credits' : `${card.rewardCredits.toLocaleString()} Credits${completed ? ', claimed' : ''}`);
+    this.detail.querySelector<HTMLElement>('[data-mission-reward-label]')!.textContent = stage.id==='journey-dallas-coin-hunt-01' ? completed ? 'REPLAY REWARD' : 'UP TO' : completed ? 'REWARD CLAIMED' : 'REWARD';
+    this.detail.querySelector<HTMLElement>('[data-mission-reward-amount]')!.textContent = stage.id==='journey-dallas-coin-hunt-01'&&completed ? '0' : card.rewardCredits.toLocaleString();
     this.detail.querySelector<HTMLElement>('[data-mission-time-value]')!.textContent = card.timeLimit;
     const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
     play.disabled = locked;

@@ -217,7 +217,7 @@ export const journeyDallasSharpshooter01: Readonly<{
 
 export const journeyDallasCoinHunt01: Readonly<{
  id:'journey-dallas-coin-hunt-01'; cityId:'dallas'; name:'DALLAS COIN HUNT'; difficulty:'MEDIUM';
- objective:string; timeLimitMs:number; firstClearCredits:number; coinCount:number; requiredCoins:number;
+ objective:string; timeLimitMs:number; firstClearCredits:number; coinCount:number;
  creditsPerCoin:number; pickupRadius:number;
  airborneSpawn:Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
 }>;

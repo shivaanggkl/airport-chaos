@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { dallasCoinTrail } from '../../shared/collectible-trail.mjs';
 export const coinHuntIntroTexts=[
- 'DALLAS COIN HUNT','Follow the golden coin trail!',
- 'Fly through coins to collect Credits.','Collect 90 coins to earn 900 Credits!',
+ 'DALLAS BONUS ROUND!','Follow the golden coin trail!',
+ 'Every coin is worth 1 Credit!','Collect as many as you can before time runs out!',
 ] as const;
 /** Presentation only: the real aircraft, pickup state and mission clock never advance. */
 export class CoinHuntIntro {
@@ -10,10 +10,10 @@ export class CoinHuntIntro {
  sample(elapsed:number,handoff:number,altitude:number,camera:THREE.PerspectiveCamera,chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3,chaseFov:number):void {
   const seconds=elapsed/1000;
   if(seconds<3){
-   const middle=dallasCoinTrail[49]!;
+   const middle=dallasCoinTrail[15]!;
    this.target.set(middle.x,altitude,middle.z);
    const framing=Math.max(1,1.25/camera.aspect);
-   this.position.set((15000-seconds*600)*framing,21000*framing,22000*framing).add(this.target);
+   this.position.set((3000-seconds*250)*framing,2200*framing,4000*framing).add(this.target);
   }else if(seconds<6){
    const index=Math.min(60,Math.floor((seconds-3)*18)),p=dallasCoinTrail[index]!,next=dallasCoinTrail[index+9]!;
    const t=(seconds-3)*18-index,q=dallasCoinTrail[index+1]!;
