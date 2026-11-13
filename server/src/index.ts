@@ -7556,24 +7556,26 @@ function safeRespawnTransform(playerId: string, player: PlayerState, now: number
   const nearest = player.freeFlyMode ? nearestCityAirport(player.cityId, player.position) : undefined;
   const recoveryAirports = nearest ? [nearest, ...airports.filter(airport => airport.id !== nearest.id)] : airports;
   const preferredSlot = player.spawnSlot ?? 0;
+  const reverseRunway = activeAttempt?.missionId === journeyDallas19.id && ['APPROACH', 'RACING'].includes(activeAttempt.status);
   let fallback: { position: Vector3; heading: number } | undefined;
   for (const airport of recoveryAirports) {
     const groundY = player.cityId === 'dallas' ? (dallasAirportElevations.get(airport.id) ?? 0) : 0;
     const baseAlong = Math.min(airport.runwayLength * 0.32, airport.runwayLength * 0.5 - 120);
     for (let step = 0; step < 12; step += 1) {
       const lane = (preferredSlot + step) % 12;
-      const along = baseAlong + (lane - 5.5) * respawnClearance * 1.35;
+      const along = (baseAlong + (lane - 5.5) * respawnClearance * 1.35) * (reverseRunway ? -1 : 1);
+      const heading = airport.heading + (reverseRunway ? Math.PI : 0);
       const position = {
         x: airport.x + Math.sin(airport.heading) * along,
         y: groundY,
         z: airport.z + Math.cos(airport.heading) * along,
       };
-      fallback ??= { position, heading: airport.heading };
+      fallback ??= { position, heading };
       const occupied = [...players.entries()].some(([otherId, other]) => otherId !== playerId &&
         other.cityId === player.cityId && other.entityType === 'player' && other.lifeState !== 'destroyed' &&
         other.hasRespawnTransform && now - other.lastStateAt <= combatTransformFreshMs &&
         Math.abs(other.position.y - position.y) < 12 && Math.hypot(other.position.x - position.x, other.position.z - position.z) < respawnClearance);
-      if (!occupied) return { position, heading: airport.heading };
+      if (!occupied) return { position, heading };
     }
   }
   // All defined runway slots being occupied is practically unreachable; the
@@ -7626,10 +7628,10 @@ function resetHumanToSafeRunway(playerId: string, player: PlayerState, profile: 
   broadcastLeaderboard(player.cityId);
 }
 
-function expectedInitialTransform(cityId: CityId, spawnSlot: number, generic: Vector3, airportId = 'dfw'): Vector3 {
+function expectedInitialTransform(cityId: CityId, spawnSlot: number, generic: Vector3, airportId = 'dfw', reverseRunway = false): Vector3 {
   if (cityId !== 'dallas') return { ...generic };
   const airport = cityAirports[cityId].find(candidate => candidate.id === airportId)!;
-  const along = Math.min(airport.runwayLength * 0.32, airport.runwayLength * 0.5 - 120) + spawnSlot * 15;
+  const along = (Math.min(airport.runwayLength * 0.32, airport.runwayLength * 0.5 - 120) + spawnSlot * 15) * (reverseRunway ? -1 : 1);
   return {
     x: airport.x + Math.sin(airport.heading) * along,
     y: dallasAirportElevations.get(airport.id) ?? generic.y,
@@ -8366,7 +8368,10 @@ server.on('connection', (socket, request) => {
     ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas19, dallasTerrain.elevationAt)
     ?? authorizedJourneyAirborneSpawn(journeyAttempt,journeyDallas20,dallasTerrain.elevationAt)
     ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas22, dallasTerrain.elevationAt);
-  const initialAcceptedPosition = airborneSpawn?.position ?? expectedInitialTransform(cityId, spawnSlot, spawnPosition, spawnAirportId);
+  const reverseRunway = journeyAttempt?.missionId === journeyDallas19.id;
+  const initialAcceptedPosition = airborneSpawn?.position ?? expectedInitialTransform(cityId, spawnSlot, spawnPosition, spawnAirportId, reverseRunway);
+  const initialHeading = airborneSpawn?.heading ?? (cityId === 'dallas'
+    ? (cityAirports[cityId].find(airport => airport.id === spawnAirportId)?.heading ?? 0) + (reverseRunway ? Math.PI : 0) : 0);
 
   if (restoringPausedJourney) {
     const restored = players.get(playerId)!;
@@ -8382,8 +8387,7 @@ server.on('connection', (socket, request) => {
     isBot: false,
     cityId,
     position: initialAcceptedPosition,
-    rotation: { x: 0, y: airborneSpawn?.heading ?? (cityId === 'dallas'
-      ? cityAirports[cityId].find(airport => airport.id === spawnAirportId)?.heading ?? 0 : 0), z: 0 },
+    rotation: { x: 0, y: initialHeading, z: 0 },
     aircraftType: activeAircraftType,
     displayName: profile.pilotName,
     score: 0,
@@ -8518,6 +8522,7 @@ server.on('connection', (socket, request) => {
       activeAircraftType,
       spawnPosition,
       spawnAirportId,
+      ...(reverseRunway ? { runwaySpawn: { position: initialAcceptedPosition, heading: initialHeading } } : {}),
       ...(!restoringPausedJourney && airborneSpawn ? { airborneSpawn } : {}),
       ...(portalRestore || restoringPausedJourney || restoringPausedTraining || reconnectingDuelPlayerId || reconnectingAssaultPlayerId ? { resumeFlight: {
         position: players.get(playerId)!.position,

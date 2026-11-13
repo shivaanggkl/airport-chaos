@@ -5371,6 +5371,7 @@ type ServerMessage =
       cityId: CityId;
       spawnPosition: { x: number; y: number; z: number };
       spawnAirportId?: string;
+      runwaySpawn?: { position: { x: number; y: number; z: number }; heading: number };
       airborneSpawn?: { position: NetworkVector; heading: number; speed: number };
       portalNavigation?: PortalNavigation;
       portalDallasTimePreset?:CityTimeOfDay;
@@ -12691,6 +12692,11 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     if (journeyMode && message.airborneSpawn) {
       spawnPosition.set(message.airborneSpawn.position.x, message.airborneSpawn.position.y, message.airborneSpawn.position.z);
       spawnHeading = message.airborneSpawn.heading;
+    } else if (journeyMode && message.runwaySpawn) {
+      spawnPosition.set(message.runwaySpawn.position.x, message.runwaySpawn.position.y, message.runwaySpawn.position.z);
+      spawnHeading = message.runwaySpawn.heading;
+      heading = spawnHeading; pitch = 0; roll = 0;
+      airplane.rotation.set(0, heading, 0, 'YXZ');
     } else if (cityId === 'milwaukee') {
       spawnPosition.set(message.spawnPosition.x, message.spawnPosition.y, message.spawnPosition.z);
     } else {
