@@ -110,12 +110,18 @@ body:has(.app-shell-header.is-page:not([hidden])) .store-heading {
 .store-art-swatches i { width: 13px; height: 13px; border: 1px solid #8b9dae; border-radius: 50%; }
 .store-art-role {
   position: absolute; z-index: 2; inset: auto 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 9px 6px; background: linear-gradient(transparent, rgb(5 22 49 / 96%) 30%);
-  color: #ffffff; font: 900 clamp(10px, 1.15vw, 15px)/1.15 var(--font-display); text-shadow: 0 1px 2px #06162c;
+  padding: 7px 3px; background: #051631;
+  color: #ffffff; font: 900 11px/1.2 var(--font-display);
 }
-.store-art-role > span { min-width: 0; text-align: center; }
+.store-art { container-type: inline-size; --store-spec-height: clamp(40px, 13cqw, 58px); }
+.store-art-role { height: var(--store-spec-height); box-sizing: border-box; }
+.store-art-role > span { display: grid; align-content: center; gap: 4px; min-width: 0; padding-inline: 2px; text-align: center; white-space: nowrap; }
+.store-spec-label { display: flex; justify-content: center; align-items: center; gap: 3px; font-size: clamp(7px, 2.6cqw, 13px); }
+.store-spec-label svg { flex: none; width: 1em; height: 1em; }
+.store-art-role strong { color: #ffdb39; font-size: clamp(9px, 3.2cqw, 17px); line-height: 1.15; }
+.store-art-role > span:last-child svg { color: #ff5266; fill: currentColor; }
 .store-art-role > span + span { border-left: 1px solid #a5b6c9; }
-.store-art-swatches { bottom: 42px; }
+.store-art-swatches { bottom: calc(var(--store-spec-height) + 7px); }
 .store-status-badge {
   position: absolute; z-index: 3; top: 7px; right: 7px; display: inline-flex; align-items: center; gap: 5px;
   min-height: 25px; padding: 2px 8px 2px 4px; border: 1px solid #20a454; border-radius: 99px;
