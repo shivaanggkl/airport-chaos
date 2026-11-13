@@ -476,6 +476,13 @@ export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
 }
 
 const captureTerritory = territoriesForCity('dallas').find(territory => territory.id === 'las-colinas');
+export const journeyDallasAirportHop01 = Object.freeze({
+  id: 'journey-dallas-airport-hop-01', cityId: 'dallas', name: 'AIRPORT HOP', difficulty: 'MEDIUM',
+  objective: 'Take off, land at two airports, and complete your journey.',
+  startAirportId: 'dfw', firstAirportId: 'love', finishAirportId: 'addison',
+  timeLimitMs: 480_000, firstClearCredits: 750,
+});
+
 export const journeyDallasCapture01 = Object.freeze({
   id: 'journey-dallas-capture-01', cityId: 'dallas', name: 'CAPTURE 1 TERRITORY', difficulty: 'EASY',
   objective: 'Fly into the marked territory and stay inside until it is captured!',
@@ -494,7 +501,7 @@ export const journeyCatalog = Object.freeze([
   [3, 'Golden Ascent'],
   [journeyDallasCapture01.id, 'Capture 1 Territory'],
   [14, 'Surprise Attack'],
-  [null, 'Airport Hop'],
+  [journeyDallasAirportHop01.id, 'Airport Hop'],
   [null, 'Precision Landing'],
   [7, 'Giant Plane'],
   [4, 'Downtown Slalom'],

@@ -200,3 +200,10 @@ export const journeyDallasCapture01: Readonly<{
   territoryId: string; captureDurationMs: 60000; timeLimitMs: 180000; firstClearCredits: 500;
   airborneSpawn: Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
 }>;
+
+export const journeyDallasAirportHop01: Readonly<{
+  id: 'journey-dallas-airport-hop-01'; cityId: 'dallas'; name: 'AIRPORT HOP'; difficulty: 'MEDIUM';
+  objective: 'Take off, land at two airports, and complete your journey.';
+  startAirportId: 'dfw'; firstAirportId: 'love'; finishAirportId: 'addison';
+  timeLimitMs: 480000; firstClearCredits: 750;
+}>;
