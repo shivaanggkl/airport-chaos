@@ -1,4 +1,4 @@
-import { territoriesForCity, territoryCaptureProgress } from '../../shared/city-territories.mjs';
+import { territoriesForCity } from '../../shared/city-territories.mjs';
 import { journeyMissionOrder, journeyCatalog } from '../../shared/journey-mission.mjs';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
@@ -533,7 +533,7 @@ export class JourneyAttemptStore {
   }
 
   /** Server territory ticks supply eligibility, never client progress or completion events. */
-  advanceTerritoryCapture(pilotId: string, attemptId: string, eligible: boolean, now = Date.now()): JourneyAttempt | undefined {
+  advanceTerritoryCapture(pilotId: string, attemptId: string, eligible: boolean, now = Date.now(), resetProgress = false): JourneyAttempt | undefined {
     return this.transaction(pilotId, wallet => {
       const current = this.get(pilotId, attemptId);
       if (!current || current.missionId !== journeyDallasCapture01.id || current.status !== 'RACING' ||
@@ -541,10 +541,10 @@ export class JourneyAttemptStore {
           current.holdUpdatedAt === null || now <= current.holdUpdatedAt) return undefined;
       const elapsed = now - current.holdUpdatedAt;
       // Never credit startup, reconnection or stalled-tick catch-up time.
-      const tickMs = eligible && elapsed <= 800 ? Math.min(400, elapsed) : 0;
+      const tickMs = eligible && !resetProgress && elapsed <= 800 ? Math.min(400, elapsed) : 0;
       const territory = territoriesForCity(journeyDallasCapture01.cityId).find(item => item.id === journeyDallasCapture01.territoryId)!;
-      const captureMs = Math.min(journeyDallasCapture01.captureDurationMs, current.captureMs +
-        Math.round(territoryCaptureProgress(territory, tickMs) * journeyDallasCapture01.captureDurationMs / 100));
+      const captureMs = Math.min(journeyDallasCapture01.captureDurationMs, (resetProgress ? 0 : current.captureMs) +
+        Math.round(tickMs * territory.captureWeight));
       this.database.prepare('UPDATE journey_attempts SET capture_ms=?,hold_updated_at=? WHERE pilot_id=? AND attempt_id=?')
         .run(captureMs, now, pilotId, attemptId);
       if (captureMs >= journeyDallasCapture01.captureDurationMs) {

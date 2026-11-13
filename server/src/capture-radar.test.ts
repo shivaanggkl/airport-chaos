@@ -57,6 +57,24 @@ test('M05 radar fits the actual capture boundary from approach and inside, with 
   runInContext('drawRadarTerritories(direction, focusedTerritoryTargetId())', context);
   assert.equal(canvas.fillStyle, '#ffffff', 'ownership removal restores white');
   assert.doesNotMatch(source, /controllerId \|\| (?:entry\.missionTarget|journeyTarget|definition\.id === focusedTerritoryTargetId\(\)) \? definition\.fixedColor/);
+  for (const position of [{x: territory.center.x - 100000, z: territory.center.z},
+    {x: territory.center.x + 100000, z: territory.center.z},
+    {x: territory.center.x, z: territory.center.z - 100000},
+    {x: territory.center.x, z: territory.center.z + 100000}]) {
+    Object.assign(player.position, position);
+    for (const direction of [{x:1,z:0},{x:0,z:-1},{x:-1,z:0}]) {
+      points.length=0;context.direction=direction;
+      runInContext('setRange(); drawRadarTerritories(direction, focusedTerritoryTargetId())',context);
+      const marker=points.slice(4);
+      assert.equal(marker.length,4,'distant territory has a pinned diamond marker');
+      assert.ok(marker.every(point=>Math.hypot(point.x-90,point.y-90)<77),'marker stays inside radar');
+      const markerX=marker.reduce((sum,point)=>sum+point.x,0)/4-90;
+      const markerY=marker.reduce((sum,point)=>sum+point.y,0)/4-90;
+      const dx=territory.center.x-position.x,dz=territory.center.z-position.z;
+      assert.ok(markerX*(dx*-direction.z+dz*direction.x)+markerY*-(dx*direction.x+dz*direction.z)>0,
+        'marker points toward the territory for every bearing');
+    }
+  }
   context.focusedTerritoryTargetId = () => null;
   runInContext('setRange()', context);
   assert.equal(runInContext('radarRange', context), 3000, 'other gameplay retains the existing range');

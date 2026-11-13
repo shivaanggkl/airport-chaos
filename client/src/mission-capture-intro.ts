@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+import { captureMissionInstructions } from './mission-journey-content';
+
 type CaptureTerritory = Readonly<{
   displayName: string;
   bounds: Readonly<{ minX: number; maxX: number; minZ: number; maxZ: number }>;
@@ -14,7 +16,7 @@ export class MissionCaptureIntroPath {
   private readonly focus: THREE.Vector3;
   private readonly streamingFocus: THREE.Vector3;
 
-  constructor(territory: CaptureTerritory, private readonly captureMs: number,
+  constructor(territory: CaptureTerritory, _captureMs: number,
     heightAt: (x: number, z: number) => number) {
     const { minX, maxX, minZ, maxZ } = territory.bounds;
     const { x, z } = territory.center;
@@ -27,19 +29,16 @@ export class MissionCaptureIntroPath {
 
   text(elapsed: number): string {
     if (elapsed < 3_000) return 'CAPTURE 1 TERRITORY';
-    if (elapsed < 7_000) return 'Fly inside the marked Las Colinas boundary.';
-    if (elapsed < 11_000) return `Stay inside for ${this.captureMs / 1_000} seconds to capture it.`;
-    if (elapsed < 14_000) return 'Progress fills as you stay inside.';
-    return 'Reach 100% to capture the territory.';
+    return captureMissionInstructions.join('\n');
   }
 
   showsTerritory(elapsed: number): boolean { return elapsed >= 2_500 && elapsed < this.sweepMs + 500; }
 
-  showsCaptureRow(elapsed: number): boolean { return elapsed >= 7_000 && elapsed < this.durationMs; }
+  showsCaptureRow(elapsed: number): boolean { return elapsed >= 3_000 && elapsed < this.durationMs; }
 
   demonstrationPercent(elapsed: number): number | undefined {
     if (!this.showsCaptureRow(elapsed)) return undefined;
-    return Math.round(THREE.MathUtils.clamp((elapsed - 11_000) / 3_000, 0, 1) * 100);
+    return Math.max(45, Math.round(THREE.MathUtils.clamp((elapsed - 11_000) / 3_000, 0, 1) * 100));
   }
 
   sample(elapsed: number, position: THREE.Vector3, target: THREE.Vector3,

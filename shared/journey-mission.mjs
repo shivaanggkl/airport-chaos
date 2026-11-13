@@ -1,4 +1,4 @@
-import { territoriesForCity, territoryCaptureDurationMs } from './city-territories.mjs';
+import { territoriesForCity } from './city-territories.mjs';
 import { transportTuning, transportLockParts } from './giant-incoming.mjs';
 import { remoteAircraftScale } from './remote-aircraft-visual-rules.mjs';
 import { addisonClimbGates } from './city-challenges.mjs';
@@ -479,7 +479,7 @@ const captureTerritory = territoriesForCity('dallas').find(territory => territor
 export const journeyDallasCapture01 = Object.freeze({
   id: 'journey-dallas-capture-01', cityId: 'dallas', name: 'CAPTURE 1 TERRITORY', difficulty: 'EASY',
   objective: 'Fly into the marked territory and stay inside until it is captured!',
-  territoryId: captureTerritory.id, captureDurationMs: territoryCaptureDurationMs,
+  territoryId: captureTerritory.id, captureDurationMs: 60_000,
   timeLimitMs: 180_000, firstClearCredits: 500,
   airborneSpawn: Object.freeze({x: captureTerritory.bounds.minX - 15_000, z: captureTerritory.center.z,
     altitude: 800, heading: -Math.PI / 2, speed: 650}),

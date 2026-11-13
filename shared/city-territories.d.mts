@@ -25,4 +25,4 @@ export function territoriesForCity(cityId: string): readonly CityTerritory[];
 export const territoryCaptureDurationMs: 24000;
 export const territoryCaptureCeilingAgl: number;
 export function territoryCaptureProgress(definition: CityTerritory, elapsedMs: number): number;
-export function territoryCaptureFlightEligible(definition: CityTerritory, position: {x:number;y:number;z:number}, groundY:number, speed:number, airborne:boolean): boolean;
+export function territoryCaptureFlightEligible(definition: CityTerritory, position: {x:number;y:number;z:number}, groundY:number, speed:number, airborne:boolean, maximumAgl?:number): boolean;

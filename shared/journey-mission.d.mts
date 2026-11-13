@@ -197,6 +197,6 @@ export function isMonsterJourneyMission(missionId?:string):boolean;
 export const journeyDallasCapture01: Readonly<{
   id: 'journey-dallas-capture-01'; cityId: 'dallas'; name: 'CAPTURE 1 TERRITORY'; difficulty: 'EASY';
   objective: 'Fly into the marked territory and stay inside until it is captured!';
-  territoryId: string; captureDurationMs: 24000; timeLimitMs: 240000; firstClearCredits: 500;
+  territoryId: string; captureDurationMs: 60000; timeLimitMs: 180000; firstClearCredits: 500;
   airborneSpawn: Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
 }>;

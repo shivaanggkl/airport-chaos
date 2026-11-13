@@ -4602,13 +4602,17 @@ function updateJourneyTerritoryCapture(now: number): void {
     const attempt = journeyStore.activeSnapshot(player.pilotId, attemptId);
     if (attempt?.missionId !== journeyDallasCapture01.id || attempt.status !== 'RACING') continue;
     const target = territoriesForCity(journeyDallasCapture01.cityId).find(item => item.id === journeyDallasCapture01.territoryId)!;
+    // M05 captures throughout the territory column, with no upper altitude limit.
     const eligible = hasOpenPlayerSocket(playerId) && !pausedJourneyAttempts.has(attemptId) &&
       player.cityId === journeyDallasCapture01.cityId && player.lifeState === 'alive' && player.health > 0 &&
       player.hasRespawnTransform && !player.portalTransit && now - player.lastStateAt <= 1500 &&
       territoryCaptureFlightEligible(target, player.lastAcceptedPosition, botTerrainHeight(player.cityId,
         player.lastAcceptedPosition.x, player.lastAcceptedPosition.z),
-        Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z), landingFlightState.get(playerId)?.airborne === true);
-    const updated = journeyStore.advanceTerritoryCapture(player.pilotId, attemptId, eligible, now);
+        Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z), landingFlightState.get(playerId)?.airborne === true, Infinity);
+    const outsideTerritory = hasOpenPlayerSocket(playerId) && now - player.lastStateAt <= 1500 &&
+      Number.isFinite(player.lastAcceptedPosition.x) && Number.isFinite(player.lastAcceptedPosition.z) &&
+      !territoryContains(target, player.lastAcceptedPosition);
+    const updated = journeyStore.advanceTerritoryCapture(player.pilotId, attemptId, eligible, now, outsideTerritory);
     if (updated && (updated.captureMs !== attempt.captureMs || updated.status !== attempt.status)) sendJourneyState(playerId, updated);
   }
 }
