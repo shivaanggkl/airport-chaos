@@ -710,7 +710,7 @@ function cityJourneyState(entry: CityJourneyEntry): { detail: string; status: st
   }
   const unlocked = cityJourneyMode !== 'missions' || entry.id !== 'dallas' || dallasUnlocked();
   const detail = cityJourneyMode === 'missions'
-    ? `${missionJourneyStages.filter(stage => stage.implementation === 'playable').length} MISSIONS`
+    ? `${journeyCatalog.length} MISSIONS`
     : cityJourneyMode === 'multiplayer' ? homeMultiplayerModes.find(mode=>mode.id===selectedHomeMultiplayerMode)!.title : capabilities?.competitiveEnabled ? 'MULTIPLAYER FREE FLY' : 'PRACTICE FREE FLY';
   return { city, detail, status: unlocked ? 'AVAILABLE' : 'COMPLETE MILWAUKEE TRAINING FIRST', cta: unlocked ? cityJourneyMode === 'missions' ? 'VIEW MISSIONS' : 'CONTINUE' : 'LOCKED', locked: !unlocked, disabled: !unlocked && cityJourneyMode !== 'missions' };
 }
@@ -762,7 +762,7 @@ function createCityJourneyCards(): void {
       artwork.querySelector('.home-mode-flag')!.classList.toggle('is-unavailable', comingSoon);
       statusTag.classList.toggle('is-unavailable', comingSoon);
       statusTag.textContent = comingSoon ? 'COMING SOON'
-        : entry.id === 'milwaukee' ? 'PRACTICE' : `${journeyMissionOrder.length} MISSIONS`;
+        : entry.id === 'milwaukee' ? 'PRACTICE' : `${journeyCatalog.length} MISSIONS`;
       artwork.querySelector('.menu-card-artwork')!.append(statusTag);
       card.append(artwork);
     }
@@ -833,7 +833,7 @@ function renderCityJourney(): void {
     }
     view.card.tabIndex = fullCardDisplay && offset === 0 && !state.disabled ? 0 : -1;
     if (dallasFullCard) view.card.setAttribute('aria-label', cityJourneyMode === 'missions'
-      ? `Dallas, Single Player, ${journeyMissionOrder.length} missions`
+      ? `Dallas, Single Player, ${journeyCatalog.length} missions`
       : cityJourneyMode === 'solo-free-fly' || selectedHomeMultiplayerMode==='assault' ? 'Dallas, Single Player' : 'Dallas, Multiplayer');
     else if (entry.id === 'milwaukee') view.card.setAttribute('aria-label', 'Milwaukee, Training City');
     else if (entry.id === 'california') view.card.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'California, Single Player, Coming Soon' : 'California, Multiplayer, Coming Soon');

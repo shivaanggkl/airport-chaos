@@ -32,7 +32,7 @@ const scenes: Record<(typeof trainingSlideIds)[number], { instruction: string; s
     'Move the SPEED LEVER to SLOW.',
     'Use JOYSTICK to LINE UP with RUNWAY.',
     'Drag the JOYSTICK down towards the RUNWAY.',
-    'Just above the RUNWAY, move the SPEED LEVER to IDLE to STOP.',
+    'Just above the RUNWAY, move the SPEED LEVER to VERY SLOW to STOP.',
   ], control: 'landing', motion: 'down' },
 };
 

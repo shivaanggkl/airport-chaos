@@ -124,6 +124,7 @@ import { MissionFourIntroPath } from './mission-four-intro';
 import { MissionFiveIntroPath } from './mission-five-intro';
 import { MissionSixIntroPath } from './mission-six-intro';
 import { MissionCaptureIntroPath } from './mission-capture-intro';
+import { AirportHopIntro } from './mission-airport-hop-intro';
 import { isPerfectLandingGrade, regionCinematicPresentation } from '../../shared/gameplay-cinematic-rules.mjs';
 import { formatPilotAltitude, formatRelativeAltitude } from '../../shared/multiplayer-altitude.mjs';
 import { TutorialStepReconciler } from '../../shared/tutorial-step-reconciler.mjs';
@@ -2102,7 +2103,10 @@ function drawRadarMarker(
     radarContext.fillStyle = visualLanguage.mission.color;
     radarContext.font = '700 8px ui-monospace, monospace';
     radarContext.textAlign = 'center';
-    radarContext.fillText(label || 'MISSION', x, Math.max(9, y - 10));
+    // Keep the airport instruction inside the circle when its bearing pins to the rim.
+    const airportHop = journeyAttempt?.missionId === journeyDallasAirportHop01.id;
+    radarContext.fillText(label || 'MISSION', airportHop ? center + radarX * .55 : x,
+      airportHop ? center + radarY * .55 - 12 : Math.max(9, y - 10));
     return;
   }
 
@@ -2256,9 +2260,14 @@ function updateRadar(direction: THREE.Vector3): void {
   const activeMission = serverProfile.missions[cityId]?.active;
   const activeMissionDefinition = activeMission && missionForCity(cityId, activeMission.missionId);
 
+  const hopDestination = airportHopDestination(true);
   for (const airport of airports) {
-    if (missionFocus?.showUnrelatedAirportLabels === false && airport.id !== airportHopDestination()?.id) continue;
-    drawRadarMarker(direction, airport.x, airport.z, 'airport', radarAirportLabels[airport.id]);
+    if (missionFocus?.showUnrelatedAirportLabels === false && airport.id !== hopDestination?.id) continue;
+    if (airport.id === hopDestination?.id) {
+      const stage = journeyAttempt?.airportHopStage ?? 0;
+      const stop = stage < 2 ? 2 : 3;
+      drawRadarMarker(direction, airport.x, airport.z, 'mission', `AIRPORT ${stop}`);
+    } else drawRadarMarker(direction, airport.x, airport.z, 'airport', radarAirportLabels[airport.id]);
   }
   if (!skyDuelMode) for (const beacon of airAssaultMode?airAssaultRepairBeacons:repairsForCity(cityId)) {
     if (beacon.kind === 'heart') drawRadarMarker(direction, beacon.x, beacon.z, 'repairHeart');
@@ -2354,7 +2363,7 @@ function updateNavigationHud(): void {
     y: lockCircleCenterY,
     radius: lockCircleRadius,
     active: selectedCombatTarget !== null,
-  });
+  }, airportHopDestination(true)?.id);
   updateTerritoryLabels();
   updateCaptureHud();
   updateSocialHud();
@@ -3001,10 +3010,10 @@ function updateSkyChallengeHud(): void {
   skyChallengeElement.textContent = `${challenge.name} · GATE ${challenge.gate}/${challenge.total} · COMBO x${challenge.combo} · ${Math.ceil(challenge.timeRemaining)}s`;
 }
 
-function airportHopDestination(): AirportDefinition | undefined {
+function airportHopDestination(nextLanding = false): AirportDefinition | undefined {
   if (journeyAttempt?.missionId !== journeyDallasAirportHop01.id || !['APPROACH','RACING'].includes(journeyAttempt.status)) return undefined;
   const stage = journeyAttempt.airportHopStage ?? 0;
-  const id = stage === 0 ? 'dfw' : stage < 3 ? 'love' : 'addison';
+  const id = nextLanding ? stage < 2 ? 'love' : 'addison' : stage === 0 ? 'dfw' : stage < 3 ? 'love' : 'addison';
   return airports.find(airport => airport.id === id);
 }
 
@@ -3072,7 +3081,16 @@ function updateJourneyHud(): void {
   if (journeyAttempt.missionId === journeyDallasAirportHop01.id) {
     const stage = journeyAttempt.airportHopStage ?? 0;
     const airport = airportHopDestination();
-    if (journeyHudObjective) journeyHudObjective.textContent = journeyDallasAirportHop01.objective;
+    if (journeyHudObjective && !journeyHudObjective.querySelector('.airport-hop-instructions')) {
+      const list = document.createElement('span');
+      list.className = 'airport-hop-instructions';
+      list.setAttribute('role', 'list');
+      for (const instruction of journeyDallasAirportHop01.objective.split('\n')) {
+        const item = document.createElement('span');
+        item.setAttribute('role', 'listitem'); item.textContent = instruction; list.append(item);
+      }
+      journeyHudObjective.replaceChildren(list);
+    }
     if (journeyHudProgress) { journeyHudProgress.hidden = false; journeyHudProgress.textContent = `LANDINGS ${stage >= 4 ? 2 : stage >= 2 ? 1 : 0}/2`; }
     if (journeyHudTarget) { journeyHudTarget.hidden = false; journeyHudTarget.textContent = stage >= 4 ? 'MISSION COMPLETE!'
       : stage === 2 ? 'TAKE OFF AGAIN' : `${stage === 0 ? 'TAKE OFF FROM' : 'LAND AT'} ${airport?.name.toUpperCase() ?? ''}`; }
@@ -3633,7 +3651,7 @@ function beginMissionClear(attempt: JourneyAttemptState): void {
   missionClearDirection.normalize();
   missionClearLevel.setFromAxisAngle(cameraWorldUp, Math.atan2(-missionClearDirection.x, -missionClearDirection.z));
   missionClearVelocity.copy(velocity);
-  if (missionClearVelocity.lengthSq() < 1) missionClearVelocity.copy(missionClearDirection).multiplyScalar(Math.max(80, currentSpeed));
+  if (attempt.missionId !== journeyDallasAirportHop01.id && missionClearVelocity.lengthSq() < 1) missionClearVelocity.copy(missionClearDirection).multiplyScalar(Math.max(80, currentSpeed));
   missionClearCruiseVelocity.copy(missionClearDirection).multiplyScalar(
     THREE.MathUtils.clamp(Math.hypot(missionClearVelocity.x, missionClearVelocity.z) * 0.45, 90, 220));
   missionClearCruiseVelocity.y = 5;
@@ -3641,8 +3659,10 @@ function beginMissionClear(attempt: JourneyAttemptState): void {
   mobileInput.reset();
   boostActive = false;
   runStarted = false;
-  resetCameraPointers();
-  cameraOrbitRecenterAt = performance.now() + 400;
+  if (attempt.missionId !== journeyDallasAirportHop01.id) {
+    resetCameraPointers();
+    cameraOrbitRecenterAt = performance.now() + 400;
+  }
   cinematicDirector.clearPresentation();
   journeyResultElement.classList.add('hidden');
   const missionName = journeyCatalog.find(slot => slot.id === attempt.missionId)?.title ?? 'MISSION';
@@ -3720,6 +3740,18 @@ function updateMissionClear(delta: number): void {
     audioManager.playReward();
   }
   missionClearElement.classList.toggle('is-exiting', elapsed >= MISSION_CLEAR_DURATION_MS - 400);
+  if (journeyAttempt?.missionId === journeyDallasAirportHop01.id) {
+    // Airport Hop finishes on the runway: retain touchdown pose and camera,
+    // and ease the existing ground velocity to rest instead of flying away.
+    const decay = Math.exp(-delta * 2);
+    missionClearVelocity.y = 0;
+    airplane.position.addScaledVector(missionClearVelocity, (1 - decay) / 2);
+    missionClearVelocity.multiplyScalar(decay);
+    velocity.copy(missionClearVelocity);
+    currentSpeed = Math.hypot(velocity.x, velocity.z);
+    verticalSpeed = 0;
+    return;
+  }
   missionClearVelocity.lerp(missionClearCruiseVelocity, 1 - Math.exp(-delta * 0.7));
   airplane.position.addScaledVector(missionClearVelocity, delta);
   airplane.position.y = Math.max(airplane.position.y, getTerrainHeight(airplane.position.x, airplane.position.z) + 35);
@@ -4887,7 +4919,7 @@ let missionFourIntroPath: MissionFourIntroPath | undefined;
 let missionFiveIntroPath: MissionFiveIntroPath | undefined;
 let missionSixIntroPath: MissionSixIntroPath | undefined;
 let missionAirportHopIntro = false;
-let missionAirportHopIntroLines: readonly string[] = [];
+let missionAirportHopPresentation: AirportHopIntro | undefined;
 let missionCaptureIntroPath: MissionCaptureIntroPath | undefined;
 let missionCombatIntroPath: CombatMissionIntroPath | undefined;
 let missionCombatIntroAircraft: THREE.Group | undefined;
@@ -5142,7 +5174,7 @@ function beginFlightLaunchCinematic(): void {
   if (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath || missionAirportHopIntro || missionCaptureIntroPath || missionCombatIntroPath) {
     flightLaunchTitle.classList.add('is-golden-gates');
     flightLaunchTitle.classList.add('is-runway-gates');
-    flightLaunchTitle.innerHTML = missionAirportHopIntro ? '<span>AIRPORT HOP</span>' : missionCaptureIntroPath ? `<span>${missionCaptureIntroPath.text(0)}</span>` : missionCombatIntroPath
+    flightLaunchTitle.innerHTML = missionAirportHopIntro ? '<span>AIRPORT HOP · TWO LANDINGS</span>' : missionCaptureIntroPath ? `<span>${missionCaptureIntroPath.text(0)}</span>` : missionCombatIntroPath
       ? missionCombatIntroPath.missionNumber === 19 ? journeyAttempt?.missionId===journeyDallas19.id?'<span>FINAL MONSTER BATTLE · DEFEAT THE MONSTER</span>':journeyAttempt?.missionId===journeyDallas25.id?'<span>DR. BOSS · DEFEAT THE MONSTER</span>':'<span>ASHEN WARLORD · DESTROY THE BOSS</span>'
         : missionCombatIntroPath.missionNumber === 8 ? '<span>Find And Shoot Down BLUEJAY Plane Before Time Runs Out.</span>'
         : missionCombatIntroPath.missionNumber === 9 ? '<span>Find And Shoot Down MAMMOTH Plane Before Time Runs Out.</span>'
@@ -5195,6 +5227,8 @@ function clearFlightLaunchPresentation(): void {
   missionFiveIntroPath = undefined;
   missionSixIntroPath = undefined;
   missionAirportHopIntro = false;
+  missionAirportHopPresentation?.dispose();
+  missionAirportHopPresentation = undefined;
   missionCaptureIntroPath = undefined;
   territoryWallMaterial.uniforms.overview.value = 0;
   territoryBorderRefreshAt = 0;
@@ -5271,13 +5305,18 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
   const now = performance.now();
   if (missionAirportHopIntro) {
     const elapsed = now - flightLaunchStartedAt;
-    const text = missionAirportHopIntroLines[Math.min(3, Math.floor(elapsed / 3_000))];
-    if (flightLaunchTitle.textContent !== text) flightLaunchTitle.textContent = text;
-    flightLaunchTitle.classList.add('is-visible');
-    camera.position.copy(chasePosition); flightLaunchCurrentTarget.copy(chaseTarget);
-    camera.lookAt(chaseTarget);
-    if (Math.abs(camera.fov - chaseFov) >= .01) { camera.fov = chaseFov; camera.updateProjectionMatrix(); }
-    if (flightLaunchSkipStartedAt !== undefined || elapsed >= 12_000) completeFlightLaunchCinematic();
+    const skipped = flightLaunchSkipStartedAt !== undefined;
+    const handoff = THREE.MathUtils.smoothstep(skipped
+      ? (now - flightLaunchSkipStartedAt!) / FLIGHT_LAUNCH_SKIP_BLEND_MS
+      : (elapsed - 10_500) / 1_500, 0, 1);
+    missionAirportHopPresentation?.sample(elapsed, camera.position, flightLaunchCurrentTarget,
+      chasePosition, chaseTarget, camera.aspect, handoff);
+    camera.lookAt(flightLaunchCurrentTarget);
+    const fov = THREE.MathUtils.lerp(58, chaseFov, handoff);
+    if (Math.abs(camera.fov - fov) >= .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    missionAirportHopPresentation?.update(camera, handoff);
+    flightLaunchTitle.classList.toggle('is-visible', handoff < .5);
+    if (handoff >= 1) completeFlightLaunchCinematic();
     return true;
   }
   const runwayGateIntroPath = missionOneIntroPath ?? missionTwoIntroPath ?? missionThreeIntroPath ?? missionFourIntroPath ?? missionFiveIntroPath ?? missionSixIntroPath ?? missionCaptureIntroPath ?? missionCombatIntroPath;
@@ -10417,11 +10456,21 @@ function updateFlight(delta: number): void {
   velocity.addScaledVector(forward, thrust * delta);
   velocity.addScaledVector(liftDirection, 9.81 * liftFactor * delta);
   velocity.y -= 9.81 * delta;
-  if (landingAssistActive && approachHeight < 14 && velocity.y < 0) {
-    const groundEffect = 1 - THREE.MathUtils.clamp(approachHeight / 14, 0, 1);
+  // VERY SLOW can stall before touchdown. Begin its runway flare throughout
+  // the existing approach envelope, rather than waiting until the last 14 units.
+  const flareHeight = throttle <= 0.08 ? 160 : 14;
+  if (landingAssistActive && approachHeight < flareHeight && velocity.y < 0) {
+    const groundEffect = 1 - THREE.MathUtils.clamp(approachHeight / flareHeight, 0, 1);
     velocity.y += groundEffect * 2.8 * delta;
-    const softenedDescent = -currentAircraft.safeDescentRate * 0.9;
+    const softenedDescent = -currentAircraft.safeDescentRate * (throttle <= 0.08 ? 0.75 : 0.9);
     if (velocity.y < softenedDescent) velocity.y = THREE.MathUtils.lerp(velocity.y, softenedDescent, Math.min(1, delta * 2.4));
+    if (throttle <= 0.08 && currentSpeed <= currentAircraft.safeLandingSpeed * 1.18) {
+      // A late runway intercept must still flare before contact. Bound descent
+      // by the remaining clearance, converging to the same safe touchdown rate.
+      const flareDeceleration = currentAircraft.safeDescentRate * 1.5;
+      const descentLimit = Math.sqrt(softenedDescent ** 2 + 2 * flareDeceleration * Math.max(0, approachHeight));
+      velocity.y = Math.max(velocity.y, -descentLimit);
+    }
   }
   if (airspeed > 0.01) velocity.addScaledVector(velocity, -Math.min(0.85, drag * delta / airspeed));
 
@@ -10708,8 +10757,8 @@ function updateCamera(delta: number): void {
     : THREE.MathUtils.lerp(camera.fov, targetFov, Math.min(0.15, delta * 2.5));
   skyDome.position.copy(camera.position);
   const altitudeFactor = THREE.MathUtils.clamp(altitudeAboveTerrain() / 6000, 0, 1);
-  const captureOverview = missionCaptureIntroPath && launchCameraApplied && flightLaunchSkipStartedAt === undefined &&
-    missionCaptureIntroPath.showsTerritory(performance.now() - flightLaunchStartedAt);
+  const captureOverview = launchCameraApplied && (missionAirportHopIntro || missionCaptureIntroPath &&
+    flightLaunchSkipStartedAt === undefined && missionCaptureIntroPath.showsTerritory(performance.now() - flightLaunchStartedAt));
   const overviewDistance = captureOverview ? camera.position.distanceTo(flightLaunchCurrentTarget) : 0;
   const targetFar = Math.max(THREE.MathUtils.lerp(CAMERA_BASE_FAR, CAMERA_HIGH_FAR, altitudeFactor), overviewDistance * 2);
   if ((!portalInTransit || portalTransition?.revealingAt !== undefined) && scene.fog instanceof THREE.Fog) {
@@ -11220,7 +11269,9 @@ function animate(): void {
   updateFlashEffects(muzzleFlashes, muzzleFlashPool, delta);
   updateFlashEffects(impactFlashes, impactFlashPool, delta);
   updateDestructionEffects(delta);
-  const streamingPosition = missionCaptureIntroPath && flightLaunchState === 'active' && flightLaunchSkipStartedAt === undefined && performance.now() - flightLaunchStartedAt < missionCaptureIntroPath.sweepMs - 1_000
+  const streamingPosition = missionAirportHopPresentation && flightLaunchState === 'active' && flightLaunchSkipStartedAt === undefined && performance.now() - flightLaunchStartedAt < 10_500
+    ? missionAirportHopPresentation.focus
+    : missionCaptureIntroPath && flightLaunchState === 'active' && flightLaunchSkipStartedAt === undefined && performance.now() - flightLaunchStartedAt < missionCaptureIntroPath.sweepMs - 1_000
     ? missionCaptureIntroPath.streamingPosition()
     : missionCombatIntroPath && (flightLaunchState === 'active'||flightLaunchState==='pending'&&(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro))
     ? (missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro)&&flightLaunchSkipStartedAt!==undefined?airplane.position:missionCombatIntroPath.streamingPosition(flightLaunchState==='pending'?0:Math.max(0,performance.now()-flightLaunchStartedAt-m19StoryOffsetMs))
@@ -12792,9 +12843,8 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       runwayJourneyIntroAwaiting = false;
       if (message.attempt.missionId === journeyDallasAirportHop01.id && message.attempt.status === 'APPROACH') {
         missionAirportHopIntro = true;
-        const airportName = (id: string) => airports.find(airport => airport.id === id)!.name;
-        missionAirportHopIntroLines = ['AIRPORT HOP', `Take off from ${airportName('dfw')}.`,
-          `Land at ${airportName('love')}. Then take off again.`, `Land at ${airportName('addison')} to complete the mission!`];
+        missionAirportHopPresentation?.dispose();
+        missionAirportHopPresentation = new AirportHopIntro(airports, getTerrainHeight, flightGameRoot);
         flightGameRoot.classList.add('airport-hop-intro');
         beginFlightLaunchCinematic();
       } else if (message.attempt.missionId === journeyDallasCapture01.id && message.attempt.status === 'APPROACH') {

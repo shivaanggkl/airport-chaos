@@ -81,8 +81,12 @@ export class NavigationBeaconSystem {
     waypoint: Waypoint,
     terrainHeight: (x: number, z: number) => number,
     combatExclusion: CombatExclusion,
+    missionDestinationId?: string,
   ): void {
-    if (!this.enabled) return;
+    if (!this.enabled && !missionDestinationId) {
+      this.setEnabled(false);
+      return;
+    }
     const now = performance.now();
     if (now >= this.nextHudBoundsAt) {
       this.nextHudBoundsAt = now + 500;
@@ -90,7 +94,9 @@ export class NavigationBeaconSystem {
     }
     const candidates = this.entries
       .map((entry) => ({ entry, distance: Math.hypot(entry.destination.x - playerPosition.x, entry.destination.z - playerPosition.z) }))
-      .filter((candidate) => candidate.distance >= NEAR_HIDE_DISTANCE && candidate.distance <= FAR_HIDE_DISTANCE)
+      .filter((candidate) => missionDestinationId
+        ? candidate.entry.destination.id === missionDestinationId
+        : candidate.distance >= NEAR_HIDE_DISTANCE && candidate.distance <= FAR_HIDE_DISTANCE)
       .sort((left, right) => left.distance - right.distance)
       .slice(0, MAX_VISIBLE_DESTINATIONS);
     const visible = new Set(candidates.map((candidate) => candidate.entry));
@@ -100,7 +106,7 @@ export class NavigationBeaconSystem {
       if (!candidate) { entry.label.hidden = true; continue; }
       this.positionLabel(entry.label, entry.destination.x, terrainHeight(entry.destination.x, entry.destination.z) + 870, entry.destination.z, `${entry.destination.label} · ${this.formatDistance(candidate.distance)}`, camera, combatExclusion);
     }
-    if (!waypoint) {
+    if (!waypoint || missionDestinationId) {
       this.waypointMesh.visible = false;
       this.waypointLabel.hidden = true;
       return;
