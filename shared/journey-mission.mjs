@@ -478,10 +478,10 @@ export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
 const captureTerritory = territoriesForCity('dallas').find(territory => territory.id === 'las-colinas');
 export const journeyDallasCoinHunt01 = Object.freeze({
   id: 'journey-dallas-coin-hunt-01', cityId: 'dallas', name: 'DALLAS COIN HUNT', difficulty: 'MEDIUM',
-  objective: 'Fly through the golden coins to collect 90 before time runs out!',
-  timeLimitMs: 240_000, firstClearCredits: 900, coinCount: 100, requiredCoins: 90,
-  creditsPerCoin: 10, pickupRadius: 260,
-  airborneSpawn: Object.freeze({ ...scaleDallasPoint({x:5100,z:-9000}), altitude:1100, heading:-Math.PI+Math.atan(Math.PI*900/13860), speed:1200 }),
+  objective: 'Fly through as many golden coins as you can!',
+  timeLimitMs: 120_000, firstClearCredits: 1000, coinCount: 1000,
+  creditsPerCoin: 1, pickupRadius: 260,
+  airborneSpawn: Object.freeze({ x:10102.53,z:-37059.03, altitude:1100, heading:-2.397, speed:1200 }),
 });
 
 export const journeyDallasSharpshooter01 = Object.freeze({

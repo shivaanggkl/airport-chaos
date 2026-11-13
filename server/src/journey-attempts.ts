@@ -1,4 +1,4 @@
-import { dallasCoinTrail, emptyCoinMask, collectTrail, type CoinHuntState } from '../../shared/collectible-trail.mjs';
+import { dallasCoinTrail, emptyCoinMask, coinTrailVersion, collectTrail, type CoinHuntState } from '../../shared/collectible-trail.mjs';
 import type { SharpshooterTarget } from '../../shared/sharpshooter-target.mjs';
 import { territoriesForCity } from '../../shared/city-territories.mjs';
 import { journeyMissionOrder, journeyCatalog } from '../../shared/journey-mission.mjs';
@@ -339,6 +339,9 @@ export class JourneyAttemptStore {
     if (!columns.some(column => column.name === 'repair_collected_at')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN repair_collected_at INTEGER');
     if (!columns.some(column => column.name === 'landing_score')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN landing_score INTEGER');
     if (!columns.some(column => column.name === 'coin_hunt_state')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN coin_hunt_state TEXT');
+    this.database.prepare(`UPDATE journey_attempts SET status='ABANDONED',failure_reason='DEFINITION_UPDATED',finished_at=?
+      WHERE mission_id=? AND status IN ('READY','APPROACH','RACING') AND coin_hunt_state IS NOT NULL AND COALESCE(json_extract(coin_hunt_state,'$.version'),0)<>?`)
+      .run(Date.now(),journeyDallasCoinHunt01.id,coinTrailVersion);
     if (!columns.some(column => column.name === 'sharpshooter_state')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN sharpshooter_state TEXT');
     if (!columns.some(column => column.name === 'airport_hop_stage')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN airport_hop_stage INTEGER NOT NULL DEFAULT 0 CHECK(airport_hop_stage BETWEEN 0 AND 4)');
     if (!columns.some(column => column.name === 'capture_ms')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN capture_ms INTEGER NOT NULL DEFAULT 0');
@@ -392,12 +395,14 @@ export class JourneyAttemptStore {
       if (now - cached.usedAt >= 60_000 || cached.attempt.deadlineAt !== null && cached.attempt.deadlineAt <= now)
         this.activeSnapshots.delete(pilotId);
     }
+    const bonusRows=this.database.prepare(`SELECT pilot_id,attempt_id FROM journey_attempts WHERE mission_id=? AND paused_at IS NOT NULL AND paused_at<=? AND status IN ('READY','APPROACH','RACING')`).all(journeyDallasCoinHunt01.id,now-JOURNEY_PAUSE_LIMIT_MS) as {pilot_id:string;attempt_id:string}[];
+    const bonuses=bonusRows.map(row=>this.settleCoinHunt(row.pilot_id,row.attempt_id,now)!);
     const rows = this.database.prepare(`UPDATE journey_attempts
       SET status = 'FAILED', failure_reason = 'PAUSE_EXPIRED', finished_at = ?, paused_at = NULL
       WHERE paused_at IS NOT NULL AND paused_at <= ? AND status IN ('READY','APPROACH','RACING')
       RETURNING *`).all(now, now - JOURNEY_PAUSE_LIMIT_MS) as AttemptRow[];
     for (const row of rows) this.activeSnapshots.delete(row.pilot_id);
-    return rows.map(attempt);
+    return [...bonuses,...rows.map(attempt)];
   }
 
   resume(pilotId: string, attemptId: string, now = Date.now()): { attempt: JourneyAttempt; pausedMs: number } | undefined {
@@ -512,6 +517,8 @@ export class JourneyAttemptStore {
   launch(pilotId: string, aircraftType: string, now = Date.now(), missionId: string = journeyDallas01.id): JourneyAttempt {
     if (missionId !== journeyDallasCoinHunt01.id && missionId !== journeyDallasSharpshooter01.id && missionId !== journeyDallasAirportHop01.id && missionId !== journeyDallasCapture01.id && missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id && missionId !== journeyDallas04.id && missionId !== journeyDallas05.id && missionId !== journeyDallas06.id && missionId !== journeyDallas07.id && missionId !== journeyDallas08.id && missionId !== journeyDallas09.id && missionId !== journeyDallas10.id && missionId !== journeyDallas11.id && missionId !== journeyDallas12.id && missionId !== journeyDallas13.id && missionId !== journeyDallas14.id && missionId !== journeyDallas15.id && missionId !== journeyDallas16.id && missionId !== journeyDallas17.id && missionId !== journeyDallas18.id && (missionId!==journeyDallas19.id&&missionId!==journeyDallas25.id) && missionId !== journeyDallas20.id && missionId !== journeyDallas21.id && missionId !== journeyDallas22.id && missionId !== journeyDallas23.id && missionId !== journeyDallas24.id) throw new Error('Unknown Journey mission');
     if (!this.canAccessMission(pilotId, missionId)) throw new Error('Journey mission is locked');
+    const bonus=this.database.prepare(`SELECT * FROM journey_attempts WHERE pilot_id=? AND mission_id=? AND status IN ('READY','APPROACH','RACING')`).get(pilotId,journeyDallasCoinHunt01.id) as AttemptRow|undefined;
+    if(bonus){if(missionId===journeyDallasCoinHunt01.id)return attempt(bonus);throw new Error('Finish your bonus round first');}
     return this.transaction(pilotId, () => {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', finished_at = ?, failure_reason = 'REPLACED' WHERE pilot_id = ? AND status IN ('READY','APPROACH','RACING')")
         .run(now, pilotId);
@@ -554,8 +561,35 @@ export class JourneyAttemptStore {
     if(!Number.isFinite(altitude))return undefined;
     this.database.prepare(`UPDATE journey_attempts SET coin_hunt_state=? WHERE pilot_id=? AND attempt_id=?
       AND mission_id=? AND status='APPROACH' AND coin_hunt_state IS NULL`)
-      .run(JSON.stringify({mask:emptyCoinMask,collected:0,altitude}),pilotId,attemptId,journeyDallasCoinHunt01.id);
+      .run(JSON.stringify({version:coinTrailVersion,mask:emptyCoinMask,collected:0,altitude,lastIndex:0}),pilotId,attemptId,journeyDallasCoinHunt01.id);
     return this.get(pilotId,attemptId);
+  }
+
+  /** Single settlement path for full collection, deadline and explicit cash-out. */
+  private finishCoinHunt(pilotId:string,attemptId:string,now:number,wallet:WalletTransaction):JourneyAttempt|undefined {
+    const a=this.get(pilotId,attemptId);
+    if(a?.missionId!==journeyDallasCoinHunt01.id||(a.coinHunt&&a.coinHunt.version!==coinTrailVersion)||!['READY','APPROACH','RACING'].includes(a.status))return a;
+    const elapsed=Math.max(0,Math.min(journeyDallasCoinHunt01.timeLimitMs,now-(a.startedAt??now)));
+    const first=this.database.prepare(`INSERT OR IGNORE INTO journey_completions
+      (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`).run(pilotId,a.missionId,attemptId,now,elapsed).changes===1;
+    const credits=first?Math.min(1000,a.coinHunt?.collected??0):0;
+    if(credits){const reward=wallet.credit({pilotId,currency:'CREDITS',amount:credits,reason:'MISSION_REWARD',
+      idempotencyKey:`journey:${a.missionId}`,referenceId:a.missionId,createdAt:now});if(!reward.ok)throw new Error('Coin hunt reward failed');}
+    if(!first)this.database.prepare(`UPDATE journey_completions SET clear_count=clear_count+1 WHERE pilot_id=? AND mission_id=?`).run(pilotId,a.missionId);
+    this.database.prepare(`UPDATE journey_attempts SET status='COMPLETED',finished_at=?,finish_time_ms=?,first_clear_credits=?,paused_at=NULL WHERE pilot_id=? AND attempt_id=?`)
+      .run(now,elapsed,credits,pilotId,attemptId);
+    return this.get(pilotId,attemptId);
+  }
+
+  settleCoinHunt(pilotId:string,attemptId:string,now=Date.now()):JourneyAttempt|undefined {
+    return this.transaction(pilotId,wallet=>this.finishCoinHunt(pilotId,attemptId,now,wallet));
+  }
+
+  /** Durable expiry sweep also covers disconnected pilots and server restarts. */
+  settleExpiredCoinHunts(now=Date.now()):JourneyAttempt[] {
+    const rows=this.database.prepare(`SELECT pilot_id,attempt_id FROM journey_attempts WHERE mission_id=? AND status='RACING' AND paused_at IS NULL AND deadline_at<=?`)
+      .all(journeyDallasCoinHunt01.id,now) as {pilot_id:string;attempt_id:string}[];
+    return rows.map(row=>this.settleCoinHunt(row.pilot_id,row.attempt_id,now)!).filter(Boolean);
   }
 
   startCoinHunt(pilotId:string,attemptId:string,now=Date.now()):JourneyAttempt|undefined {
@@ -569,27 +603,16 @@ export class JourneyAttemptStore {
   collectCoins(pilotId:string,attemptId:string,start:{x:number;y:number;z:number},end:{x:number;y:number;z:number},now=Date.now()):JourneyAttempt|undefined {
     if(![start.x,start.y,start.z,end.x,end.y,end.z].every(Number.isFinite))return undefined;
     const candidate=this.activeSnapshot(pilotId,attemptId),mission=journeyDallasCoinHunt01;
-    if(candidate?.missionId!==mission.id||candidate.status!=='RACING'||candidate.pausedAt!==null||candidate.deadlineAt===null||now>=candidate.deadlineAt||!candidate.coinHunt)return undefined;
-    const pickup=collectTrail(dallasCoinTrail,candidate.coinHunt.altitude,candidate.coinHunt.mask,start,end,mission.pickupRadius,mission.requiredCoins-candidate.coinHunt.collected);
+    if(candidate?.missionId!==mission.id||candidate.status!=='RACING'||candidate.pausedAt!==null||candidate.deadlineAt===null||now>=candidate.deadlineAt||!candidate.coinHunt||candidate.coinHunt.version!==coinTrailVersion)return undefined;
+    const pickup=collectTrail(dallasCoinTrail,candidate.coinHunt.altitude,candidate.coinHunt.mask,start,end,mission.pickupRadius,mission.coinCount-candidate.coinHunt.collected);
     if(!pickup.count)return undefined;
     return this.transaction(pilotId,wallet=>{
       const a=this.get(pilotId,attemptId);
       if(a?.status!=='RACING'||a.pausedAt!==null||a.deadlineAt===null||now>=a.deadlineAt||!a.coinHunt||a.coinHunt.mask!==candidate.coinHunt!.mask)return undefined;
       if(!pickup.count)return undefined;
-      const state={...a.coinHunt,mask:pickup.mask,collected:a.coinHunt.collected+pickup.count};
+      const state={...a.coinHunt,mask:pickup.mask,collected:a.coinHunt.collected+pickup.count,lastIndex:Math.max(a.coinHunt.lastIndex??0,pickup.lastIndex)};
       this.database.prepare('UPDATE journey_attempts SET coin_hunt_state=? WHERE pilot_id=? AND attempt_id=?').run(JSON.stringify(state),pilotId,attemptId);
-      if(state.collected===mission.requiredCoins){
-        const elapsed=now-a.startedAt!;
-        const first=this.database.prepare(`INSERT OR IGNORE INTO journey_completions
-          (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`).run(pilotId,a.missionId,attemptId,now,elapsed).changes===1;
-        if(first){
-          const reward=wallet.credit({pilotId,currency:'CREDITS',amount:mission.firstClearCredits,reason:'MISSION_REWARD',
-            idempotencyKey:`journey:${a.missionId}`,referenceId:a.missionId,createdAt:now});
-          if(!reward.ok)throw new Error('Coin hunt reward failed');
-        }else this.database.prepare(`UPDATE journey_completions SET clear_count=clear_count+1,best_time_ms=MIN(best_time_ms,?) WHERE pilot_id=? AND mission_id=?`).run(elapsed,pilotId,a.missionId);
-        this.database.prepare(`UPDATE journey_attempts SET status='COMPLETED',finished_at=?,finish_time_ms=?,first_clear_credits=? WHERE pilot_id=? AND attempt_id=?`)
-          .run(now,elapsed,first?mission.firstClearCredits:0,pilotId,attemptId);
-      }
+      if(state.collected===mission.coinCount)return this.finishCoinHunt(pilotId,attemptId,now,wallet);
       return this.get(pilotId,attemptId);
     });
   }
@@ -1146,6 +1169,8 @@ export class JourneyAttemptStore {
   updateTwoFronts(_pilotId:string,_attemptId:string,_territoryId:string,_valid:boolean,_monotonicNow:number,_now=Date.now()): JourneyAttempt | undefined {return undefined;}
 
   fail(pilotId: string, attemptId: string, reason: 'TIME_UP' | 'CRASHED' | 'MONSTER_KILLED' | 'INTERRUPTED' | 'INVALID' | 'PURSUIT_INTERRUPTED' | 'ENEMY_ESCAPED' | 'ENEMY_INTERRUPTED' | 'ACE_INTERRUPTED' | 'CROSSFIRE_INTERRUPTED' | 'DEFENSE_INTERRUPTED' | 'DOUBLE_INTERRUPTED' | 'PAUSE_EXPIRED', now = Date.now()): JourneyAttempt | undefined {
+    const bonus=this.get(pilotId,attemptId);
+    if(bonus?.missionId===journeyDallasCoinHunt01.id)return reason==='TIME_UP'||reason==='PAUSE_EXPIRED'?this.settleCoinHunt(pilotId,attemptId,now):bonus;
     this.database.prepare(`UPDATE journey_attempts SET status = 'FAILED', failure_reason = ?, finished_at = ?, paused_at = NULL
       WHERE pilot_id = ? AND attempt_id = ? AND status IN ('READY','APPROACH','RACING')`)
       .run(reason, now, pilotId, attemptId);
@@ -1212,6 +1237,7 @@ export class JourneyAttemptStore {
   }
 
   abandon(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
+    if(this.get(pilotId,attemptId)?.missionId===journeyDallasCoinHunt01.id)return this.settleCoinHunt(pilotId,attemptId,now);
     this.database.prepare(`UPDATE journey_attempts SET status = 'ABANDONED', failure_reason = 'ABANDONED', finished_at = ?, paused_at = NULL
       WHERE pilot_id = ? AND attempt_id = ? AND status IN ('READY','APPROACH','RACING')`)
       .run(now, pilotId, attemptId);

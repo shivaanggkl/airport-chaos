@@ -642,7 +642,7 @@ export class PilotMenu {
     });
     if (this.options.flightMode === 'single') resume.dataset.journeyResume = '';
     actions.append(resume);
-    if (this.options.flightMode === 'single') {
+    if (this.options.flightMode === 'single' && data.restartFlight) {
       actions.append(actionButton({ label: 'RESTART MISSION', run: () => data.restartFlight?.() }));
     } else if (this.options.flightMode === 'explore') {
       actions.append(actionButton({ label: 'RESTART FLIGHT', run: () => data.restart() }));

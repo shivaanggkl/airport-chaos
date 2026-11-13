@@ -22,6 +22,7 @@ test('all playable missions preserve identity, progress and time through pause/r
       for (const stage of stages) {
         const launched = store.launch('pilot', 'trainer', 1000, stage.id);
         store.approach('pilot', launched.attemptId, 1100);
+        if(stage.id==='journey-dallas-coin-hunt-01')store.prepareCoinHunt('pilot',launched.attemptId,1100);
         // Represent an accepted in-flight checkpoint without simulating unrelated combat.
         db.prepare("UPDATE journey_attempts SET status='RACING',started_at=2000,deadline_at=182000,capture_ms=8000 WHERE attempt_id=?").run(launched.attemptId);
         const original = store.get('pilot', launched.attemptId)!;
@@ -36,7 +37,7 @@ test('all playable missions preserve identity, progress and time through pause/r
         assert.equal(store.resume('pilot', launched.attemptId, 8001), undefined);
         assert.equal(store.abandon('other', launched.attemptId, 9000), undefined);
         assert.equal(store.get('pilot', launched.attemptId)!.status, 'RACING');
-        assert.equal(store.abandon('pilot', launched.attemptId, 9000)!.status, 'ABANDONED');
+        assert.equal(store.abandon('pilot', launched.attemptId, 9000)!.status, stage.id==='journey-dallas-coin-hunt-01'?'COMPLETED':'ABANDONED');
         assert.equal(store.resume('pilot', launched.attemptId, 9001), undefined);
       }
       assert.equal(profiles.getOrCreate('pilot', 'Pilot').credits, before, 'menu actions never award credits');
