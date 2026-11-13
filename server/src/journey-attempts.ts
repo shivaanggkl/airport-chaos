@@ -1,7 +1,8 @@
+import { territoriesForCity, territoryCaptureProgress } from '../../shared/city-territories.mjs';
 import { journeyMissionOrder, journeyCatalog } from '../../shared/journey-mission.mjs';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
+import { journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
 import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
 import { landingGradeForScore, type LandingGrade } from '../../shared/landing-scoring.mjs';
 import { isPerfectLandingGrade } from '../../shared/gameplay-cinematic-rules.mjs';
@@ -202,6 +203,12 @@ export class JourneyAttemptStore {
             SELECT pilot_id,mission_id FROM journey_attempts WHERE mission_id=?`).run(id);
         }
         this.database.prepare('INSERT INTO journey_catalog_versions(version) VALUES(?)').run('dallas-30');
+      }
+      if (!this.database.prepare('SELECT 1 FROM journey_catalog_versions WHERE version=?').get('dallas-capture-01')) {
+        // Preserve M06 access earned before M05 was introduced, once at rollout.
+        this.database.prepare(`INSERT OR IGNORE INTO journey_access_grants(pilot_id,mission_id)
+          SELECT pilot_id,? FROM journey_completions WHERE mission_id=?`).run(journeyDallas14.id, journeyDallas03.id);
+        this.database.prepare('INSERT INTO journey_catalog_versions(version) VALUES(?)').run('dallas-capture-01');
       }
       // Retire only unfinished encounters. Completion history and wallet receipts are untouched.
       for (const id of ['journey-dallas-25','journey-dallas-20','journey-dallas-21','journey-dallas-22','journey-dallas-24']) {
@@ -477,7 +484,7 @@ export class JourneyAttemptStore {
   }
 
   launch(pilotId: string, aircraftType: string, now = Date.now(), missionId: string = journeyDallas01.id): JourneyAttempt {
-    if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id && missionId !== journeyDallas04.id && missionId !== journeyDallas05.id && missionId !== journeyDallas06.id && missionId !== journeyDallas07.id && missionId !== journeyDallas08.id && missionId !== journeyDallas09.id && missionId !== journeyDallas10.id && missionId !== journeyDallas11.id && missionId !== journeyDallas12.id && missionId !== journeyDallas13.id && missionId !== journeyDallas14.id && missionId !== journeyDallas15.id && missionId !== journeyDallas16.id && missionId !== journeyDallas17.id && missionId !== journeyDallas18.id && (missionId!==journeyDallas19.id&&missionId!==journeyDallas25.id) && missionId !== journeyDallas20.id && missionId !== journeyDallas21.id && missionId !== journeyDallas22.id && missionId !== journeyDallas23.id && missionId !== journeyDallas24.id) throw new Error('Unknown Journey mission');
+    if (missionId !== journeyDallasCapture01.id && missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id && missionId !== journeyDallas04.id && missionId !== journeyDallas05.id && missionId !== journeyDallas06.id && missionId !== journeyDallas07.id && missionId !== journeyDallas08.id && missionId !== journeyDallas09.id && missionId !== journeyDallas10.id && missionId !== journeyDallas11.id && missionId !== journeyDallas12.id && missionId !== journeyDallas13.id && missionId !== journeyDallas14.id && missionId !== journeyDallas15.id && missionId !== journeyDallas16.id && missionId !== journeyDallas17.id && missionId !== journeyDallas18.id && (missionId!==journeyDallas19.id&&missionId!==journeyDallas25.id) && missionId !== journeyDallas20.id && missionId !== journeyDallas21.id && missionId !== journeyDallas22.id && missionId !== journeyDallas23.id && missionId !== journeyDallas24.id) throw new Error('Unknown Journey mission');
     if (!this.canAccessMission(pilotId, missionId)) throw new Error('Journey mission is locked');
     return this.transaction(pilotId, () => {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', finished_at = ?, failure_reason = 'REPLACED' WHERE pilot_id = ? AND status IN ('READY','APPROACH','RACING')")
@@ -515,6 +522,49 @@ export class JourneyAttemptStore {
         journeyDallas22.id, now + journeyDallas22.prepareMs, pilotId, attemptId);
     const current = this.get(pilotId, attemptId);
     return current?.status === 'APPROACH' ? current : undefined;
+  }
+
+  /** Only the owned countdown handoff starts this objective and its deadline. */
+  startTerritoryCapture(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
+    const changed = this.database.prepare(`UPDATE journey_attempts SET status='RACING',started_at=?,deadline_at=?,hold_updated_at=?
+      WHERE pilot_id=? AND attempt_id=? AND mission_id=? AND status='APPROACH' AND paused_at IS NULL`)
+      .run(now, now + journeyDallasCapture01.timeLimitMs, now, pilotId, attemptId, journeyDallasCapture01.id).changes;
+    return changed ? this.get(pilotId, attemptId) : undefined;
+  }
+
+  /** Server territory ticks supply eligibility, never client progress or completion events. */
+  advanceTerritoryCapture(pilotId: string, attemptId: string, eligible: boolean, now = Date.now()): JourneyAttempt | undefined {
+    return this.transaction(pilotId, wallet => {
+      const current = this.get(pilotId, attemptId);
+      if (!current || current.missionId !== journeyDallasCapture01.id || current.status !== 'RACING' ||
+          current.pausedAt !== null || current.deadlineAt === null || now >= current.deadlineAt ||
+          current.holdUpdatedAt === null || now <= current.holdUpdatedAt) return undefined;
+      const elapsed = now - current.holdUpdatedAt;
+      // Never credit startup, reconnection or stalled-tick catch-up time.
+      const tickMs = eligible && elapsed <= 800 ? Math.min(400, elapsed) : 0;
+      const territory = territoriesForCity(journeyDallasCapture01.cityId).find(item => item.id === journeyDallasCapture01.territoryId)!;
+      const captureMs = Math.min(journeyDallasCapture01.captureDurationMs, current.captureMs +
+        Math.round(territoryCaptureProgress(territory, tickMs) * journeyDallasCapture01.captureDurationMs / 100));
+      this.database.prepare('UPDATE journey_attempts SET capture_ms=?,hold_updated_at=? WHERE pilot_id=? AND attempt_id=?')
+        .run(captureMs, now, pilotId, attemptId);
+      if (captureMs >= journeyDallasCapture01.captureDurationMs) {
+        const elapsedMs = now - current.startedAt!;
+        const first = this.database.prepare(`INSERT OR IGNORE INTO journey_completions
+          (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`)
+          .run(pilotId, current.missionId, attemptId, now, elapsedMs).changes === 1;
+        let credited = 0;
+        if (first) {
+          const reward = wallet.credit({pilotId, currency:'CREDITS',amount:journeyDallasCapture01.firstClearCredits,
+            reason:'MISSION_REWARD',idempotencyKey:`journey:${current.missionId}`,referenceId:current.missionId,createdAt:now});
+          if (!reward.ok) throw new Error('Journey territory reward failed');
+          credited = journeyDallasCapture01.firstClearCredits;
+        } else this.database.prepare(`UPDATE journey_completions SET clear_count=clear_count+1,best_time_ms=MIN(best_time_ms,?)
+          WHERE pilot_id=? AND mission_id=?`).run(elapsedMs,pilotId,current.missionId);
+        this.database.prepare(`UPDATE journey_attempts SET status='COMPLETED',finished_at=?,finish_time_ms=?,first_clear_credits=?
+          WHERE pilot_id=? AND attempt_id=?`).run(now,elapsedMs,credited,pilotId,attemptId);
+      }
+      return this.get(pilotId, attemptId);
+    });
   }
 
   /** Start a Golden Gates race when the launch countdown reaches GO. */
@@ -986,7 +1036,7 @@ export class JourneyAttemptStore {
   continueAfterAd(pilotId: string, attemptId: string, adAttemptId: string, now = Date.now()): JourneyAttempt | undefined {
     return this.transaction(pilotId, () => {
       const current = this.get(pilotId, attemptId);
-      const mission = current && [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyDallas25].find(definition => definition.id === current.missionId);
+      const mission = current && [journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyDallas25].find(definition => definition.id === current.missionId);
       if (current?.status !== 'FAILED' || current.finishedAt === null || current.startedAt === null || current.deadlineAt === null ||
           !['CRASHED', 'MONSTER_KILLED', 'TIME_UP', 'ENEMY_ESCAPED'].includes(current.failureReason ?? '') || !mission || !('timeLimitMs' in mission)) return undefined;
       if (!this.continuation(pilotId, attemptId, now) || this.database.prepare(`SELECT 1 FROM rewarded_ad_attempts

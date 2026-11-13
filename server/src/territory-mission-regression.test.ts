@@ -161,7 +161,7 @@ test('Map, Radar, Players/Territories panel, and world walls share stable territ
   const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
   const map = readFileSync(new URL('../../client/src/world-map.ts', import.meta.url), 'utf8');
   assert.match(main, /function drawRadarTerritories[\s\S]*?definition\.bounds/);
-  assert.match(main, /territories: territoryDefinitions\.map[\s\S]*?id: definition\.id,[\s\S]*?bounds: definition\.bounds/);
+  assert.match(main, /territories: territoryDefinitions\.filter[\s\S]*?\.map[\s\S]*?id: definition\.id,[\s\S]*?bounds: definition\.bounds/);
   assert.match(main, /const territories = territoryDefinitions\.map[\s\S]*?ownedByYou:/);
   assert.match(main, /new THREE\.Mesh\(createTerritoryWallGeometry\(definition\), territoryWallMaterial\)/);
   assert.match(map, /territory\.bounds\.minX[\s\S]*territory\.bounds\.maxZ/);

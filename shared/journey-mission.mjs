@@ -1,3 +1,4 @@
+import { territoriesForCity, territoryCaptureDurationMs } from './city-territories.mjs';
 import { transportTuning, transportLockParts } from './giant-incoming.mjs';
 import { remoteAircraftScale } from './remote-aircraft-visual-rules.mjs';
 import { addisonClimbGates } from './city-challenges.mjs';
@@ -474,6 +475,16 @@ export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
   return journeyGateCrossing(from, to, gateIndex, terrainHeight) === 'VALID';
 }
 
+const captureTerritory = territoriesForCity('dallas').find(territory => territory.id === 'las-colinas');
+export const journeyDallasCapture01 = Object.freeze({
+  id: 'journey-dallas-capture-01', cityId: 'dallas', name: 'CAPTURE 1 TERRITORY', difficulty: 'EASY',
+  objective: 'Fly into the marked territory and stay inside until it is captured!',
+  territoryId: captureTerritory.id, captureDurationMs: territoryCaptureDurationMs,
+  timeLimitMs: 240_000, firstClearCredits: 500,
+  airborneSpawn: Object.freeze({x: captureTerritory.bounds.minX - 2500, z: captureTerritory.center.z,
+    altitude: 800, heading: -Math.PI / 2, speed: 650}),
+});
+
 // Display slots are presentation; persisted gameplay and receipts keep their historical IDs.
 export const journeyChapters = Object.freeze(['ROOKIE PILOT', 'RISING ACE', 'SKY COMMANDER', 'DR. BOSS RISING']);
 export const journeyCatalog = Object.freeze([
@@ -481,7 +492,7 @@ export const journeyCatalog = Object.freeze([
   [2, 'Lake Racer'],
   [13, 'First Contact'],
   [3, 'Golden Ascent'],
-  [null, 'Capture 1 Territory'],
+  [journeyDallasCapture01.id, 'Capture 1 Territory'],
   [14, 'Surprise Attack'],
   [null, 'Airport Hop'],
   [null, 'Precision Landing'],
@@ -508,7 +519,7 @@ export const journeyCatalog = Object.freeze([
   [23, 'Monster Pursuit'],
   [19, 'Final Monster Battle'],
 ].map(([identity, title], index) => Object.freeze({
-  id: identity === null ? `placeholder-dallas-${String(index + 1).padStart(2, '0')}` : `journey-dallas-${String(identity).padStart(2, '0')}`,
+  id: identity === null ? `placeholder-dallas-${String(index + 1).padStart(2, '0')}` : typeof identity === 'string' ? identity : `journey-dallas-${String(identity).padStart(2, '0')}`,
   number: index + 1, title,
   chapter: index < 9 ? 1 : index < 18 ? 2 : index < 28 ? 3 : 4,
   implementation: identity === null ? 'placeholder' : 'playable',

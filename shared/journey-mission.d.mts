@@ -193,3 +193,10 @@ export declare function journeyMissionSlot(missionId:string):number;
 export const journeyDallas25: Readonly<Omit<typeof journeyDallas19,'id'|'name'|'chapter'|'firstClearCredits'|'timeLimitMs'|'bossHealth'|'monster'|'startAirportId'> & {id:'journey-dallas-25';name:'MONSTER ARRIVAL';chapter:'CITY DEFENDERS';firstClearCredits:2550;startAirportId:'love';timeLimitMs:360000;bossHealth:500;monster:Readonly<{x:number;z:number;height:960}>}>;
 
 export function isMonsterJourneyMission(missionId?:string):boolean;
+
+export const journeyDallasCapture01: Readonly<{
+  id: 'journey-dallas-capture-01'; cityId: 'dallas'; name: 'CAPTURE 1 TERRITORY'; difficulty: 'EASY';
+  objective: 'Fly into the marked territory and stay inside until it is captured!';
+  territoryId: string; captureDurationMs: 24000; timeLimitMs: 240000; firstClearCredits: 500;
+  airborneSpawn: Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
+}>;

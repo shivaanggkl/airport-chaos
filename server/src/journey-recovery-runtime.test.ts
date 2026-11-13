@@ -91,7 +91,7 @@ test('HTTP and WebSocket resume persisted checkpoints for each family, with idem
   const db=new DatabaseSync(path),now=Date.now(),fixtures:any[]=[],sockets:any[]=[];
   let child:ReturnType<typeof spawn>|undefined;
   try {
-    for(const mission of [missions.journeyDallas01,missions.journeyDallas13,missions.journeyDallas07,missions.journeyDallas23]) {
+    for(const mission of [missions.journeyDallasCapture01,missions.journeyDallas01,missions.journeyDallas13,missions.journeyDallas07,missions.journeyDallas23]) {
       const session=sessions.issue(undefined,false,now);profiles.getOrCreate(session.pilotId,'Pilot');
       db.prepare("UPDATE pilot_tutorial_state SET status='completed',updated_at=?,completed_at=? WHERE pilot_id=?").run(now,now,session.pilotId);
       const a=journeys.launch(session.pilotId,'trainer',now-4000,mission.id);
@@ -116,6 +116,9 @@ test('HTTP and WebSocket resume persisted checkpoints for each family, with idem
       assert.equal(ads.grantVerifiedReward({adUnit:adUnitId,customData:issued.attempt.attemptId,rewardAmount:'1',rewardItem:'reward',timestamp:now+2,transactionId:a.attemptId},now+2).rewarded,true);
       fixtures.push({session,attemptId:a.attemptId,adAttemptId:issued.attempt.attemptId});
     }
+    const captureSession=sessions.issue(undefined,false,now);
+    profiles.getOrCreate(captureSession.pilotId,'Pilot');
+    db.prepare("UPDATE pilot_tutorial_state SET status='completed',updated_at=?,completed_at=? WHERE pilot_id=?").run(now,now,captureSession.pilotId);
     const retiredSession=sessions.issue(undefined,false,now);
     profiles.getOrCreate(retiredSession.pilotId,'Pilot');
     db.prepare(`INSERT INTO journey_attempts(attempt_id,pilot_id,mission_id,city_id,aircraft_type,status,created_at,definition_revision)
@@ -127,6 +130,28 @@ test('HTTP and WebSocket resume persisted checkpoints for each family, with idem
     let output='';child.stdout!.on('data',d=>output+=String(d));child.stderr!.on('data',d=>output+=String(d));
     const deadline=Date.now()+15000;while(!output.includes('listening')&&Date.now()<deadline&&child.exitCode===null)await new Promise(r=>setTimeout(r,50));
     assert.ok(output.includes('listening'),output);
+    const captureHeaders={Origin:'capacitor://localhost',Cookie:`airport_chaos_session=${captureSession.cookie}`,'Content-Type':'application/json'};
+    const launched=await fetch(`http://127.0.0.1:${port}/api/journey/dallas/mission-capture-01/launch`,{method:'POST',headers:captureHeaders,body:'{}'});
+    assert.equal(launched.status,201,await launched.clone().text());
+    const captureAttempt=(await launched.json() as any).attempt;
+    assert.equal(captureAttempt.missionId,missions.journeyDallasCapture01.id);assert.equal(captureAttempt.deadlineAt,null);
+    const progress=await fetch(`http://127.0.0.1:${port}/api/journey/dallas`,{headers:captureHeaders});
+    assert.equal((await progress.json() as any).missionCapture01.eligible,true);
+    const captureMessages:any[]=[];
+    const captureSocket=new WebSocket(`ws://127.0.0.1:${port}/?city=dallas&launchMode=missions&protocol=${PROTOCOL_VERSION}&journeyAttempt=${captureAttempt.attemptId}`,
+      {origin:`http://127.0.0.1:${port}`,headers:{Cookie:`airport_chaos_session=${captureSession.cookie}`}});
+    sockets.push(captureSocket);captureSocket.on('message',d=>captureMessages.push(JSON.parse(String(d))));
+    const waitFor=async(predicate:()=>boolean)=>{const until=Date.now()+5000;while(!predicate()&&Date.now()<until)await new Promise(r=>setTimeout(r,25));assert.ok(predicate(),JSON.stringify(captureMessages));};
+    await waitFor(()=>captureMessages.some(m=>m.type==='journeyAttempt'));
+    const welcome=captureMessages.find(m=>m.type==='welcome');
+    assert.ok(welcome.airborneSpawn);assert.equal(welcome.airborneSpawn.heading,missions.journeyDallasCapture01.airborneSpawn.heading);
+    assert.equal(journeys.get(captureSession.pilotId,captureAttempt.attemptId)!.deadlineAt,null);
+    captureSocket.send(JSON.stringify({type:'journeyCountdownComplete',attemptId:captureAttempt.attemptId}));
+    await waitFor(()=>captureMessages.some(m=>m.type==='journeyAttempt'&&m.attempt.status==='RACING'));
+    const started=journeys.get(captureSession.pilotId,captureAttempt.attemptId)!;
+    assert.equal(started.deadlineAt!-started.startedAt!,240000);assert.equal(started.captureMs,0);
+    const abandoned=await fetch(`http://127.0.0.1:${port}/api/journey/dallas/mission-capture-01/abandon`,{method:'POST',headers:captureHeaders,body:JSON.stringify({attemptId:captureAttempt.attemptId})});
+    assert.equal(abandoned.status,200);captureSocket.close();
     for (const internal of ['25','20','21','22','24']) {
       const denied=await fetch(`http://127.0.0.1:${port}/api/journey/dallas/mission-${internal}/launch`, {
         method:'POST',headers:{Origin:'capacitor://localhost',Cookie:`airport_chaos_session=${retiredSession.cookie}`,'Content-Type':'application/json'},body:'{}'});
