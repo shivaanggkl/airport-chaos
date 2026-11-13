@@ -1,3 +1,4 @@
+import { createSharpshooterTarget, sharpshooterHitFraction } from './sharpshooter-target.js';
 import { territoryCaptureProgress, territoryCaptureFlightEligible, territoryCaptureCeilingAgl } from '../../shared/city-territories.mjs';
 import { journeyMissionOrder } from '../../shared/journey-mission.mjs';
 import { PlayerSockets } from './player-sockets.js';
@@ -46,7 +47,7 @@ import { missionForCity, missionsForCity, type CityMission } from '../../shared/
 import { advanceMission, initializeMissionAttempt, type MissionSignal } from './mission-engine.js';
 import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mjs';
 import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
-import { journeyGateCrossing, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
+import { journeyGateCrossing, journeyDallasSharpshooter01, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 import { reinforcementApproachPoint } from './reinforcement-approach.js';
 import {monsterBuildingCoverage,segmentBlockedByBuildings} from './monster-arrival.js';
 import {createStrikingWarlordEncounter} from './striking-warlord.js';
@@ -275,6 +276,7 @@ type CityEvent = {
 type ChaosQaEvent = 'mostWanted' | 'supplyDrop' | 'goldenDrop' | 'skyRush' | 'stormRisk' | 'lowAltitudeRisk' | 'highAltitudeRisk' | 'downtownRisk' | 'aceIntercept' | 'vipEscort' | 'goldenSkyRun' | 'cityEmergency' | 'stormLanding' | 'fogApproach' | 'cargoRush' | 'soloAirportSprint';
 
 type ProjectileState = {
+  sharpshooterStage?: number;
   projectileId: string;
   ownerId: string;
   cityId: CityId;
@@ -2284,7 +2286,7 @@ const httpServer = createServer(async (request, response) => {
     }
     jsonResponse(response, 404, { error: 'Not found.' }); return;
   }
-  const journeyAction = /^\/api\/journey\/dallas\/(mission-airport-hop-01|mission-capture-01|mission-01|mission-02|mission-03|mission-04|mission-05|mission-06|mission-07|mission-08|mission-09|mission-10|mission-11|mission-12|mission-13|mission-14|mission-15|mission-16|mission-17|mission-18|mission-19|mission-20|mission-21|mission-22|mission-23|mission-24|mission-25)\/(launch|abandon)$/.exec(requestUrl.pathname);
+  const journeyAction = /^\/api\/journey\/dallas\/(mission-sharpshooter-01|mission-airport-hop-01|mission-capture-01|mission-01|mission-02|mission-03|mission-04|mission-05|mission-06|mission-07|mission-08|mission-09|mission-10|mission-11|mission-12|mission-13|mission-14|mission-15|mission-16|mission-17|mission-18|mission-19|mission-20|mission-21|mission-22|mission-23|mission-24|mission-25)\/(launch|abandon)$/.exec(requestUrl.pathname);
   if (requestUrl.pathname === '/api/journey/dallas' || journeyAction) {
     const identity = authenticatedIdentity(request, response);
     if (!identity) return;
@@ -2293,7 +2295,10 @@ const httpServer = createServer(async (request, response) => {
     if (requestUrl.pathname === '/api/journey/dallas' && request.method === 'GET') {
       jsonResponse(response, 200, { missionId: journeyDallas01.id,
         eligible: dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
-        ...journeyStore.progress(identity.pilotId), missionAirportHop01: {
+        ...journeyStore.progress(identity.pilotId), missionSharpshooter01: {
+          eligible: dallasUnlocked && journeyStore.canAccessMission(identity.pilotId, journeyDallasSharpshooter01.id) && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          ...journeyStore.progress(identity.pilotId, journeyDallasSharpshooter01.id),
+        }, missionAirportHop01: {
           eligible: dallasUnlocked && journeyStore.canAccessMission(identity.pilotId, journeyDallasAirportHop01.id) && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallasAirportHop01.id),
         },
@@ -2382,7 +2387,7 @@ const httpServer = createServer(async (request, response) => {
       const limit = limitedBy('journey-launch-pilot', identity.pilotId, securityLimits.journeyLaunchPilot);
       if (limit.limited) { rateLimited(response, limit.retryAfterMs); return; }
       if (!journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft)) { jsonResponse(response, 403, { error: 'Aircraft is unavailable.' }); return; }
-      const missionId = journeyAction[1] === 'mission-airport-hop-01' ? journeyDallasAirportHop01.id : journeyAction[1] === 'mission-capture-01' ? journeyDallasCapture01.id : journeyAction[1] === 'mission-25' ? journeyDallas25.id : journeyAction[1] === 'mission-24' ? journeyDallas24.id : journeyAction[1] === 'mission-23' ? journeyDallas23.id : journeyAction[1] === 'mission-22' ? journeyDallas22.id : journeyAction[1] === 'mission-21' ? journeyDallas21.id : journeyAction[1] === 'mission-20' ? journeyDallas20.id : journeyAction[1] === 'mission-19' ? journeyDallas19.id : journeyAction[1] === 'mission-18' ? journeyDallas18.id : journeyAction[1] === 'mission-17' ? journeyDallas17.id : journeyAction[1] === 'mission-16' ? journeyDallas16.id : journeyAction[1] === 'mission-15' ? journeyDallas15.id : journeyAction[1] === 'mission-14' ? journeyDallas14.id : journeyAction[1] === 'mission-13' ? journeyDallas13.id : journeyAction[1] === 'mission-12' ? journeyDallas12.id : journeyAction[1] === 'mission-11' ? journeyDallas11.id : journeyAction[1] === 'mission-10' ? journeyDallas10.id : journeyAction[1] === 'mission-09' ? journeyDallas09.id : journeyAction[1] === 'mission-08' ? journeyDallas08.id : journeyAction[1] === 'mission-07' ? journeyDallas07.id : journeyAction[1] === 'mission-06' ? journeyDallas06.id : journeyAction[1] === 'mission-05' ? journeyDallas05.id : journeyAction[1] === 'mission-04' ? journeyDallas04.id : journeyAction[1] === 'mission-03' ? journeyDallas03.id : journeyAction[1] === 'mission-02' ? journeyDallas02.id : journeyDallas01.id;
+      const missionId = journeyAction[1] === 'mission-sharpshooter-01' ? journeyDallasSharpshooter01.id : journeyAction[1] === 'mission-airport-hop-01' ? journeyDallasAirportHop01.id : journeyAction[1] === 'mission-capture-01' ? journeyDallasCapture01.id : journeyAction[1] === 'mission-25' ? journeyDallas25.id : journeyAction[1] === 'mission-24' ? journeyDallas24.id : journeyAction[1] === 'mission-23' ? journeyDallas23.id : journeyAction[1] === 'mission-22' ? journeyDallas22.id : journeyAction[1] === 'mission-21' ? journeyDallas21.id : journeyAction[1] === 'mission-20' ? journeyDallas20.id : journeyAction[1] === 'mission-19' ? journeyDallas19.id : journeyAction[1] === 'mission-18' ? journeyDallas18.id : journeyAction[1] === 'mission-17' ? journeyDallas17.id : journeyAction[1] === 'mission-16' ? journeyDallas16.id : journeyAction[1] === 'mission-15' ? journeyDallas15.id : journeyAction[1] === 'mission-14' ? journeyDallas14.id : journeyAction[1] === 'mission-13' ? journeyDallas13.id : journeyAction[1] === 'mission-12' ? journeyDallas12.id : journeyAction[1] === 'mission-11' ? journeyDallas11.id : journeyAction[1] === 'mission-10' ? journeyDallas10.id : journeyAction[1] === 'mission-09' ? journeyDallas09.id : journeyAction[1] === 'mission-08' ? journeyDallas08.id : journeyAction[1] === 'mission-07' ? journeyDallas07.id : journeyAction[1] === 'mission-06' ? journeyDallas06.id : journeyAction[1] === 'mission-05' ? journeyDallas05.id : journeyAction[1] === 'mission-04' ? journeyDallas04.id : journeyAction[1] === 'mission-03' ? journeyDallas03.id : journeyAction[1] === 'mission-02' ? journeyDallas02.id : journeyDallas01.id;
       if (!journeyStore.canAccessMission(identity.pilotId, missionId)) {
         jsonResponse(response, 403, { error: journeyMissionOrder.includes(missionId)
           ? `Complete Mission ${journeyMissionSlot(journeyMissionOrder[journeyMissionOrder.indexOf(missionId) - 1] ?? '')} first.` : 'Mission unavailable.' }); return;
@@ -2408,7 +2413,7 @@ const httpServer = createServer(async (request, response) => {
     }
     const attemptId = typeof payload?.attemptId === 'string' ? payload.attemptId : '';
     const current = journeyStore.get(identity.pilotId, attemptId);
-    const requestedMissionId = journeyAction?.[1] === 'mission-airport-hop-01' ? journeyDallasAirportHop01.id : journeyAction?.[1] === 'mission-capture-01' ? journeyDallasCapture01.id : journeyAction?.[1] === 'mission-25' ? journeyDallas25.id : journeyAction?.[1] === 'mission-24' ? journeyDallas24.id : journeyAction?.[1] === 'mission-23' ? journeyDallas23.id : journeyAction?.[1] === 'mission-22' ? journeyDallas22.id : journeyAction?.[1] === 'mission-21' ? journeyDallas21.id : journeyAction?.[1] === 'mission-20' ? journeyDallas20.id : journeyAction?.[1] === 'mission-19' ? journeyDallas19.id : journeyAction?.[1] === 'mission-18' ? journeyDallas18.id : journeyAction?.[1] === 'mission-17' ? journeyDallas17.id : journeyAction?.[1] === 'mission-16' ? journeyDallas16.id : journeyAction?.[1] === 'mission-15' ? journeyDallas15.id : journeyAction?.[1] === 'mission-14' ? journeyDallas14.id : journeyAction?.[1] === 'mission-13' ? journeyDallas13.id : journeyAction?.[1] === 'mission-12' ? journeyDallas12.id : journeyAction?.[1] === 'mission-11' ? journeyDallas11.id : journeyAction?.[1] === 'mission-10' ? journeyDallas10.id : journeyAction?.[1] === 'mission-09' ? journeyDallas09.id : journeyAction?.[1] === 'mission-08' ? journeyDallas08.id : journeyAction?.[1] === 'mission-07' ? journeyDallas07.id : journeyAction?.[1] === 'mission-06' ? journeyDallas06.id : journeyAction?.[1] === 'mission-05' ? journeyDallas05.id : journeyAction?.[1] === 'mission-04' ? journeyDallas04.id : journeyAction?.[1] === 'mission-03' ? journeyDallas03.id : journeyAction?.[1] === 'mission-02' ? journeyDallas02.id : journeyDallas01.id;
+    const requestedMissionId = journeyAction?.[1] === 'mission-sharpshooter-01' ? journeyDallasSharpshooter01.id : journeyAction?.[1] === 'mission-airport-hop-01' ? journeyDallasAirportHop01.id : journeyAction?.[1] === 'mission-capture-01' ? journeyDallasCapture01.id : journeyAction?.[1] === 'mission-25' ? journeyDallas25.id : journeyAction?.[1] === 'mission-24' ? journeyDallas24.id : journeyAction?.[1] === 'mission-23' ? journeyDallas23.id : journeyAction?.[1] === 'mission-22' ? journeyDallas22.id : journeyAction?.[1] === 'mission-21' ? journeyDallas21.id : journeyAction?.[1] === 'mission-20' ? journeyDallas20.id : journeyAction?.[1] === 'mission-19' ? journeyDallas19.id : journeyAction?.[1] === 'mission-18' ? journeyDallas18.id : journeyAction?.[1] === 'mission-17' ? journeyDallas17.id : journeyAction?.[1] === 'mission-16' ? journeyDallas16.id : journeyAction?.[1] === 'mission-15' ? journeyDallas15.id : journeyAction?.[1] === 'mission-14' ? journeyDallas14.id : journeyAction?.[1] === 'mission-13' ? journeyDallas13.id : journeyAction?.[1] === 'mission-12' ? journeyDallas12.id : journeyAction?.[1] === 'mission-11' ? journeyDallas11.id : journeyAction?.[1] === 'mission-10' ? journeyDallas10.id : journeyAction?.[1] === 'mission-09' ? journeyDallas09.id : journeyAction?.[1] === 'mission-08' ? journeyDallas08.id : journeyAction?.[1] === 'mission-07' ? journeyDallas07.id : journeyAction?.[1] === 'mission-06' ? journeyDallas06.id : journeyAction?.[1] === 'mission-05' ? journeyDallas05.id : journeyAction?.[1] === 'mission-04' ? journeyDallas04.id : journeyAction?.[1] === 'mission-03' ? journeyDallas03.id : journeyAction?.[1] === 'mission-02' ? journeyDallas02.id : journeyDallas01.id;
     if (!current || current.missionId !== requestedMissionId) {
       jsonResponse(response, 404, { error: 'Mission attempt unavailable.' }); return;
     }
@@ -3178,7 +3183,19 @@ function sendToPlayer(playerId: string, message: object): void {
   const socket = playerSockets.socketFor(playerId);
   if (socket?.readyState === WebSocket.OPEN) sendSocketMessage(socket, message);
 }
+function sharpshooterClearanceAt(x:number,z:number):number {
+  let top=dallasTerrain.elevationAt(x,z);
+  queryBuildings(transportBuildings,x-110,x+110,z-110,z+110,b=>{top=Math.max(top,b.top);return false;});
+  return top;
+}
+
 function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
+  const sharpPilot=players.get(playerId);
+  if(attempt.missionId===journeyDallasSharpshooter01.id&&!attempt.sharpshooter&&sharpPilot&&
+    (attempt.status==='APPROACH'||attempt.status==='RACING')) {
+    attempt=journeyStore.prepareSharpshooter(attempt.pilotId,attempt.attemptId,
+      createSharpshooterTarget(0,sharpPilot.position,sharpPilot.rotation.y,0,sharpshooterClearanceAt)) ?? attempt;
+  }
   if (attempt.status === 'COMPLETED' || attempt.status === 'FAILED' || attempt.status === 'ABANDONED')
     journeyCountdownComplete.delete(attempt.attemptId);
   if((attempt.missionId===journeyDallas07.id || attempt.missionId===journeyDallas08.id || attempt.missionId===journeyDallas09.id || attempt.missionId===journeyDallas10.id || attempt.missionId===journeyDallas11.id || attempt.missionId===journeyDallas12.id) && attempt.status==='RACING' && attempt.startedAt!==null){
@@ -5563,7 +5580,9 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
   const transform = fireTransform ?? player;
   const { position, direction } = muzzleTransform(transform, aim);
   const privateId=playerJourneyAttempts.get(playerId);
+  const sharpAttempt=privateId?journeyStore.activeSnapshot(player.pilotId,privateId):undefined;
   const projectile: ProjectileState = {
+    sharpshooterStage: sharpAttempt?.missionId===journeyDallasSharpshooter01.id ? sharpAttempt.sharpshooter?.destroyed : undefined,
     projectileId: randomUUID(),
     ownerId: playerId,
     airAssaultId: player.airAssaultId,
@@ -6374,6 +6393,27 @@ function updateProjectiles(deltaSeconds: number): void {
 
     const missionAttempt = missionAttemptId ? journeyStore.activeSnapshot(owner.pilotId, missionAttemptId) : undefined;
     const transportMissionId = missionAttempt?.missionId;
+    if(missionAttempt?.missionId===journeyDallasSharpshooter01.id){
+      const target=missionAttempt.sharpshooter?.target;
+      if(target&&projectile.privateAttemptId===missionAttempt.attemptId&&!owner.isBot&&
+        missionAttempt.status==='RACING'&&missionAttempt.pausedAt===null&&now<missionAttempt.deadlineAt!){
+        const elapsed=now-missionAttempt.startedAt!;
+        const start={x:previousX,y:previousY,z:previousZ};
+        const fraction=sharpshooterHitFraction(target,projectile.sharpshooterStage,start,projectile.position,elapsed,deltaSeconds,owner.position);
+        if(fraction!==null){
+          const impact={x:previousX+(projectile.position.x-previousX)*fraction,y:previousY+(projectile.position.y-previousY)*fraction,z:previousZ+(projectile.position.z-previousZ)*fraction};
+          const next=target.stage<2?createSharpshooterTarget(target.stage+1,owner.position,owner.rotation.y,elapsed,sharpshooterClearanceAt):null;
+          const advanced=journeyStore.hitSharpshooter(owner.pilotId,missionAttempt.attemptId,target.stage,next,now);
+          removeProjectile(projectile.projectileId,undefined,impact);
+          if(advanced){sendJourneyState(projectile.ownerId,advanced);
+            if(advanced.status==='COMPLETED')sendProfile(projectile.ownerId,profileStore.getOrCreate(owner.pilotId,owner.displayName),undefined,undefined,journeyDallasSharpshooter01.name);}
+          continue;
+        }
+      }
+      if(projectile.traveled>=COMBAT_RANGE)removeProjectile(projectile.projectileId);
+      continue;
+    }
+
     if (transportMissionId === journeyDallas07.id || transportMissionId === journeyDallas08.id || transportMissionId === journeyDallas09.id || transportMissionId === journeyDallas10.id || transportMissionId === journeyDallas11.id || transportMissionId === journeyDallas12.id) {
       const start={x:previousX,y:previousY,z:previousZ};
       if(applyTransportHit(projectile.ownerId,start,projectile.position,now,deltaSeconds,projectile.damage,projectile.projectileId,projectile)) {removeProjectile(projectile.projectileId);continue;}
@@ -8410,7 +8450,8 @@ server.on('connection', (socket, request) => {
     : (journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas20.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id) ? journeyDallas19.startAirportId
     : undefined;
   // All six Golden Gates races start from their server-authorized airborne definitions.
-  const airborneSpawn = authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallasCapture01, dallasTerrain.elevationAt)
+  const airborneSpawn = authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallasSharpshooter01, dallasTerrain.elevationAt)
+    ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallasCapture01, dallasTerrain.elevationAt)
     ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas01, dallasTerrain.elevationAt)
     ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas02, dallasTerrain.elevationAt)
     ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas03, dallasTerrain.elevationAt)
@@ -9282,7 +9323,8 @@ server.on('connection', (socket, request) => {
           journeyCountdownComplete.add(id!);
           if (attempt.status === 'APPROACH') {
             const now = Date.now();
-            const started = journeyStore.startAirportHop(player.pilotId, id!, now)
+            const started = journeyStore.startSharpshooter(player.pilotId, id!, now)
+              ?? journeyStore.startAirportHop(player.pilotId, id!, now)
               ?? journeyStore.startTerritoryCapture(player.pilotId, id!, now)
               ?? journeyStore.startRookieRush(player.pilotId, id!, now)
               ?? journeyStore.startTimedGateClock(player.pilotId, id!, now)

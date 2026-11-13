@@ -168,7 +168,7 @@ test('shared capture HUD follows approach, capture, return and victory; existing
  const styles=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
  assert.match(main,/classList.toggle\('territory-capture-focus', next !== null && attempt\?\.missionId === journeyDallasCapture01.id\)/);
  assert.match(styles,/\.territory-capture-focus #territory-capture:not\(\.hidden\):not\(\[hidden\]\) \{ display: block !important; \}/);
- assert.match(main,/const missionClearMissionIds = new Set<string>\(\[journeyDallasCapture01.id/);
+ assert.match(main,/const missionClearMissionIds = new Set<string>\(\[[^;]*\bjourneyDallasCapture01\.id/);
  assert.match(main,/drawRadarTerritories\(direction, focusedTerritoryTargetId\(\)!\)/);
  assert.match(main,/entry.displayColor = state\?\.controllerId \? definition.fixedColor/);
  assert.match(main,/territories: territoryDefinitions.filter[\s\S]*?missionTarget: missionTerritories.includes\(definition.id\) \|\| definition.id === focusedTerritoryTargetId\(\)/);
