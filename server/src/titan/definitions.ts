@@ -31,6 +31,8 @@ export type Ability = TitanTiming & {
     count?: number;
     /** Release the full volley together; omitted abilities retain their staggered cadence. */
     simultaneous?: boolean;
+    /** Number of projectiles released together in each staggered wave. */
+    burstSize?: number;
     spread?: number;
     tracking?: number;
     directional?: boolean;
@@ -69,7 +71,7 @@ export type Species = {
     stationary?: {roarDuration:number;roarInterval:number;firstRoarAfter?:number;idlePunchDuration?:number;actionRestSeconds?:number};
     hunting?: {roarInterval:number;roarSeconds:number;combatDistance:number;roamRadius:number;decisionInterval?:number;restSeconds?:number;restVariation?:number;flankDistance?:number;repositionSeconds?:number;runSeconds?:number;runCooldown?:number;runDistance?:number;approachBeforeShot?:boolean};
     anchored?: {jumpInterval:number;jumpBend:number;jumpSeconds:number;landSeconds:number;jumpHeight:number;roarInterval:number;roarSeconds:number};
-    director?: { combatDistance?: number; commitment: number; retreatMin: number; retreatMax: number; retreatDuration: number; reengageDuration: number; attackSpacing: number; pressureThreshold: number; facing: number };
+    director?: { combatDistance?: number; maintainCombatDistance?: boolean; commitment: number; retreatMin: number; retreatMax: number; retreatDuration: number; reengageDuration: number; attackSpacing: number; pressureThreshold: number; facing: number };
     animations: readonly string[];
     movement: {
         walk: number;
@@ -143,7 +145,7 @@ export class SpeciesRegistry {
         if(s.movement.runOnly!==undefined&&typeof s.movement.runOnly!=='boolean')throw Error('Invalid run-only locomotion');
         if ([s.movement.runStride, s.movement.reverseStride, s.movement.lateralStride, s.movement.turnStrideRadius, s.movement.repositionDistance, s.movement.intentDuration, s.movement.idleBetweenActions].some(n => n !== undefined && (!finite(n) || n <= 0)))
             throw Error('Invalid gait limits');
-        if(s.director&&(!Object.values(s.director).every(n=>finite(n)&&n>0)||s.director.retreatMax<s.director.retreatMin||s.director.facing>Math.PI))throw Error('Invalid combat director');
+        if(s.director&&(!Object.entries(s.director).every(([key,n])=>key==='maintainCombatDistance'?typeof n==='boolean':finite(n as number)&&(n as number)>0)||s.director.retreatMax<s.director.retreatMin||s.director.facing>Math.PI))throw Error('Invalid combat director');
         if (!s.joints.body)
             throw Error('Missing root body joint');
         if (!['aggressive', 'defensive', 'balanced'].includes(s.personality) || [s.movement.jumpSpeed, s.movement.chargeSpeed, s.movement.stepHeight, s.arena.maxSlope].some(n => !finite(n) || n < 0))
@@ -165,8 +167,9 @@ export class SpeciesRegistry {
                 throw Error('Invalid health gate');
             if ([a.warning, a.windup, a.recovery, a.cooldown, a.minRange, a.damage, a.radius].some(n => !finite(n) || n < 0) || !finite(a.active) || a.active <= 0 || a.warning <= 0 || !finite(a.maxRange) || a.maxRange < a.minRange || !finite(a.maxAltitude) || a.maxAltitude < 0 || !finite(a.cone) || a.cone <= 0 || a.cone > Math.PI || a.radius <= 0)
                 throw Error('Invalid ability geometry/timing');
-            if (['projectile'].includes(a.mechanism) && (!a.projectileSpeed || a.projectileSpeed <= 0 || !finite(a.projectileSpeed) || (a.count ?? 1) > 8 || (a.count ?? 1) < 1 || !Number.isInteger(a.count ?? 1)))
+            if (['projectile'].includes(a.mechanism) && (!a.projectileSpeed || a.projectileSpeed <= 0 || !finite(a.projectileSpeed) || (a.count ?? 1) > 12 || (a.count ?? 1) < 1 || !Number.isInteger(a.count ?? 1)))
                 throw Error('Invalid projectile');
+            if(a.burstSize!==undefined&&(!Number.isInteger(a.burstSize)||a.burstSize<1||a.burstSize>(a.count??1)))throw Error('Invalid projectile wave');
             if(a.contactBounds&&(['x','y','z']as const).some(k=>!finite(a.contactBounds!.min[k])||!finite(a.contactBounds!.max[k])||a.contactBounds!.min[k]>a.contactBounds!.max[k]))throw Error('Invalid authored contact bounds');
             if (a.mechanism === 'sweep' && (!(a.reach! > 0) || !finite(a.reach!) || !finite(a.arcStart ?? 0) || !finite(a.arcEnd ?? 0) || Math.abs((a.arcEnd ?? 0) - (a.arcStart ?? 0)) > Math.PI * 2))
                 throw Error('Invalid sweep');
