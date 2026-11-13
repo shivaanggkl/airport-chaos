@@ -25,3 +25,8 @@ export function cruiseThrottleSelection(value:number):number;
 export function controlledEngineThrust(speed:number,target:number,available:number,drag:number,response:number):number;
 
 export function stepBoostBlend(current:number,active:boolean,delta:number):number;
+
+export function landingApproachSpeedTarget(throttle:number,envelope:{stallSpeed:number;safeLandingSpeed:number}):number|undefined;
+
+export function runwayPowerScale(throttle:number):number;
+export function runwayRotationSpeed(envelope:{takeoffSpeed:number}):number;

@@ -34,30 +34,38 @@ test('live authenticated M08: intro has no deadline; real rounds hit all three p
   socket.on('message',b=>packets.push(JSON.parse(String(b))));
   const welcome=await wait(p=>p.type==='welcome');assert.ok(welcome.airborneSpawn);
   const approach=await wait(p=>p.type==='journeyAttempt'&&p.attempt.status==='APPROACH');assert.equal(approach.attempt.deadlineAt,null);
-  const position=welcome.airborneSpawn.position;let heading=welcome.airborneSpawn.heading,sequence=0;
+  const position=welcome.airborneSpawn.position;let heading=welcome.airborneSpawn.heading,pitch=0,sequence=0;
   const send=(message:any)=>socket!.send(JSON.stringify(message));
-  const state=()=>send({type:'state',position,rotation:{x:0,y:heading,z:0},aircraftType:'trainer',stateSequence:++sequence,velocity:{x:0,y:0,z:0}});
+  const state=()=>send({type:'state',position,rotation:{x:pitch,y:heading,z:0},aircraftType:'trainer',stateSequence:++sequence,velocity:{x:0,y:0,z:0}});
   heartbeat=setInterval(state,50);state();
   send({type:'journeyCountdownComplete',attemptId:attempt.attemptId});
   const racing=await wait(p=>p.type==='journeyAttempt'&&p.attempt.status==='RACING');assert.equal(racing.attempt.deadlineAt-racing.attempt.startedAt,180000);
-  for(let stage=0;stage<3;stage++){
-   const current=await wait(p=>p.type==='journeyAttempt'&&p.attempt.sharpshooter?.destroyed===stage&&p.attempt.status==='RACING');
-   const t=current.attempt.sharpshooter.target;
+  assert.equal(racing.attempt.sharpshooter.targets.length,3);
+  for(const [count,stage]of [2,0,1].entries()){
+   const current=await wait(p=>p.type==='journeyAttempt'&&p.attempt.sharpshooter?.destroyed===count&&p.attempt.status==='RACING');
+   const t=current.attempt.sharpshooter.targets.find((t:any)=>t.stage===stage);
    // Turn through accepted states; no teleport or client hit/completion event.
-   const desired=t.heading;
-   while(Math.abs(desired-heading)>.015){heading+=Math.sign(desired-heading)*.015;state();await sleep(30);}heading=desired;state();
+   const desired=t.heading,desiredPitch=Math.atan2(t.y-position.y,Math.hypot(t.x-position.x,t.z-position.z));
+   while(Math.abs(desired-heading)>.015||Math.abs(desiredPitch-pitch)>.015){
+    heading+=Math.max(-.015,Math.min(.015,desired-heading));
+    pitch+=Math.max(-.015,Math.min(.015,desiredPitch-pitch));state();await sleep(30);
+   }heading=desired;pitch=desiredPitch;state();
    await sleep(100);
    for(let round=0;round<18;round++){
     const pose=sharpshooterTargetPose(t,Date.now()-racing.attempt.startedAt,{x:0,y:0,z:0});
-    heading=Math.atan2(-(pose.x-position.x),-(pose.z-position.z));state();
-    send({type:'fire',clientShotId:`stage-${stage}-${round}`});await sleep(220);
-    if(packets.some(p=>p.type==='journeyAttempt'&&p.attempt.sharpshooter?.destroyed===stage+1))break;
+    heading=Math.atan2(-(pose.x-position.x),-(pose.z-position.z));
+    pitch=Math.atan2(pose.y-position.y,Math.hypot(pose.x-position.x,pose.z-position.z));state();
+    const targetId=`bullseye:${attempt.attemptId}:${stage}`;
+    if(stage===0){send({type:'lock',targetId});await wait(p=>p.type==='lockState'&&p.targetId===targetId);}
+    send({type:'fire',clientShotId:`stage-${stage}-${round}`,targetId:stage===0?targetId:undefined});await sleep(220);
+    if(packets.some(p=>p.type==='journeyAttempt'&&p.attempt.sharpshooter?.destroyed===count+1))break;
    }
-   await wait(p=>p.type==='journeyAttempt'&&p.attempt.sharpshooter?.destroyed===stage+1);
+   await wait(p=>p.type==='journeyAttempt'&&p.attempt.sharpshooter?.destroyed===count+1);
   }
   const completed=await wait(p=>p.type==='journeyAttempt'&&p.attempt.status==='COMPLETED');
-  assert.equal(completed.attempt.firstClearCredits,800);assert.equal(completed.attempt.sharpshooter.target,null);
-  assert.ok(packets.filter(p=>p.type==='projectileRemove'&&p.impactPosition).length>=3);
+  assert.equal(completed.attempt.firstClearCredits,800);assert.deepEqual(completed.attempt.sharpshooter.targets,[]);
+  assert.ok(packets.filter(p=>p.type==='projectileRemove'&&p.impactPosition).length>=2);
+  assert.ok(packets.some(p=>p.type==='assistedShot'&&p.targetId===`bullseye:${attempt.attemptId}:0`),'existing assisted-shot contract hits locked bullseye');
   assert.equal(store.get(identity.pilotId,attempt.attemptId)!.status,'COMPLETED');
   assert.ok(!packets.some(p=>p.type==='damage'),'no aircraft combat or target destruction rewards');
  }finally{

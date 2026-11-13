@@ -10,14 +10,15 @@ export function createSharpshooterTarget(stage:number, position:Point, heading:n
   clearanceAt:(x:number,z:number)=>number):SharpshooterTarget {
   if (![position.x,position.y,position.z,heading,elapsedMs].every(Number.isFinite) || stage<0 || stage>2 || !Number.isInteger(stage))
     throw new Error('Invalid sharpshooter stage');
-  const angle=heading+(stage===1?Math.PI/12:stage===2?-Math.PI/12:0);
-  const distance=1800+stage*200;
+  // Separate locations and heights form a broad triangle rather than a row.
+  const angle=heading+(stage===1?Math.PI*35/180:stage===2?-Math.PI*40/180:0);
+  const distance=stage===0?2200:stage===1?3900:5000;
   const x=position.x-Math.sin(angle)*distance,z=position.z-Math.cos(angle)*distance;
   // Include the complete moving sweep and circular face, not only its center.
   let floor=-Infinity;
-  for(const offset of [-260,0,260])for(const cross of [-110,0,110])
+  for(const offset of [-370,0,370])for(const cross of [-220,0,220])
     floor=Math.max(floor,clearanceAt(x+Math.cos(angle)*offset-Math.sin(angle)*cross,z-Math.sin(angle)*offset-Math.cos(angle)*cross));
-  return {stage,x,y:Math.max(position.y,floor+mission.targetRadius+150),z,heading:angle,activatedAt:elapsedMs};
+  return {stage,x,y:Math.max(position.y+stage*500,floor+mission.targetRadius+150),z,heading:angle,activatedAt:elapsedMs};
 }
 
 /** Existing swept solver rejects misses; the face-plane contact then matches

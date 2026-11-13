@@ -28,14 +28,16 @@ test('all four aircraft accelerate, rotate and lift off without an injected velo
    assert.equal(validateClientTransform(before,c.airplane.position,dt*1000,c.currentAircraft).accepted,true);
    if(wasGround&&!c.onGround){
     liftoff=time;assert.equal(c.velocity.y,0,'wheel release must not inject vertical speed');
+    assert(Math.abs(c.velocity.length()-c.currentSpeed)<1e-8,'wheel release retains the runway speed');
     assert.equal(c.airplane.position.y,527);assert(c.takeoffRollMeters>=c.currentAircraft.minimumTakeoffRoll);
+    assert(c.currentSpeed>=controls.runwayRotationSpeed(c.currentAircraft),'rotation needs a developed runway roll');
    }
    if(liftoff!==undefined&&time-liftoff<.5)maxEarlyAcceleration=Math.max(maxEarlyAcceleration,(c.currentSpeed-previousSpeed)/dt);
    previousSpeed=c.currentSpeed;
   }
   assert(liftoff!==undefined&&liftoff<20,`${type}: timely liftoff`);assert(c.airplane.position.y>532,`${type}: lift raises the aircraft`);
-  assert(maxEarlyAcceleration<c.currentAircraft.groundAcceleration*1.5,`${type}: smooth first half-second`);
-  if(fps===60&&!mobile)t.diagnostic(`${type}: liftoff ${liftoff.toFixed(2)}s; height after 6s ${(c.airplane.position.y-527).toFixed(1)}m`);
+  assert(maxEarlyAcceleration<c.currentAircraft.groundAcceleration*controls.runwayPowerScale(1)*1.5,`${type}: smooth first half-second`);
+  if(fps===60&&!mobile)t.diagnostic(`${type}: liftoff ${liftoff.toFixed(2)}s; rotation minimum ${controls.runwayRotationSpeed(c.currentAircraft).toFixed(1)}m/s; height after 6s ${(c.airplane.position.y-527).toFixed(1)}m`);
  }
 });
 
@@ -43,7 +45,8 @@ test('full runway power continues accelerating above the old ground cap, while b
  for(const [type,oldCap]of Object.entries({trainer:75,privateJet:95,cargo:90,fighter:125})){
   const c=flight(type),dt=1/60;
   for(let i=0;i<15/dt;i++)c.updateFlight(dt);
-  assert(c.onGround);assert(c.currentSpeed>oldCap);assert(c.currentSpeed<=c.currentAircraft.groundMaxSpeed);
+  assert(c.onGround);assert(c.currentSpeed>oldCap);assert(c.currentSpeed<=c.currentAircraft.groundMaxSpeed*controls.runwayPowerScale(1));
+  assert(c.currentSpeed>c.currentAircraft.groundMaxSpeed,'full power must build beyond the previous flat runway cap');
   c.heldActions.delete('throttleUp');c.heldActions.add('throttleDown');
   const stopSeconds=c.currentSpeed/(c.currentAircraft.groundDrag*2.6)+1;
   for(let i=0;i<stopSeconds/dt;i++)c.updateFlight(dt);
@@ -100,6 +103,20 @@ test('airborne turns ease in, reverse through level, and settle symmetrically', 
   for (let frame = 0; frame < left.length; frame++) {
    assert.ok(Math.abs(left[frame][0] + right[frame][0]) < 1e-8, `${type}: left and right bank diverged`);
    assert.ok(Math.abs(left[frame][1] + right[frame][1]) < 1e-8, `${type}: left and right yaw diverged`);
+  }
+ }
+});
+
+
+test('runway lever retains slow taxi, builds high-power speed, and keeps no-pitch rolls grounded',()=>{
+ for(const type of Object.keys(aircraftDefinitions)){
+  for(const throttle of [0,.08,controls.cruiseThrottleStops[1],controls.cruiseThrottleStops[2],controls.cruiseThrottleStops[3],1]){
+   const c=flight(type);c.heldActions.clear();c.throttle=throttle;
+   for(let i=0;i<1800;i++)c.updateFlight(1/60);
+   assert(c.onGround,'speed alone must never auto-launch');
+   const scale=controls.runwayPowerScale(throttle);
+   assert(Math.abs(c.currentSpeed-throttle*c.currentAircraft.groundMaxSpeed*scale)<1e-6);
+   if(throttle<=controls.cruiseThrottleStops[1])assert.equal(scale,1,'taxi and landing rollout target unchanged');
   }
  }
 });
