@@ -6936,7 +6936,7 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
   }
   if (journeySpawn?.firstContact || pursuitSpawn || crossfireSpawn) player.velocity = { x: -Math.sin(spawnHeading) * bot.speed, y: 0, z: -Math.cos(spawnHeading) * bot.speed };
   players.set(id, player);
-  if (journeySpawn) sendToPlayer(journeySpawn.targetPlayerId,journeySpawn.territoryDefense?{...botStateMessage(id,player,'playerState'),velocity:{x:0,y:0,z:0}}:botStateMessage(id, player, 'playerState'));
+  if (journeySpawn) sendToPlayer(journeySpawn.targetPlayerId,journeySpawn.territoryDefense||journeySpawn.crossfireMissionId===journeyDallasTwinHunters01.id?{...botStateMessage(id,player,'playerState'),velocity:{x:0,y:0,z:0}}:botStateMessage(id, player, 'playerState'));
   else broadcastToCity(cityId, botStateMessage(id, player, 'playerState'));
   return id;
 }
@@ -7587,7 +7587,7 @@ function updateBots(now: number, expertOnly = false): void {
       const owner=bot.journeyTargetPlayerId?players.get(bot.journeyTargetPlayerId):undefined;
       const attempt=owner&&bot.journeyAttemptId?journeyStore.activeSnapshot(owner.pilotId,bot.journeyAttemptId):undefined;
       if(attempt?.status!=='RACING'){
-        if(bot.journeyTerritoryDefense&&attempt?.status==='APPROACH'&&bot.journeyTargetPlayerId)sendToPlayer(bot.journeyTargetPlayerId,{...botStateMessage(botId,player),velocity:{x:0,y:0,z:0}});
+        if(attempt?.status==='APPROACH'&&bot.journeyTargetPlayerId)sendToPlayer(bot.journeyTargetPlayerId,{...botStateMessage(botId,player),velocity:{x:0,y:0,z:0}});
         continue;
       }
     }

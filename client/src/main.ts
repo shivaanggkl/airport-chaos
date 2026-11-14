@@ -5152,6 +5152,13 @@ function clearMissionCombatIntroAircraft(): void {
   });
 }
 
+/** Assigned actor packets and attempt updates can arrive in either order. */
+function prepareAssignedMissionIntro(): void {
+  if(journeyAttempt?.status!=='APPROACH'||flightLaunchState!=='pending'||missionCombatIntroPath||missionCaptureIntroPath)return;
+  if(journeyAttempt.missionId===journeyDallasTwinHunters01.id||journeyAttempt.missionId===journeyDallasTerritoryDefense01.id)
+    void prepareMissionCombatIntro(journeyAttempt.attemptId,journeyAttempt.missionId);
+}
+
 async function prepareMissionCombatIntro(attemptId: string, missionId: string): Promise<void> {
   if(missionId===journeyDallasTerritoryDefense01.id){
     const invader=journeyAttempt?.targetId?remotePlayers.get(journeyAttempt.targetId)?.plane:undefined;
@@ -9515,8 +9522,7 @@ function updateRemotePlayer(player: NetworkPlayer): void {
       remote.hunterMotion.push(player.position, player.rotation, player.velocity, player.serverNow, performance.now());
     }
     remotePlayers.set(player.playerId, remote);
-    if ((journeyAttempt?.missionId === journeyDallasTwinHunters01.id||journeyAttempt?.missionId===journeyDallasTerritoryDefense01.id) && journeyAttempt.status === 'APPROACH' && flightLaunchState === 'pending' && !missionCombatIntroPath)
-      void prepareMissionCombatIntro(journeyAttempt.attemptId, journeyAttempt.missionId);
+    prepareAssignedMissionIntro();
     return;
   }
 
@@ -13165,6 +13171,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         sendLocalState();
       }
     }
+    prepareAssignedMissionIntro();
     if (missionStartCountdownPending && (flightLaunchState === 'complete' || flightLaunchState === 'disabled') &&
       !airborneIntroAwaiting && !runwayJourneyIntroAwaiting && !missionStartCountdownWaitingForTransport) beginMissionStartCountdown();
 
