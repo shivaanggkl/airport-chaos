@@ -152,34 +152,8 @@ export class AircraftGarage {
     element.innerHTML = `<section class="garage-card app-shell-panel"><header class="garage-heading context-page-heading"><div class="garage-balance"></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG TO ROTATE • PINCH TO ZOOM</div></div><div class="garage-details" data-garage-details><div class="garage-status-row"><span data-garage-price></span><div class="garage-status-actions"><div class="garage-statuses" data-garage-status aria-label="Aircraft status"></div><button type="button" data-garage-cosmetic-get hidden>GET</button><button type="button" data-garage-equip hidden>USE APPEARANCE</button><button type="button" data-garage-trial hidden>START FREE TRIAL</button></div></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><section class="garage-cosmetics" data-garage-cosmetics></section><div class="garage-actions"><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button><button type="button" data-garage-premium-buy>UNLOCK — 2,400 SKY TOKENS</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><div class="garage-token-choice" data-garage-token-choice hidden><span>OR</span><button type="button" data-garage-token-buy></button></div><p class="garage-action-note" data-garage-action-note></p><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div></div><section class="garage-selector-section" aria-label="Choose aircraft"><div class="garage-list"></div></section></section>`;
     const equippedPage = document.createElement('div');
     equippedPage.className = 'garage-equipped-page';
-    const equippedHeader = document.createElement('header');
-    equippedHeader.className = 'context-page-heading garage-equipped-heading';
-    const equippedBack = createContextBackButton('BACK', closeTopUiLayer);
-    equippedBack.classList.add('garage-equipped-back');
-    equippedHeader.append(equippedBack, createContextPageTitle('AIRCRAFT HANGAR'));
-    this.equippedPanel = createAircraftDetailPanel();
-    const note = document.createElement('p');
-    note.className = 'garage-equipped-note';
-    note.textContent = this.onOpenStore
-      ? 'Tap OPEN STORE to choose or buy an aircraft, then equip it.'
-      : 'To change aircraft, choose an owned aircraft in the Store and tap EQUIP AIRCRAFT.';
-    const status = document.createElement('p');
-    status.className = 'garage-equipped-status'; status.setAttribute('role', 'status');
-    const footer = document.createElement('footer');
-    footer.className = 'garage-equipped-footer';
-    footer.append(note);
-    if (this.onOpenStore) {
-      const storeButton = document.createElement('button');
-      storeButton.type = 'button';
-      storeButton.className = 'entry-button entry-button-primary garage-equipped-store';
-      storeButton.textContent = 'OPEN STORE';
-      storeButton.setAttribute('aria-label', 'Open Aircraft tab in Store');
-      storeButton.addEventListener('click', () => this.onOpenStore?.());
-      footer.append(storeButton);
-    }
-    footer.append(status);
-    this.equippedPanel.append(footer);
-    equippedPage.append(equippedHeader, this.equippedPanel);
+    this.equippedPanel = createAircraftDetailPanel(closeTopUiLayer);
+    equippedPage.append(this.equippedPanel);
     element.append(equippedPage);
     const statusRow = element.querySelector<HTMLElement>('.garage-status-row')!;
     const walletRow = document.createElement('div'); walletRow.className = 'garage-wallet-row';
@@ -337,7 +311,6 @@ export class AircraftGarage {
     this.selected = this.profile.selectedAircraft;
     this.previewCosmetic = undefined;
     this.viewedCosmetics.clear();
-    this.element.querySelector<HTMLButtonElement>('.garage-equipped-back')!.setAttribute('aria-label', this.element.classList.contains('return-to-store') ? 'Back to Store' : 'Back');
     this.element.hidden = false;
     this.element.classList.add('is-equipped-page');
     this.equippedPreviewType = undefined;
@@ -475,7 +448,7 @@ export class AircraftGarage {
 
   showActionResult(message: string): void {
     if (this.element.classList.contains('is-equipped-page')) {
-      this.element.querySelector<HTMLElement>('.garage-equipped-status')!.textContent = message;
+      this.equippedPanel.setAttribute('aria-description', message);
       return;
     }
     this.pendingAircraftAfterCosmetic = undefined;

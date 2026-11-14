@@ -229,3 +229,12 @@ export const journeyDallasTwinHunters01: Readonly<{
   enemies: readonly Readonly<{aircraft:'trainer'|'privateJet';livery:string;name:string;level:'EASY'|'MEDIUM';fireDelayMs:number;x:number;z:number;altitude:number}>[];
 }>;
 export function journeyCrossfireMission(missionId: string | undefined): typeof journeyDallasTwinHunters01 | typeof journeyDallas16 | undefined;
+
+export const journeyDallasTerritoryDefense01: Readonly<{
+ id:'journey-dallas-territory-defense-01';cityId:'dallas';name:'TERRITORY DEFENSE';difficulty:'MEDIUM';objective:string;territoryId:'las-colinas';
+ defenseDurationMs:90000;enemyCaptureDurationMs:60000;timeLimitMs:180000;firstClearCredits:1700;
+ airborneSpawn:Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
+ enemyAircraft:'privateJet';enemyLivery:string;enemyHealth:300;enemySpawn:Readonly<{x:number;z:number}>;
+ enemyAltitude:1000;cruiseSpeed:420;aggressionDistance:5000;fireDelayMs:8000;
+ patrolRoute:readonly Readonly<{x:number;z:number}>[];
+}>;

@@ -1,7 +1,7 @@
 // Golden River: authored in final Dallas world units. Arc-length table is built once.
-export const coinTrailVersion = 2;
+export const coinTrailVersion = 3;
 const samples = 8192, arc = new Float64Array(samples + 1);
-export function coinCenterline(t) { return { x:12000+11000*Math.sin(2*Math.PI*t), z:-35000+75000*t }; }
+export function coinCenterline(t) { return { x:12000+11000*Math.sin(3*Math.PI*t), z:-35000+75000*t }; }
 let previous=coinCenterline(0);
 for(let i=1;i<=samples;i++){const p=coinCenterline(i/samples);arc[i]=arc[i-1]+Math.hypot(p.x-previous.x,p.z-previous.z);previous=p;}
 export const coinTrailLength=arc[samples];
@@ -9,8 +9,7 @@ export const dallasCoinTrail=Object.freeze(Array.from({length:1000},(_,i)=>{
  const distance=i*coinTrailLength/999;let lo=0,hi=samples;
  while(lo+1<hi){const mid=(lo+hi)>>>1;if(arc[mid]<distance)lo=mid;else hi=mid;}
  const t=(lo+(distance-arc[lo])/(arc[hi]-arc[lo]))/samples,p=coinCenterline(t);
- const dx=22000*Math.PI*Math.cos(2*Math.PI*t),dz=75000,n=Math.hypot(dx,dz),offset=i%2?95:-95;
- return Object.freeze({x:p.x+dz/n*offset,z:p.z-dx/n*offset,t});
+ return Object.freeze({x:p.x,z:p.z,t});
 }));
 export const emptyCoinMask='0'.repeat(250);
 export function coinCollected(mask,index){return Boolean(parseInt(mask[Math.floor(index/4)]??'0',16)&(1<<(index%4)));}

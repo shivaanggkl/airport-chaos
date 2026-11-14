@@ -1,3 +1,4 @@
+import {journeyDallasTerritoryDefense01} from '../../shared/journey-mission.mjs';
 import {journeyCrossfireMission,journeyDallasTwinHunters01} from '../../shared/journey-mission.mjs';
 import {journeyDallas18} from '../../shared/journey-mission.mjs';
 import {journeyDallas17} from '../../shared/journey-mission.mjs';
@@ -22,8 +23,8 @@ import {createOpponent,opponentAim} from './opponent.js';
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
 import {recordOpponentHit,recordOpponentDamage} from './opponent-tactics.js';
 const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
-function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,journeyDallas18,journeyDallas17,hunterObservedPosition,recordOpponentHit,recordOpponentDamage,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
-function fixture(){const dir=mkdtempSync(join(tmpdir(),'double-threat-')),path=join(dir,'p.sqlite'),db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");const store=new JourneyAttemptStore(path);db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)').run('pilot',journeyDallasTwinHunters01.id,'m15',1);return{dir,path,db,store};}
+function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyDallasTerritoryDefense01,journeyCrossfireMission,journeyDallasTwinHunters01,journeyDallas18,journeyDallas17,hunterObservedPosition,recordOpponentHit,recordOpponentDamage,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
+function fixture(){const dir=mkdtempSync(join(tmpdir(),'double-threat-')),path=join(dir,'p.sqlite'),db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");const store=new JourneyAttemptStore(path);db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)').run('pilot',journeyDallasTerritoryDefense01.id,'m16',1);return{dir,path,db,store};}
 function assigned(f,at=1000){const a=f.store.launch('pilot','trainer',at,mission.id);f.store.approach('pilot',a.attemptId);f.store.assignCrossfireHunter('pilot',a.attemptId,'one',1);f.store.assignCrossfireHunter('pilot',a.attemptId,'two',2);return a;}
 
 test('displayed M17 preserves identity, DFW entry, two appearances, health and distinct 12–20km departure distances',()=>{
@@ -52,7 +53,7 @@ test('dynamic firing permission follows useful geometry with hysteresis and safe
 });
 
 test('outdated active Crossfire attempts retire safely, while completion receipts and fresh retries survive',()=>{
- const f=fixture();try{const old=assigned(f);f.db.prepare('UPDATE journey_attempts SET definition_revision=0 WHERE attempt_id=?').run(old.attemptId);new JourneyAttemptStore(f.path);assert.equal(f.store.get('pilot',old.attemptId).failureReason,'MISSION_UPDATED');assert.equal(f.store.progress('pilot',journeyDallasTwinHunters01.id).completed,true);
+ const f=fixture();try{const old=assigned(f);f.db.prepare('UPDATE journey_attempts SET definition_revision=0 WHERE attempt_id=?').run(old.attemptId);new JourneyAttemptStore(f.path);assert.equal(f.store.get('pilot',old.attemptId).failureReason,'MISSION_UPDATED');assert.equal(f.store.progress('pilot',journeyDallasTerritoryDefense01.id).completed,true);
  const retry=f.store.launch('pilot','trainer',5000,mission.id);assert.equal(retry.targetId,null);assert.equal(retry.secondaryTargetId,null);assert.equal(retry.crossfireKills,0);assert.equal(retry.deadlineAt,null);f.store.fail('pilot',retry.attemptId,'CRASHED',6000);assert.equal(f.store.completeHunter('pilot',retry.attemptId,'one',6500),undefined);
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });

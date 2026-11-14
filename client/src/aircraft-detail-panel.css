@@ -1,29 +1,36 @@
 .store-detail-panel {
   position: relative; display: grid; grid-template-rows: minmax(120px, 1fr) auto;
-  width: min(950px, 100%); height: min(500px, 100%); min-height: 0; overflow: hidden;
-  border: 3px solid var(--menu-card-accent); border-radius: 18px; background: #fff;
+  width: min(1200px, 100%); height: min(680px, 100%); min-height: 0; overflow: hidden;
+  border: 3px solid var(--menu-card-accent); border-radius: 22px; background: #fff;
   box-shadow: 0 16px 42px rgb(0 0 0 / 42%);
 }
-.store-detail-preview {
-  position: relative; min-height: 0; overflow: hidden; background: #264b82;
-}
-.store-detail-preview::before {
-  position: absolute; inset: -14px; background: var(--menu-background); background-position: center; background-size: cover;
-  filter: blur(4px); content: '';
-}
+.store-detail-preview { position: relative; min-height: 0; overflow: hidden; background: #163862 url('/media/city-journey/hangar.jpg') center / cover no-repeat; }
 .store-preview-canvas { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.store-detail-specs { min-width: 0; max-height: max(120px, calc(100dvh - 150px)); overflow: auto; padding: clamp(12px, 2vw, 22px); background: #fff; }
-.store-detail-specs h2 { margin: 0; color: #0b2345; font: 900 clamp(19px, 2.6vw, 33px)/1.1 var(--font-display); }
-.store-detail-role { margin: 4px 0 12px; color: #c99b3d; font: 800 clamp(13px, 1.7vw, 20px)/1.2 var(--font-display); }
-.store-detail-speed { margin: -5px 0 10px; color: #52647a; font: 800 clamp(11px, 1.2vw, 14px)/1.2 var(--font-display); }
-.store-detail-stats {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px;
-  padding-top: 12px; border-top: 1px solid #d7e0e5;
+.store-detail-specs { position: relative; z-index: 2; min-width: 0; overflow: auto; padding: clamp(6px, 1vw, 10px); background: linear-gradient(180deg, #eaf5ff, #dcebf8); border-top: 2px solid #72e6f5; box-shadow: 0 -2px 8px rgb(63 221 255 / 30%); }
+.store-detail-specs h2 { margin: 0 0 6px; text-align: center; color: #0b2345; font: 900 clamp(15px, 1.7vw, 22px)/1.1 var(--font-body); }
+.store-detail-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.store-detail-stats > div { display: grid; align-content: center; gap: 4px; min-width: 0; padding: 3px; text-align: center; color: #0b2345; font: 900 clamp(8px, .9vw, 12px)/1.2 var(--font-body); }
+.store-detail-stats > div + div { border-left: 1px solid #cbd7df; }
+.store-detail-stats strong { color: #986116; font-size: clamp(12px, 1.4vw, 18px); font-weight: 900; font-variant-numeric: tabular-nums; }
+@media (max-width: 620px) and (orientation: portrait) {
+  .store-detail-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 0; }
 }
-.store-detail-stats > div { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(100px, 1fr); align-items: center; gap: 8px; min-width: 0; color: #0b2345; font: 900 clamp(12px, 1.4vw, 17px)/1 var(--font-display); text-transform: uppercase; }
-.store-detail-stats b { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
-.store-detail-stats i { height: 16px; border-radius: 4px; background: #dce2e6; }
-.store-detail-stats i.active { background: linear-gradient(#ffde91, #f6b82f); }
-@media (max-width: 620px) {
-  .store-detail-stats { grid-template-columns: 1fr; gap: 8px; }
+@media (max-height: 520px) and (orientation: landscape) {
+  .store-detail-specs { padding: 5px 8px 7px; }
+  .store-detail-specs h2 { margin-bottom: 4px; font-size: clamp(14px, 1.6vw, 18px); }
+  .store-detail-stats > div { gap: 3px; }
 }
+
+.store-detail-rotate-hint {
+  position: absolute; z-index: 2; top: 18px; left: 18px; pointer-events: none;
+  color: #fff; font: 900 clamp(12px, 1.5vw, 18px)/1 var(--font-body);
+  letter-spacing: .02em; text-shadow: 0 2px 5px #06162c;
+}
+
+.store-detail-close {
+  position: absolute; z-index: 3; top: 12px; right: 12px; display: grid; place-items: center;
+  width: 48px; height: 48px; padding: 0; border: 2px solid var(--ui-navigation-button-border);
+  border-radius: 12px; background: var(--ui-back-button-fill); color: #fff;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 30%); font: 900 32px/1 var(--font-body); cursor: pointer;
+}
+.store-detail-close:focus-visible, .store-art:focus-visible { outline: 3px solid #1ac8e3; outline-offset: 2px; }

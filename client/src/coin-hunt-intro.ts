@@ -15,10 +15,12 @@ export class CoinHuntIntro {
    const framing=Math.max(1,1.25/camera.aspect);
    this.position.set((3000-seconds*250)*framing,2200*framing,4000*framing).add(this.target);
   }else if(seconds<6){
-   const index=Math.min(60,Math.floor((seconds-3)*18)),p=dallasCoinTrail[index]!,next=dallasCoinTrail[index+9]!;
-   const t=(seconds-3)*18-index,q=dallasCoinTrail[index+1]!;
+   // Show a short section at a readable pace rather than racing along the trail.
+   const progress=(seconds-3)*4,index=Math.floor(progress),t=progress-index;
+   const p=dallasCoinTrail[index]!,q=dallasCoinTrail[index+1]!;
+   const next=dallasCoinTrail[index+9]!,nextEnd=dallasCoinTrail[index+10]!;
    this.position.set(p.x+(q.x-p.x)*t+850,altitude+420,p.z+(q.z-p.z)*t-1600);
-   this.target.set(next.x,altitude,next.z);
+   this.target.set(next.x+(nextEnd.x-next.x)*t,altitude,next.z+(nextEnd.z-next.z)*t);
   }else if(seconds<9){
    const p=dallasCoinTrail[30]!;
    this.target.set(p.x,altitude,p.z);this.position.set(p.x+120*Math.sin(seconds-6),altitude+40,p.z-500+(seconds-6)*30);

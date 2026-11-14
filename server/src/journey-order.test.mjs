@@ -11,16 +11,16 @@ import {JourneyAttemptStore} from './journey-attempts.js';
 import {PlayerProfileStore} from './player-profiles.js';
 import {PilotProfileSummaryStore} from './pilot-profile-summary.js';
 
-const identities=[1,2,13,3,'capture-01',14,'airport-hop-01','sharpshooter-01',7,4,15,'coin-hunt-01',8,5,'twin-hunters-01',null,16,9,6,null,null,10,17,11,18,null,null,12,23,19];
+const identities=[1,2,13,3,'capture-01',14,'airport-hop-01','sharpshooter-01',7,4,15,'coin-hunt-01',8,5,'twin-hunters-01','territory-defense-01',16,9,6,null,null,10,17,11,18,null,null,12,23,19];
 const retired=[25,20,21,22,24].map(n=>`journey-dallas-${n}`);
 const temporary=()=>{const dir=mkdtempSync(join(tmpdir(),'journey-order-'));return {dir,path:join(dir,'profiles.sqlite')};};
 
-test('one catalog has the exact 30 slots, 25 stable gameplay IDs, five unique placeholders and four chapters',()=>{
+test('one catalog has the exact 30 slots, 26 stable gameplay IDs, four unique placeholders and four chapters',()=>{
  assert.equal(journeyCatalog.length,30);
- assert.deepEqual(journeyCatalog.map(slot=>slot.implementation==='playable'?slot.id==='journey-dallas-twin-hunters-01'?'twin-hunters-01':slot.id==='journey-dallas-coin-hunt-01'?'coin-hunt-01':slot.id==='journey-dallas-capture-01'?'capture-01':slot.id==='journey-dallas-airport-hop-01'?'airport-hop-01':slot.id==='journey-dallas-sharpshooter-01'?'sharpshooter-01':Number(slot.id.slice(-2)):null),identities);
+ assert.deepEqual(journeyCatalog.map(slot=>slot.implementation==='playable'?slot.id==='journey-dallas-territory-defense-01'?'territory-defense-01':slot.id==='journey-dallas-twin-hunters-01'?'twin-hunters-01':slot.id==='journey-dallas-coin-hunt-01'?'coin-hunt-01':slot.id==='journey-dallas-capture-01'?'capture-01':slot.id==='journey-dallas-airport-hop-01'?'airport-hop-01':slot.id==='journey-dallas-sharpshooter-01'?'sharpshooter-01':Number(slot.id.slice(-2)):null),identities);
  assert.deepEqual(journeyCatalog.map(slot=>slot.chapter),[...Array(9).fill(1),...Array(9).fill(2),...Array(10).fill(3),4,4]);
  assert.equal(new Set(journeyCatalog.map(slot=>slot.id)).size,30);
- assert.equal(journeyMissionOrder.length,25);
+ assert.equal(journeyMissionOrder.length,26);
  assert.deepEqual(missionJourneyStages.map(s=>s.id),journeyCatalog.map(s=>s.id));
  assert.deepEqual(missionJourneyDetails.map(s=>s.id),journeyMissionOrder);
  for(const slot of journeyCatalog){assert.equal(journeyMissionSlot(slot.id),slot.number);assert.equal(missionJourneyStages[slot.number-1].title,slot.title);}
@@ -78,7 +78,7 @@ test('rollout preserves earned legacy access once, keeps history and wallets int
   const reopened=new JourneyAttemptStore(path);
   assert.equal(reopened.canAccessMission('new','journey-dallas-13'),false,'restart must not grandfather new-order clears');
   assert.equal(reopened.canAccessMission('historical','journey-dallas-13'),true);
-  assert.equal(new PilotProfileSummaryStore(path).summary('historical').singlePlayer.missionsTotal,25);
+  assert.equal(new PilotProfileSummaryStore(path).summary('historical').singlePlayer.missionsTotal,26);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
 });
 
@@ -92,7 +92,7 @@ test('remaining monster encounters retain their definitions at M29/M30 and all c
   for(const id of journeyMissionOrder) db.prepare('INSERT INTO journey_completions VALUES(?,?,?,?,?,?)').run('qa',id,`clear-${id}`,now-1000,1000,1);
   db.prepare('INSERT INTO journey_completions VALUES(?,?,?,?,?,?)').run('qa','journey-dallas-25','retired',now-2000,1000,1);
   const summary=new PilotProfileSummaryStore(path).summary('qa',now);
-  assert.equal(summary.singlePlayer.missionsCompleted,25);
+  assert.equal(summary.singlePlayer.missionsCompleted,26);
   assert.equal(summary.singlePlayer.chaptersCompleted,4);
   assert.equal(summary.singlePlayer.citiesCompleted,1);
   assert.equal(store.chapterOneComplete('qa'),true);
