@@ -7358,3 +7358,5 @@ html.custom-control-layout #game-root #radar-panel {
  #game-root.coin-hunt-active .mission-status-layer {top:max(140px,calc(var(--safe-area-top) + 134px));}
  #game-root.coin-hunt-intro .flight-launch-title {left:14px;right:14px;top:auto;bottom:max(24px,var(--safe-area-bottom));max-width:none;}
 }
+
+#game-root.launch-cinematic-active.twin-hunters-intro > #mission-status-layer { opacity: 1 !important; --launch-hud-opacity: 1; }

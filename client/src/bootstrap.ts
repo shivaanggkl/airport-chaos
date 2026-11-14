@@ -139,7 +139,7 @@ function trackAircraftSelection<T>(operation: Promise<T>, confirmed: (value: T) 
   void completion.then(() => { if (pendingAircraftSelection === completion) pendingAircraftSelection = undefined; });
   return operation;
 }
-let journeyAttemptMission: 'mission-coin-hunt-01' | 'mission-sharpshooter-01' | 'mission-airport-hop-01' | 'mission-capture-01' | 'mission-01' | 'mission-02' | 'mission-03' | 'mission-04' | 'mission-05' | 'mission-06' | 'mission-07' | 'mission-08' | 'mission-09' | 'mission-10' | 'mission-11' | 'mission-12' | 'mission-13' | 'mission-14' | 'mission-15' | 'mission-16' | 'mission-17' | 'mission-18' | 'mission-19' | 'mission-20' | 'mission-21' | 'mission-22' | 'mission-23' | 'mission-24' = 'mission-01';
+let journeyAttemptMission: 'mission-twin-hunters-01' | 'mission-coin-hunt-01' | 'mission-sharpshooter-01' | 'mission-airport-hop-01' | 'mission-capture-01' | 'mission-01' | 'mission-02' | 'mission-03' | 'mission-04' | 'mission-05' | 'mission-06' | 'mission-07' | 'mission-08' | 'mission-09' | 'mission-10' | 'mission-11' | 'mission-12' | 'mission-13' | 'mission-14' | 'mission-15' | 'mission-16' | 'mission-17' | 'mission-18' | 'mission-19' | 'mission-20' | 'mission-21' | 'mission-22' | 'mission-23' | 'mission-24' = 'mission-01';
 
 function abandonPendingJourneyLaunch(): void {
   const attemptId = journeyAttemptId;
@@ -153,7 +153,7 @@ function abandonPendingJourneyLaunch(): void {
 type JourneyProgressEntry = { eligible?: boolean; completed?: boolean; firstAttemptId?: string };
 type JourneyProgressResponse = JourneyProgressEntry & { [key: `mission${string}`]: JourneyProgressEntry | undefined };
 function missionProgress(progress: JourneyProgressResponse, id: string): JourneyProgressEntry | undefined {
-  return id === 'journey-dallas-coin-hunt-01' ? progress.missionCoinHunt01 : id === 'journey-dallas-sharpshooter-01' ? progress.missionSharpshooter01 : id === 'journey-dallas-airport-hop-01' ? progress.missionAirportHop01 : id === 'journey-dallas-capture-01' ? progress.missionCapture01 : id === 'journey-dallas-01' ? progress : progress[`mission${id.slice(-2)}`];
+  return id === 'journey-dallas-twin-hunters-01' ? progress.missionTwinHunters01 : id === 'journey-dallas-coin-hunt-01' ? progress.missionCoinHunt01 : id === 'journey-dallas-sharpshooter-01' ? progress.missionSharpshooter01 : id === 'journey-dallas-airport-hop-01' ? progress.missionAirportHop01 : id === 'journey-dallas-capture-01' ? progress.missionCapture01 : id === 'journey-dallas-01' ? progress : progress[`mission${id.slice(-2)}`];
 }
 async function refreshJourneyProgress(): Promise<JourneyProgressResponse | undefined> {
   try {

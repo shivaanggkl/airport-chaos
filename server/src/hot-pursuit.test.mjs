@@ -1,4 +1,4 @@
-import {journeyDallas18} from '../../shared/journey-mission.mjs';
+import {journeyCrossfireMission,journeyMissionOrder,journeyDallas16,journeyDallas18} from '../../shared/journey-mission.mjs';
 import {journeyDallas17} from '../../shared/journey-mission.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -21,11 +21,11 @@ import {insideJourneyHunterArena,journeyHunterSteeringTarget,boundJourneyHunterP
 import {JourneyAttemptStore} from './journey-attempts.js';
 import {aceDamageAuthorized} from './journey-ace.js';
 const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
-function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyDallas18,journeyDallas17,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
-function fixture(){const dir=mkdtempSync(join(tmpdir(),'hot-pursuit-')),path=join(dir,'p.sqlite'),db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");const store=new JourneyAttemptStore(path);db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)').run('pilot',journeyDallas14.id,'old-m8',1);return{dir,db,store,path};}
+function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyCrossfireMission,journeyDallas16,journeyDallas18,journeyDallas17,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
+function fixture(){const dir=mkdtempSync(join(tmpdir(),'hot-pursuit-')),path=join(dir,'p.sqlite'),db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");const store=new JourneyAttemptStore(path);db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)').run('pilot',journeyMissionOrder[journeyMissionOrder.indexOf(mission.id)-1],'old-predecessor',1);return{dir,db,store,path};}
 
 test('M9 identity, twelve hits, Addison distance and 55km route remain inside authored mission airspace',()=>{
- assert.equal(journeyMissionSlot(mission.id),9);assert.equal(mission.name,'HOT PURSUIT');assert.equal(mission.bossHealth/projectileDamageForAircraft('trainer'),12);
+ assert.equal(journeyMissionSlot(mission.id),11);assert.equal(mission.name,'HOT PURSUIT');assert.equal(mission.bossHealth/projectileDamageForAircraft('trainer'),12);
  const addison=cityAirports.dallas.find(a=>a.id==='addison');assert.equal(mission.startAirportId,addison.id);
  const distance=Math.hypot(addison.x-mission.enemySpawn.x,addison.z-mission.enemySpawn.z);assert.ok(distance>=15000&&distance<=22000);
  let from=mission.enemySpawn,length=0;for(const to of mission.escapeRoute){length+=Math.hypot(to.x-from.x,to.z-from.z);for(let t=0;t<=1;t+=.01)assert.ok(insideJourneyHunterArena({x:from.x+(to.x-from.x)*t,z:from.z+(to.z-from.z)*t}));from=to;}
@@ -73,7 +73,7 @@ test('real heavy-aircraft integration completes the escape, with bounded defensi
 
 test('takeoff clock, timeout, old-attempt invalidation and preserved completion receipts',()=>{
  const f=fixture();try{const a=f.store.launch('pilot','trainer',1000,mission.id);f.store.approach('pilot',a.attemptId);f.store.assignHunter('pilot',a.attemptId,'enemy');assert.equal(f.store.get('pilot',a.attemptId).startedAt,null);assert.equal(f.store.completeHunter('pilot',a.attemptId,'enemy',2000),undefined);assert.equal(f.store.startPursuit('outsider',a.attemptId,2000),undefined);assert.equal(f.store.startPursuit('pilot',a.attemptId,2000).deadlineAt,182000);assert.equal(f.store.startPursuit('pilot',a.attemptId,3000),undefined);assert.equal(f.store.completeHunter('pilot',a.attemptId,'enemy',182000),undefined);f.store.fail('pilot',a.attemptId,'TIME_UP',182000);assert.equal(f.store.completeHunter('pilot',a.attemptId,'enemy',301000),undefined);
- const old=f.store.launch('pilot','trainer',400000,mission.id);f.db.prepare('UPDATE journey_attempts SET definition_revision=0 WHERE attempt_id=?').run(old.attemptId);new JourneyAttemptStore(f.path);assert.equal(f.store.get('pilot',old.attemptId).failureReason,'MISSION_UPDATED');assert.equal(f.store.progress('pilot',journeyDallas14.id).completed,true);
+ const old=f.store.launch('pilot','trainer',400000,mission.id);f.db.prepare('UPDATE journey_attempts SET definition_revision=0 WHERE attempt_id=?').run(old.attemptId);new JourneyAttemptStore(f.path);assert.equal(f.store.get('pilot',old.attemptId).failureReason,'MISSION_UPDATED');assert.equal(f.store.progress('pilot',journeyMissionOrder[journeyMissionOrder.indexOf(mission.id)-1]).completed,true);
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 

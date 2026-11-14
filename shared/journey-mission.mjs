@@ -475,6 +475,21 @@ export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
   return journeyGateCrossing(from, to, gateIndex, terrainHeight) === 'VALID';
 }
 
+// Already-scaled Dallas coordinates; shared by spawn, HUD and authoritative combat.
+export const journeyDallasTwinHunters01 = Object.freeze({
+  id: 'journey-dallas-twin-hunters-01', cityId: 'dallas', name: 'TWIN HUNTERS', difficulty: 'MEDIUM',
+  objective: 'Shoot down both enemy aircraft before time runs out!',
+  timeLimitMs: 240_000, firstClearCredits: 1500, enemyHealth: 200, aggressionDistance: 6000,
+  airborneSpawn: Object.freeze({x: -27000, z: -40000, altitude: 1100, heading: Math.PI, speed: 650}),
+  enemies: Object.freeze([
+    Object.freeze({aircraft: 'trainer', livery: 'bluejay-skybolt', name: 'BLUEJAY', level: 'EASY', fireDelayMs: 6000, x: -28900, z: -35700, altitude: 100}),
+    Object.freeze({aircraft: 'privateJet', livery: 'nightowl-sunset-red', name: 'NIGHTOWL', level: 'MEDIUM', fireDelayMs: 8000, x: -25100, z: -35700, altitude: 150}),
+  ]),
+});
+export function journeyCrossfireMission(missionId) {
+  return missionId === journeyDallasTwinHunters01.id ? journeyDallasTwinHunters01 : missionId === journeyDallas16.id ? journeyDallas16 : undefined;
+}
+
 const captureTerritory = territoriesForCity('dallas').find(territory => territory.id === 'las-colinas');
 export const journeyDallasCoinHunt01 = Object.freeze({
   id: 'journey-dallas-coin-hunt-01', cityId: 'dallas', name: 'DALLAS COIN HUNT', difficulty: 'MEDIUM',
@@ -524,7 +539,7 @@ export const journeyCatalog = Object.freeze([
   [journeyDallasCoinHunt01.id, 'Dallas Coin Hunt'],
   [8, 'Giant Plane & Two Escorts'],
   [5, 'Needle Rush'],
-  [null, 'VIP Escort'],
+  [journeyDallasTwinHunters01.id, 'Twin Hunters'],
   [null, 'Territory Defense'],
   [16, 'Double Threat'],
   [9, 'Giant Plane & Three Escorts'],
