@@ -693,6 +693,7 @@ function updateLocalWeather(now: number): void {
   if (next?.id === activeWeatherZone?.id) return;
   const previous = activeWeatherZone;
   activeWeatherZone = next;
+  if(next?.type==='storm')audioManager.playEffect('thunder',{gain:.45,cooldown:8});
   document.body.dataset.weather = next?.type ?? 'clear';
   if (next && now - weatherToastAt > 2_000) {
     weatherToastAt = now;
@@ -1674,7 +1675,7 @@ function recordBestScore(candidate: number): void {
 }
 
 function activateAudio(): void {
-  void audioManager.unlock();
+  void audioManager.unlock().then(ok=>{if(ok)void audioManager.prepareGameplay();});
 }
 
 function playTone(
@@ -1691,11 +1692,13 @@ function playTone(
 }
 
 function playCheckpointSound(): void {
+  if(audioManager.playEffect('checkpoint',{cooldown:.15}))return;
   playTone(520, 0.12, 'square', 0.055, 700);
   playTone(760, 0.14, 'square', 0.045, 980, 0.1);
 }
 
 function playNearMissSound(): void {
+  if(audioManager.playEffect('swipe',{gain:.3,cooldown:.6}))return;
   playTone(260, 0.24, 'sawtooth', 0.06, 820, 0, 'combat');
 }
 
@@ -1716,6 +1719,7 @@ function playLockWarningSound(): void {
   const now = performance.now();
   if (now - lastLockWarningSoundAt < 600) return;
   lastLockWarningSoundAt = now;
+  if(audioManager.playWarning('lock'))return;
   playTone(620, 0.11, 'triangle', 0.038, 520, 0, 'combat');
   playTone(520, 0.11, 'triangle', 0.032, 440, 0.12, 'combat');
 }
@@ -1724,11 +1728,13 @@ function playIncomingWarningSound(): void {
   const now = performance.now();
   if (now - lastIncomingWarningSoundAt < 450) return;
   lastIncomingWarningSoundAt = now;
+  if(audioManager.playWarning())return;
   playTone(880, 0.08, 'square', 0.05, 620, 0, 'combat');
   playTone(760, 0.08, 'square', 0.045, 520, 0.1, 'combat');
 }
 
 function playDestructionSound(): void {
+  if(audioManager.playExplosion())return;
   playTone(145, 0.27, 'sawtooth', 0.092, 42, 0, 'impacts');
   playTone(72, 0.44, 'triangle', 0.068, 35, 0.04, 'impacts');
 }
@@ -1736,6 +1742,8 @@ function playDestructionSound(): void {
 type EndReason = 'CRASHED' | 'TIME UP' | 'MID-AIR COLLISION' | 'DESTROYED';
 
 function playEndSound(message: EndReason): void {
+  if(message==='TIME UP'&&audioManager.playEffect('error',{priority:true}))return;
+  if(message==='CRASHED'&&audioManager.playExplosion('crash'))return;
   if (message === 'TIME UP') {
     playTone(420, 0.2, 'square', 0.055, 260);
     playTone(280, 0.24, 'square', 0.05, 150, 0.18);
@@ -1754,7 +1762,20 @@ function playLeaderSound(): void {
   playTone(880, 0.18, 'triangle', 0.055, 1040, 0.2);
 }
 
+let environmentAudioAt=0;
+let previousAudioBoost=false;
 function updateEngineAudio(): void {
+  const active=connectionReady()&&!realtimeStopped&&!crashed;
+  audioManager.setGameplayAudio(active);
+  audioManager.setScenePaused(journeyPaused||trainingPaused||document.hidden);
+  audioManager.setLoop('wind',active&&!onGround&&!portalInTransit?Math.min(.13,currentSpeed/currentAircraft.maxSpeed*.1):0);
+  if(boostActive&&!previousAudioBoost)audioManager.playEffect('boost',{gain:.45,cooldown:1});
+  previousAudioBoost=boostActive;
+  if(performance.now()>environmentAudioAt){environmentAudioAt=performance.now()+1000;
+    const nearLake=active&&waterBounds.some(w=>airplane.position.x>=w.minX&&airplane.position.x<=w.maxX&&airplane.position.z>=w.minZ&&airplane.position.z<=w.maxZ&&airplane.position.y-w.surfaceY<250&&(!w.polygon||pointInWorldPolygon(airplane.position.x,airplane.position.z,w.polygon)));
+    audioManager.setLoop('lake',nearLake ? 0.045:0);
+    audioManager.setLoop('outdoor',active&&altitudeAboveTerrain()<250&&!nearLake ? 0.025:0);
+  }
   const speedAmount = THREE.MathUtils.clamp(currentSpeed / currentAircraft.maxSpeed, 0, 1);
   // The launch lift is audio-only. It never changes throttle, velocity, or the
   // authoritative grounded aircraft state.
@@ -2445,6 +2466,7 @@ function updateProgressHud(): void {
 }
 
 function showProgressMessage(message: string, durationMs = 1400): void {
+  if(/failed|unavailable|cannot|invalid|not enough/i.test(message))audioManager.playEffect('error',{gain:.45,cooldown:.8});
   progressMessageElement.textContent = playerFacingText(message);
   progressMessageElement.classList.remove('hidden');
   window.clearTimeout(progressMessageTimer);
@@ -2470,7 +2492,8 @@ function showRewardFeedback(creditDelta: number, scoreDelta: number): void {
   if (!cityRules.progressionEnabled) return;
   if (creditDelta <= 0 && scoreDelta <= 0) return;
   rewardFeedbackElement.textContent = formatRewardFeedback(creditDelta, scoreDelta);
-  audioManager.playReward();
+  if(creditDelta>0){if(!audioManager.playEffect('credits',{cooldown:.2}))audioManager.playReward();if(creditDelta>=10)audioManager.playEffect('count',{gain:.25,cooldown:.5});}
+  else audioManager.playReward();
   const wasHidden = rewardFeedbackElement.classList.contains('hidden');
   window.clearTimeout(rewardHideTimer);
   window.clearTimeout(rewardRemoveTimer);
@@ -3602,7 +3625,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   const journeyExit = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!;
   journeyExit.textContent = 'EXIT TO JOURNEY';
   journeyExit.hidden = success;
-  if (success) { if (missionClearAttemptId !== attempt.attemptId) audioManager.playReward(); if (legendaryMission) legendaryPilotUnlocked = true; }
+  if (success) { if (missionClearAttemptId !== attempt.attemptId) {if(!audioManager.playEffect('victory',{priority:true,cooldown:1.5}))audioManager.playReward();} if (legendaryMission) legendaryPilotUnlocked = true; }
 }
 
 let pendingJourneyAd: { attemptId: string; failureKey: string; adAttemptId: string } | undefined;
@@ -3832,8 +3855,7 @@ function updateAircraftVictory(delta: number): void {
       return;
     }
     createDestructionEffect(ending.impactPosition, ending.mission.enemyAircraft, 3);
-    playDestructionSound();
-    audioManager.playDestroyConfirm();
+    if(!audioManager.playExplosion(ending.mission.enemyAircraft==='cargo'?'heavy':'normal'))audioManager.playDestroyConfirm();
   }
   transportCrashFlash.style.opacity = String(frame.flash);
   if (frame.complete) {
@@ -4351,11 +4373,12 @@ function showDamageFeedback(): void {
 }
 
 function showLocalProjectileDamage(damage: number, remainingHealth: number): void {
+  if(remainingHealth>0&&remainingHealth<=25)audioManager.playEffect('minorError',{priority:true,gain:.35,cooldown:6});
   updateHealthDisplay(true);
   if (remainingHealth > 0) hapticsManager.emit('damage');
   showCombatMessage(`-${damage} DAMAGE`);
   showDamageFeedback();
-  playTone(150, 0.13, 'sawtooth', 0.05, 80, 0, 'impacts');
+  if(!audioManager.playEffect('damage',{priority:true,cooldown:.12}))playTone(150, 0.13, 'sawtooth', 0.05, 80, 0, 'impacts');
 }
 
 function updateHealthDisplay(damaged = false): void {
@@ -5141,6 +5164,7 @@ function updateMissionStartCountdown(): void {
   if (remaining > 0) {
     if (remaining !== missionStartCountdownLastSecond) {
       missionStartCountdownLastSecond = remaining;
+      audioManager.playEffect('checkpoint',{gain:.4,cooldown:.3});
       missionStartCountdownNumber.textContent = String(remaining);
       missionStartCountdownElement.setAttribute('aria-label', `Mission starts in ${remaining}`);
     }
@@ -5148,6 +5172,7 @@ function updateMissionStartCountdown(): void {
   }
   missionStartCountdownStartedAt = null;
   missionStartCountdownNumber.textContent = 'GO!';
+  audioManager.playEffect('confirm',{gain:.6,cooldown:.3});
   missionStartCountdownElement.setAttribute('aria-label', 'Go');
   missionStartCountdownElement.classList.add('is-go');
   runStarted = true;
@@ -5338,6 +5363,7 @@ async function prepareMonsterMissionIntro(attemptId:string):Promise<void>{
 }
 
 function beginFlightLaunchCinematic(): void {
+  void audioManager.prepareGameplay();
   if (flightLaunchState !== 'pending' || trainingRequested || guidedTutorialActive) return;
   cinematicDirector.clearPresentation();
   flightLaunchState = 'active';
@@ -9000,6 +9026,7 @@ function playProjectileHit(position: NetworkVector | undefined, damage: number, 
   if (localShot) {
     showCombatMessage(`HIT +${damage}`, true);
     showHitMarker();
+    if(aircraft && (aircraft.userData.aircraftType==='cargo') && audioManager.playEffect('heavyHit',{gain:.55,cooldown:.1}))return;
     audioManager.playHitConfirm();
   }
 }
@@ -11346,6 +11373,8 @@ async function handlePortalTransition(message: PortalMessage): Promise<void> {
         socket.send(JSON.stringify({ type: 'portalTransit', transitionId: message.id }));
         portalVisuals?.setTransit(true, message.to);
         portalWindStop?.();
+        audioManager.playEffect('portalEntry',{gain:.6});audioManager.playEffect('transit',{gain:.5});
+        audioManager.setLoop('portalHum',.12);
         portalWindStop = audioManager.startIntercityWind();
         return;
     }
@@ -11359,6 +11388,7 @@ async function handlePortalTransition(message: PortalMessage): Promise<void> {
         portalNavigationState = message.navigation;
         refreshPortalGate();
         portalTransition.revealingAt = performance.now();
+        audioManager.playEffect('portalExit',{gain:.6});
 
         for (const player of message.players)
             updateRemotePlayer(player);
@@ -11387,6 +11417,7 @@ function finishPortal(): void {
     if(arrived&&connectionReady())socket.send(JSON.stringify({type:'portalArrived',transitionId:arrived}));
     portalWindStop?.();
     portalWindStop = undefined;
+    audioManager.setLoop('portalHum',0);
     adPlacementManager.setEnabled(true);
     portalInTransit = false;
     refreshPortalGate();
@@ -11493,6 +11524,7 @@ function animate(): void {
   if (stabilityQaMode) stabilityQaFrames += 1;
   const realDelta = clock.getDelta();
   const delta = Math.min(realDelta, 0.05);
+  audioManager.setScenePaused(journeyPaused||trainingPaused||document.hidden);
   if (journeyPaused || trainingPaused) return;
   updateMissionStartCountdown();
   updateMissionClear(delta);
@@ -11892,7 +11924,7 @@ let socket!: WebSocket;
 const airAssaultUi = airAssaultMode ? new AirAssaultUi({root:flightGameRoot,scene,
   template:enemy=>{const type=enemy.aircraftType ?? 'fighter';const plane=createAirplane(type,true);(plane.userData.airframeRoot as THREE.Group).scale.setScalar(aircraftPresentationScale[type]);Promise.resolve(plane.userData.assetReady).then(()=>applyEquippedLivery(plane,type,enemy.equippedCosmetics ?? {'livery:fighter':'firehawk-inferno'}));return plane;},
   disposeTemplate:disposeAirplaneMaterials,
-  send:type=>{if(connectionReady())socket.send(JSON.stringify({type}));},back:()=>{void exitFlightToHub();},replay:()=>{void replaceRealtimeSocket('Air Assault replay');},tone:()=>audioManager.playTone(700,.15,'triangle',.08,300,0,'weapons'),
+  send:type=>{if(connectionReady())socket.send(JSON.stringify({type}));},back:()=>{void exitFlightToHub();},replay:()=>{void replaceRealtimeSocket('Air Assault replay');},tone:()=>{if(!audioManager.playEffect('checkpoint',{gain:.5,cooldown:.3}))audioManager.playTone(700,.15,'triangle',.08,300,0,'weapons');},
 }) : undefined;
 const assaultRemoteIds=new Set<string>();
 const skyDuelUi = skyDuelMode ? new SkyDuelUi(flightGameRoot,
@@ -11978,6 +12010,7 @@ let resumeRefreshInFlight = false;
 const REALTIME_WELCOME_TIMEOUT_MS = 10_000;
 
 function setConnectionWarning(visible: boolean): void {
+  if(visible&&connectionStatusElement.classList.contains('hidden'))audioManager.playEffect('minorError',{gain:.25,cooldown:5});
   connectionStatusElement.classList.toggle('hidden', !visible);
 }
 
@@ -12097,6 +12130,7 @@ function setJourneyPaused(paused: boolean, deadlineAt?: number, resumeConfirmed 
   if (paused) journeyPauseRequestPendingUntil = 0;
   const wasPaused = journeyPaused;
   journeyPaused = paused;
+  audioManager.setScenePaused(paused);
   if (paused) journeyCombatHeader.setOpponentGuidance('');
   journeyPauseButtonElement.hidden = paused || !journeyPauseSupported || !journeyAttempt ||
     !['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status);
@@ -12305,6 +12339,7 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
     return true;
   }
   if (equipConfirmed) {
+    audioManager.playEffect('select',{cooldown:.2});audioManager.playConfirm();
     pendingEquip = undefined;
     hapticsManager.emit('confirmation');
   }
@@ -12738,6 +12773,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       }
       repairBeaconGroup.visible = true;
     }
+    audioManager.playOnce(`assault:${message.id}:${message.phaseAt}:${message.phase}`,message.phase==='finished'?(message.result==='full'||message.result==='survival'?'victory':'error'):message.phase==='countdown'?'checkpoint':message.phase==='active'?'incoming':'confirm',{gain:.5,cooldown:.3});
     airAssaultUi?.handle(message);
     const active=message.phase==='active'?message.enemies.filter(e=>e.phase==='takeoff'||e.phase==='combat'):[];
     const ids=new Set(active.map(e=>e.id));for(const id of assaultRemoteIds)if(!ids.has(id)){removeRemotePlayer(id);assaultRemoteIds.delete(id);}
@@ -12936,6 +12972,12 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       }
     }
 
+    if(previousAttempt?.attemptId===message.attempt.attemptId){
+      const cap=message.attempt.missionId===journeyDallasCapture01.id?journeyDallasCapture01.captureDurationMs:message.attempt.missionId===journeyDallasTerritoryDefense01.id?journeyDallasTerritoryDefense01.captureDurationMs:undefined;
+      if(cap!==undefined&&previousAttempt.captureMs<cap&&message.attempt.captureMs>=cap)audioManager.playOnce(`capture:${message.attempt.attemptId}`,'checkpoint',{priority:true});
+      if(message.attempt.invaderInside&&!previousAttempt.invaderInside)audioManager.playWarning();
+      if(message.attempt.coinHunt&&previousAttempt.coinHunt&&message.attempt.coinHunt.collected>previousAttempt.coinHunt.collected)audioManager.playEffect('credits',{gain:.45,cooldown:.15});
+    }
     if (previousAttempt?.missionId !== message.attempt.missionId) {
       const missionNumber = journeyMissionSlot(message.attempt.missionId);
       setLocalTimePreset(missionTimePreset(missionNumber));
@@ -12978,7 +13020,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
               return escort;
             }) : [];
         missionStartCountdownWaitingForTransport = missionStartCountdownPending && message.attempt.status === 'APPROACH';
-        view.onCrashImpact=()=>audioManager.playDestroyConfirm();view.onHit=()=>{showHitMarker();audioManager.playHitConfirm();};view.onWarning=()=>audioManager.playTone(500,.25,'triangle',.08,300,0,'weapons');
+        view.onCrashImpact=()=>{if(!audioManager.playExplosion('giant'))audioManager.playDestroyConfirm();};view.onHit=()=>{showHitMarker();audioManager.playHitConfirm();};view.onWarning=()=>{if(!audioManager.playWarning())audioManager.playTone(500,.25,'triangle',.08,300,0,'weapons');};
         Promise.allSettled([view.ready, ...arrivalEscorts.map(escort => escort.userData.assetReady as Promise<unknown>)]).then(async results=>{
           if (results[0]?.status === 'rejected') throw results[0].reason;
           if(transportView!==view||journeyAttempt?.attemptId!==message.attempt.attemptId)return;
@@ -13013,13 +13055,16 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
           getTerrainHeight(journeyDallas19.monster.x, journeyDallas19.monster.z),
           getTerrainHeight(M19_DOWNTOWN.x, M19_DOWNTOWN.z), camera, undefined, getTerrainHeight, () => renderer.domElement.height,ashenWarlordModel,message.attempt.missionId===journeyDallas25.id,(message.attempt.missionId===journeyDallas20.id||message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),(message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),(message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),(message.attempt.missionId===journeyDallas19.id||message.attempt.missionId===journeyDallas23.id));
         {titanAssetsReady=false;const id=message.attempt.attemptId;void monsterView.ready.then(()=>{if(journeyAttempt?.attemptId===id){titanAssetsReady=true;beginMissionStartCountdown();}}).catch(()=>showProgressMessage('Character could not load. Exit and retry.'));}
-        monsterView.onCasting=()=>audioManager.playTone(110,.45,'sawtooth',.05,290,0,'weapons');
-        monsterView.onRoar=()=>audioManager.playTitanRoar();
-        monsterView.onFootfall = () => audioManager.playTone(68, 0.3, 'triangle', 0.13, 28, 0, 'impacts');
-        monsterView.onWarning = () => audioManager.playTone(105, 0.55, 'sawtooth', 0.1, 44, 0, 'impacts');
-        monsterView.onProjectile = () => audioManager.playTone(290, 0.24, 'sawtooth', 0.07, 105, 0, 'weapons');
+        monsterView.onCasting=()=>audioManager.playMonster('charge');
+        monsterView.onRoar=()=>audioManager.playMonster('roar');
+        monsterView.onFootfall = () => audioManager.playMonster('footstep');
+        monsterView.onLandingSound=()=>audioManager.playMonster('landing');
+        monsterView.onDefeatSound=()=>audioManager.playMonster('roar');
+        monsterView.onAbilitySound=(id)=>audioManager.playMonster(id.includes('beam')?'beam':id.includes('clap')?'clap':id.includes('shockwave')?'shockwave':id.includes('smash')?'smash':'attack');
+        monsterView.onWarning = () => audioManager.playMonster('growl');
+        monsterView.onProjectile = () => audioManager.playMonster('fireball');
         monsterView.onHit = () => { showHitMarker(); audioManager.playHitConfirm(); };
-        monsterView.onDestruction = () => audioManager.playTone(75, 0.65, 'sawtooth', 0.15, 28, 0, 'impacts');
+        monsterView.onDestruction = () => audioManager.playMonster('smash');
       }
     } else if (monsterView && (((message.attempt.missionId!==journeyDallas19.id&&message.attempt.missionId!==journeyDallas25.id&&message.attempt.missionId!==journeyDallas21.id&&message.attempt.missionId!==journeyDallas22.id&&message.attempt.missionId!==journeyDallas23.id)&&message.attempt.missionId!==journeyDallas20.id) ||
       message.attempt.status === 'READY')) { monsterView.dispose(); monsterView = undefined; }
@@ -13237,6 +13282,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
   }
   if(message.type==='portalTransition'){await handlePortalTransition(message);return;}
   if (message.type === 'welcome') {
+    void audioManager.prepareGameplay();
     freeFlyRespawnPending = false;
     if(portalEligible){worldPreparationAbort?.abort();await cityLifecycle.catch(()=>{});if(boundSocket!==socket)return;}
     if(message.portalDallasTimePreset)portalDallasTimeOfDay=resolveCityTimePreset(getCity('dallas')!,message.portalDallasTimePreset);
@@ -13624,6 +13670,10 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     message.type === 'skyDuelState' || message.type === 'skyDuelResult' || message.type === 'skyDuelRematchState' ||
     message.type === 'skyDuelPractice' ||
     message.type === 'skyDuelOpponentDisconnected' || message.type === 'skyDuelOpponentReconnected') {
+    if(message.type==='skyDuelFound')audioManager.playEffect('confirm',{cooldown:1});
+    if(message.type==='skyDuelError'||message.type==='skyDuelOpponentDisconnected')audioManager.playEffect('minorError',{cooldown:2});
+    if(message.type==='skyDuelState')audioManager.playOnce(`duel:${message.matchId}:${message.phase}`,message.phase==='active'?'incoming':'checkpoint',{gain:.5,cooldown:.5});
+    if(message.type==='skyDuelResult')audioManager.playOnce(`duel-result:${message.matchId}`,message.outcome===(message.pilotA===serverProfile.pilotId?'WIN_A':'WIN_B')?'victory':'error',{priority:true});
     skyDuelUi?.handle(message);
     if (!skyDuelUi?.hasAbandonedSearch() && message.type === 'skyDuelState' &&
       message.phase === 'active') runStarted = true;
@@ -13651,17 +13701,18 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     if (pendingEquip?.id === message.equipRequestId) {
       pendingEquip = undefined;
       updatePendingAircraftEquip();
-      showProgressMessage(message.reason);
+      showProgressMessage(message.reason);audioManager.playEffect('minorError');
     }
   } else if (message.type === 'aircraftPurchaseResult') {
     aircraftGarage.showActionResult(message.ok ? 'AIRCRAFT PURCHASED — NOW OWNED' : (message.reason ?? 'PURCHASE FAILED'));
-    if (message.ok) { audioManager.playPurchaseSuccess(); hapticsManager.emit('rewardSuccess', `aircraft:${message.aircraftType ?? message.purchaseRequestId}`); }
+    if(!message.ok)audioManager.playEffect('error',{gain:.5});
+    if (message.ok) { audioManager.playOnce(`aircraft:${message.purchaseRequestId ?? message.aircraftType}`,'purchase',{priority:true,cooldown:1}); hapticsManager.emit('rewardSuccess', `aircraft:${message.aircraftType ?? message.purchaseRequestId}`); }
   } else if (message.type === 'testerCodeResult') {
     aircraftGarage.showActionResult(message.reason);
     if (message.ok) audioManager.playReward();
   } else if (message.type === 'fighterTrialResult') {
     aircraftGarage.showActionResult(message.reason ?? (message.ok ? 'FIREHAWK TEST FLIGHT STARTED' : 'TEST FLIGHT UNAVAILABLE'));
-    if (message.ok) aircraftGarage.close();
+    if (message.ok){audioManager.playEffect('confirm');aircraftGarage.close();}else audioManager.playEffect('minorError');
   } else if (message.type === 'projectileSpawn') {
     for (const ending of aircraftVictoryCandidates) ending.recordProjectile(message);
     addProjectile(message);
@@ -13715,6 +13766,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     const territory = territoryDefinition(message.territoryId);
     if (territory && (message.kind === 'enter' || message.kind === 'exit')) pulseTerritoryBoundary(territory.id);
     if (territory && message.kind === 'underAttack') {
+      audioManager.playWarning();
       gameplayFeedback.push({ type:'territory-contest', primaryText:'TERRITORY CONTESTED', secondaryText:territory.displayName.toUpperCase(), intensity:'medium' });
       territoryDefenseAlertId = territory.id;
       territoryDefenseTextElement.textContent = `⚠ ${territory.displayName.toUpperCase()} UNDER ATTACK${message.attackerName ? ` · ${message.attackerName}` : ''}`;
@@ -13776,12 +13828,14 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     hapticsManager.emit('rewardSuccess', `weekly:${message.reward.category}:${message.reward.badge}`);
   } else if (message.type === 'cosmeticResult') {
     aircraftGarage.showActionResult(message.ok ? `${message.action.toUpperCase()} COMPLETE` : (message.reason ?? 'COSMETIC UNAVAILABLE'));
-    if (message.ok && message.action === 'purchase') { audioManager.playPurchaseSuccess(); hapticsManager.emit('rewardSuccess', `cosmetic:${message.cosmeticId}`); }
+    if(!message.ok)audioManager.playEffect('error',{gain:.5});
+    if (message.ok && message.action === 'purchase') { audioManager.playOnce(`cosmetic:${message.cosmeticId}`,'purchase',{priority:true,cooldown:1}); hapticsManager.emit('rewardSuccess', `cosmetic:${message.cosmeticId}`); }
     else if (message.ok && message.action === 'equip') hapticsManager.emit('confirmation');
   } else if (message.type === 'cosmeticChanged') {
     const remote = remotePlayers.get(message.playerId);
     if (remote) applyEquippedLivery(remote.plane, remote.aircraftType, message.equipped);
   } else if(message.type==='intercityRouteResult'){
+    audioManager.playEffect('activation',{gain:.55});
     showProgressMessage('FLY THROUGH THE INTERCITY GATE');
   } else if (message.type === 'challengeComplete') {
     score += message.score;
@@ -13931,7 +13985,11 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         destructionPosition.set(sourcePosition.x, sourcePosition.y, sourcePosition.z);
         if (!aircraftVictoryDestruction && (message.playerId !== localPlayerId || !crashSequence))
           createDestructionEffect(destructionPosition, destroyedType);
-        if (!aircraftVictoryDestruction && message.playerId !== localPlayerId && destructionPosition.distanceTo(airplane.position) < 2_500) playDestructionSound();
+        if (!aircraftVictoryDestruction && message.playerId !== localPlayerId) {
+          const distance=destructionPosition.distanceTo(airplane.position);
+          if(distance<2500||message.killerId===localPlayerId){const point=destructionPosition.clone().project(camera);
+            if(!audioManager.playExplosion(destroyedType==='cargo'?'heavy':'normal',point.x,Math.max(.15,.8*(1-distance/3000))))playDestructionSound();}
+        }
       }
     }
     if (message.playerId === localPlayerId) {
@@ -13965,7 +14023,8 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       if (!(journeyMode && journeyAttempt?.status === 'COMPLETED' && journeyAttempt.targetId === message.playerId)) {
         hapticsManager.emit('destruction', message.playerId);
       }
-      if (!aircraftVictoryDestruction) audioManager.playDestroyConfirm();
+      // The confirmed destruction above owns the blast. This is only the kill-confirm accent.
+      if (!aircraftVictoryDestruction) audioManager.playEffect('confirm',{gain:.3,cooldown:.2});
       if(airAssaultMode)showCombatMessage('ENEMY DESTROYED',true);
       if (!skyDuelMode && !airAssaultMode) {
         flightRecap.kills += 1;

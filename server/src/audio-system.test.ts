@@ -97,14 +97,14 @@ test('canonical final cue family covers hit, reward, and purchase without retrig
   assert.match(manager, /playPurchaseSuccess\(\)[\s\S]*schedulePurchaseFinish/);
   assert.doesNotMatch(main, /function playHitSound/);
   assert.match(main, /audioManager\.playHitConfirm\(\)/);
-  assert.match(main, /message\.killerId === localPlayerId[\s\S]*audioManager\.playDestroyConfirm\(\)/);
+  assert.match(main, /message\.killerId === localPlayerId[\s\S]*audioManager\.playEffect\('confirm'/);
 });
 
 test('shared UI delegation and authoritative kill-confirm routing are present', () => {
   assert.match(manager, /document\.addEventListener\('click'/);
   assert.match(manager, /\bback\|close\|cancel\|return\b/);
   assert.match(manager, /\\b\(fly\|play\|launch\)\\b\/i/);
-  assert.match(main, /message\.killerId === localPlayerId[\s\S]*audioManager\.playDestroyConfirm\(\)/);
+  assert.match(main, /message\.killerId === localPlayerId[\s\S]*audioManager\.playEffect\('confirm'/);
 });
 
 test('temporary development audio presentation and trim plumbing are completely removed', () => {

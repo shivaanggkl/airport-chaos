@@ -1613,7 +1613,7 @@ const garage = new AircraftGarage(garageOverlay, (selectedAircraft) => trackAirc
   if (!response.ok) return false;
   const profile = await response.json() as RemoteGarageProfile;
   applyAuthoritativeHomeProfile(profile);
-  if (profile.selectedAircraft !== previouslySelected) hapticsManager.emit('confirmation');
+  if (profile.selectedAircraft !== previouslySelected) {audioManager.playEffect('select',{cooldown:.2});audioManager.playConfirm();hapticsManager.emit('confirmation');}
   try { localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}'), version: 1, pilotId: garageIdentity.pilotId, displayName: garageIdentity.displayName, credits: garageProfile.credits, selectedAircraft: garageProfile.selectedAircraft })); } catch { /* server profile remains authoritative */ }
   if (garage.isOpen()) garage.open(garageProfile);
   return profile.selectedAircraft === selectedAircraft;
@@ -1911,6 +1911,7 @@ async function equipStoreItem(item: StoreItem): Promise<{ ok: boolean; message: 
     if (garageProfile.selectedAircraft !== item.aircraftType)
       await update({ equipAircraft: item.aircraftType });
     if (garageProfile.selectedAircraft !== item.aircraftType) throw new Error('AIRCRAFT CHANGE NOT CONFIRMED');
+    audioManager.playEffect('select',{cooldown:.2});audioManager.playConfirm();
     garage.updateProfile(garageProfile);
     gameStore.update(garageProfile, hubAccount.state === 'account');
     hapticsManager.emit('confirmation');

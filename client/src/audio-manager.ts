@@ -1,3 +1,5 @@
+import { audioClips, type AudioClip } from './audio-clips';
+
 export type AudioLevelKey = 'master' | 'music' | 'engine' | 'combat' | 'ui';
 
 export type AudioLevels = Record<AudioLevelKey, number>;
@@ -86,6 +88,132 @@ class AudioManager {
   private purchaseActiveUntil = 0;
   private priorityImpactUntil = 0;
 
+  private clipBuffers = new Map<AudioClip, AudioBuffer>();
+  private clipLoads = new Map<AudioClip, Promise<void>>();
+  private failedClips = new Set<AudioClip>();
+  private clipLastPlayed = new Map<AudioClip, number>();
+  private voices = new Set<AudioBufferSourceNode>();
+  private loops = new Map<AudioClip, {source:AudioBufferSourceNode;gain:GainNode}>();
+  private desiredLoops = new Map<AudioClip, number>();
+  private gameplayAudio = false;
+  private scenePaused = false;
+  private adActive = false;
+  private audioEvents = new Set<string>();
+  private duckUntil = 0;
+  private preparingGameplay: Promise<void> | null = null;
+
+  /** No delayed replay of events: unavailable clips use the existing synthesized fallback. */
+  playEffect(key: AudioClip, options: {gain?:number;pan?:number;priority?:boolean;cooldown?:number} = {}): boolean {
+    const context=this.context, buffer=this.clipBuffers.get(key);
+    if(!context||context.state!=='running'||this.muted||this.adActive||this.scenePaused||this.backgrounded||!buffer)return false;
+    const now=context.currentTime, cooldown=options.cooldown ?? (key==='hit'||key==='heavyHit'?0.075:0.12);
+    if(now-(this.clipLastPlayed.get(key) ?? -Infinity)<cooldown)return true;
+    if(this.voices.size>=16){if(!options.priority)return true;const oldest=this.voices.values().next().value;if(oldest){this.voices.delete(oldest);oldest.stop();}}
+    const output=this.categoryGains.get(audioClips[key].category);if(!output)return false;
+    this.clipLastPlayed.set(key,now);
+    const source=context.createBufferSource(), gain=context.createGain();
+    source.buffer=buffer;gain.gain.value=options.gain ?? .65;source.connect(gain);
+    const pan=options.pan===undefined?undefined:context.createStereoPanner();
+    if(pan){pan.pan.value=Math.max(-1,Math.min(1,options.pan!));gain.connect(pan);pan.connect(output);}else gain.connect(output);
+    this.voices.add(source);
+    source.onended=()=>{this.voices.delete(source);source.disconnect();gain.disconnect();pan?.disconnect();};
+    source.start();
+    if(options.priority){
+      this.duckUntil=Math.max(this.duckUntil,now+.8);
+      if(this.engineGain)this.engineGain.gain.setTargetAtTime((this.enginePresentation?.gain ?? 0)*.35,now,.025);
+      if(this.musicMix){this.musicMix.gain.cancelScheduledValues(now);this.musicMix.gain.setTargetAtTime(.35,now,.025);this.musicMix.gain.setTargetAtTime(this.menuMusicDesired?1:.0001,now+.8,.3);}
+    }
+    return true;
+  }
+
+  playOnce(id:string,key:AudioClip,options:Parameters<AudioManager['playEffect']>[1]={}):boolean {
+    if(this.audioEvents.has(id))return true;
+    this.audioEvents.add(id);if(this.audioEvents.size>256)this.audioEvents.delete(this.audioEvents.values().next().value!);
+    const played=this.playEffect(key,options);
+    if(!played){if(key==='purchase')this.playPurchaseSuccess();else if(key==='victory'||key==='reward')this.playReward();else if(key==='error'||key==='minorError')this.playTone(180,.12,'triangle',.05,90);else this.playUiClick();}
+    return true;
+  }
+  setAdActive(active:boolean):void {
+    this.adActive=active;
+    if(active){for(const source of this.voices)source.stop();this.stopClipLoops();}
+    this.applyLevels();
+    if(!active)this.restoreClipLoops();
+  }
+
+  private async loadClip(key: AudioClip): Promise<void> {
+    if(this.clipBuffers.has(key)||this.failedClips.has(key))return;
+    if(this.clipLoads.has(key))return this.clipLoads.get(key);
+    const context=this.context;if(!context)return;
+    const pending=(async()=>{try{
+      const response=await fetch(audioClips[key].file);if(!response.ok)throw new Error('audio unavailable');
+      const bytes=await response.arrayBuffer();
+      if(this.context!==context)return;
+      const buffer=await context.decodeAudioData(bytes);
+      if(this.context===context)this.clipBuffers.set(key,buffer);
+    }catch{this.failedClips.add(key);}finally{this.clipLoads.delete(key);}})();
+    this.clipLoads.set(key,pending);return pending;
+  }
+
+  private async prepareUiAudio(): Promise<void> {
+    for(const key of ['click','toggle','confirm','back','error','minorError','select'] as const)await this.loadClip(key);
+    for(const key of Object.keys(audioClips) as AudioClip[])if(audioClips[key].category==='ui')await this.loadClip(key);
+  }
+
+  /** Called during preparation, never from hit/fire handlers. Bounded decoding concurrency. */
+  prepareGameplay(): Promise<void> {
+    if(this.preparingGameplay)return this.preparingGameplay;
+    this.preparingGameplay=(async()=>{
+      await this.prepareUiAudio();
+      const keys=Object.keys(audioClips) as AudioClip[];let index=0;
+      await Promise.all([0,1].map(async()=>{while(index<keys.length)await this.loadClip(keys[index++]);}));
+    })();
+    return this.preparingGameplay;
+  }
+
+  setGameplayAudio(active: boolean): void {
+    if(this.gameplayAudio===active)return;
+    this.gameplayAudio=active;
+    if(active){void this.prepareGameplay();return;}
+    for(const key of this.desiredLoops.keys())this.setLoop(key,0);
+    this.desiredLoops.clear();
+    for(const key of ['wind','portalHum','outdoor','lake'] as const)this.clipBuffers.delete(key);
+    this.preparingGameplay=null;
+  }
+
+  setScenePaused(paused: boolean): void {
+    if(this.scenePaused===paused)return;this.scenePaused=paused;
+    if(paused){for(const source of this.voices)source.stop();this.stopClipLoops();this.stopMenuScheduler(false);if(this.engineGain&&this.context)this.engineGain.gain.setTargetAtTime(0,this.context.currentTime,.05);}
+    else {this.restoreClipLoops();if(this.menuMusicDesired&&this.unlocked&&!this.muted)this.startMenuMusic();}
+    if(this.musicMix&&this.context)this.musicMix.gain.setTargetAtTime(paused ? 0.0001:this.menuMusicDesired?1:.0001,this.context.currentTime,.15);
+  }
+
+  setLoop(key: AudioClip, volume: number): void {
+    this.desiredLoops.set(key,volume);
+    const context=this.context,existing=this.loops.get(key);
+    if(!context||context.state!=='running'||this.backgrounded||this.scenePaused||this.adActive)return;
+    if(volume<=0){if(existing){existing.gain.gain.setTargetAtTime(.0001,context.currentTime,.06);existing.source.stop(context.currentTime+.3);this.loops.delete(key);}return;}
+    if(existing){existing.gain.gain.setTargetAtTime(this.muted?0:volume*(context.currentTime<this.duckUntil ? 0.35:1),context.currentTime,.15);return;}
+    const buffer=this.clipBuffers.get(key),output=this.categoryGains.get(audioClips[key].category);if(!buffer||!output)return;
+    const source=context.createBufferSource(),gain=context.createGain();source.buffer=buffer;source.loop=true;
+    gain.gain.setValueAtTime(0,context.currentTime);gain.gain.setTargetAtTime(this.muted?0:volume,context.currentTime,.3);
+    source.connect(gain);gain.connect(output);source.onended=()=>{source.disconnect();gain.disconnect();};source.start();this.loops.set(key,{source,gain});
+  }
+
+  private stopClipLoops():void {for(const loop of this.loops.values()){loop.source.stop();}this.loops.clear();}
+  private restoreClipLoops():void {for(const [key,volume] of this.desiredLoops)this.setLoop(key,volume);}
+
+  playWarning(kind:'lock'|'incoming'='incoming'):boolean {return this.playEffect(kind,{priority:true,gain:.7,cooldown:kind==='lock' ? 0.65:1.2});}
+  playExplosion(kind:'normal'|'heavy'|'giant'|'crash'='normal',pan?:number,gain=.8):boolean {
+    const played=this.playEffect(kind==='normal'?'explosion':kind==='heavy'?'heavyExplosion':kind==='giant'?'giantExplosion':'crash',{priority:true,gain,pan,cooldown:.2});
+    if(played&&kind==='giant')this.playEffect('debris',{gain:.35,cooldown:.5});return played;
+  }
+  playMonster(kind:'growl'|'roar'|'attack'|'footstep'|'landing'|'charge'|'fireball'|'beam'|'clap'|'shockwave'|'smash'):void {
+    if(kind==='growl'||kind==='roar'){if(!this.playEffect(kind,{gain:.7,cooldown:2,priority:true}))this.playTitanRoar();return;}
+    const clip:AudioClip=kind==='footstep'?'heavyHit':kind==='landing'||kind==='smash'?'heavyExplosion':kind==='charge'?'activation':kind==='fireball'?'boost':kind==='beam'?'transit':kind==='clap'?'cut':kind==='shockwave'?'giantExplosion':'attack';
+    if(!this.playEffect(clip,{gain:kind==='footstep' ? 0.3:.55,cooldown:kind==='footstep' ? 0.4:.8}))this.playTone(80,.25,'triangle',.06,35,0,'impacts');
+    if(kind==='attack'||kind==='smash'||kind==='clap')this.playEffect('heavyHit',{gain:.3,cooldown:.8});
+  }
+
   getLevels() {
     return { ...this.levels };
   }
@@ -128,7 +256,7 @@ class AudioManager {
     }, { capture: true });
     document.addEventListener('click', (event) => {
       const target = event.target instanceof Element
-        ? event.target.closest('button, [role="button"], input[type="button"], input[type="submit"]')
+        ? event.target.closest('button, [role="button"], [role="tab"], [role="switch"], input[type="button"], input[type="submit"], input[type="checkbox"], input[type="radio"]')
         : null;
       if (!target || isDisabledControl(target)) return;
       const label = `${target.getAttribute('aria-label') ?? ''} ${target.textContent ?? ''}`.trim();
@@ -136,10 +264,16 @@ class AudioManager {
         this.playBack();
       } else if (/\b(fly|play|launch)\b/i.test(label) || target.classList.contains('entry-button-primary')) {
         this.playConfirm();
+      } else if(target.matches('[role=tab], [role=switch], [aria-pressed], .store-tab, input[type=checkbox], input[type=radio]') || target.closest('[role=tablist]')) {
+        if(!this.playEffect('toggle'))this.playUiClick();
       } else {
         this.playUiClick();
       }
     });
+    let swipeStart:{x:number;y:number;id:number}|undefined;
+    document.addEventListener('pointerdown',event=>{if(event.target instanceof Element&&event.target.closest('[role=tablist], .store-grid, .store-tabs'))swipeStart={x:event.clientX,y:event.clientY,id:event.pointerId};});
+    document.addEventListener('pointercancel',()=>{swipeStart=undefined;});
+    document.addEventListener('pointerup',event=>{if(swipeStart?.id===event.pointerId&&Math.abs(event.clientX-swipeStart.x)>50&&Math.abs(event.clientY-swipeStart.y)<60)this.playEffect('swipe',{gain:.3,cooldown:.4});swipeStart=undefined;});
     window.addEventListener('airport-chaos-ui-back', () => this.playBack());
     this.installLifecycleHandling();
   }
@@ -161,10 +295,12 @@ class AudioManager {
     this.resumeFallbackArmed = false;
     this.graphInvalidated = false;
     this.restoreLogicalAudioState();
+    void this.prepareUiAudio();
     return true;
   }
 
   setMenuMusicDesired(desired: boolean) {
+    if(desired){this.setGameplayAudio(false);this.stopEngineSource();}
     this.menuMusicDesired = desired;
     if (!this.context || !this.musicMix) return;
     const now = this.context.currentTime;
@@ -183,6 +319,7 @@ class AudioManager {
 
   /** Short synthesized creature growl; reuses the existing noise buffer and impact bus. */
   playTitanRoar(): void {
+    if(this.playEffect('growl',{priority:true,cooldown:2}))return;
     const context=this.context;
     if(!context||context.state!=='running'||this.muted)return;
     this.playNoise('impacts',context.currentTime,.95,.13,'bandpass',290);
@@ -202,6 +339,7 @@ class AudioManager {
     const context = this.context;
     const output = this.categoryGains.get(category);
     if (!context || !output || context.state !== 'running' || this.muted) return;
+    if(this.scenePaused||this.backgrounded||this.adActive)return;
     const start = context.currentTime + delay;
     const oscillator = context.createOscillator();
     const toneGain = context.createGain();
@@ -225,11 +363,12 @@ class AudioManager {
     this.enginePresentation = { frequency, gain, frequencyTimeConstant, gainTimeConstant };
     const context = this.context;
     const output = this.categoryGains.get('engine');
-    if (!context || !output || context.state !== 'running') return;
+    if (!context || !output || context.state !== 'running' || this.scenePaused || this.adActive) return;
     this.applyEnginePresentation(context, output, this.enginePresentation);
   }
 
   startIntercityWind():()=>void {
+    if(this.clipBuffers.has('wind')){this.setLoop('wind',.12);return ()=>this.setLoop('wind',0);}
     const context=this.ensureContext(),output=this.categoryGains.get('engine');
     if(!context||!output)return ()=>{};
     const source=context.createBufferSource(),filter=context.createBiquadFilter(),gain=context.createGain();
@@ -241,6 +380,7 @@ class AudioManager {
   }
 
   playUiClick() {
+    if(this.playEffect('click',{cooldown:.09}))return;
     const context = this.context;
     if (!context || context.state !== 'running' || this.muted) return;
     const now = context.currentTime;
@@ -252,6 +392,7 @@ class AudioManager {
   }
 
   playConfirm() {
+    if(this.playEffect('confirm',{cooldown:.09}))return;
     const context = this.context;
     if (!context || context.state !== 'running' || this.muted) return;
     const now = context.currentTime;
@@ -362,6 +503,7 @@ class AudioManager {
   }
 
   playBack() {
+    if(this.playEffect('back',{cooldown:.09}))return;
     const context = this.context;
     if (!context || context.state !== 'running' || this.muted) return;
     const now = context.currentTime;
@@ -370,6 +512,7 @@ class AudioManager {
   }
 
   playDestroyConfirm() {
+    if(this.playExplosion())return;
     const context = this.context;
     if (!context || context.state !== 'running' || this.muted) return;
     const now = context.currentTime;
@@ -382,6 +525,7 @@ class AudioManager {
   }
 
   playReward() {
+    if(this.playEffect('reward',{priority:true,cooldown:1}))return;
     const context = this.context;
     if (!context || context.state !== 'running' || this.muted) return;
     const now = context.currentTime;
@@ -394,6 +538,7 @@ class AudioManager {
   }
 
   playHitConfirm() {
+    if(this.playEffect('hit',{cooldown:.08}))return;
     const context = this.context;
     if (!context || context.state !== 'running' || this.muted) return;
     const now = context.currentTime;
@@ -405,6 +550,7 @@ class AudioManager {
   }
 
   playPurchaseSuccess() {
+    if(this.playEffect('purchase',{priority:true,cooldown:1}))return;
     const context = this.context;
     if (!context || context.state !== 'running' || this.muted) return;
     const now = context.currentTime;
@@ -525,6 +671,10 @@ class AudioManager {
 
   private clearGraphReferences() {
     this.stopEngineSource();
+    this.stopClipLoops();
+    for(const source of this.voices)source.stop();
+    this.voices.clear();this.clipLastPlayed.clear();
+    this.preparingGameplay=null;
     this.musicMix?.disconnect();
     for (const gain of this.categoryGains.values()) gain.disconnect();
     this.categoryGains.clear();
@@ -590,7 +740,7 @@ class AudioManager {
       this.engineOscillator.start();
     }
     this.engineOscillator.frequency.setTargetAtTime(state.frequency, context.currentTime, state.frequencyTimeConstant);
-    this.engineGain.gain.setTargetAtTime(this.muted ? 0 : state.gain, context.currentTime, state.gainTimeConstant);
+    this.engineGain.gain.setTargetAtTime(this.muted ? 0 : state.gain * (context.currentTime<this.duckUntil ? 0.35:1), context.currentTime, state.gainTimeConstant);
   }
 
   private applyLevels() {
@@ -600,7 +750,7 @@ class AudioManager {
       if (!gain) return;
       gain.gain.setTargetAtTime(Math.max(0, value), now, 0.025);
     };
-    setGain(this.masterGain, this.muted ? 0 : (this.levels.master / 100) * 1.25);
+    setGain(this.masterGain, this.muted || this.adActive ? 0 : (this.levels.master / 100) * 1.25);
     setGain(this.categoryGains.get('music'), (this.levels.music / 100) * 0.62);
     setGain(this.categoryGains.get('ui'), this.levels.ui / 100);
     setGain(this.categoryGains.get('engine'), this.levels.engine / 100);
@@ -1038,6 +1188,8 @@ class AudioManager {
     if (this.musicStopTimer !== null) window.clearTimeout(this.musicStopTimer);
     this.musicStopTimer = null;
     this.stopEngineSource();
+    this.stopClipLoops();
+    for(const source of this.voices)source.stop();
     const context = this.context;
     this.logLifecycle('background', context, this.contextGeneration, source);
     if (context && this.contextState(context) !== 'closed') {
@@ -1105,6 +1257,7 @@ class AudioManager {
   }
 
   private restoreLogicalAudioState() {
+    this.restoreClipLoops();
     this.applyLevels();
     if (this.muted || !this.context || this.contextState(this.context) !== 'running') return;
     if (this.menuMusicDesired) {

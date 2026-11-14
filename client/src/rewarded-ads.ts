@@ -1,3 +1,4 @@
+import { audioManager } from './audio-manager';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 export type RewardedAdPlatform = 'ios' | 'android';
@@ -35,8 +36,9 @@ export const rewardedAdProvider = rewardedAdPlatform ? {
     privacyRequest = NativeRewardedAd.preparePrivacy().catch(() => ({ required: false, canRequestAds: false }));
   },
   discard(): Promise<void> { return NativeRewardedAd.discardAd(); },
-  show(): Promise<NativeAdResult> {
-    return NativeRewardedAd.showAd();
+  async show(): Promise<NativeAdResult> {
+    audioManager.setAdActive(true);
+    try{return await NativeRewardedAd.showAd();}finally{audioManager.setAdActive(false);}
   },
 } : undefined;
 
