@@ -12585,7 +12585,7 @@ function sendLocalState(introHandshake = false): void {
   // Local-only inspection presets are camera routes, not authoritative movement.
   if (visualQaInspectionActive) return;
   if (freeFlyRespawnPending || journeyPaused || trainingPaused || !localPlayerId || !connectionReady()) return;
-  if (missionStartCountdownPending || missionStartCountdownStartedAt !== null) return;
+  if (!introHandshake && (missionStartCountdownPending || missionStartCountdownStartedAt !== null)) return;
   if (!introHandshake && (airborneIntroAwaiting || runwayJourneyIntroAwaiting || (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath || missionCoinHuntIntro || missionSharpshooterIntro || missionAirportHopIntro || missionCaptureIntroPath || missionCombatIntroPath) && flightLaunchState === 'active')) return;
   flushProfileRewards();
   socket.send(
