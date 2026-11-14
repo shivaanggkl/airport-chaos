@@ -26,7 +26,7 @@ test('live bonus round: validated pickups, airborne recovery, reconnect, cash-ou
  const offline=sessions.issue(undefined,false);profiles.getOrCreate(offline.pilotId,'Offline');
  const offlineAttempt=store.launch(offline.pilotId,'trainer',Date.now(),mission.id);
  store.approach(offline.pilotId,offlineAttempt.attemptId);store.prepareCoinHunt(offline.pilotId,offlineAttempt.attemptId,1691.3);
- store.startCoinHunt(offline.pilotId,offlineAttempt.attemptId,Date.now()-119000);
+ store.startCoinHunt(offline.pilotId,offlineAttempt.attemptId,Date.now()-mission.timeLimitMs+1000);
  const port=await freePort(),server=spawn(process.execPath,['--import','tsx','server/src/index.ts'],{env:{...process.env,PORT:String(port),AIRPORT_CHAOS_PROFILE_DB:path,NODE_ENV:'test'},stdio:['ignore','pipe','pipe']});
  let logs='',socket:WebSocket|undefined;
  server.stdout.on('data',b=>logs+=b);server.stderr.on('data',b=>logs+=b);
@@ -44,7 +44,7 @@ test('live bonus round: validated pickups, airborne recovery, reconnect, cash-ou
   const send=(message:any)=>socket!.send(JSON.stringify(message));
   const state=()=>send({type:'state',position:{...position},rotation:{x:0,y:heading,z:0},aircraftType:'trainer',stateSequence:++sequence,velocity:{x:0,y:0,z:0}});
   state();await sleep(100);send({type:'journeyCountdownComplete',attemptId:attempt.attemptId});
-  const racing=await wait(p=>p.type==='journeyAttempt'&&p.attempt.status==='RACING');assert.equal(racing.attempt.deadlineAt-racing.attempt.startedAt,120000);
+  const racing=await wait(p=>p.type==='journeyAttempt'&&p.attempt.status==='RACING');assert.equal(racing.attempt.deadlineAt-racing.attempt.startedAt,mission.timeLimitMs);
   const launch=async(id:string)=>fetch(`http://127.0.0.1:${port}/api/journey/dallas/${id}/launch`,{method:'POST',headers:{'Content-Type':'application/json',Origin:`http://127.0.0.1:${port}`,Cookie:`airport_chaos_session=${identity.cookie}`},body:'{}'});
   const same=await launch('mission-coin-hunt-01');assert.equal(same.status,201);assert.equal((await same.json() as any).attempt.attemptId,attempt.attemptId);
   assert.equal((await launch('mission-01')).status,409);

@@ -66,7 +66,7 @@ test('all four boosted aircraft collect the single trail on the centerline; inde
 test('server settlement: exact partial/zero/full awards, persistence, ownership and replay idempotency',()=>{
  for(const desired of [0,125,487,900,1000]){
   const f=fixture();try{
-   const a=f.start(),id=a.attemptId;assert.equal(a.deadlineAt!-a.startedAt!,120000);
+   const a=f.start(),id=a.attemptId;assert.equal(a.deadlineAt!-a.startedAt!,124000);
    assert.equal(f.store.collectCoins('other',id,p(0),p(1),f.now+16000),undefined);
    assert.equal(f.store.collectCoins('pilot',id,p(0),p(1,NaN),f.now+16000),undefined);
    // Each isolated accepted position can also collect a neighboring coin; walk until requested count.

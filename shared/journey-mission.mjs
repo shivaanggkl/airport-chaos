@@ -489,7 +489,7 @@ export const journeyDallasTerritoryDefense01 = Object.freeze({
 export const journeyDallasTwinHunters01 = Object.freeze({
   id: 'journey-dallas-twin-hunters-01', cityId: 'dallas', name: 'TWIN HUNTERS', difficulty: 'MEDIUM',
   objective: 'Shoot down both enemy aircraft before time runs out!',
-  timeLimitMs: 240_000, firstClearCredits: 1500, enemyHealth: 200, aggressionDistance: 6000,
+  timeLimitMs: 242_000, firstClearCredits: 1500, enemyHealth: 200, aggressionDistance: 6000,
   airborneSpawn: Object.freeze({x: -27000, z: -40000, altitude: 1100, heading: Math.PI, speed: 650}),
   enemies: Object.freeze([
     Object.freeze({aircraft: 'trainer', livery: 'bluejay-skybolt', name: 'BLUEJAY', level: 'EASY', fireDelayMs: 6000, x: -28900, z: -35700, altitude: 100}),
@@ -504,7 +504,7 @@ const captureTerritory = territoriesForCity('dallas').find(territory => territor
 export const journeyDallasCoinHunt01 = Object.freeze({
   id: 'journey-dallas-coin-hunt-01', cityId: 'dallas', name: 'DALLAS COIN HUNT', difficulty: 'MEDIUM',
   objective: 'Fly through as many golden coins as you can!',
-  timeLimitMs: 120_000, firstClearCredits: 1000, coinCount: 1000,
+  timeLimitMs: 124_000, firstClearCredits: 1000, coinCount: 1000,
   creditsPerCoin: 1, pickupRadius: 260,
   airborneSpawn: Object.freeze({ x:10102.53,z:-37059.03, altitude:1100, heading:-2.397, speed:1200 }),
 });
