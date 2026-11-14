@@ -766,11 +766,16 @@ export class JourneyAttemptStore {
     if(elapsed<=0)return undefined;
     const tick=elapsed<=800?Math.min(elapsed,400):0;
     const defending=eligible&&!invalidMovement;
-    const defense=Math.min(journeyDallasTerritoryDefense01.defenseDurationMs,current.defenseMs+(defending?tick:0));
-    const capture=Math.max(0,Math.min(journeyDallasTerritoryDefense01.enemyCaptureDurationMs,current.enemyCaptureMs+(defending?-2*tick:invaderInside?tick:0)));
-    this.database.prepare("UPDATE journey_attempts SET defense_ms=?,enemy_capture_ms=?,hold_updated_at=? WHERE pilot_id=? AND attempt_id=? AND status='RACING'")
-      .run(defense,capture,now,pilotId,attemptId);
-    if(defense>=journeyDallasTerritoryDefense01.defenseDurationMs&&current.targetId)return this.completeHunter(pilotId,attemptId,current.targetId,now);
+    const mission = journeyDallasTerritoryDefense01;
+    const owned = current.captureMs >= mission.captureDurationMs;
+    const captureMs = Math.min(mission.captureDurationMs, current.captureMs + (!owned && defending ? tick : 0));
+    // Capturing and holding are separate phases. The capture tick never counts twice.
+    const defense = Math.min(mission.defenseDurationMs, current.defenseMs + (owned && defending ? tick : 0));
+    const capture = owned ? Math.max(0, Math.min(mission.enemyCaptureDurationMs,
+      current.enemyCaptureMs + (defending ? -2 * tick : invaderInside ? tick : 0))) : 0;
+    this.database.prepare("UPDATE journey_attempts SET capture_ms=?,defense_ms=?,enemy_capture_ms=?,hold_updated_at=? WHERE pilot_id=? AND attempt_id=? AND status='RACING'")
+      .run(captureMs,defense,capture,now,pilotId,attemptId);
+    if(defense>=mission.defenseDurationMs&&current.targetId)return this.completeHunter(pilotId,attemptId,current.targetId,now);
     return this.get(pilotId,attemptId);
   }
 
@@ -1092,6 +1097,12 @@ export class JourneyAttemptStore {
       if (!current || (current.missionId !== journeyDallas15.id && current.missionId !== journeyDallasTerritoryDefense01.id && current.missionId !== journeyDallas13.id && current.missionId !== journeyDallas14.id && !journeyCrossfireMission(current.missionId) && current.missionId !== journeyDallas17.id && current.missionId !== journeyDallas18.id) ||
         current.status !== 'RACING' || current.missionId===journeyDallasTerritoryDefense01.id&&current.pausedAt!==null || (journeyCrossfireMission(current.missionId) || current.missionId===journeyDallas17.id || current.missionId===journeyDallas18.id ? ![current.targetId,current.secondaryTargetId,...(current.missionId===journeyDallas17.id||current.missionId===journeyDallas18.id?[current.rearGuardThirdId]:[]),...(current.missionId===journeyDallas18.id?[current.rearGuardFourthId]:[])].includes(targetId) : current.targetId !== targetId) ||
         (current.startedAt === null || current.deadlineAt === null || now >= current.deadlineAt || !this.canAccessMission(pilotId, current.missionId))) return undefined;
+      if (current.missionId === journeyDallasTerritoryDefense01.id && current.defenseMs < journeyDallasTerritoryDefense01.defenseDurationMs) {
+        // A takedown removes the threat; capture and the full hold are still required.
+        this.database.prepare('UPDATE journey_attempts SET crossfire_kills=1 WHERE pilot_id=? AND attempt_id=?')
+          .run(pilotId,attemptId);
+        return this.get(pilotId,attemptId);
+      }
       if(journeyCrossfireMission(current.missionId) || current.missionId===journeyDallas17.id || current.missionId===journeyDallas18.id){
         const bit=current.targetId===targetId?1:current.secondaryTargetId===targetId?2:current.rearGuardThirdId===targetId?4:8;
         if(current.crossfireKills&bit)return undefined;

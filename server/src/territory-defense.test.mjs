@@ -12,6 +12,7 @@ import {missionFocusForAttempt} from '../../shared/mission-focus.mjs';
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
 import {cityAirports} from '../../shared/city-airports.mjs';
 import {projectileDamageForAircraft} from '../../shared/protocol.mjs';
+import {authorizedJourneyAirborneSpawn} from './journey-airborne-spawn.js';
 import {JourneyAttemptStore} from './journey-attempts.js';
 import {createOpponent} from './opponent.js';
 import {planOpponentTactics,recordOpponentHit,recordOpponentDamage} from './opponent-tactics.js';
@@ -30,30 +31,53 @@ test('M16 activates the correct slot with one real authoritative Las Colinas and
  assert.equal(catalog.journeyDallas16.enemyHealth,300);assert.equal(catalog.journeyDallasTwinHunters01.enemyHealth,200);assert.equal(catalog.journeyDallasCapture01.captureDurationMs,60000);
 });
 
-test('GO, cumulative defense, paused presence, 2x recovery, no stale tick credit and exactly-once first clear',()=>{
- const f=fixture();try{const a=start(f);assert.equal(f.store.advanceTerritoryDefense('pilot',a.attemptId,true,false,1500),undefined);assert.equal(f.store.startFirstContact('pilot',a.attemptId,2000).deadlineAt,182000);assert.equal(f.store.startFirstContact('pilot',a.attemptId,2100),undefined);
- assert.equal(f.store.advanceTerritoryDefense('other',a.attemptId,true,false,2400),undefined);
- let state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,false,2400);assert.equal(state.defenseMs,400);assert.equal(state.enemyCaptureMs,0);
- state=f.store.advanceTerritoryDefense('pilot',a.attemptId,false,true,2800);assert.equal(state.defenseMs,400);assert.equal(state.enemyCaptureMs,400);
- state=f.store.advanceTerritoryDefense('pilot',a.attemptId,false,false,3200);assert.equal(state.enemyCaptureMs,400);
- state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,false,3300);assert.equal(state.defenseMs,500);assert.equal(state.enemyCaptureMs,200);
- state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,true,3700);assert.equal(state.enemyCaptureMs,0);
- state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,true,6000);assert.equal(state.defenseMs,900,'missed ticks give no catch-up');
- state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,true,6400,true);assert.equal(state.defenseMs,900,'invalid movement does not progress');assert.equal(state.enemyCaptureMs,400,'invalid player movement cannot freeze an authoritative invasion');
- let now=6400;while(state.status==='RACING'){now+=400;state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,true,now);}
- assert.equal(state.status,'COMPLETED');assert.equal(state.defenseMs,90000);assert.equal(state.firstClearCredits,1700);assert.equal(f.store.completeHunter('pilot',a.attemptId,'invader',now+1),undefined);
- const retry=start(f,now+1000);assert.equal(f.store.get('pilot',retry.attemptId).defenseMs,0);assert.equal(f.store.get('pilot',retry.attemptId).enemyCaptureMs,0);f.store.startFirstContact('pilot',retry.attemptId,now+2000);assert.equal(f.store.completeHunter('pilot',retry.attemptId,'wrong',now+2100),undefined);assert.equal(f.store.completeHunter('pilot',retry.attemptId,'invader',now+2200).firstClearCredits,0);assert.equal(f.db.prepare('SELECT credits FROM player_profiles').get().credits,1700);
+function capture(f, attemptId, now=2000) {
+ let state;
+ for(let i=0;i<150;i++){now+=400;state=f.store.advanceTerritoryDefense('pilot',attemptId,true,false,now);}
+ assert.equal(state.captureMs,mission.captureDurationMs);assert.equal(state.defenseMs,0);
+ return now;
+}
+
+test('takeoff uses the existing runway and capture must finish before the full two-minute hold',()=>{
+ assert.equal(mission.runwayStart,true);assert.equal(mission.startAirportId,'dfw');
+ assert.equal(authorizedJourneyAirborneSpawn({missionId:mission.id,status:'APPROACH'},mission,()=>0),undefined);
+ const f=fixture();try{
+  const a=start(f);assert.equal(f.store.advanceTerritoryDefense('pilot',a.attemptId,true,false,1500),undefined);
+  assert.equal(f.store.startFirstContact('pilot',a.attemptId,2000).deadlineAt,2000+mission.timeLimitMs);
+  assert.equal(f.store.advanceTerritoryDefense('other',a.attemptId,true,false,2400),undefined);
+  let state=f.store.advanceTerritoryDefense('pilot',a.attemptId,false,true,2400);
+  assert.equal(state.captureMs,0);assert.equal(state.defenseMs,0);assert.equal(state.enemyCaptureMs,0);
+  let now=capture(f,a.attemptId,2400);
+  state=f.store.advanceTerritoryDefense('pilot',a.attemptId,false,true,now+=400);assert.equal(state.defenseMs,0);assert.equal(state.enemyCaptureMs,400);
+  state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,true,now+=100);assert.equal(state.defenseMs,100);assert.equal(state.enemyCaptureMs,200);
+  state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,true,now+=400);assert.equal(state.defenseMs,500);assert.equal(state.enemyCaptureMs,0);
+  state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,true,now+=2300);assert.equal(state.defenseMs,500,'missed ticks give no catch-up');
+  state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,true,now+=400,true);assert.equal(state.defenseMs,500,'rejected movement cannot defend');assert.equal(state.enemyCaptureMs,400);
+  assert.equal(f.store.completeHunter('pilot',a.attemptId,'wrong',now+1),undefined);
+  state=f.store.completeHunter('pilot',a.attemptId,'invader',now+2);assert.equal(state.status,'RACING');assert.equal(state.crossfireKills,1);
+  while(state.status==='RACING'){state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,false,now+=400);}
+  assert.equal(state.defenseMs,120000);assert.equal(state.firstClearCredits,1700);
+  assert.equal(f.store.completeHunter('pilot',a.attemptId,'invader',now+1),undefined);
+  const replay=start(f,now+1000);f.store.startFirstContact('pilot',replay.attemptId,now+=2000);now=capture(f,replay.attemptId,now);
+  for(let i=0;i<300;i++)state=f.store.advanceTerritoryDefense('pilot',replay.attemptId,true,false,now+=400);
+  assert.equal(state.status,'COMPLETED');assert.equal(state.firstClearCredits,0);assert.equal(f.db.prepare('SELECT credits FROM player_profiles').get().credits,1700);
  }finally{f.close();}
 });
 
-test('capture caps, deadline, crash, pause and reopen preserve private progress and assigned identity',()=>{
- const f=fixture();try{const a=start(f);f.store.startFirstContact('pilot',a.attemptId,2000);let state,now=2000;
- for(let i=0;i<151;i++){now+=400;state=f.store.advanceTerritoryDefense('pilot',a.attemptId,false,true,now);}
- assert.equal(state.enemyCaptureMs,60000);assert.equal(state.defenseMs,0);assert.equal(f.store.fail('pilot',a.attemptId,'TERRITORY_OVERRUN',now).failureReason,'TERRITORY_OVERRUN');assert.equal(f.store.completeHunter('pilot',a.attemptId,'invader',now+1),undefined);
- const b=start(f,now+1000);now+=2000;f.store.startFirstContact('pilot',b.attemptId,now);f.store.advanceTerritoryDefense('pilot',b.attemptId,true,false,now+400);f.store.advanceTerritoryDefense('pilot',b.attemptId,false,true,now+800);f.store.pause('pilot',b.attemptId,now+900);
- assert.equal(f.store.advanceTerritoryDefense('pilot',b.attemptId,true,false,now+1200),undefined);f.store.resume('pilot',b.attemptId,now+5900);
- const reopened=new JourneyAttemptStore(f.path,true),restored=reopened.get('pilot',b.attemptId);assert.equal(restored.defenseMs,400);assert.equal(restored.enemyCaptureMs,400);assert.equal(restored.targetId,'invader');assert.equal(restored.deadlineAt,now+185000);
- assert.equal(reopened.advanceTerritoryDefense('pilot',b.attemptId,true,false,restored.deadlineAt),undefined);assert.equal(reopened.completeHunter('pilot',b.attemptId,'invader',restored.deadlineAt),undefined);assert.equal(reopened.fail('pilot',b.attemptId,'TIME_UP',restored.deadlineAt).status,'FAILED');
+test('owned territory can be stolen; pause, reopen and deadline preserve capture and hold',()=>{
+ const f=fixture();try{
+  const a=start(f);f.store.startFirstContact('pilot',a.attemptId,2000);let now=capture(f,a.attemptId),state;
+  for(let i=0;i<150;i++)state=f.store.advanceTerritoryDefense('pilot',a.attemptId,false,true,now+=400);
+  assert.equal(state.enemyCaptureMs,60000);assert.equal(state.defenseMs,0);
+  assert.equal(f.store.fail('pilot',a.attemptId,'TERRITORY_OVERRUN',now).failureReason,'TERRITORY_OVERRUN');
+  const b=start(f,now+1000);f.store.startFirstContact('pilot',b.attemptId,now+=2000);now=capture(f,b.attemptId,now);
+  f.store.advanceTerritoryDefense('pilot',b.attemptId,true,false,now+=400);f.store.advanceTerritoryDefense('pilot',b.attemptId,false,true,now+=400);
+  f.store.pause('pilot',b.attemptId,now+100);assert.equal(f.store.advanceTerritoryDefense('pilot',b.attemptId,true,false,now+400),undefined);
+  f.store.resume('pilot',b.attemptId,now+5100);
+  const reopened=new JourneyAttemptStore(f.path,true),restored=reopened.get('pilot',b.attemptId);
+  assert.equal(restored.captureMs,60000);assert.equal(restored.defenseMs,400);assert.equal(restored.enemyCaptureMs,400);
+  assert.equal(restored.targetId,'invader');assert.equal(reopened.advanceTerritoryDefense('pilot',b.attemptId,true,false,restored.deadlineAt),undefined);
+  assert.equal(reopened.fail('pilot',b.attemptId,'TIME_UP',restored.deadlineAt).status,'FAILED');
  }finally{f.close();}
 });
 
@@ -84,30 +108,30 @@ test('production AI follows ordered route, enters near 17 seconds and cycles the
 test('12-second shared territory cinematic uses real aircraft and exact text with unchanged handoff transforms',async()=>{
  const THREE=await import('three'),{MissionCaptureIntroPath}=await import('../../client/src/mission-capture-intro.ts');const player=new THREE.Group(),invader=new THREE.Group();player.position.set(-47000,900,-28050);invader.position.set(-22000,1100,-28050);
  const intro=new MissionCaptureIntroPath(territory,90000,()=>0,{player,invader}),position=new THREE.Vector3(),target=new THREE.Vector3(),chase=new THREE.Vector3(-48000,1200,-28050),aim=player.position.clone();assert.equal(intro.durationMs,12000);
- assert.deepEqual([0,3000,6000,9000].map(t=>intro.text(t)),['TERRITORY DEFENSE','LAS COLINAS is yours to defend!','Stay inside the marked territory.','Defend for 90 seconds or destroy the enemy!']);
+ assert.deepEqual([0,3000,6000,9000].map(t=>intro.text(t)),['TERRITORY DEFENSE','Take off and capture LAS COLINAS.','Stay inside to capture the territory.','Hold for 2 minutes. Defend against the invader!']);
  for(let t=0;t<=12000;t+=100){intro.sample(t,position,target,chase,aim);assert.ok([...position,...target].every(Number.isFinite));assert.equal(intro.demonstrationPercent(t),undefined);}
  assert.ok(position.equals(chase));assert.ok(target.equals(aim));assert.equal(player.position.x,-47000);assert.equal(invader.position.x,-22000);
 });
 
-test('production projectile damage rejects pre-GO and early enemy fire; twelve 25HP hits win once',()=>{
+test('production damage rejects early fire; destroying the invader does not bypass capture or holding',()=>{
  const f=fixture();try{const a=start(f);const pilot={pilotId:'pilot',entityType:'player',cityId:'dallas',lifeState:'alive',health:100,isBot:false,score:0,aircraftType:'trainer',position:{x:-47000,y:1000,z:-28050}};
  const enemy={entityType:'player',cityId:'dallas',lifeState:'alive',isBot:true,score:0,health:300,spawnProtectedUntil:0,aircraftType:'privateJet',position:{x:-45000,y:1100,z:-28050},bot:{journeyFirstContact:true,journeyTerritoryDefense:true,journeyAttemptId:a.attemptId,journeyTargetPlayerId:'owner',journeyProvoked:true}};
  const players=new Map([['owner',pilot],['invader',enemy]]),packets=[];
  const ctx=runtime(['applyCombatHit','transportEscortHealth'],{players,journeyStore:f.store,playerJourneyAttempts:new Map([['owner',a.attemptId]]),playerJourneyRunwayPrep:new Set(),runwayCombatProtected:()=>false,focusedBotInteractionExcluded:()=>false,tutorialCombatPairAllowed:()=>true,sameCombatContext:()=>true,insideJourneyHunterArena:()=>true,stabilityDiagnosticsEnabled:false,airportRepairStays:new Map(),sendToPlayer:(_id,p)=>packets.push(p),sendJourneyState:()=>{},provokeJourneyHunter:()=>{},markPlayerDestroyed:(_id,p)=>p.lifeState='destroyed',isHumanPilot:()=>false,botKillRewardMultiplier:.1,persistScore:()=>{},broadcastToCity:()=>assert.fail('private actor leaked'),broadcastLeaderboard:()=>{},removeBot:id=>players.delete(id),updateKing:()=>{},cityKings:new Map(),handleWantedDestruction:()=>{},challengeForPlayer:()=>undefined,recordOpponentHit,recordOpponentDamage});
  assert.equal(ctx.applyCombatHit('owner','invader','dallas',1500,25),false);f.store.startFirstContact('pilot',a.attemptId,2000);assert.equal(ctx.applyCombatHit('invader','owner','dallas',9999,25),false);assert.equal(pilot.health,100);
- for(let i=1;i<=12;i++){assert.equal(ctx.applyCombatHit('owner','invader','dallas',2100+i*100,25),true);assert.equal(enemy.health,300-i*25);assert.equal(f.store.get('pilot',a.attemptId).status,i===12?'COMPLETED':'RACING');}
- assert.equal(f.store.get('pilot',a.attemptId).firstClearCredits,1700);assert.equal(f.db.prepare('SELECT credits FROM player_profiles').get().credits,1700);assert.equal(players.has('invader'),false);assert.equal(packets.filter(p=>p.type==='damage').length,12);assert.equal(packets.find(p=>p.type==='damage').maxHealth,300);
+ for(let i=1;i<=12;i++){assert.equal(ctx.applyCombatHit('owner','invader','dallas',2100+i*100,25),true);assert.equal(enemy.health,300-i*25);assert.equal(f.store.get('pilot',a.attemptId).status,'RACING');}
+ assert.equal(f.store.get('pilot',a.attemptId).firstClearCredits,0);assert.equal(f.store.get('pilot',a.attemptId).crossfireKills,1);assert.equal(f.db.prepare('SELECT credits FROM player_profiles').get().credits,0);assert.equal(players.has('invader'),false);assert.equal(packets.filter(p=>p.type==='damage').length,12);assert.equal(packets.find(p=>p.type==='damage').maxHealth,300);
  }finally{f.close();}
 });
 
 test('verified ad continuation preserves defense, invasion, identity and real enemy HP without extra rewards',async()=>{
  const {PlayerProfileStore}=await import('./player-profiles.js'),{RewardedAdStore}=await import('./rewarded-ads.js');
- const dir=mkdtempSync(join(tmpdir(),'m16-continue-'));try{const path=join(dir,'p.sqlite'),profiles=new PlayerProfileStore(path);const initial=profiles.getOrCreate('pilot','Pilot').credits,store=new JourneyAttemptStore(path,true),a=start({store});store.startFirstContact('pilot',a.attemptId,2000);store.advanceTerritoryDefense('pilot',a.attemptId,true,false,2400);store.advanceTerritoryDefense('pilot',a.attemptId,false,true,2800);store.fail('pilot',a.attemptId,'CRASHED',3000);
+ const dir=mkdtempSync(join(tmpdir(),'m16-continue-'));try{const path=join(dir,'p.sqlite'),profiles=new PlayerProfileStore(path);const initial=profiles.getOrCreate('pilot','Pilot').credits,store=new JourneyAttemptStore(path,true),a=start({store});store.startFirstContact('pilot',a.attemptId,2000);const setupDb=new DatabaseSync(path);setupDb.prepare('UPDATE journey_attempts SET capture_ms=? WHERE attempt_id=?').run(mission.captureDurationMs,a.attemptId);setupDb.close();store.advanceTerritoryDefense('pilot',a.attemptId,true,false,2400);store.advanceTerritoryDefense('pilot',a.attemptId,false,true,2800);store.fail('pilot',a.attemptId,'CRASHED',3000);
  const checkpoint={position:{x:-47000,y:1000,z:-28050},heading:-Math.PI/2,bots:[{id:'invader',health:175}]};assert.equal(store.saveContinuation('pilot',a.attemptId,3000,checkpoint),true);
  const unit='ca-app-pub-3940256099942544/5224354917',ads=new RewardedAdStore(path,{enabled:true,ios:{enabled:false},android:{enabled:true,adUnitId:unit},webEnabled:false,providerRewardAmount:'1'}),ad=ads.createAttempt('pilot','android',3001,`${a.attemptId}:3000`);assert.equal(ad.ok,true);const id=ad.attempt.attemptId;assert.equal(store.continueAfterAd('pilot',a.attemptId,id,3002),undefined);
  assert.equal(ads.grantVerifiedReward({adUnit:unit,customData:id,rewardAmount:'1',rewardItem:'reward',timestamp:3004,transactionId:'m16-ad'},3004).rewarded,true);
  const reopened=new JourneyAttemptStore(path,true);assert.equal(reopened.continuation('pilot',a.attemptId,3005).data.bots[0].health,175);
- const resumed=reopened.continueAfterAd('pilot',a.attemptId,id,33000);assert.equal(resumed.defenseMs,400);assert.equal(resumed.enemyCaptureMs,400);assert.equal(resumed.targetId,'invader');assert.equal(resumed.deadlineAt-33000,180000);assert.equal(reopened.continueAfterAd('pilot',a.attemptId,id,33001),undefined);assert.equal(profiles.getOrCreate('pilot','Pilot').credits,initial);
+ const resumed=reopened.continueAfterAd('pilot',a.attemptId,id,33000);assert.equal(resumed.defenseMs,400);assert.equal(resumed.enemyCaptureMs,400);assert.equal(resumed.targetId,'invader');assert.equal(resumed.deadlineAt-33000,mission.timeLimitMs);assert.equal(reopened.continueAfterAd('pilot',a.attemptId,id,33001),undefined);assert.equal(profiles.getOrCreate('pilot','Pilot').credits,initial);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
@@ -115,7 +139,7 @@ test('M16 rollout preserves earned M17 access once; new M15 clears unlock M16 be
  const f=fixture();try{const completion=f.db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)');completion.run('pilot',catalog.journeyDallasTwinHunters01.id,'old-m15',1);f.db.prepare('DELETE FROM journey_catalog_versions WHERE version=?').run('dallas-territory-defense-01');
  const store=new JourneyAttemptStore(f.path);assert.equal(store.canAccessMission('pilot',catalog.journeyDallas16.id),true);
  f.db.prepare('INSERT INTO player_profiles VALUES(?,?,?)').run('new',0,0);completion.run('new',catalog.journeyDallasTwinHunters01.id,'new-m15',2);assert.equal(store.canAccessMission('new',mission.id),true);assert.equal(store.canAccessMission('new',catalog.journeyDallas16.id),false);
- const a=store.launch('new','trainer',1000,mission.id);store.approach('new',a.attemptId);store.assignFirstContact('new',a.attemptId,'own-invader');store.startFirstContact('new',a.attemptId,2000);store.completeHunter('new',a.attemptId,'own-invader',3000);assert.equal(store.canAccessMission('new',catalog.journeyDallas16.id),true);assert.equal(store.progress('pilot',catalog.journeyDallasTwinHunters01.id).firstAttemptId,'old-m15');
+ const a=store.launch('new','trainer',1000,mission.id);store.approach('new',a.attemptId);store.assignFirstContact('new',a.attemptId,'own-invader');store.startFirstContact('new',a.attemptId,2000);f.db.prepare('UPDATE journey_attempts SET capture_ms=?,defense_ms=? WHERE attempt_id=?').run(mission.captureDurationMs,mission.defenseDurationMs,a.attemptId);store.completeHunter('new',a.attemptId,'own-invader',3000);assert.equal(store.canAccessMission('new',catalog.journeyDallas16.id),true);assert.equal(store.progress('pilot',catalog.journeyDallasTwinHunters01.id).firstAttemptId,'old-m15');
  }finally{f.close();}
 });
 
@@ -124,4 +148,22 @@ test('invader returns to its next ordered patrol waypoint after a shared attack 
  const ctx=runtime(['hunterNavigationTarget'],{players:new Map([['owner',pilot]]),journeyStore:{activeSnapshot:()=>({status:'RACING'})},territoriesForCity,territoryContains,botSafeFloor:()=>100,journeyAceClearance:300,insideJourneyHunterArena:()=>true,botFireSolution:()=>({}),opponentReactionReady:()=>true,planOpponentTactics:(_bot,input)=>{objectives.push(input.objective);return{tactic:phase++===0?'attackPass':'extendAway',waypoint:{x:0,y:1300,z:0},turnSign:1};}});
  ctx.hunterNavigationTarget('invader',enemy,bot,1000);ctx.hunterNavigationTarget('invader',enemy,bot,2000);ctx.hunterNavigationTarget('invader',enemy,bot,3000);
  assert.equal(objectives[0],undefined);assert.equal(objectives[1],undefined);assert.equal(objectives[2].x,mission.patrolRoute[1].x);assert.equal(bot.journeyDefenseReturning,true);
+});
+
+
+test('mission ownership renders neutral white before capture and the owning pilot after capture, independently of Free Fly',()=>{
+ const client=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+ const ast=ts.createSourceFile('main.ts',client,ts.ScriptTarget.Latest,true);
+ const fn=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='displayedTerritoryState');
+ const globalState={id:mission.territoryId,controllerId:'unrelated',controllerName:'Other Pilot'};
+ const ctx=vm.createContext({journeyMode:true,journeyAttempt:{missionId:mission.id,captureMs:0},journeyDallasTerritoryDefense01:mission,
+  localPlayerId:'local',serverProfile:{pilotName:'Captain'},territoryState:new Map([[mission.territoryId,globalState]])});
+ vm.runInContext(ts.transpileModule(fn.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);
+ assert.equal(ctx.displayedTerritoryState(mission.territoryId).controllerId,undefined);
+ ctx.journeyAttempt.captureMs=mission.captureDurationMs;
+ assert.equal(ctx.displayedTerritoryState(mission.territoryId).controllerId,'local');assert.equal(ctx.displayedTerritoryState(mission.territoryId).controllerName,'Captain');
+ ctx.journeyAttempt.failureReason='TERRITORY_OVERRUN';ctx.journeyAttempt.targetId='invader';
+ assert.equal(ctx.displayedTerritoryState(mission.territoryId).controllerName,'Nightowl');
+ ctx.journeyMode=false;assert.equal(ctx.displayedTerritoryState(mission.territoryId),globalState);
+ assert.match(client,/entry.displayColor = state\?\.controllerId \? definition.fixedColor : neutralTerritoryColor/);
 });
