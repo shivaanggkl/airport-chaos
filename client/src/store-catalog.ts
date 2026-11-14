@@ -45,7 +45,7 @@ export const storePaints = paintOrder.map((id): StoreItem => {
   };
 });
 
-const featuredIds = ['fighter', 'privateJet'];
+const featuredIds = ['fighter', 'firehawk-stealth-gray'];
 export const storeFeatured = featuredIds.map(id => [...storeAircraft, ...storePaints].find(item => item.id === id)!);
 export const storeItems = [...storeAircraft, ...storePaints];
 

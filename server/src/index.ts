@@ -3678,8 +3678,8 @@ function restoreJourneyRecovery(playerId: string, attempt: JourneyAttempt, recov
 function coinHuntRecoveryPose(attempt: JourneyAttempt) {
   const index=Math.max(0,Math.min(dallasCoinTrail.length-2,attempt.coinHunt?.lastIndex??0));
   const point=dallasCoinTrail[index]!;
-  // Use the centerline tangent, not the alternating lane-to-lane vector.
-  const heading=Math.atan2(-22000*Math.PI*Math.cos(2*Math.PI*point.t),-75000);
+  // Recover facing along the same three-bend trail used for pickups.
+  const heading=Math.atan2(-33000*Math.PI*Math.cos(3*Math.PI*point.t),-75000);
   const position={x:point.x,y:attempt.coinHunt!.altitude,z:point.z};
   return {position,heading,speed:journeyDallasCoinHunt01.airborneSpawn.speed};
 }

@@ -150,7 +150,7 @@ function abandonPendingJourneyLaunch(): void {
   }).catch(() => undefined);
 }
 
-type JourneyProgressEntry = { eligible?: boolean; completed?: boolean; firstAttemptId?: string };
+type JourneyProgressEntry = { eligible?: boolean; completed?: boolean; coinsCollected?: number; firstAttemptId?: string };
 type JourneyProgressResponse = JourneyProgressEntry & { [key: `mission${string}`]: JourneyProgressEntry | undefined };
 function missionProgress(progress: JourneyProgressResponse, id: string): JourneyProgressEntry | undefined {
   return id === 'journey-dallas-twin-hunters-01' ? progress.missionTwinHunters01 : id === 'journey-dallas-coin-hunt-01' ? progress.missionCoinHunt01 : id === 'journey-dallas-sharpshooter-01' ? progress.missionSharpshooter01 : id === 'journey-dallas-airport-hop-01' ? progress.missionAirportHop01 : id === 'journey-dallas-capture-01' ? progress.missionCapture01 : id === 'journey-dallas-01' ? progress : progress[`mission${id.slice(-2)}`];

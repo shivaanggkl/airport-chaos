@@ -209,7 +209,7 @@ export class StoreAircraftPreviews {
       const aspect = rect.width / rect.height;
       const pitch = this.detail ? detailCameraPitch : cameraPitch;
       const aircraftRadius = Math.hypot(preview.size.x, preview.size.z) * 0.5;
-      const framingRadius = Math.sqrt(aircraftRadius * frameRadius);
+      const framingRadius = this.detail ? aircraftRadius : Math.sqrt(aircraftRadius * frameRadius);
       const verticalRadius = preview.size.y * 0.5 * Math.cos(pitch) + aircraftRadius * Math.sin(pitch);
       const halfHeight = Math.max(framingRadius / aspect, verticalRadius) / 0.92;
       this.camera.left = -halfHeight * aspect;

@@ -431,7 +431,7 @@ export class JourneyAttemptStore {
     return attempt ? { attempt, pausedMs } : undefined;
   }
 
-  progress(pilotId: string, missionId: string = journeyDallas01.id): { completed: boolean; firstAttemptId?: string; bestTimeMs?: number } {
+  progress(pilotId: string, missionId: string = journeyDallas01.id): { completed: boolean; firstAttemptId?: string; bestTimeMs?: number; coinsCollected?: number } {
     const row = this.database.prepare('SELECT first_attempt_id, best_time_ms FROM journey_completions WHERE pilot_id = ? AND mission_id = ?')
       .get(pilotId, missionId) as { first_attempt_id: string; best_time_ms: number } | undefined;
     if (!row) return { completed: false };
@@ -442,7 +442,9 @@ export class JourneyAttemptStore {
       : missionId === journeyDallas06.id ? this.goldenChampionshipBestTime(pilotId)
       : missionId === journeyDallas07.id ? this.giantIncomingBestTime(pilotId)
       : missionId===journeyDallas19.id ? this.monsterArrivalBestTime(pilotId) : row.best_time_ms;
-    return { completed: true, firstAttemptId: row.first_attempt_id, ...(bestTimeMs === undefined ? {} : { bestTimeMs }) };
+    const coinsCollected = missionId === journeyDallasCoinHunt01.id
+      ? this.get(pilotId, row.first_attempt_id)?.coinHunt?.collected : undefined;
+    return { completed: true, ...(coinsCollected === undefined ? {} : { coinsCollected }), firstAttemptId: row.first_attempt_id, ...(bestTimeMs === undefined ? {} : { bestTimeMs }) };
   }
 
   qaMissionAccess(pilotId: string): boolean {

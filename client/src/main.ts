@@ -11570,7 +11570,7 @@ function animate(): void {
     updateNavigationHud();
     updateEngineAudio();
   }
-  coinTrailView?.update(camera,performance.now(),missionCoinHuntIntro&&flightLaunchState==='active'&&coinHuntIntro?coinHuntIntro.target:airplane.position,heading);
+  coinTrailView?.update(camera,performance.now());
   const qaRenderStartedAt = stabilityQaTiming ? performance.now() : 0;
   if (stabilityQaTiming) {
     const updateMs = qaRenderStartedAt - qaFrameStartedAt;

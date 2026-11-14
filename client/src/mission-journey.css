@@ -49,6 +49,17 @@
 .mission-journey-crown svg { display: block; width: 100%; height: 100%; }
 .mission-journey-node.is-locked .mission-journey-crown { color: #c4c9cc; }
 .mission-journey-node.is-current:has(.mission-journey-crown) .mission-journey-number::before { display: none; }
+/* Bonus styling belongs to the existing Journey node, including its lock/check states. */
+.mission-journey-node.is-bonus { width: clamp(76px, 8.5vw, 116px); height: clamp(76px, 8.5vw, 116px); border-color: #ffe79b; color: #3d2105; background: radial-gradient(circle at 35% 22%, #fff5b0, #ffd44d 38%, #e59b0c 70%, #9a4d04); box-shadow: inset 0 2px 8px #fff5bc, inset 0 -4px 10px #a65b06, 0 0 12px 4px #ffd65cbb, 0 0 28px 12px #ffbd3b80; text-shadow: 0 1px #ffe99b; }
+.mission-journey-node.is-bonus.is-selected { outline: none; }
+.mission-journey-node.is-bonus.is-current::before { display: none; }
+.mission-journey-node.is-bonus .mission-journey-number { font-size: 1.15em; }
+.mission-journey-node.is-bonus .mission-journey-number::before { display: none; }
+.mission-journey-bonus { position: absolute; z-index: 1; width: 142%; height: auto; bottom: 82%; left: 50%; transform: translateX(-50%); filter: drop-shadow(0 0 6px #ffc852); pointer-events: none; }
+.mission-journey-bonus svg { display: block; width: 100%; overflow: visible; }
+.mission-journey-bonus text { font: 900 23px var(--font-display); }
+.mission-journey-node.is-bonus.is-locked { color: #715321; filter: saturate(.55); }
+.mission-journey-segment.is-bonus.is-lit { stroke: #ffda68; stroke-dasharray: none; stroke-width: 4; filter: drop-shadow(0 0 6px #ffc24c); }
 .mission-journey-detail { box-sizing: border-box; position: absolute; right: max(18px, var(--safe-area-right)); bottom: max(24px, var(--safe-area-bottom)); left: max(18px, var(--safe-area-left)); display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 330px) minmax(190px, 255px); align-items: center; gap: 18px; width: min(1120px, calc(100% - max(18px, var(--safe-area-left)) - max(18px, var(--safe-area-right)))); height: var(--journey-detail-height); margin-inline: auto; padding: 16px 22px 16px clamp(22px, 4.5vw, 58px); border: 3px solid var(--menu-card-accent); border-radius: var(--menu-panel-radius); color: var(--menu-card-ink); background: var(--menu-panel-surface); box-shadow: var(--menu-panel-shadow); }
 .mission-journey-detail-copy { display: grid; align-content: center; min-width: 0; min-height: 0; height: 100%; gap: 5px; }
 .mission-journey-detail-copy > span { color: var(--ui-gold); font: 900 clamp(16px, 1.8vw, 23px)/1 var(--font-display); letter-spacing: .04em; }
@@ -69,6 +80,7 @@
   .mission-journey-chapter-heading { border-radius: 8px; }
   .mission-journey-node { width: 58px; height: 58px; font-size: 20px; }
   .mission-journey-node.is-current { width: 68px; height: 68px; }
+  .mission-journey-node.is-bonus { width: 74px; height: 74px; }
   .mission-journey-node.is-current .mission-journey-number::before { bottom: calc(100% - 5px); }
   .mission-journey-node.is-locked .mission-journey-number { transform: translateY(-19%); }
   .mission-journey-lock { --lock-icon-size: clamp(9px, 1.1vw, 13px); }
@@ -105,3 +117,7 @@
 
 .mission-journey-instructions { display: block; padding-left: 1em; }
 .mission-journey-instructions > [role="listitem"] { display: list-item; list-style-type: disc; }
+
+.mission-journey-detail-heading { display: flex; align-items: center; gap: .6em; min-width: 0; }
+.mission-journey-detail-heading [data-mission-bonus] { display: inline-flex; flex: 0 0 auto; width: 4.5em; }
+.mission-journey-detail-heading .mission-journey-bonus { position: static; width: 100%; transform: none; filter: drop-shadow(0 1px 2px #b67b3755); }

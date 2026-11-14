@@ -1,4 +1,3 @@
-import { fireCrosshairGeometry } from './fire-icon';
 import { createContextBackButton, createContextPageTitle } from './context-page-shell';
 import './game-store.css';
 import type { GarageProfile } from './garage';
@@ -12,7 +11,6 @@ import { createAircraftDetailPanel, renderAircraftDetailPanel } from './aircraft
 import { aircraftFlightEnvelope, MPH_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { FIRE_RATE_PER_SECOND } from '../../shared/protocol.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
-import { aircraftDefinitions } from './aircraft';
 import type { PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
 import { storeAircraft, storeFeatured, storeItemById, storeItemState, storePaints, storePurchaseTarget, type StoreCategory, type StoreItem } from './store-catalog';
 
@@ -32,7 +30,6 @@ type StoreHandlers = {
 const categories: readonly StoreCategory[] = ['FEATURED', 'AIRCRAFT', 'EFFECTS', 'CITIES'];
 const categoryIcons: Record<StoreCategory, string> = { FEATURED: '★', AIRCRAFT: '✈', EFFECTS: '✦', CITIES: '⌖' };
 
-function color(value: number): string { return `#${value.toString(16).padStart(6, '0')}`; }
 function isOwned(item: StoreItem, profile: GarageProfile | undefined): boolean {
   if (!profile) return false;
   return ['OWNED', 'EQUIPPED', 'INCLUDED', 'FREE'].includes(storeItemState(item, profile));
@@ -43,26 +40,23 @@ function artwork(item: StoreItem): HTMLElement {
   art.tabIndex = 0;
   art.setAttribute('role', 'button');
   art.setAttribute('aria-label', `View ${item.name} aircraft details`);
-  if (item.kind === 'paint') {
-    const swatches = document.createElement('span'); swatches.className = 'store-art-swatches';
-    for (const value of item.colors) { const dot = document.createElement('i'); dot.style.backgroundColor = color(value); swatches.append(dot); }
-    art.append(swatches);
-  }
-  const specs = document.createElement('span'); specs.className = 'store-art-role';
+  const role = document.createElement('span'); role.className = 'store-art-role';
   const type = item.aircraftType;
   const speed = Math.round(aircraftFlightEnvelope[type].maxSpeed * MPH_PER_METER_PER_SECOND).toLocaleString('en-US');
-  const columns = [
-    { label: 'MAX SPEED', value: `${speed} MPH`, icon: '<img src="/media/hud/speed.png" alt="" aria-hidden="true"/>' },
-    { label: 'FIRE RATE', value: `${FIRE_RATE_PER_SECOND[type]} shots/sec`, icon: `<svg viewBox="0 0 48 48" aria-hidden="true" focusable="false" fill="none" stroke="#fff5df" stroke-width="3">${fireCrosshairGeometry}</svg>` },
-    { label: 'HEALTH', value: `${maxHealthForAircraft(type)} HP`, icon: '<img src="/media/hud/health.png" alt="" aria-hidden="true"/>' },
-  ];
-  for (const { label, value, icon } of columns) {
+  for (const [title, value] of [
+    ['MAX SPEED', `${speed} MPH`],
+    ['FIRE RATE', `${FIRE_RATE_PER_SECOND[type]} shots/sec`],
+    ['HEALTH', `${maxHealthForAircraft(type)} HP`],
+  ]) {
     const column = document.createElement('span');
-    // Only fixed labels and shared numeric settings enter this markup.
-    column.innerHTML = `<span class="store-spec-label">${icon}${label}</span><strong>${value}</strong>`;
-    specs.append(column);
+    const label = document.createElement('span'); label.textContent = title;
+    const amount = document.createElement('strong'); amount.textContent = value;
+    column.append(label, amount); role.append(column);
   }
-  art.append(specs);
+  const expand = document.createElement('span'); expand.className = 'store-art-expand';
+  expand.setAttribute('aria-hidden', 'true');
+  expand.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>';
+  art.append(role, expand);
   return art;
 }
 
@@ -92,20 +86,12 @@ export class GameStore {
     element.innerHTML = `<div class="store-frame"><header class="store-heading context-page-heading"></header><div class="store-category-rail"><nav class="store-tabs" aria-label="Store categories"></nav></div><div class="store-content"><div class="store-rail"><div class="store-grid" tabindex="0" role="region" aria-label="Products, scroll horizontally" aria-live="polite"></div><button class="store-rail-arrow store-rail-prev" type="button" aria-label="Previous products" hidden></button><button class="store-rail-arrow store-rail-next" type="button" aria-label="Next products" hidden></button><div class="store-rail-progress" role="progressbar" aria-label="Product scroll position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="store-rail-thumb"></span></div></div></div><p class="store-notice" role="status" aria-live="polite"></p></div><div class="store-detail-overlay" hidden></div>`;
     this.frame = element.querySelector('.store-frame')!;
     this.detailOverlay = element.querySelector('.store-detail-overlay')!;
-    const detailPanel = createAircraftDetailPanel();
+    const detailPanel = createAircraftDetailPanel(() => this.closeDetail());
     detailPanel.setAttribute('role', 'dialog');
     detailPanel.setAttribute('aria-modal', 'true');
     detailPanel.setAttribute('aria-labelledby', 'store-detail-title');
     detailPanel.querySelector('.store-detail-title')!.id = 'store-detail-title';
-    const closeDetail = document.createElement('button');
-    closeDetail.type = 'button'; closeDetail.className = 'store-detail-close';
-    closeDetail.setAttribute('aria-label', 'Close aircraft details'); closeDetail.textContent = '×';
-    detailPanel.prepend(closeDetail);
-    const rotateHint = document.createElement('span'); rotateHint.className = 'store-detail-rotate-hint';
-    rotateHint.textContent = 'DRAG TO ROTATE';
-    detailPanel.querySelector('.store-detail-preview')!.append(rotateHint);
     this.detailOverlay.append(detailPanel);
-    element.querySelector('.store-detail-close')!.addEventListener('click', () => this.closeDetail());
     this.detailOverlay.addEventListener('keydown', event => {
       if (event.key === 'Tab') { event.preventDefault(); this.element.querySelector<HTMLButtonElement>('.store-detail-close')!.focus(); }
     });
@@ -270,19 +256,23 @@ export class GameStore {
     const copy = document.createElement('div'); copy.className = 'store-card-copy';
     const aircraft = storeAircraft.find(candidate => candidate.aircraftType === item.aircraftType);
     const aircraftDetail = document.createElement('div'); aircraftDetail.className = 'store-card-detail';
-    const aircraftLabel = document.createElement('span'); aircraftLabel.textContent = aircraftDefinitions[item.aircraftType].name;
     const name = document.createElement('strong'); name.textContent = item.kind === 'aircraft' ? item.name : aircraft?.name ?? item.name;
-    aircraftDetail.append(aircraftLabel, name); copy.append(aircraftDetail);
+    aircraftDetail.append(name); copy.append(aircraftDetail);
     const appearance = item.kind === 'paint' ? item
       : item.aircraftType === 'fighter' ? storePaints.find(paint => paint.id === 'firehawk-inferno')
         : purchaseItem !== item ? purchaseItem : undefined;
     if (appearance) {
       const included = document.createElement('div'); included.className = 'store-card-detail store-card-detail--appearance';
-      const appearanceName = appearance.name.startsWith(`${aircraft?.name} `)
-        ? appearance.name.slice((aircraft?.name.length ?? 0) + 1) : appearance.name;
-      const appearanceLabel = document.createElement('span'); appearanceLabel.textContent = 'APPEARANCE:';
-      const appearanceValue = document.createElement('strong'); appearanceValue.textContent = appearanceName;
-      included.append(appearanceLabel, appearanceValue); copy.append(included);
+      const swatches = document.createElement('div'); swatches.className = 'store-appearance-swatches';
+      swatches.setAttribute('role', 'img'); swatches.setAttribute('aria-label', appearance.name);
+      if (appearance.kind === 'paint') {
+        for (const value of appearance.colors) {
+          const dot = document.createElement('i');
+          dot.style.backgroundColor = `#${value.toString(16).padStart(6, '0')}`;
+          swatches.append(dot);
+        }
+      }
+      included.append(swatches); copy.append(included);
     }
     if (item.aircraftType === 'fighter' && !owned) {
       const bundle = document.createElement('span'); bundle.className = 'store-card-includes';

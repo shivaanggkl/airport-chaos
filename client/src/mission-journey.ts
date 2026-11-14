@@ -8,6 +8,8 @@ import { missionJourneyDetails } from './mission-journey-content';
 export { missionJourneyStages } from './mission-journey-model';
 export type { MissionJourneyStage } from './mission-journey-model';
 
+const bonusRibbonMarkup = '<span class="mission-journey-bonus" aria-hidden="true"><svg viewBox="0 0 140 48"><path d="M15 16 3 20 12 31 7 43 32 36H108L133 43 128 31 137 20 125 16Z" fill="#8c3bac" stroke="#ffdc78" stroke-width="2"/><path d="M14 9Q70-5 126 9L120 37Q70 24 20 37Z" fill="#68128c" stroke="#ffe58b" stroke-width="2"/><text x="70" y="27" text-anchor="middle" fill="#fff2a1">BONUS</text></svg></span>';
+
 export class MissionJourney {
   private readonly detail: HTMLElement;
   private detailAnimation: Animation | null = null;
@@ -30,7 +32,7 @@ export class MissionJourney {
   private dragged = false;
   private suppressTap = false;
   private panelOpen = false;
-  private progress: Readonly<Record<string, { eligible?: boolean; completed?: boolean }>> = {};
+  private progress: Readonly<Record<string, { eligible?: boolean; completed?: boolean; coinsCollected?: number }>> = {};
   private signInRequired = false;
   private cityLocked = false;
 
@@ -47,7 +49,7 @@ export class MissionJourney {
         </div>
       </div>
       <div class="mission-journey-detail" aria-label="Selected mission details" aria-live="polite">
-        <div class="mission-journey-detail-copy"><span data-mission-index>MISSION 01</span><strong data-mission-title></strong><p data-mission-objective></p></div>
+        <div class="mission-journey-detail-copy"><span class="mission-journey-detail-heading"><span data-mission-index>MISSION 01</span><span data-mission-bonus hidden>${bonusRibbonMarkup}</span></span><strong data-mission-title></strong><p data-mission-objective></p></div>
         <div class="mission-journey-detail-facts">
           <div class="mission-journey-reward" data-mission-reward><img src="/media/hub/credits.avif" alt="" aria-hidden="true"><span data-mission-reward-label>REWARD</span><strong data-mission-reward-amount></strong></div>
           <div class="mission-journey-time" data-mission-time><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg><span>TIME LIMIT</span><strong data-mission-time-value></strong></div>
@@ -132,6 +134,7 @@ export class MissionJourney {
       path.setAttribute('d', `M ${from.x} ${from.y} Q ${midX} ${midY} ${to.x} ${to.y}`);
       path.classList.add('mission-journey-segment');
       path.dataset.from = String(number);
+      if (from.id === 'journey-dallas-coin-hunt-01' || to.id === 'journey-dallas-coin-hunt-01') path.classList.add('is-bonus');
       if (from.chapter !== to.chapter) path.classList.add('is-transition');
       routes.append(path); this.routeSegments.push(path);
     }
@@ -139,9 +142,11 @@ export class MissionJourney {
     for (const stage of missionJourneyStages) {
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'mission-journey-node is-locked';
+      const bonus = stage.id === 'journey-dallas-coin-hunt-01';
+      button.classList.toggle('is-bonus', bonus);
       button.dataset.stage = String(stage.number);
       button.style.left = `${stage.x}%`; button.style.top = `${stage.y}%`;
-      button.innerHTML = `${stage.implementation === 'playable' && missionJourneyStages[stage.number]?.chapter !== stage.chapter ? '<em class="mission-journey-crown" aria-hidden="true"><svg viewBox="0 0 40 30"><path d="M3 8 11 16 20 3 29 16 37 8 34 25 6 25Z" fill="currentColor"/><path d="M7 28h26" fill="none" stroke="currentColor" stroke-width="3"/></svg></em>' : ''}<span class="mission-journey-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4.5 12 5 5 10-10" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="mission-journey-number">${stage.number}</span>`;
+      button.innerHTML = `${bonus ? bonusRibbonMarkup : ''}${!bonus && stage.implementation === 'playable' && missionJourneyStages[stage.number]?.chapter !== stage.chapter ? '<em class="mission-journey-crown" aria-hidden="true"><svg viewBox="0 0 40 30"><path d="M3 8 11 16 20 3 29 16 37 8 34 25 6 25Z" fill="currentColor"/><path d="M7 28h26" fill="none" stroke="currentColor" stroke-width="3"/></svg></em>' : ''}<span class="mission-journey-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4.5 12 5 5 10-10" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="mission-journey-number">${stage.number}</span>`;
       const lock = document.createElement('span');
       lock.className = 'mission-journey-lock';
       lock.setAttribute('aria-hidden', 'true');
@@ -169,7 +174,7 @@ export class MissionJourney {
     this.renderProgress();
   }
 
-  setProgress(progress: Readonly<Record<string, { eligible?: boolean; completed?: boolean }>>): void {
+  setProgress(progress: Readonly<Record<string, { eligible?: boolean; completed?: boolean; coinsCollected?: number }>>): void {
     this.progress = progress;
     this.renderProgress();
   }
@@ -198,7 +203,7 @@ export class MissionJourney {
       button.classList.toggle('is-current', status === 'current');
       button.classList.toggle('is-selected', number === this.selectedStage);
       button.setAttribute('aria-pressed', String(number === this.selectedStage));
-      button.setAttribute('aria-label', `Mission ${number}, ${status === 'completed' ? 'completed, select to replay' : status === 'current' ? 'current mission' : 'locked, view details'}`);
+      button.setAttribute('aria-label', `Mission ${number}${button.classList.contains('is-bonus') ? ', bonus mission' : ''}, ${status === 'completed' ? 'completed, select to replay' : status === 'current' ? 'current mission' : 'locked, view details'}`);
     });
     this.element.querySelectorAll<HTMLElement>('.mission-journey-chapter-heading').forEach(heading => {
       heading.classList.toggle('is-selected', Number(heading.dataset.chapter) === missionJourneyStages[this.selectedStage - 1]?.chapter);
@@ -435,6 +440,7 @@ export class MissionJourney {
 
   private renderDetails(): void {
     const stage = missionJourneyStages[this.selectedStage - 1];
+    this.detail.querySelector<HTMLElement>('[data-mission-bonus]')!.hidden = stage?.id !== 'journey-dallas-coin-hunt-01';
     if (!stage) {
       this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = 'MISSIONS LOCKED';
       this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = '';
@@ -480,9 +486,13 @@ export class MissionJourney {
     const reward = this.detail.querySelector<HTMLElement>('[data-mission-reward]')!;
     reward.hidden = false;
     this.detail.querySelector<HTMLElement>('[data-mission-time]')!.hidden = false;
-    reward.setAttribute('aria-label', stage.id==='journey-dallas-coin-hunt-01'&&completed ? 'Replay reward: 0 Credits' : `${card.rewardCredits.toLocaleString()} Credits${completed ? ', claimed' : ''}`);
-    this.detail.querySelector<HTMLElement>('[data-mission-reward-label]')!.textContent = stage.id==='journey-dallas-coin-hunt-01' ? completed ? 'REPLAY REWARD' : 'UP TO' : completed ? 'REWARD CLAIMED' : 'REWARD';
-    this.detail.querySelector<HTMLElement>('[data-mission-reward-amount]')!.textContent = stage.id==='journey-dallas-coin-hunt-01'&&completed ? '0' : card.rewardCredits.toLocaleString();
+    const coinHunt = stage.id === 'journey-dallas-coin-hunt-01';
+    const collected = completed && coinHunt ? this.progress[stage.id]?.coinsCollected : undefined;
+    const rewardLabel = coinHunt ? completed ? collected === undefined ? 'REPLAY REWARD' : 'CREDITS COLLECTED' : 'UP TO' : completed ? 'REWARD CLAIMED' : 'REWARD';
+    const rewardAmount = coinHunt && completed ? collected ?? 0 : card.rewardCredits;
+    reward.setAttribute('aria-label', coinHunt && completed ? `${rewardAmount.toLocaleString()} Credits collected. Replay reward: 0 Credits` : `${card.rewardCredits.toLocaleString()} Credits${completed ? ', claimed' : ''}`);
+    this.detail.querySelector<HTMLElement>('[data-mission-reward-label]')!.textContent = rewardLabel;
+    this.detail.querySelector<HTMLElement>('[data-mission-reward-amount]')!.textContent = rewardAmount.toLocaleString();
     this.detail.querySelector<HTMLElement>('[data-mission-time-value]')!.textContent = card.timeLimit;
     const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
     play.disabled = locked;

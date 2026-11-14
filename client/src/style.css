@@ -1182,28 +1182,15 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .garage-overlay { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 18px; background: transparent; color: var(--ui-text); }
 .garage-overlay[hidden] { display: none; }
 .garage-equipped-page { display: none; }
-.garage-overlay.is-equipped-page { flex-direction: column; gap: 12px; }
+.garage-overlay.is-equipped-page {
+  display: grid; place-items: center;
+  padding: max(12px, var(--safe-area-top)) max(12px, var(--safe-area-right)) max(12px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
+}
 .garage-overlay.is-equipped-page .garage-card { display: none; }
-.garage-overlay.is-equipped-page .garage-equipped-page { grid-template-rows: auto minmax(0, 1fr); gap: 12px; width: min(950px, 100%); max-height: 100%; }
-.garage-equipped-page .garage-equipped-heading { min-height: 58px; justify-content: center; }
-.garage-equipped-page .store-detail-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr) auto; width: 100%; height: min(500px, calc(100dvh - 110px - var(--safe-area-top) - var(--safe-area-bottom))); }
-.garage-equipped-page .store-detail-preview { grid-column: 1; grid-row: 1; border-right: 1px solid #d7e0e5; }
+.garage-overlay.is-equipped-page .garage-equipped-page { display: contents; }
 .garage-equipped-page .store-detail-preview canvas { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .garage-equipped-page .store-detail-preview canvas:active { cursor: grabbing; }
-.garage-equipped-page .store-detail-specs { grid-column: 2; grid-row: 1; min-height: 0; }
-.garage-equipped-page .store-detail-stats { grid-template-columns: 1fr; gap: 8px; }
-.garage-equipped-page .garage-equipped-footer { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; padding: 5px clamp(12px, 2vw, 22px); border-top: 1px solid #d7e0e5; background: #fff; }
-.garage-equipped-page .garage-equipped-note { margin: 0; color: #52647a; font: 700 clamp(12px, 1.3vw, 15px)/1.35 var(--font-display); }
-.garage-equipped-page .garage-equipped-store { min-height: 0; height: clamp(34px, 6.5dvh, 40px); padding: 4px clamp(8px, 1.5vw, 14px); font-size: clamp(11px, 1.25vw, 14px); white-space: nowrap; }
-.garage-equipped-page .garage-equipped-status { grid-column: 1 / -1; margin: 0; color: #0b6181; font: 700 12px/1.3 var(--font-display); }
-.garage-equipped-page .garage-equipped-status:empty { display: none; }
-@media (max-width: 650px) {
-  .garage-equipped-page .garage-equipped-footer { grid-template-columns: 1fr; }
-  .garage-equipped-page .garage-equipped-store { justify-self: stretch; }
-}
-body:has(.app-shell-header.is-page:not([hidden])) .garage-equipped-page .garage-equipped-heading { display: none; }
-body:has(.app-shell-header.is-page:not([hidden])) .garage-overlay.is-equipped-page .garage-equipped-page { grid-template-rows: minmax(0, 1fr); }
-body:has(.app-shell-header.is-page:not([hidden])) .garage-equipped-page .store-detail-panel { height: min(500px, calc(100dvh - var(--hub-header-total) - 30px - var(--safe-area-bottom))); }
+body:has(.garage-overlay.is-equipped-page:not([hidden])) .app-shell-header { display: none; }
 body:has(.app-shell-header:not([hidden])) :is(.garage-overlay, .pilot-menu-overlay:not(.is-flight-menu-overlay)) {
   padding-top: calc(var(--app-shell-header-total) + 16px);
   background: radial-gradient(ellipse at 50% 20%, rgb(53 214 255 / 18%), transparent 53%), radial-gradient(ellipse at 95% 90%, rgb(142 99 255 / 15%), transparent 50%), linear-gradient(165deg, var(--ac-surface), var(--ac-bg-deep));
@@ -6613,7 +6600,7 @@ body:has(.app-shell-header:not([hidden])) .garage-overlay.is-equipped-page,
 .garage-overlay.is-equipped-page .garage-card,
 body:has(.app-shell-header:not([hidden])) .garage-overlay.is-equipped-page .garage-card,
 .garage-overlay.hub-aircraft.is-equipped-page .garage-card { display: none; }
-.garage-overlay.is-equipped-page .garage-equipped-page { display: grid; }
+.garage-overlay.is-equipped-page .garage-equipped-page { display: contents; }
 .sky-duel-flight .gameplay-info-card,
 .sky-duel-flight .mission-status-layer,
 .sky-duel-flight .players-panel,
@@ -7358,5 +7345,7 @@ html.custom-control-layout #game-root #radar-panel {
  #game-root.coin-hunt-active .mission-status-layer {top:max(140px,calc(var(--safe-area-top) + 134px));}
  #game-root.coin-hunt-intro .flight-launch-title {left:14px;right:14px;top:auto;bottom:max(24px,var(--safe-area-bottom));max-width:none;}
 }
+
+body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equipped-page { padding-top: max(12px, var(--safe-area-top)); }
 
 #game-root.launch-cinematic-active.twin-hunters-intro > #mission-status-layer { opacity: 1 !important; --launch-hud-opacity: 1; }
