@@ -7349,3 +7349,5 @@ html.custom-control-layout #game-root #radar-panel {
 body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equipped-page { padding-top: max(12px, var(--safe-area-top)); }
 
 #game-root.launch-cinematic-active.twin-hunters-intro > #mission-status-layer { opacity: 1 !important; --launch-hud-opacity: 1; }
+
+#game-root.launch-cinematic-active.territory-defense-intro > #mission-status-layer { opacity: 1 !important; --launch-hud-opacity: 1; }

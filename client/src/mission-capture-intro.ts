@@ -10,14 +10,14 @@ type CaptureTerritory = Readonly<{
 
 /** Presentation-only lesson. Never moves the player or changes capture state. */
 export class MissionCaptureIntroPath {
-  readonly sweepMs = 14_000;
-  readonly durationMs = 15_000;
+  get sweepMs():number {return this.defense?11_500:14_000;}
+  get durationMs():number {return this.defense?12_000:15_000;}
   private readonly radius: number;
   private readonly focus: THREE.Vector3;
   private readonly streamingFocus: THREE.Vector3;
 
   constructor(territory: CaptureTerritory, _captureMs: number,
-    heightAt: (x: number, z: number) => number) {
+    heightAt: (x: number, z: number) => number, readonly defense?:{player:THREE.Group;invader:THREE.Group}) {
     const { minX, maxX, minZ, maxZ } = territory.bounds;
     const { x, z } = territory.center;
     const ground = heightAt(x, z);
@@ -28,13 +28,14 @@ export class MissionCaptureIntroPath {
   }
 
   text(elapsed: number): string {
+    if(this.defense)return elapsed<3000?'TERRITORY DEFENSE':elapsed<6000?'LAS COLINAS is yours to defend!':elapsed<9000?'Stay inside the marked territory.':'Defend for 90 seconds or destroy the enemy!';
     if (elapsed < 3_000) return 'CAPTURE 1 TERRITORY';
     return captureMissionInstructions.join('\n');
   }
 
-  showsTerritory(elapsed: number): boolean { return elapsed >= 2_500 && elapsed < this.sweepMs + 500; }
+  showsTerritory(elapsed: number): boolean { return this.defense?elapsed>=3000&&elapsed<6000:elapsed >= 2_500 && elapsed < this.sweepMs + 500; }
 
-  showsCaptureRow(elapsed: number): boolean { return elapsed >= 3_000 && elapsed < this.durationMs; }
+  showsCaptureRow(elapsed: number): boolean { return !this.defense && elapsed >= 3_000 && elapsed < this.durationMs; }
 
   demonstrationPercent(elapsed: number): number | undefined {
     if (!this.showsCaptureRow(elapsed)) return undefined;
@@ -43,6 +44,17 @@ export class MissionCaptureIntroPath {
 
   sample(elapsed: number, position: THREE.Vector3, target: THREE.Vector3,
     chasePosition: THREE.Vector3, chaseTarget: THREE.Vector3, aspect = 16 / 9): void {
+    if(this.defense){
+      if(elapsed<3000){
+        target.copy(this.defense.player.position);position.copy(chasePosition);return;
+      }
+      if(elapsed>=6000){
+        const invader=this.defense.invader;target.copy(invader.position);
+        position.set(invader.position.x-800,invader.position.y+250,invader.position.z+1100);
+        const blend=THREE.MathUtils.smoothstep(elapsed,9000,12000);
+        position.lerp(chasePosition,blend);target.lerp(chaseTarget,blend);return;
+      }
+    }
     if (!this.showsTerritory(elapsed)) {
       position.copy(chasePosition); target.copy(chaseTarget); return;
     }
@@ -60,6 +72,7 @@ export class MissionCaptureIntroPath {
   fov(elapsed: number, chaseFov: number): number { return this.showsTerritory(elapsed) ? 58 : chaseFov; }
 
   wipe(elapsed: number): number {
+    if(this.defense)return 0;
     if (elapsed >= 2_000 && elapsed < 3_000) return 1 - Math.abs(elapsed - 2_500) / 500;
     if (elapsed >= this.sweepMs) return 1 - Math.abs(elapsed - this.sweepMs - 500) / 500;
     return 0;

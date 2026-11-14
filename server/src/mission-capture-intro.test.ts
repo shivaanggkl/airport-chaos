@@ -51,7 +51,7 @@ test('M05 uses shared intro lifecycle, skip, retry and countdown protections wit
   assert.match(source, /missionSixIntroPath \?\? missionCaptureIntroPath \?\? missionCombatIntroPath/);
   const reset = source.slice(source.indexOf('function clearFlightLaunchPresentation'), source.indexOf('function completeFlightLaunchCinematic'));
   assert.match(reset, /missionCaptureIntroPath = undefined/);
-  assert.match(reset, /classList.remove\('golden-gates-intro', 'capture-intro-row'\)/);
+  assert.match(reset, /classList.remove\([^;]*'golden-gates-intro'[^;]*'capture-intro-row'[^;]*'territory-defense-intro'\)/);
   assert.match(reset, /updateTerritoryPanel\(\)/);
   assert.match(source, /classList.toggle\('capture-intro-row', Boolean\(missionCaptureIntroPath && !skipped && missionCaptureIntroPath.showsCaptureRow\(elapsed\)\)\)/);
   assert.match(source, /if \(missionCaptureIntroPath\) updateTerritoryPanel\(false\)/);

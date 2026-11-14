@@ -1,3 +1,4 @@
+import {journeyDallasTerritoryDefense01} from '../../shared/journey-mission.mjs';
 import {missionFocusForAttempt} from '../../shared/mission-focus.mjs';
 import {journeyCrossfireMission,journeyDallasTwinHunters01} from '../../shared/journey-mission.mjs';
 import {journeyDallas18} from '../../shared/journey-mission.mjs';
@@ -21,7 +22,7 @@ import {createOpponent} from './opponent.js';
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
 import {recordOpponentHit,recordOpponentDamage} from './opponent-tactics.js';
 const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
-function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,journeyDallas18,journeyDallas17,hunterObservedPosition,recordOpponentHit,recordOpponentDamage,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
+function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyDallasTerritoryDefense01,journeyCrossfireMission,journeyDallasTwinHunters01,journeyDallas18,journeyDallas17,hunterObservedPosition,recordOpponentHit,recordOpponentDamage,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
 
 const mission=journeyDallasTwinHunters01;
 function fixture(){const dir=mkdtempSync(join(tmpdir(),'twin-hunters-')),path=join(dir,'p.sqlite'),db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");const store=new JourneyAttemptStore(path,true);return{dir,path,db,store};}
@@ -109,7 +110,7 @@ test('M15 verified ad continuation retains defeated hunter and cannot redeem twi
 });
 
 
-test('M15 insertion preserves earned M17 access and new progression skips M16',()=>{
+test('M15 insertion preserves earned M17 access and new progression unlocks M16',()=>{
  const f=fixture();try{
   const complete=f.db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)');
   complete.run('pilot','journey-dallas-05','old-clear',1);
@@ -123,7 +124,7 @@ test('M15 insertion preserves earned M17 access and new progression skips M16',(
   const a=store.launch('new-pilot','trainer',1000,mission.id);store.approach('new-pilot',a.attemptId);
   store.assignCrossfireHunter('new-pilot',a.attemptId,'one',1);store.assignCrossfireHunter('new-pilot',a.attemptId,'two',2);
   store.startDoubleThreat('new-pilot',a.attemptId,2000);store.completeHunter('new-pilot',a.attemptId,'one',3000);store.completeHunter('new-pilot',a.attemptId,'two',4000);
-  assert.equal(store.canAccessMission('new-pilot',legacyMission.id),true);
+  assert.equal(store.canAccessMission('new-pilot',journeyDallasTerritoryDefense01.id),true);assert.equal(store.canAccessMission('new-pilot',legacyMission.id),false);
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 
@@ -131,7 +132,7 @@ test('M15 insertion preserves earned M17 access and new progression skips M16',(
 test('M15 real assigned aircraft stay visible during intro while unrelated bots stay hidden',()=>{
  const client=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
  const expression=client.match(/const hiddenBot = (remote\.isBot && \([\s\S]*?\));/)[1];
- const ctx=vm.createContext({remote:{isBot:true,playerId:'one'},missionCombatIntroPath:{missionNumber:15},flightLaunchState:'active',missionFocus:{showAmbientAIAircraft:false},transportEscortInactive:()=>false,unrelatedFocusedBot:id=>!['one','two'].includes(id)});
+ const ctx=vm.createContext({journeyDallasTerritoryDefense01,remote:{isBot:true,playerId:'one'},missionCombatIntroPath:{missionNumber:15},flightLaunchState:'active',missionFocus:{showAmbientAIAircraft:false},transportEscortInactive:()=>false,unrelatedFocusedBot:id=>!['one','two'].includes(id)});
  for(const id of ['one','two']){ctx.remote.playerId=id;assert.equal(vm.runInContext(expression,ctx),false);}
  ctx.remote.playerId='ambient';assert.equal(vm.runInContext(expression,ctx),true);
  ctx.remote.playerId='one';ctx.missionCombatIntroPath.missionNumber=10;assert.equal(vm.runInContext(expression,ctx),true,'legacy preview intro visibility stays unchanged');

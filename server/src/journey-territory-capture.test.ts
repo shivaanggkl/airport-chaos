@@ -1,3 +1,4 @@
+import {journeyDallasTerritoryDefense01} from '../../shared/journey-mission.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
@@ -107,7 +108,7 @@ test('production territory coordinator requires accepted transforms, connection,
  const player:any={pilotId:'pilot',cityId:'dallas',lifeState:'alive',health:100,hasRespawnTransform:true,portalTransit:false,
   lastStateAt:time,lastAcceptedPosition:{...target.center,y:900},position:{x:1e9,y:1e9,z:1e9},velocity:{x:650,y:0,z:0}};
  const players=new Map([['owner',player]]),pausedJourneyAttempts=new Set(),landingFlightState=new Map([['owner',{airborne:true}]]);let connected=true;
- const context=createContext({players,playerJourneyAttempts:new Map([['owner',a.attemptId]]),journeyStore:f.store,
+ const context=createContext({journeyDallasTerritoryDefense01,players,playerJourneyAttempts:new Map([['owner',a.attemptId]]),journeyStore:f.store,
   journeyDallasCapture01:mission,territoriesForCity,territoryContains,territoryCaptureFlightEligible,pausedJourneyAttempts,landingFlightState,
   hasOpenPlayerSocket:()=>connected,botTerrainHeight:()=>100,sendJourneyState:()=>{}});
  const code=source.slice(source.indexOf('function updateJourneyTerritoryCapture('),source.indexOf('function updateTerritories('));
@@ -154,7 +155,7 @@ test('rollout keeps existing M06 access, while new pilots must clear M05; progre
 test('shared capture HUD follows approach, capture, return and victory; existing walls, radar, map and victory are reused',()=>{
  const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
  const attempt:any={status:'APPROACH',captureMs:0};const airplane={position:{x:target.bounds.minX-2500,y:900,z:target.center.z}};
- const context=createContext({journeyAttempt:attempt,airplane,territoryDefinitions:territoriesForCity('dallas'),territoryContains,
+ const context=createContext({journeyDallasTerritoryDefense01,journeyAttempt:attempt,airplane,territoryDefinitions:territoriesForCity('dallas'),territoryContains,
   journeyDallasCapture01:mission,territoryCaptureCeilingAgl,getTerrainHeight:()=>100});
  const start=main.indexOf('function journeyTerritoryCaptureLabel('),end=main.indexOf('function updateCaptureHud(',start);
  runInContext(ts.transpileModule(main.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
@@ -166,7 +167,7 @@ test('shared capture HUD follows approach, capture, return and victory; existing
  airplane.position.x=target.bounds.minX-1;assert.equal(label(),'RETURN TO LAS COLINAS');
  attempt.captureMs=60000;assert.equal(label(),'TERRITORY CAPTURED!');
  const styles=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
- assert.match(main,/classList.toggle\('territory-capture-focus', next !== null && attempt\?\.missionId === journeyDallasCapture01.id\)/);
+ assert.match(main,/classList.toggle\('territory-capture-focus', next !== null && \(attempt\?\.missionId === journeyDallasCapture01.id\|\|attempt\?\.missionId===journeyDallasTerritoryDefense01.id\)\)/);
  assert.match(styles,/\.territory-capture-focus #territory-capture:not\(\.hidden\):not\(\[hidden\]\) \{ display: block !important; \}/);
  assert.match(main,/const missionClearMissionIds = new Set<string>\(\[[^;]*\bjourneyDallasCapture01\.id/);
  assert.match(main,/drawRadarTerritories\(direction, focusedTerritoryTargetId\(\)!\)/);
@@ -177,7 +178,7 @@ test('shared capture HUD follows approach, capture, return and victory; existing
 test('M05 target row isolates cinematic examples and restores authoritative progress after skip, pause, disconnect and handoff',()=>{
  const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
  let now=0,online=true,rows:any[]=[];
- const context=createContext({journeyMode:true,journeyAttempt:{missionId:mission.id,status:'APPROACH',captureMs:0},
+ const context=createContext({journeyDallasTerritoryDefense01,journeyMode:true,journeyAttempt:{missionId:mission.id,status:'APPROACH',captureMs:0},
   journeyDallasCapture01:mission,territoryDefinitions:territoriesForCity('dallas'),territoryContains,territoryCaptureCeilingAgl,
   airplane:{position:{x:target.bounds.minX-100,y:900,z:target.center.z}},getTerrainHeight:()=>100,
   neutralTerritoryColor:'#f4f7ff',localPlayerId:'pilot',journeyPaused:false,crashed:false,onGround:false,
