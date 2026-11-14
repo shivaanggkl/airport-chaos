@@ -30,11 +30,11 @@ function assigned(f,at=1000){const a=f.store.launch('pilot','trainer',at,mission
 
 test('M15 GO clock, no gate completion, two distinct kills, deadline and once-only reward',()=>{
  const f=fixture();try{const a=assigned(f);assert.equal(f.store.get('pilot',a.attemptId).startedAt,null);assert.equal(f.store.assignCrossfireHunter('pilot',a.attemptId,'duplicate',1),undefined);assert.equal(f.store.acceptGate('pilot',a.attemptId,0,1500),undefined);assert.equal(f.store.completeHunter('pilot',a.attemptId,'one',1500),undefined);
- const start=f.store.startDoubleThreat('pilot',a.attemptId,2000);assert.equal(start.deadlineAt,242000);assert.equal(f.store.startDoubleThreat('pilot',a.attemptId,2100),undefined);assert.equal(f.store.completeHunter('outsider',a.attemptId,'one',2200),undefined);assert.equal(f.store.completeHunter('pilot',a.attemptId,'wrong',2200),undefined);
+ const start=f.store.startDoubleThreat('pilot',a.attemptId,2000);assert.equal(start.deadlineAt,244000);assert.equal(f.store.startDoubleThreat('pilot',a.attemptId,2100),undefined);assert.equal(f.store.completeHunter('outsider',a.attemptId,'one',2200),undefined);assert.equal(f.store.completeHunter('pilot',a.attemptId,'wrong',2200),undefined);
  assert.equal(f.store.completeHunter('pilot',a.attemptId,'one',2500).status,'RACING');assert.equal(f.store.get('pilot',a.attemptId).crossfireKills,1);assert.equal(f.store.completeHunter('pilot',a.attemptId,'one',2600),undefined);assert.equal(f.store.progress('pilot',mission.id).completed,false);
  assert.equal(f.store.completeHunter('pilot',a.attemptId,'two',3000).firstClearCredits,1500);assert.equal(f.store.completeHunter('pilot',a.attemptId,'two',3100),undefined);
  const replay=assigned(f,4000);f.store.startDoubleThreat('pilot',replay.attemptId,4500);f.store.completeHunter('pilot',replay.attemptId,'two',4600);assert.equal(f.store.completeHunter('pilot',replay.attemptId,'one',4700).firstClearCredits,0);assert.equal(f.db.prepare('SELECT credits FROM player_profiles').get().credits,1500);
- const late=assigned(f,5000);f.store.startDoubleThreat('pilot',late.attemptId,6000);assert.equal(f.store.completeHunter('pilot',late.attemptId,'one',246000),undefined);
+ const late=assigned(f,5000);f.store.startDoubleThreat('pilot',late.attemptId,6000);assert.equal(f.store.completeHunter('pilot',late.attemptId,'one',248000),undefined);
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 
@@ -59,7 +59,7 @@ test('production M15 factory preserves exact already-scaled spawns, cosmetics an
 });
 
 test('M15 catalog and M17 configuration remain distinct',()=>{
- assert.equal(journeyMissionSlot(mission.id),15);assert.equal(mission.timeLimitMs,240000);
+ assert.equal(journeyMissionSlot(mission.id),15);assert.equal(mission.timeLimitMs,242000);
  assert.equal(missionFocusForAttempt({missionId:mission.id,status:'APPROACH'}).showAmbientAIAircraft,false);assert.equal(missionFocusForAttempt({missionId:mission.id,status:'RACING'}).showAmbientAIMarkers,false);assert.equal(missionFocusForAttempt({missionId:mission.id,status:'COMPLETED'}),null);
  assert.equal(mission.enemyHealth,200);assert.deepEqual(mission.enemies.map(e=>e.level),['EASY','MEDIUM']);
  assert.deepEqual(mission.enemies.map(e=>e.fireDelayMs),[6000,8000]);
@@ -72,7 +72,7 @@ test('M15 pause and durable reopen preserve enemy progress and remaining clock',
  f.store.pause('pilot',a.attemptId,4000);
  const resumed=f.store.resume('pilot',a.attemptId,9000);assert.equal(resumed.pausedMs,5000);
  const reopened=new JourneyAttemptStore(f.path,true).get('pilot',a.attemptId);
- assert.equal(reopened.crossfireKills,2);assert.equal(reopened.secondaryTargetId,'two');assert.equal(reopened.deadlineAt,247000);
+ assert.equal(reopened.crossfireKills,2);assert.equal(reopened.secondaryTargetId,'two');assert.equal(reopened.deadlineAt,249000);
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 
@@ -105,7 +105,7 @@ test('M15 verified ad continuation retains defeated hunter and cannot redeem twi
  const unit='ca-app-pub-3940256099942544/5224354917',ads=new RewardedAdStore(path,{enabled:true,ios:{enabled:false},android:{enabled:true,adUnitId:unit},webEnabled:false,providerRewardAmount:'1'}),ad=ads.createAttempt('pilot','android',62001,`${a.attemptId}:62000`);assert.equal(ad.ok,true);const id=ad.attempt.attemptId;
  assert.equal(store.continueAfterAd('pilot',a.attemptId,id,62002),undefined);
  assert.equal(ads.grantVerifiedReward({adUnit:unit,customData:id,rewardAmount:'1',rewardItem:'reward',timestamp:62004,transactionId:'twin-ad'},62004).rewarded,true);
- const resumed=store.continueAfterAd('pilot',a.attemptId,id,92000);assert.equal(resumed.crossfireKills,1);assert.equal(resumed.targetId,'one');assert.equal(resumed.secondaryTargetId,'two');assert.equal(resumed.deadlineAt-92000,240000);assert.equal(store.continueAfterAd('pilot',a.attemptId,id,92001),undefined);
+ const resumed=store.continueAfterAd('pilot',a.attemptId,id,92000);assert.equal(resumed.crossfireKills,1);assert.equal(resumed.targetId,'one');assert.equal(resumed.secondaryTargetId,'two');assert.equal(resumed.deadlineAt-92000,242000);assert.equal(store.continueAfterAd('pilot',a.attemptId,id,92001),undefined);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 

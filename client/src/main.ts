@@ -5321,6 +5321,7 @@ function beginFlightLaunchCinematic(): void {
     flightLaunchTitle.classList.add('is-runway-gates');
     flightLaunchTitle.innerHTML = missionCoinHuntIntro ? '<span>DALLAS COIN HUNT</span>' : missionSharpshooterIntro ? '<span>Aim, lock and shoot all 3 targets in any order before time runs out.</span>' : missionAirportHopIntro ? '<span>AIRPORT HOP · TWO LANDINGS</span>' : missionCaptureIntroPath ? `<span>${missionCaptureIntroPath.text(0)}</span>` : missionCombatIntroPath
       ? missionCombatIntroPath.missionNumber === 19 ? journeyAttempt?.missionId===journeyDallas19.id?'<span>FINAL MONSTER BATTLE · DEFEAT THE MONSTER</span>':journeyAttempt?.missionId===journeyDallas25.id?'<span>DR. BOSS · DEFEAT THE MONSTER</span>':'<span>ASHEN WARLORD · DESTROY THE BOSS</span>'
+        : missionCombatIntroPath.missionNumber === 15 ? '<span>TWIN HUNTERS</span>'
         : missionCombatIntroPath.missionNumber === 8 ? '<span>Find And Shoot Down BLUEJAY Plane Before Time Runs Out.</span>'
         : missionCombatIntroPath.missionNumber === 9 ? '<span>Find And Shoot Down MAMMOTH Plane Before Time Runs Out.</span>'
         : missionCombatIntroPath.missionNumber === 10 ? '<span>Find And Shoot Down Both Enemy Planes Before Time Runs Out.</span>'
@@ -5557,7 +5558,9 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
       }
     }
     if (missionCombatIntroPath?.missionNumber === 15) {
-      flightLaunchTitle.textContent = elapsed < 2000 ? 'TWIN HUNTERS' : elapsed < 5000 ? 'Two enemy aircraft are approaching!' : elapsed < 8000 ? 'Both Hunters will attack together.' : 'Destroy both before time runs out!';
+      const text = elapsed < 2000 ? 'TWIN HUNTERS' : elapsed < 5000 ? 'Two enemy aircraft are approaching!' : elapsed < 8000 ? 'Both Hunters will attack together.' : 'Destroy both before time runs out!';
+      if (flightLaunchTitle.firstElementChild?.textContent !== text)
+        flightLaunchTitle.replaceChildren(Object.assign(document.createElement('span'), { textContent: text }));
     } else if(missionCombatIntroPath?.missionNumber===19){
       if(!skipped||!(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro))monsterView?.setIntroTime(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro?elapsed/1000:elapsed<6000?elapsed/1000:null);
       if(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro){

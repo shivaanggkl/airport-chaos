@@ -65,7 +65,7 @@ test('live M15 packet order starts the client intro, keeps both staged actors fr
   const assigned=await wait(p=>p.type==='journeyAttempt'&&p.attempt.targetId&&p.attempt.secondaryTargetId);await sleep(1200);assert.equal(f.starts(),1,'real packet ordering must leave Preparing Mission and start the intro');
   for(const id of [assigned.attempt.targetId,assigned.attempt.secondaryTargetId]){const states=packets.filter(p=>(p.type==='state'||p.type==='playerState')&&p.playerId===id);assert.ok(states.length>=3);for(const state of states){assert.deepEqual(state.velocity,{x:0,y:0,z:0});assert.deepEqual(state.position,states[0].position);assert.equal(state.health,200);}}
   assert.equal(store.get(identity.pilotId,attempt.attemptId).deadlineAt,null);assert.equal(packets.some(p=>p.type==='damage'),false);
-  socket.send(JSON.stringify({type:'journeyCountdownComplete',attemptId:attempt.attemptId}));const go=await wait(p=>p.type==='journeyAttempt'&&p.attempt.status==='RACING');assert.equal(go.attempt.deadlineAt-go.attempt.startedAt,240000);await sleep(500);
+  socket.send(JSON.stringify({type:'journeyCountdownComplete',attemptId:attempt.attemptId}));const go=await wait(p=>p.type==='journeyAttempt'&&p.attempt.status==='RACING');assert.equal(go.attempt.deadlineAt-go.attempt.startedAt,journeyDallasTwinHunters01.timeLimitMs);await sleep(500);
   for(const id of [assigned.attempt.targetId,assigned.attempt.secondaryTargetId]){const states=packets.filter(p=>(p.type==='state'||p.type==='playerState')&&p.playerId===id);assert.notDeepEqual(states.at(-1).position,states[0].position);}
  }finally{socket?.terminate();server.kill();await sleep(100);db.close();rmSync(dir,{recursive:true,force:true});}
 });
