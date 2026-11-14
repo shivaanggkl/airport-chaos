@@ -69,3 +69,13 @@ test('live M15 packet order starts the client intro, keeps both staged actors fr
   for(const id of [assigned.attempt.targetId,assigned.attempt.secondaryTargetId]){const states=packets.filter(p=>(p.type==='state'||p.type==='playerState')&&p.playerId===id);assert.notDeepEqual(states.at(-1).position,states[0].position);}
  }finally{socket?.terminate();server.kill();await sleep(100);db.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+test('the real client sends its initial spawn handshake while the mission countdown is pending',()=>{
+ const stateFunction=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='sendLocalState');assert.ok(stateFunction);
+ const sent=[],context=vm.createContext({visualQaInspectionActive:false,freeFlyRespawnPending:false,journeyPaused:false,trainingPaused:false,localPlayerId:'pilot',connectionReady:()=>true,missionStartCountdownPending:true,missionStartCountdownStartedAt:null,
+  airborneIntroAwaiting:true,runwayJourneyIntroAwaiting:false,flushProfileRewards(){},socket:{send:value=>sent.push(JSON.parse(value))},clientStateSequence:0,airplane:{position:{x:-27000,y:1100,z:-40000},rotation:{x:0,y:Math.PI,z:0}},aircraftType:'trainer',cityId:'dallas',boostActive:false,tutorialLandingIntentPending:undefined,championshipLandingIntentPending:undefined,performance:{now:()=>1000}});
+ vm.runInContext(ts.transpileModule(stateFunction.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+ context.sendLocalState();assert.equal(sent.length,0,'ordinary gameplay packets remain blocked');
+ context.sendLocalState(true);assert.equal(sent.length,1,'spawn handshake must reach the server so it can stage the real intro actors');assert.equal(sent[0].type,'state');assert.equal(sent[0].position.x,-27000);
+ context.missionStartCountdownStartedAt=1000;context.sendLocalState();assert.equal(sent.length,1,'countdown still blocks ordinary movement');context.journeyPaused=true;context.sendLocalState(true);assert.equal(sent.length,1,'handshake never bypasses pause');
+});
