@@ -1,3 +1,4 @@
+import {journeyCrossfireMission,journeyDallasTwinHunters01} from '../../shared/journey-mission.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
@@ -55,7 +56,7 @@ test('a giant plane gets the final bullet before its existing crash and a queued
  };
  const escort=new AircraftVictory('attempt','escort','pilot');
  escort.confirmDestruction({...hit,playerId:'escort'},0);
- const ctx=vm.createContext({AircraftVictory,transportView,journeyAttemptId:'attempt',localPlayerId:'pilot',
+ const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,AircraftVictory,transportView,journeyAttemptId:'attempt',localPlayerId:'pilot',
   message:{attemptId:'attempt',kind:'defeat',finishingShot:{id:'fatal',origin,impact,pose,speed:800}},
   journeyAttempt:{attemptId:'attempt',status:'RACING'},aircraftVictory:null,aircraftVictoryQueue:[],
   aircraftVictoryTransport:undefined,aircraftVictoryReplay:null,clearHeldActions:no,mobileInput:{reset:no},boostActive:false,
@@ -81,7 +82,7 @@ test('real M7 destruction handler uses the ground-crash breakup once at the serv
  const plane=new THREE.Group();plane.position.set(-999,111,222);plane.rotation.y=.6;
  const no=()=>{},remote={plane,aircraftType:'privateJet',identityTag:{visible:true},hullTag:{visible:true},playerProxy:{visible:true}};
  const effects=[],events=[],classes=new Set(['aircraft-victory-active']);
- const ctx=vm.createContext({THREE,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,aircraftVictoryQueue:[],transportView:undefined,aircraftVictoryTransport:undefined,aircraftVictoryCandidates:[ending],aircraftVictory:ending,aircraftVictoryReplay:null,prepareAircraftVictoryReplay(){},clearAircraftVictoryReplay(){},journeyMode:true,journeyAttempt:{missionId:journeyDallas13.id,attemptId:'attempt',targetId:'enemy',status:'COMPLETED'},
+ const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,THREE,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,aircraftVictoryQueue:[],transportView:undefined,aircraftVictoryTransport:undefined,aircraftVictoryCandidates:[ending],aircraftVictory:ending,aircraftVictoryReplay:null,prepareAircraftVictoryReplay(){},clearAircraftVictoryReplay(){},journeyMode:true,journeyAttempt:{missionId:journeyDallas13.id,attemptId:'attempt',targetId:'enemy',status:'COMPLETED'},
   message:hit,localPlayerId:'pilot',airplane:new THREE.Group(),remotePlayers:new Map([['enemy',remote]]),recentDestructionIds:new Map(),performance:{now:()=>1000},
   updateHumanRosterStatus:no,destructionPosition:new THREE.Vector3(),recordEscortHudHealth:no,selectedCombatTarget:undefined,
   hapticsManager:{emit:no},audioManager:{playDestroyConfirm:no},airAssaultMode:false,skyDuelMode:false,
@@ -100,7 +101,7 @@ test('real M7 destruction handler uses the ground-crash breakup once at the serv
 
 test('retry/exit cleanup clears the ending, cinematic chrome and flash',()=>{
  const classes=new Set(['aircraft-victory-active']);
- const ctx=vm.createContext({clearAircraftVictoryReplay(){},aircraftVictoryQueue:[],transportView:undefined,aircraftVictoryTransport:undefined,aircraftVictoryCandidates:[],aircraftVictory:new AircraftVictory('old','enemy','pilot'),flightGameRoot:{classList:{remove:c=>classes.delete(c)}},
+ const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,clearAircraftVictoryReplay(){},aircraftVictoryQueue:[],transportView:undefined,aircraftVictoryTransport:undefined,aircraftVictoryCandidates:[],aircraftVictory:new AircraftVictory('old','enemy','pilot'),flightGameRoot:{classList:{remove:c=>classes.delete(c)}},
   crashSequence:{},crashTrainingResetPending:true,transportCrashFlash:{style:{opacity:'1'}},crashPresentationStarted:false,transportCollisionAttemptId:'old'});
  vm.runInContext(code('resetCrashPresentation')+'\nresetCrashPresentation();',ctx);
  assert.equal(ctx.aircraftVictory,null);assert.equal(classes.size,0);assert.equal(ctx.transportCrashFlash.style.opacity,'0');
@@ -110,7 +111,7 @@ test('retry/exit cleanup clears the ending, cinematic chrome and flash',()=>{
 for(const mission of [journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas17,journeyDallas18])test(`${mission.name}: actual success presentation waits behind the ending without restarting it`,()=>{
  const config=(mission===journeyDallas08||mission===journeyDallas09||mission===journeyDallas10||mission===journeyDallas12)?{enemyAircraft:mission.escortAircraft[0],enemyLivery:mission.escortLiveries[0],fromGameplayCamera:true}:mission;
  const ending=new AircraftVictory('attempt','enemy','pilot',config),hidden=new Set();
- const ctx=vm.createContext({journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,aircraftVictory:ending,aircraftVictoryQueue:[],crashSequence:null,
+ const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,aircraftVictory:ending,aircraftVictoryQueue:[],crashSequence:null,
   clearHeldActions(){},mobileInput:{reset(){}},boostActive:true,runStarted:true,cinematicDirector:{clearPresentation(){}},
   journeyResultElement:{classList:{add:c=>hidden.add(c)}},flightGameRoot:{classList:{add(){}}}});
  ctx.result={missionId:mission.id,attemptId:'attempt',status:'COMPLETED'};
@@ -130,7 +131,7 @@ test('M16 plays the shared victory flyby after combat and before the success box
   defeatFinished:new Promise(resolve=>{finishTransport=resolve;}),
  };
  const no=()=>{};
- const ctx=vm.createContext({
+ const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,
   events,result,journeyAttempt:result,journeyDallas07,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas11,journeyDallas12,
   aircraftVictory:{attemptId:result.attemptId,complete:false,confirmSuccess:no},aircraftVictoryQueue:[],
   transportView,pendingTransportResultId:null,clearHeldActions:no,mobileInput:{reset:no},cinematicDirector:{clearPresentation:no},
@@ -215,7 +216,7 @@ for (const {mission, config, giant} of replayCases) test(`M${journeyMissionSlot(
  camera.lookAt(new THREE.Vector3().copy(hit.position));
  airplane.position.set(11745,2456,-34562);
  const transport=giant ? {root:new THREE.Group(),finishFinishingShot:()=>events.push('giant crash')} : undefined;
- const ctx=vm.createContext({THREE,aircraftVictory:ending,aircraftVictoryReplay:null,aircraftVictoryQueue:[],aircraftVictoryCandidates:[],transportView:transport,aircraftVictoryTransport:transport,airplane,scene,
+ const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,THREE,aircraftVictory:ending,aircraftVictoryReplay:null,aircraftVictoryQueue:[],aircraftVictoryCandidates:[],transportView:transport,aircraftVictoryTransport:transport,airplane,scene,
   journeyDallas13,getCurrentMuzzlePosition:out=>out.copy(airplane.position).add(new THREE.Vector3(0,0,-5)),camera,createProjectileCore,fitRound,CAMERA_CHASE_FOV:58,skyDome:new THREE.Group(),window:{innerHeight:1080},aircraftType:'trainer',aircraftPresentationMuzzleSockets,serverProfile:{cosmetics:{equipped:{}}},applyEquippedLivery:(_plane,type,paint)=>liveries.push({type,paint}),
   createAirplane:type=>{created.push(type);const p=new THREE.Group();p.userData.airframeRoot=new THREE.Group();p.add(p.userData.airframeRoot);return p;},
   transport,audioManager:{playDestroyConfirm(){}},disposeAirplaneMaterials:()=>events.push('dispose'),
@@ -260,7 +261,7 @@ for (const {mission,config,giant} of replayCases) for (const aircraftType of ['t
  airframe.position.set(0,-2,0);airframe.scale.setScalar(aircraftPresentationScale[aircraftType]);
  const camera=new THREE.PerspectiveCamera(58);camera.position.copy(airplane.position).add(new THREE.Vector3(0,20,100));camera.lookAt(airplane.position);
  const launch=airplane.position.clone().add(new THREE.Vector3(2,1,-10));
- const ctx=vm.createContext({THREE,aircraftVictoryReplay:null,journeyDallas13,journeyDallas17,journeyDallas18,airplane,camera,aircraftType,
+ const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,THREE,aircraftVictoryReplay:null,journeyDallas13,journeyDallas17,journeyDallas18,airplane,camera,aircraftType,
   aircraftPresentationMuzzleSockets,serverProfile:{cosmetics:{equipped:{}}},applyEquippedLivery(){},scene:new THREE.Scene(),createProjectileMesh:()=>new THREE.Group(),
   getCurrentMuzzlePosition:out=>out.copy(launch),createAirplane:()=>{const p=new THREE.Group();p.userData.airframeRoot=new THREE.Group();p.add(p.userData.airframeRoot);return p;},ending,transport:giant ? {root:new THREE.Group()} : undefined});
  vm.runInContext(code('prepareAircraftVictoryReplay')+'\nprepareAircraftVictoryReplay(ending, undefined, transport);',ctx);
@@ -328,7 +329,7 @@ for(const finalOrdinal of [0,1])for(const overlapping of [false,true])test(`M10 
   ending.recordFatalHit({playerId:ending.targetId,shooterId:'pilot',health:0,impactId:'finish',impactPosition:hit.position});
  }
  const planes=ids.map(()=>new THREE.Group()),events=[],effects=[];
- const no=()=>{},ctx=vm.createContext({THREE,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,
+ const no=()=>{},ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,THREE,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,
   aircraftVictory:candidates[0],aircraftVictoryQueue:[],transportView:undefined,aircraftVictoryTransport:undefined,aircraftVictoryCandidates:candidates,aircraftVictoryReplay:null,
   clearHeldActions:no,mobileInput:{reset:no},boostActive:true,prepareAircraftVictoryReplay:ending=>events.push(`replay:${ending.targetId}`),clearAircraftVictoryReplay(){},
   journeyMode:true,journeyAttempt:{missionId:journeyDallas16.id,attemptId:'attempt',targetId:ids[0],secondaryTargetId:ids[1],crossfireKills:1<<first,status:'RACING'},
@@ -371,7 +372,7 @@ for(const finalOrdinal of [0,1])for(const overlapping of [false,true])test(`M10 
  assert.deepEqual(candidates[finalOrdinal].impactPosition.toArray(),[12345,2456,-34567]);
 });
 
-test('all 24 Journey success headings include their displayed mission number, including remapped internal IDs',async()=>{
+test('all playable Journey success headings include their displayed mission number, including remapped internal IDs',async()=>{
  const styles=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
  const headingRule=styles.match(/\.journey-result\.is-terminal:not\(\.is-training\):not\(\.is-flight-result\)[^{]*\{([^}]+)\}/);
  assert(headingRule);assert.match(headingRule[1],/display:\s*block/);
@@ -380,13 +381,13 @@ test('all 24 Journey success headings include their displayed mission number, in
  const start=source.indexOf('  const resultSlot = journeyMissionSlot(attempt.missionId);');
  const end=source.indexOf(';',source.indexOf("[data-journey-result-heading]",start))+1;
  const statement=ts.transpileModule(source.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
- assert.equal(missionJourneyDetails.length,24);
+ assert.equal(missionJourneyDetails.length,25);
  missionJourneyDetails.forEach((mission,index)=>{
   const heading={textContent:''};
-  const ctx=vm.createContext({attempt:{missionId:mission.id},success:true,breakoutMission:index>=18,journeyMissionSlot,journeyResultElement:{querySelector:()=>heading}});
+  const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,attempt:{missionId:mission.id},success:true,breakoutMission:index>=18,journeyMissionSlot,journeyResultElement:{querySelector:()=>heading}});
   vm.runInContext(`{${statement}}`,ctx);
-  assert.equal(heading.textContent,`M${index+1}`,mission.id);
-  ctx.success=false;vm.runInContext(`{${statement}}`,ctx);assert.equal(heading.textContent,`M${index+1}`,`${mission.id} failure`);
+  assert.equal(heading.textContent,`M${journeyMissionSlot(mission.id)}`,mission.id);
+  ctx.success=false;vm.runInContext(`{${statement}}`,ctx);assert.equal(heading.textContent,`M${journeyMissionSlot(mission.id)}`,`${mission.id} failure`);
  });
 });
 
@@ -396,7 +397,7 @@ for(const mission of [journeyDallas17,journeyDallas18])test(`${mission.name}: st
  const stateHandler=ts.transpileModule(source.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
  const attempt={missionId:mission.id,attemptId:'state-replay',targetId:'enemy',secondaryTargetId:'second',rearGuardThirdId:'third',rearGuardFourthId:'fourth',crossfireKills:mission===journeyDallas18?14:6,status:'RACING'};
  let clears=0;
- const ctx=vm.createContext({journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,AircraftVictory,
+ const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,AircraftVictory,
   message:{attempt},previousAttempt:attempt,localPlayerId:'pilot',aircraftVictory:null,aircraftVictoryQueue:[],transportView:undefined,aircraftVictoryTransport:undefined,aircraftVictoryCandidates:[],clearAircraftVictoryReplay:()=>clears++,flightGameRoot:{classList:{remove(){}}},transportCrashFlash:{style:{}}});
  vm.runInContext(stateHandler,ctx);
  const ending=ctx.aircraftVictory;
@@ -467,7 +468,7 @@ function m14Fixture(mission=journeyDallas08) {
  camera.position.set(100,200,300);camera.lookAt(0,150,0);camera.updateMatrixWorld();
  const attempt={missionId:mission.id,attemptId:'escorts',targetId:ids[0],secondaryTargetId:ids[1],rearGuardThirdId:ids[2],rearGuardFourthId:ids[3],rearGuardKills:0,monsterHealth:2000,fortressLeftHealth:0,fortressRightHealth:0,status:'RACING'};
  const planes=ids.map(()=>new THREE.Group());
- const ctx=vm.createContext({THREE,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,AircraftVictory,
+ const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,THREE,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas12,journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas16,journeyDallas17,journeyDallas18,AircraftVictory,
   aircraftVictory:null,aircraftVictoryQueue:[],transportView:undefined,aircraftVictoryTransport:undefined,aircraftVictoryCandidates:[],aircraftVictoryReplay:null,
   prepareAircraftVictoryReplay:ending=>{ending.beginFromGameplayCamera(camera);events.push(`replay:${ending.targetId}`);},clearAircraftVictoryReplay:no,
   clearHeldActions:no,mobileInput:{reset:no},boostActive:false,journeyMode:true,journeyAttempt:attempt,previousAttempt:undefined,localPlayerId:'pilot',airplane:new THREE.Group(),camera,

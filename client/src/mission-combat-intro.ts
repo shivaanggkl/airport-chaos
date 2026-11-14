@@ -21,7 +21,7 @@ export class CombatMissionIntroPath {
   private readonly opponentOrigin: THREE.Vector3;
   private readonly downtown=new THREE.Vector3(M19_DOWNTOWN.x,0,M19_DOWNTOWN.z);
   private readonly departureDirection = new THREE.Vector3();
-  constructor(readonly opponent: THREE.Group, private readonly player: THREE.Group, readonly missionNumber: 7 | 8 | 9 | 10 | 11 | 12 | 19 = 7,readonly arrivalIntro=false,readonly strikingIntro=false,private readonly introFist?:THREE.Vector3,private readonly introShot?:THREE.Vector3,readonly huntingIntro=false,readonly showdownIntro=false,readonly pursuitIntro=false,private readonly introFootstep?:()=>number,readonly finalIntro=false) {
+  constructor(readonly opponent: THREE.Group, private readonly player: THREE.Group, readonly missionNumber: 7 | 8 | 9 | 10 | 11 | 12 | 15 | 19 = 7,readonly arrivalIntro=false,readonly strikingIntro=false,private readonly introFist?:THREE.Vector3,private readonly introShot?:THREE.Vector3,readonly huntingIntro=false,readonly showdownIntro=false,readonly pursuitIntro=false,private readonly introFootstep?:()=>number,readonly finalIntro=false,private readonly secondOpponent?:THREE.Group) {
     this.opponentOrigin = opponent.position.clone();
     this.strikingCameraYaw=opponent.rotation.y+(strikingIntro?1.5*3.1997298216058336/3.875:0);
     this.departureDirection.set(0, 0, -1).applyAxisAngle(THREE.Object3D.DEFAULT_UP, opponent.rotation.y);
@@ -32,9 +32,10 @@ export class CombatMissionIntroPath {
     new THREE.Box3().setFromObject(player).getSize(size);
     this.playerRadius = Math.max(14, size.x * 1.5, size.z * 1.3);
   }
-  get sweepMs():number{if(this.finalIntro)return M24_INTRO.handoff*1000;if(this.huntingIntro)return M21_INTRO.handoff*1000;if(this.strikingIntro)return M20_INTRO.handoff*1000;if(this.arrivalIntro)return M19_INTRO.handoff*1000;return this.missionNumber===19?11000:MISSION_COMBAT_INTRO_SWEEP_MS;}
-  get durationMs():number{if(this.finalIntro)return M24_INTRO.duration*1000;if(this.huntingIntro)return M21_INTRO.duration*1000;if(this.strikingIntro)return M20_INTRO.duration*1000;if(this.arrivalIntro)return M19_INTRO.duration*1000;return this.missionNumber===19?12000:MISSION_COMBAT_INTRO_DURATION_MS;}
+  get sweepMs():number{if(this.missionNumber===15)return 9500;if(this.finalIntro)return M24_INTRO.handoff*1000;if(this.huntingIntro)return M21_INTRO.handoff*1000;if(this.strikingIntro)return M20_INTRO.handoff*1000;if(this.arrivalIntro)return M19_INTRO.handoff*1000;return this.missionNumber===19?11000:MISSION_COMBAT_INTRO_SWEEP_MS;}
+  get durationMs():number{if(this.missionNumber===15)return 10000;if(this.finalIntro)return M24_INTRO.duration*1000;if(this.huntingIntro)return M21_INTRO.duration*1000;if(this.strikingIntro)return M20_INTRO.duration*1000;if(this.arrivalIntro)return M19_INTRO.duration*1000;return this.missionNumber===19?12000:MISSION_COMBAT_INTRO_DURATION_MS;}
   wipe(elapsed: number): number {
+    if(this.missionNumber===15)return 0;
     if(this.finalIntro){for(const cut of [24000,28000])if(Math.abs(elapsed-cut)<200)return 1-Math.abs(elapsed-cut)/200;return 0;}
     if(this.huntingIntro){if((this.showdownIntro||this.pursuitIntro)&&Math.abs(elapsed-20000)<150)return 1-Math.abs(elapsed-20000)/150;return Math.max(0,1-Math.abs(elapsed-24000)/250);}
     if(this.strikingIntro)return Math.max(0,1-Math.abs(elapsed-23000)/250);
@@ -47,6 +48,7 @@ export class CombatMissionIntroPath {
   }
   sample(elapsed: number, position: THREE.Vector3, target: THREE.Vector3,
     chasePosition: THREE.Vector3, chaseTarget: THREE.Vector3): void {
+    if(this.missionNumber===15){this.sampleTwinHunters(elapsed,position,target,chasePosition,chaseTarget);return;}
     if(this.huntingIntro){this.sampleHunting(elapsed,position,target,chasePosition,chaseTarget);return;}
     if(this.strikingIntro){this.sampleStriking(elapsed,position,target,chasePosition,chaseTarget);return;}
     if(this.arrivalIntro){this.sampleArrival(elapsed,position,target,chasePosition,chaseTarget);return;}
@@ -67,6 +69,22 @@ export class CombatMissionIntroPath {
     const handoff = enemyShot ? 0 : THREE.MathUtils.smoothstep(elapsed, this.sweepMs-1500, this.sweepMs);
     position.lerpVectors(this.shotPosition, chasePosition, handoff);
     target.lerpVectors(this.shotTarget, chaseTarget, handoff);
+  }
+  private sampleTwinHunters(elapsed:number,position:THREE.Vector3,target:THREE.Vector3,chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {
+    const orbit=THREE.MathUtils.smoothstep(elapsed,0,8000);
+    this.offset.set(Math.sin(.65+orbit*.3)*this.playerRadius,this.playerRadius*.25,Math.cos(.65+orbit*.3)*this.playerRadius)
+      .applyAxisAngle(THREE.Object3D.DEFAULT_UP,this.player.rotation.y);
+    position.copy(this.player.position).add(this.offset);
+    target.copy(this.player.position);
+    // Frame the real pair together without moving either gameplay entity.
+    this.shotTarget.copy(this.opponent.position).lerp(this.secondOpponent!.position,.5);
+    const separation=this.opponent.position.distanceTo(this.secondOpponent!.position);
+    this.offset.set(Math.sin(orbit*.15)*separation,separation*.22,-separation*1.5);
+    this.shotPosition.copy(this.shotTarget).add(this.offset);
+    const reveal=THREE.MathUtils.smoothstep(elapsed,2000,3000);
+    position.lerp(this.shotPosition,reveal);target.lerp(this.shotTarget,reveal);
+    const handoff=THREE.MathUtils.smoothstep(elapsed,8000,10000);
+    position.lerp(chasePosition,handoff);target.lerp(chaseTarget,handoff);
   }
   private sampleHunting(elapsed:number,position:THREE.Vector3,target:THREE.Vector3,chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {
     const t=elapsed/1000,h=this.opponentHeight,root=this.opponent;
@@ -150,6 +168,7 @@ export class CombatMissionIntroPath {
     }
   }
   fov(elapsed: number, chaseFov: number): number {
+    if(this.missionNumber===15)return THREE.MathUtils.lerp(48,chaseFov,THREE.MathUtils.smoothstep(elapsed,8000,10000));
     if(this.finalIntro)return THREE.MathUtils.lerp(48,chaseFov,THREE.MathUtils.smoothstep(elapsed/1000,M24_INTRO.handoff,M24_INTRO.duration));
     if(this.huntingIntro)return THREE.MathUtils.lerp(48,chaseFov,THREE.MathUtils.smoothstep(elapsed/1000,M21_INTRO.handoff,M21_INTRO.duration));
     if(this.strikingIntro)return THREE.MathUtils.lerp(48,chaseFov,THREE.MathUtils.smoothstep(elapsed/1000,M20_INTRO.handoff,M20_INTRO.duration));
@@ -157,6 +176,7 @@ export class CombatMissionIntroPath {
     return THREE.MathUtils.lerp(48, chaseFov, THREE.MathUtils.smoothstep(elapsed, this.sweepMs-1500, this.sweepMs));
   }
   streamingPosition(elapsed: number): THREE.Vector3 {
+    if(this.missionNumber===15)return elapsed>=2000&&elapsed<8000?this.opponent.position:this.player.position;
     if(this.finalIntro)return elapsed<28000?this.opponent.position:this.player.position;
     if(this.huntingIntro)return elapsed<24000?this.opponent.position:this.player.position;
     if(this.strikingIntro)return elapsed<23000?this.opponent.position:this.player.position;
