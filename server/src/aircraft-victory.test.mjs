@@ -566,3 +566,25 @@ for(const mission of [journeyDallas17,journeyDallas18])for(const finalOrdinal of
  assert.equal(events.filter(event=>event.startsWith('replay:')).length,mission.enemies.length);
  assert.equal(effects.length,mission.enemies.length);assert.equal(events.at(-1),'success');
 });
+
+test('M16 enemy destruction keeps the live player visible and the capture/hold mission running',async()=>{
+ const catalog=await import('../../shared/journey-mission.mjs');
+ const creationAt=source.indexOf('      aircraftVictory = new AircraftVictory(message.attempt.attemptId, message.attempt.targetId');
+ const creationStart=source.lastIndexOf('\n    if (',creationAt);
+ const creationEnd=source.indexOf('\n    if (',creationAt);
+ const creation=ts.transpileModule(source.slice(creationStart,creationEnd),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ const no=()=>{},airplane=new THREE.Group(),enemy=new THREE.Group();let blasts=0;
+ const attempt={missionId:catalog.journeyDallasTerritoryDefense01.id,attemptId:'attempt',targetId:'enemy',status:'RACING',captureMs:23400,defenseMs:0};
+ const remote={plane:enemy,aircraftType:'privateJet',identityTag:{visible:true},hullTag:{visible:true},playerProxy:{visible:true}};
+ const ctx=vm.createContext({...catalog,AircraftVictory,journeyAttempt:attempt,message:{attempt},localPlayerId:'pilot',airplane,
+  aircraftVictory:null,aircraftVictoryCandidates:[],aircraftVictoryQueue:[],remotePlayers:new Map([['enemy',remote]]),
+  prepareAircraftVictoryReplay:()=>assert.fail('M16 must not hide the player for a completion replay'),playAircraftVictory:()=>assert.fail('M16 is still active'),
+  recentDestructionIds:new Map(),performance:{now:()=>1000},updateHumanRosterStatus:no,destructionPosition:new THREE.Vector3(),recordEscortHudHealth:no,selectedCombatTarget:undefined,
+  hapticsManager:{emit:no},audioManager:{playDestroyConfirm:no},airAssaultMode:false,skyDuelMode:false,journeyMode:true,
+  flightRecap:{kills:0},gameplayFeedback:{push:no},killNotice:()=>'',score:0,recordBestScore:no,handleContractKill:no,showCombatMessage:no,
+  createDestructionEffect:()=>blasts++,playDestructionSound:no});
+ vm.runInContext(creation,ctx);assert.equal(ctx.aircraftVictory,null);
+ ctx.message=hit;vm.runInContext(receive+'\nreceive();receive();',ctx);
+ assert.equal(airplane.visible,true);assert.equal(enemy.visible,false);assert.equal(blasts,1);
+ assert.equal(attempt.status,'RACING');assert.equal(attempt.captureMs,23400);assert.equal(ctx.aircraftVictory,null);
+});

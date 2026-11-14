@@ -12877,7 +12877,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       updateCoinObjective();
     }else {coinTrailView?.dispose();coinTrailView=undefined;coinObjectiveIndex=-1;}
 
-    if ((message.attempt.missionId !== journeyDallasTerritoryDefense01.id && message.attempt.missionId !== journeyDallas13.id && message.attempt.missionId !== journeyDallas14.id && message.attempt.missionId !== journeyDallas15.id && !journeyCrossfireMission(message.attempt.missionId) && message.attempt.missionId !== journeyDallas17.id && message.attempt.missionId !== journeyDallas18.id && message.attempt.missionId !== journeyDallas08.id && message.attempt.missionId !== journeyDallas09.id && message.attempt.missionId !== journeyDallas10.id && message.attempt.missionId !== journeyDallas12.id && message.attempt.missionId !== journeyDallas07.id && message.attempt.missionId !== journeyDallas11.id) || ['FAILED','ABANDONED'].includes(message.attempt.status) ||
+    if ((message.attempt.missionId !== journeyDallas13.id && message.attempt.missionId !== journeyDallas14.id && message.attempt.missionId !== journeyDallas15.id && !journeyCrossfireMission(message.attempt.missionId) && message.attempt.missionId !== journeyDallas17.id && message.attempt.missionId !== journeyDallas18.id && message.attempt.missionId !== journeyDallas08.id && message.attempt.missionId !== journeyDallas09.id && message.attempt.missionId !== journeyDallas10.id && message.attempt.missionId !== journeyDallas12.id && message.attempt.missionId !== journeyDallas07.id && message.attempt.missionId !== journeyDallas11.id) || ['FAILED','ABANDONED'].includes(message.attempt.status) ||
       aircraftVictory && aircraftVictory.attemptId !== message.attempt.attemptId ||
       aircraftVictoryCandidates.length > 0 && aircraftVictoryCandidates[0]!.attemptId !== message.attempt.attemptId) {
       clearAircraftVictoryReplay();
@@ -12909,11 +12909,11 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       if (finalEnding && aircraftVictory?.pending) finalEnding.confirmSuccess();
       else if (finalEnding) aircraftVictory = finalEnding;
     }
-    if ((message.attempt.missionId === journeyDallasTerritoryDefense01.id || message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas14.id || message.attempt.missionId === journeyDallas15.id || Boolean(journeyCrossfireMission(message.attempt.missionId)) || message.attempt.missionId === journeyDallas17.id || message.attempt.missionId === journeyDallas18.id) && message.attempt.targetId && localPlayerId &&
+    if ((message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas14.id || message.attempt.missionId === journeyDallas15.id || Boolean(journeyCrossfireMission(message.attempt.missionId)) || message.attempt.missionId === journeyDallas17.id || message.attempt.missionId === journeyDallas18.id) && message.attempt.targetId && localPlayerId &&
       !['FAILED','ABANDONED'].includes(message.attempt.status) && !aircraftVictory &&
       !aircraftVictoryCandidates.some(ending => ending.targetId === message.attempt.targetId)) {
       const mission = Boolean(journeyCrossfireMission(message.attempt.missionId)) ? {enemyAircraft: journeyCrossfireMission(message.attempt.missionId)!.enemies[0]!.aircraft, enemyLivery: journeyCrossfireMission(message.attempt.missionId)!.enemies[0]!.livery, fromGameplayCamera:message.attempt.missionId===journeyDallasTwinHunters01.id}
-        : message.attempt.missionId===journeyDallasTerritoryDefense01.id?{...journeyDallasTerritoryDefense01,fromGameplayCamera:true}:message.attempt.missionId === journeyDallas18.id ? {...journeyDallas18,fromGameplayCamera:true} : message.attempt.missionId === journeyDallas17.id ? {...journeyDallas17,fromGameplayCamera:true} : message.attempt.missionId === journeyDallas15.id ? journeyDallas15 : message.attempt.missionId === journeyDallas14.id ? journeyDallas14 : journeyDallas13;
+        : message.attempt.missionId === journeyDallas18.id ? {...journeyDallas18,fromGameplayCamera:true} : message.attempt.missionId === journeyDallas17.id ? {...journeyDallas17,fromGameplayCamera:true} : message.attempt.missionId === journeyDallas15.id ? journeyDallas15 : message.attempt.missionId === journeyDallas14.id ? journeyDallas14 : journeyDallas13;
       aircraftVictory = new AircraftVictory(message.attempt.attemptId, message.attempt.targetId, localPlayerId, mission);
       aircraftVictoryCandidates.push(aircraftVictory);
     }
@@ -13915,7 +13915,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       missionId === journeyDallas09.id || missionId === journeyDallas10.id || missionId === journeyDallas12.id;
     const ending = individualReplay
       ? aircraftVictoryCandidates.find(candidate => candidate.attemptId === journeyAttempt?.attemptId && candidate.targetId === message.playerId)
-      : (missionId === journeyDallasTerritoryDefense01.id || missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id ||
+      : (missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id ||
         missionId === journeyDallas17.id || missionId === journeyDallas18.id) ? aircraftVictory : null;
     const aircraftVictoryDestruction = ending?.confirmDestruction(message, destroyedPlane?.rotation.y ?? 0, destroyedPlane?.rotation, remotePlayers.get(message.playerId)?.velocity) === true;
     if (aircraftVictoryDestruction && ending) {
