@@ -233,7 +233,7 @@ export function journeyCrossfireMission(missionId: string | undefined): typeof j
 export const journeyDallasTerritoryDefense01: Readonly<{
  id:'journey-dallas-territory-defense-01';cityId:'dallas';name:'TERRITORY DEFENSE';difficulty:'MEDIUM';objective:string;territoryId:'las-colinas';
  runwayStart:true;startAirportId:'dfw';captureDurationMs:60000;
- defenseDurationMs:120000;enemyCaptureDurationMs:60000;timeLimitMs:300000;firstClearCredits:1700;
+ defenseDurationMs:120000;enemyCaptureDurationMs:60000;timeLimitMs:304000;firstClearCredits:1700;
  airborneSpawn:Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
  enemyAircraft:'privateJet';enemyLivery:string;enemyHealth:300;enemySpawn:Readonly<{x:number;z:number}>;
  enemyAltitude:1000;cruiseSpeed:420;aggressionDistance:5000;fireDelayMs:8000;
