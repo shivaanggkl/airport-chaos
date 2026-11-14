@@ -479,7 +479,7 @@ export const journeyDallasTerritoryDefense01 = Object.freeze({
   id:'journey-dallas-territory-defense-01', cityId:'dallas', name:'TERRITORY DEFENSE', difficulty:'MEDIUM',
   objective:'Take off, capture Las Colinas, then hold it for 2 minutes. Defend it from the invader!', territoryId:'las-colinas',
   runwayStart:true, startAirportId:'dfw', captureDurationMs:60000,
-  defenseDurationMs:120000, enemyCaptureDurationMs:60000, timeLimitMs:300000, firstClearCredits:1700,
+  defenseDurationMs:120000, enemyCaptureDurationMs:60000, timeLimitMs:304000, firstClearCredits:1700,
   airborneSpawn:Object.freeze({x:-47000,z:-28050,altitude:900,heading:-Math.PI/2,speed:650}),
   enemyAircraft:'privateJet', enemyLivery:'nightowl-sunset-red', enemyHealth:300,
   enemySpawn:Object.freeze({x:-22000,z:-28050}), enemyAltitude:1000, cruiseSpeed:420, aggressionDistance:5000, fireDelayMs:8000,
