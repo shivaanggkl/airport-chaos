@@ -28,7 +28,7 @@ export class MissionCaptureIntroPath {
   }
 
   text(elapsed: number): string {
-    if(this.defense)return elapsed<3000?'TERRITORY DEFENSE':elapsed<6000?'LAS COLINAS is yours to defend!':elapsed<9000?'Stay inside the marked territory.':'Defend for 90 seconds or destroy the enemy!';
+    if(this.defense)return elapsed<3000?'TERRITORY DEFENSE':elapsed<6000?'Take off and capture LAS COLINAS.':elapsed<9000?'Stay inside to capture the territory.':'Hold for 2 minutes. Defend against the invader!';
     if (elapsed < 3_000) return 'CAPTURE 1 TERRITORY';
     return captureMissionInstructions.join('\n');
   }

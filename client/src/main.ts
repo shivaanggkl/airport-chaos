@@ -2210,7 +2210,7 @@ function drawRadarTerritories(direction: THREE.Vector3, onlyId?: string): void {
     if (onlyId && definition.id !== onlyId) continue;
     const { minX, maxX, minZ, maxZ } = definition.bounds;
     const corners = [[minX, minZ], [maxX, minZ], [maxX, maxZ], [minX, maxZ]] as const;
-    const state = territoryState.get(definition.id);
+    const state = displayedTerritoryState(definition.id);
     radarContext.beginPath();
     corners.forEach(([x, z], index) => {
       const point = project(x, z);
@@ -2863,13 +2863,26 @@ function pulseTerritoryBoundary(territoryId: string): void {
   territoryPulseMesh.geometry = entry.wall.geometry;
   territoryPulseMesh.visible = entry.wall.visible;
 }
+/** Mission ownership is private to this attempt; never borrow Free Fly ownership. */
+function displayedTerritoryState(id: string): NetworkTerritoryState | undefined {
+  if (journeyMode && journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id && id === journeyDallasTerritoryDefense01.territoryId) {
+    const owned = journeyAttempt.captureMs >= journeyDallasTerritoryDefense01.captureDurationMs;
+    const overrun = journeyAttempt.failureReason === 'TERRITORY_OVERRUN';
+    return { id, controllerId: overrun ? journeyAttempt.targetId ?? undefined : owned ? localPlayerId ?? undefined : undefined,
+      controllerName: overrun ? 'Nightowl' : owned ? serverProfile.pilotName : undefined,
+      captureProgress: journeyAttempt.captureMs * 100 / journeyDallasTerritoryDefense01.captureDurationMs,
+      contested: owned && !overrun && journeyAttempt.invaderInside === true };
+  }
+  return territoryState.get(id);
+}
+
 function refreshTerritoryBorders(): void {
   const active = serverProfile.missions[cityId]?.active;
   const mission = active && missionForCity(cityId, active.missionId);
   const missionTerritories = mission ? missionRequirements(mission, active) : [];
   for (const entry of territoryBorders) {
     const { definition } = entry;
-    const state = territoryState.get(definition.id);
+    const state = displayedTerritoryState(definition.id);
     const appearance: TerritoryAppearance = !state?.controllerId ? 'neutral' : state.contested ? 'contested' : state.controllerId === localPlayerId ? 'own' : 'enemy';
     entry.appearance = appearance;
     entry.missionTarget = missionTerritories.includes(definition.id) ||
@@ -2877,7 +2890,9 @@ function refreshTerritoryBorders(): void {
     entry.displayColor = state?.controllerId ? definition.fixedColor : neutralTerritoryColor;
     applyTerritoryBorderStyle(entry);
     entry.owner.textContent = definition.id === focusedTerritoryTargetId()
-      ? 'MISSION TARGET · CAPTURE'
+      ? journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id
+        ? state?.controllerId ? `Owned by ${state.controllerName ?? 'another pilot'}` : 'NEUTRAL · CAPTURE LAS COLINAS'
+        : 'MISSION TARGET · CAPTURE'
       : state?.contested ? 'CONTESTED' : state?.controllerId ? `Owned by ${state.controllerName ?? 'another pilot'}` : 'NEUTRAL';
     entry.label.style.setProperty('--territory-accent', entry.displayColor);
     entry.label.classList.toggle('mission', entry.missionTarget);
@@ -2993,8 +3008,16 @@ function journeyTerritoryCaptureLabel(): string {
 
 function updateTerritoryPanel(allowDemonstration = true): void {
   if(journeyMode&&journeyAttempt?.missionId===journeyDallasTerritoryDefense01.id){
-    const eligible=journeyAttempt.defenseEligible===true;
-    cityTerritoriesPanel.update([{name:'LAS COLINAS',color:territoryDefinitions.find(item=>item.id===journeyDallasTerritoryDefense01.territoryId)!.fixedColor,contested:journeyAttempt.invaderInside===true,statusLabel:eligible?'DEFENDING':'DEFENSE PAUSED — RETURN TO LAS COLINAS'}],localPlayerId);
+    const mission = journeyDallasTerritoryDefense01;
+    const state = displayedTerritoryState(mission.territoryId)!;
+    const owned = journeyAttempt.captureMs >= mission.captureDurationMs;
+    const percent = Math.floor(journeyAttempt.captureMs * 100 / mission.captureDurationMs);
+    cityTerritoriesPanel.update([{name:'LAS COLINAS',
+      color:state.controllerId ? territoryDefinitions.find(item=>item.id===mission.territoryId)!.fixedColor : neutralTerritoryColor,
+      controllerId:state.controllerId, controllerName:state.controllerName, contested:state.contested,
+      statusLabel:owned ? `${state.controllerName ?? 'PILOT'} · ${journeyAttempt.defenseEligible ? 'DEFENDING' : 'RETURN TO LAS COLINAS'}`
+        : journeyAttempt.status === 'APPROACH' ? 'TAKE OFF' : `CAPTURING ${percent}%`}],localPlayerId);
+    refreshTerritoryBorders();
     return;
   }
   if (journeyMode && journeyAttempt?.missionId === journeyDallasCapture01.id) {
@@ -3023,7 +3046,7 @@ function updateCaptureHud(): void {
     return;
   }
   const capturing = localPlayerId ? territoryDefinitions.find((definition) => {
-    const state = territoryState.get(definition.id);
+    const state = displayedTerritoryState(definition.id);
     return state?.capturingPlayerId === localPlayerId &&
       territoryContains(definition, airplane.position);
   }) : undefined;
@@ -3037,7 +3060,7 @@ function updateCaptureHud(): void {
 
 function cityTerritoryEntries(): CityTerritoryEntry[] {
   return territoryDefinitions.map((definition) => {
-    const state = territoryState.get(definition.id);
+    const state = displayedTerritoryState(definition.id);
     return {
       name: territoryDisplayName(definition), color: definition.fixedColor,
       controllerId: state?.controllerId, controllerName: state?.controllerName,
@@ -3321,8 +3344,10 @@ function updateJourneyHud(): void {
   if(journeyAttempt.missionId===journeyDallasTerritoryDefense01.id){
     const percent=Math.min(100,Math.floor((journeyAttempt.enemyCaptureMs??0)*100/journeyDallasTerritoryDefense01.enemyCaptureDurationMs));
     if(journeyHudObjective)journeyHudObjective.textContent=journeyDallasTerritoryDefense01.objective;
-    if(journeyHudProgress){journeyHudProgress.hidden=false;journeyHudProgress.textContent=`DEFENDED: ${Math.floor((journeyAttempt.defenseMs??0)/1000)}/90 SEC`;}
-    if(journeyHudTarget){journeyHudTarget.hidden=false;journeyHudTarget.textContent=journeyAttempt.defenseEligible?'LAS COLINAS — DEFENDING':'DEFENSE PAUSED — RETURN TO LAS COLINAS';}
+    if(journeyHudProgress){journeyHudProgress.hidden=false;journeyHudProgress.textContent=journeyAttempt.captureMs < journeyDallasTerritoryDefense01.captureDurationMs
+      ? `CAPTURE LAS COLINAS: ${Math.floor(journeyAttempt.captureMs * 100 / journeyDallasTerritoryDefense01.captureDurationMs)}%`
+      : `HELD: ${Math.floor((journeyAttempt.defenseMs??0)/1000)}/${journeyDallasTerritoryDefense01.defenseDurationMs/1000} SEC`;}
+    if(journeyHudTarget){journeyHudTarget.hidden=false;journeyHudTarget.textContent=journeyAttempt.status === 'APPROACH' ? 'TAKE OFF FROM DFW' : journeyAttempt.captureMs < journeyDallasTerritoryDefense01.captureDurationMs ? 'FLY INSIDE LAS COLINAS TO CAPTURE IT' : journeyAttempt.defenseEligible ? 'LAS COLINAS — DEFENDING' : 'HOLD PAUSED — RETURN TO LAS COLINAS';}
     if(journeyHudTimer){journeyHudTimer.hidden=false;journeyHudTimer.textContent=`${journeyAttempt.invaderInside?'INVADER INSIDE TERRITORY! · ':''}ENEMY CAPTURE: ${percent}%`;}
     if(journeyHudEnemy){journeyHudEnemy.hidden=false;journeyHudEnemy.style.setProperty('--enemy-health',`${percent}%`);journeyHudEnemy.setAttribute('aria-label',`ENEMY CAPTURE: ${percent}%`);}
     if(segments)segments.hidden=true;updateTerritoryPanel();updateCaptureHud();return;
@@ -5165,7 +5190,7 @@ async function prepareMissionCombatIntro(attemptId: string, missionId: string): 
     if(!invader)return;await Promise.all([airplane.userData.assetReady,invader.userData.assetReady]);
     if(journeyAttempt?.attemptId!==attemptId||journeyAttempt.status!=='APPROACH'||flightLaunchState!=='pending'||missionCaptureIntroPath)return;
     const territory=territoryDefinitions.find(item=>item.id===journeyDallasTerritoryDefense01.territoryId)!;
-    missionCaptureIntroPath=new MissionCaptureIntroPath(territory,90000,getTerrainHeight,{player:airplane,invader});
+    missionCaptureIntroPath=new MissionCaptureIntroPath(territory,journeyDallasTerritoryDefense01.captureDurationMs,getTerrainHeight,{player:airplane,invader});
     flightGameRoot.classList.add('territory-defense-intro');beginFlightLaunchCinematic();return;
   }
   if (missionId === journeyDallasTwinHunters01.id) {
@@ -5525,7 +5550,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     if (missionCaptureIntroPath && !skipped) {
       updateTerritoryPanel();
       const text = missionCaptureIntroPath.text(elapsed);
-      if (elapsed >= 3_000) {
+      if (elapsed >= 3_000 && !missionCaptureIntroPath.defense) {
         if (!flightLaunchTitle.querySelector('.capture-intro-instructions')) {
           const list = document.createElement('ul');
           list.className = 'capture-intro-instructions';
@@ -6791,7 +6816,7 @@ function updateWorldMap(direction: THREE.Vector3): void {
       return progress ? { cityName: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', ...progress } : undefined;
     })(),
     territories: territoryDefinitions.filter(definition => !focusedTerritoryTargetId() || definition.id === focusedTerritoryTargetId()).map((definition) => {
-      const state = territoryState.get(definition.id);
+      const state = displayedTerritoryState(definition.id);
       return {
         id: definition.id,
         label: territoryDisplayName(definition),
@@ -7945,7 +7970,7 @@ function pilotMenuData(): PilotMenuData {
     return (left.distance ?? Infinity) - (right.distance ?? Infinity);
   });
   const territories = territoryDefinitions.map((definition) => {
-    const state = territoryState.get(definition.id);
+    const state = displayedTerritoryState(definition.id);
     return {
       id: definition.id,
       name: territoryDisplayName(definition),

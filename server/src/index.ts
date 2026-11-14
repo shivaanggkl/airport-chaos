@@ -3358,7 +3358,7 @@ function ensureFirstContact(playerId: string, pilot: PlayerState, active: Journe
   const squad = active.missionId === journeyDallas17.id || active.missionId === journeyDallas18.id;
   for (const ordinal of (active.missionId === journeyDallas18.id ? [1, 2, 3, 4] : squad ? [1, 2, 3] : [1]) as (1 | 2 | 3 | 4)[]) {
     const targetId = ordinal === 1 ? active.targetId : ordinal === 2 ? active.secondaryTargetId : ordinal === 3 ? active.rearGuardThirdId : active.rearGuardFourthId;
-    if (squad && active.crossfireKills & (1 << (ordinal - 1))) continue;
+    if ((squad || active.missionId === journeyDallasTerritoryDefense01.id) && active.crossfireKills & (1 << (ordinal - 1))) continue;
     if (!targetId) {
       if (active.status !== 'APPROACH') { failPlayerJourney(playerId, 'INTERRUPTED', now); return; }
       const created = createBot('dallas', undefined,
@@ -8640,7 +8640,7 @@ server.on('connection', (socket, request) => {
   }
   const spawnSlot = airAssaultMode || soloExploreMode ? 0 : restoringPausedJourney || restoringPausedTraining ? players.get(playerId)?.spawnSlot ?? 0 : reserveSpawnSlot(cityId);
   const spawnPosition = { x: 0, y: 1.2, z: 45 + spawnSlot * 15 };
-  const spawnAirportId = journeyAttempt?.missionId === journeyDallasAirportHop01.id ? (journeyAttempt.airportHopStage >= 2 ? 'love' : 'dfw') : soloExploreMode ? 'dfw' : journeyAttempt?.missionId === journeyDallas24.id ? journeyDallas24.startAirportId
+  const spawnAirportId = journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id ? journeyDallasTerritoryDefense01.startAirportId : journeyAttempt?.missionId === journeyDallasAirportHop01.id ? (journeyAttempt.airportHopStage >= 2 ? 'love' : 'dfw') : soloExploreMode ? 'dfw' : journeyAttempt?.missionId === journeyDallas24.id ? journeyDallas24.startAirportId
     : journeyAttempt?.missionId === journeyDallas19.id ? journeyDallas19.startAirportId
     : journeyAttempt?.missionId === journeyDallas23.id ? journeyDallas23.startAirportId
     : journeyAttempt?.missionId === journeyDallas22.id ? journeyDallas22.startAirportId
