@@ -145,8 +145,13 @@ class AudioManager {
     if(this.clipLoads.has(key))return this.clipLoads.get(key);
     const context=this.context;if(!context)return;
     const pending=(async()=>{try{
-      const response=await fetch(audioClips[key].file);if(!response.ok)throw new Error('audio unavailable');
+      const response=await fetch(audioClips[key].file);
+      // WKWebView serves bundled media with URLResponse (status 0), not HTTPURLResponse.
+      // Only accept this non-HTTP response for our own Capacitor asset origin.
+      const bundledMedia=typeof location!=='undefined'&&location.protocol==='capacitor:'&&location.hostname==='localhost'&&response.status===0;
+      if(!response.ok&&!bundledMedia)throw new Error('audio unavailable');
       const bytes=await response.arrayBuffer();
+      if(bytes.byteLength===0)throw new Error('empty audio asset');
       if(this.context!==context)return;
       const buffer=await context.decodeAudioData(bytes);
       if(this.context===context)this.clipBuffers.set(key,buffer);

@@ -6,14 +6,14 @@ import ts from 'typescript';
 import {audioClips} from '../../client/src/audio-clips.js';
 
 const source=readFileSync(new URL('../../client/src/audio-manager.ts',import.meta.url),'utf8');
-function fixture(){
+function fixture(response={ok:true,status:200},location={protocol:'http:',hostname:'localhost'},empty=false){
  let fetches=0,decoded=0,concurrency=0,maximum=0,created=0;
  const param=()=>({value:0,setValueAtTime(){},setTargetAtTime(){},cancelScheduledValues(){}});
  const gain=()=>({gain:param(),connect(){},disconnect(){}});
  const context:any={state:'running',currentTime:1,createGain:gain,createStereoPanner:()=>({pan:param(),connect(){},disconnect(){}}),
   createBufferSource:()=>{created++;return {buffer:null,loop:false,onended:undefined as (()=>void)|undefined,connect(){},disconnect(){},start(){},stop(){this.onended?.();}};},
   decodeAudioData:async()=>{concurrency++;maximum=Math.max(maximum,concurrency);await Promise.resolve();decoded++;concurrency--;return {duration:1};}};
- const ctx=vm.createContext({audioClips,fetch:async()=>{fetches++;return{ok:true,arrayBuffer:async()=>new ArrayBuffer(16)};},console,Map,Set});
+ const ctx=vm.createContext({audioClips,location,fetch:async()=>{fetches++;return{...response,arrayBuffer:async()=>new ArrayBuffer(empty?0:16)};},console,Map,Set});
  const code=ts.transpileModule(source.replace(/^import .*\n/,'').replace('export const audioManager = new AudioManager();','globalThis.manager = new AudioManager();'),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText.replace(/export \{\};?/g,'');
  vm.runInContext(code,ctx);const manager:any=ctx.manager;
  manager.context=context;manager.menuMusicDesired=false;manager.categoryGains=new Map(['ui','engine','weapons','impacts','music'].map(key=>[key,gain()]));manager.masterGain=gain();
@@ -56,4 +56,13 @@ test('loops stop on pause and background, resume from logical state, and unload 
  f.manager.setScenePaused(false);assert.equal(f.manager.loops.size,4);
  f.manager.setGameplayAudio(false);assert.equal(f.manager.loops.size,0);assert.equal(f.manager.desiredLoops.size,0);
  for(const key of ['wind','portalHum','outdoor','lake'])assert.equal(f.manager.clipBuffers.has(key),false);
+});
+
+
+test('Capacitor bundled media status 0 decodes; web failures and empty media never do',async()=>{
+ const native={protocol:'capacitor:',hostname:'localhost'};
+ const local=fixture({ok:false,status:0},native);await local.manager.prepareGameplay();assert.equal(local.counts().decoded,38);assert.equal(local.manager.clipBuffers.size,38);
+ for(const f of [fixture({ok:false,status:0}),fixture({ok:false,status:500},native),fixture({ok:false,status:0},native,true),fixture({ok:false,status:0},{protocol:'capacitor:',hostname:'untrusted'})]){
+  await f.manager.prepareGameplay();assert.equal(f.counts().decoded,0);assert.equal(f.manager.clipBuffers.size,0);
+ }
 });
