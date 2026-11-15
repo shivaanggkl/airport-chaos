@@ -498,7 +498,7 @@ export const journeyDallasTwinHunters01 = Object.freeze({
   ]),
 });
 export function journeyCrossfireMission(missionId) {
-  return missionId === journeyDallasTwinHunters01.id ? journeyDallasTwinHunters01 : missionId === journeyDallas16.id ? journeyDallas16 : undefined;
+  return missionId === journeyDallasMostWantedSurvival01.id ? journeyDallasMostWantedSurvival01 : missionId === journeyDallasTwinHunters01.id ? journeyDallasTwinHunters01 : missionId === journeyDallas16.id ? journeyDallas16 : undefined;
 }
 
 const captureTerritory = territoriesForCity('dallas').find(territory => territory.id === 'las-colinas');
@@ -565,6 +565,19 @@ export function journeyCaptureTerritoryId(id, stage = 0) {
     : id === journeyDallasCapture01.id ? journeyDallasCapture01.territoryId : undefined;
 }
 
+export const journeyDallasMostWantedSurvival01 = Object.freeze({
+  id: 'journey-dallas-most-wanted-survival-01', cityId: 'dallas', name: 'MOST WANTED SURVIVAL',
+  chapter: 'SKY COMMANDER', difficulty: 'VERY HARD', timeLimitMs: 120_000, firstClearCredits: 2_600,
+  objective: 'Survive until the timer reaches zero!', replacementDelayMs: 15_000, boundaryGraceMs: 10_000,
+  enemyHealth: 300, aggressionDistance: 9_000, startAirportId: 'dfw', gates: Object.freeze([]),
+  airborneSpawn: Object.freeze({x: -28_000, z: -22_000, altitude: 1_100, heading: Math.PI, speed: 650}),
+  bounds: Object.freeze({minX: -61_000, maxX: 3_000, minZ: -54_000, maxZ: 10_000}),
+  enemies: Object.freeze([
+    Object.freeze({aircraft: 'fighter', livery: 'firehawk-stealth-gray', level: 'HARD', health: 300, fireDelayMs: 8_000, x: -31_800, z: -17_100, altitude: 100}),
+    Object.freeze({aircraft: 'privateJet', livery: 'nightowl-sunset-red', level: 'MEDIUM', health: 250, fireDelayMs: 10_000, x: -23_200, z: -26_600, altitude: -100}),
+  ]),
+});
+
 // Display slots are presentation; persisted gameplay and receipts keep their historical IDs.
 export const journeyChapters = Object.freeze(['ROOKIE PILOT', 'RISING ACE', 'SKY COMMANDER', 'DR. BOSS RISING']);
 export const journeyCatalog = Object.freeze([
@@ -593,7 +606,7 @@ export const journeyCatalog = Object.freeze([
   [17, 'Iron Hunter'],
   [11, 'Armored Giant Plane'],
   [18, 'Final Showdown'],
-  [null, 'Most Wanted Survival'],
+  [journeyDallasMostWantedSurvival01.id, 'Most Wanted Survival'],
   [null, 'Triple Territory Defense'],
   [12, 'Armored Giant & Two Escorts'],
   [23, 'Monster Pursuit'],

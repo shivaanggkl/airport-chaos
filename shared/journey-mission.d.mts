@@ -228,7 +228,7 @@ export const journeyDallasTwinHunters01: Readonly<{
   airborneSpawn: Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
   enemies: readonly Readonly<{aircraft:'trainer'|'privateJet';livery:string;name:string;level:'EASY'|'MEDIUM';fireDelayMs:number;x:number;z:number;altitude:number}>[];
 }>;
-export function journeyCrossfireMission(missionId: string | undefined): typeof journeyDallasTwinHunters01 | typeof journeyDallas16 | undefined;
+export function journeyCrossfireMission(missionId: string | undefined): typeof journeyDallasMostWantedSurvival01 | typeof journeyDallasTwinHunters01 | typeof journeyDallas16 | undefined;
 
 export const journeyDallasTerritoryDefense01: Readonly<{
  id:'journey-dallas-territory-defense-01';cityId:'dallas';name:'TERRITORY DEFENSE';difficulty:'MEDIUM';objective:string;territoryId:'las-colinas';
@@ -260,3 +260,15 @@ export const journeyDallasCaptureThree01: Readonly<{
 }>;
 export function journeyTerritoryCaptureMission(id: string | undefined): typeof journeyDallasCapture01 | typeof journeyDallasCaptureThree01 | undefined;
 export function journeyCaptureTerritoryId(id: string | undefined, stage?: number): string | undefined;
+
+export const journeyDallasMostWantedSurvival01: Readonly<{
+  id: 'journey-dallas-most-wanted-survival-01'; cityId: 'dallas'; name: 'MOST WANTED SURVIVAL'; chapter: 'SKY COMMANDER'; difficulty: 'VERY HARD';
+  timeLimitMs: 120000; firstClearCredits: 2600; objective: 'Survive until the timer reaches zero!';
+  replacementDelayMs: 15000; boundaryGraceMs: 10000; enemyHealth: 300; aggressionDistance: 9000; startAirportId: 'dfw'; gates: readonly never[];
+  airborneSpawn: Readonly<{x: -28000; z: -22000; altitude: 1100; heading: number; speed: 650}>;
+  bounds: Readonly<{minX: -61000; maxX: 3000; minZ: -54000; maxZ: 10000}>;
+  enemies: readonly [
+    Readonly<{aircraft:'fighter';livery:'firehawk-stealth-gray';level:'HARD';health:300;fireDelayMs:8000;x:-31800;z:-17100;altitude:100}>,
+    Readonly<{aircraft:'privateJet';livery:'nightowl-sunset-red';level:'MEDIUM';health:250;fireDelayMs:10000;x:-23200;z:-26600;altitude:-100}>
+  ];
+}>;

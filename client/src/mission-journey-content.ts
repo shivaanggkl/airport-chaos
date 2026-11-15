@@ -1,4 +1,4 @@
-import { journeyDallasCaptureThree01, journeyTerritoryCaptureMission, journeyCaptureTerritoryId, journeyDallasAceIntercept01, journeyDallasTerritoryDefense01, journeyDallasTwinHunters01, journeyCatalog } from '../../shared/journey-mission.mjs';
+import { journeyDallasMostWantedSurvival01, journeyDallasCaptureThree01, journeyTerritoryCaptureMission, journeyCaptureTerritoryId, journeyDallasAceIntercept01, journeyDallasTerritoryDefense01, journeyDallasTwinHunters01, journeyCatalog } from '../../shared/journey-mission.mjs';
 import { journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 
 export const captureMissionInstructions = [
@@ -6,7 +6,7 @@ export const captureMissionInstructions = [
   'Stay inside TERRITORY to capture it until: LAS COLINAS CAPTURING 100%.',
 ] as const;
 
-const missions = [journeyDallasCaptureThree01, journeyDallasAceIntercept01, journeyDallasTerritoryDefense01, journeyDallasTwinHunters01, journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
+const missions = [journeyDallasMostWantedSurvival01,journeyDallasCaptureThree01, journeyDallasAceIntercept01, journeyDallasTerritoryDefense01, journeyDallasTwinHunters01, journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
   journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18,
   journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12,
   journeyDallas25, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas19] as const;
@@ -15,6 +15,7 @@ const missions = [journeyDallasCaptureThree01, journeyDallasAceIntercept01, jour
 // authoritative Journey attempt handlers. Mission titles, rewards, and clocks
 // always come from the live definitions above.
 const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = {
+  'journey-dallas-most-wanted-survival-01':journeyDallasMostWantedSurvival01.objective,
   'journey-dallas-capture-three-01': journeyDallasCaptureThree01.objective,
   'journey-dallas-ace-intercept-01': journeyDallasAceIntercept01.objective,
   'journey-dallas-territory-defense-01':journeyDallasTerritoryDefense01.objective,

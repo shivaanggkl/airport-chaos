@@ -7449,3 +7449,7 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 .journey-capture-three .journey-hud-segments i.is-current { opacity: 1; color: #ffd766; border-color: #ffd766; }
 .journey-capture-three .journey-hud-segments i.is-cleared { opacity: .65; color: #8df3cc; background: none; box-shadow: none; }
 .journey-capture-three .journey-hud-segments i[hidden] { display: none; }
+
+/* M26 status stays inside the existing narrow Journey card. */
+.journey-most-wanted-survival [data-journey-target] { color: #ffd766; border-left: 3px solid #f04745; padding-left: 5px; }
+.journey-most-wanted-survival.journey-timer-urgent [data-journey-header-timer] { color: #ffb529; }
