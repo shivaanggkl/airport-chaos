@@ -62,7 +62,7 @@ import { updateOsmCityChunks } from './osm-city';
 import { SkyChallengeSystem } from './sky-challenges';
 import { JourneyGateSystem } from './journey-gates';
 import { ObjectiveGuidance, confirmedGateObjective, formatObjectiveDistance, climbGateInstruction, climbDepartureTurnSide, precisionGateBearing, gravityDropGuidance, pendulumGateGuidance, type MissionObjective, type PrecisionTurnSide } from './objective-guidance';
-import { journeyDallasAceIntercept01, journeyDallasTerritoryDefense01, journeyDallasTwinHunters01, journeyCrossfireMission, journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas24, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas25, journeyDallas19, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
+import { journeyDallasCaptureThree01, journeyTerritoryCaptureMission, journeyCaptureTerritoryId, journeyDallasAceIntercept01, journeyDallasTerritoryDefense01, journeyDallasTwinHunters01, journeyCrossfireMission, journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas24, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas25, journeyDallas19, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
 import type { FormationStatus } from '../../shared/journey-formation.mjs';
 import { missionFocusForAttempt, type MissionFocusConfig } from '../../shared/mission-focus.mjs';
 import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } from './stunt-combo';
@@ -198,6 +198,7 @@ type JourneyAttemptState = {
   coinHunt?: CoinHuntState | null;
   sharpshooter?: {destroyed:number;targets:SharpshooterTarget[]} | null;
   airportHopStage?: number;
+  captureStage?: number;
   holdMs: number; captureMs: number; defenseMs?:number; enemyCaptureMs?:number; defenseEligible?:boolean; invaderInside?:boolean;
   followStatus?: FormationStatus;
 
@@ -994,7 +995,7 @@ function applyMissionFocus(attempt: JourneyAttemptState | null): void {
     ? attempt.legendaryPhase === 'ACE' ? attempt.targetId : null
 
     : next && (attempt?.missionId === journeyDallasTerritoryDefense01.id || attempt?.missionId === journeyDallas13.id || attempt?.missionId === journeyDallas14.id || attempt?.missionId === journeyDallas17.id || attempt?.missionId === journeyDallasAceIntercept01.id || attempt?.missionId === journeyDallas15.id || attempt?.missionId === journeyDallas18.id || (attempt?.missionId===journeyDallas19.id||attempt?.missionId===journeyDallas25.id||attempt?.missionId===journeyDallas21.id||attempt?.missionId===journeyDallas22.id||attempt?.missionId===journeyDallas23.id)) ? attempt.targetId : attempt && journeyCrossfireMission(attempt.missionId) ? `${attempt.targetId ?? ''}:${attempt.secondaryTargetId ?? ''}` : null;
-  flightGameRoot.classList.toggle('territory-capture-focus', next !== null && (attempt?.missionId === journeyDallasCapture01.id||attempt?.missionId===journeyDallasTerritoryDefense01.id));
+  flightGameRoot.classList.toggle('territory-capture-focus', next !== null && (Boolean(journeyTerritoryCaptureMission(attempt?.missionId))||attempt?.missionId===journeyDallasTerritoryDefense01.id));
   flightGameRoot.classList.toggle('mission4-clean-hud', next !== null && attempt?.missionId === journeyDallas04.id);
   flightGameRoot.classList.toggle('monster-arrival-focus', next !== null && (attempt?.missionId===journeyDallas19.id||attempt?.missionId===journeyDallas25.id||attempt?.missionId===journeyDallas21.id||attempt?.missionId===journeyDallas22.id||attempt?.missionId===journeyDallas23.id));
   flightGameRoot.classList.toggle('giant-incoming-focus',next!==null && (attempt?.missionId===journeyDallas07.id || attempt?.missionId===journeyDallas08.id || attempt?.missionId===journeyDallas09.id || attempt?.missionId===journeyDallas10.id || attempt?.missionId===journeyDallas11.id || attempt?.missionId===journeyDallas12.id));
@@ -1010,7 +1011,7 @@ function applyMissionFocus(attempt: JourneyAttemptState | null): void {
   navigationBeacons.setEnabled(!skyDuelMode && navigationMarkersEnabled && (next?.showUnrelatedAirportLabels ?? true) && (next?.showUnrelatedLandmarkLabels ?? true));
   ambientTraffic?.setMissionFocus(next !== null && !next.showAmbientAIAircraft);
   territoryBorderRefreshAt = 0;
-  if (attempt?.missionId === journeyDallasCapture01.id||attempt?.missionId===journeyDallasTerritoryDefense01.id) refreshTerritoryBorders();
+  if (Boolean(journeyTerritoryCaptureMission(attempt?.missionId))||attempt?.missionId===journeyDallasTerritoryDefense01.id) refreshTerritoryBorders();
   if (next) for (const entry of territoryBorders) { entry.wall.visible = false; entry.label.hidden = true; }
   if (selectedCombatTarget?.remote.isBot && unrelatedFocusedBot(selectedCombatTarget.remote.playerId)) clearCombatTarget();
   if (focusedBotsAreSafe()) for (const [id, projectile] of clientProjectiles) {
@@ -1423,7 +1424,7 @@ gameplayInfoCard.setMode(journeyMode ? 'mission' : launchMode === 'free-fly' && 
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
 const journeyHudHeaderTimer = skyChallengeElement.querySelector<HTMLElement>('[data-journey-header-timer]');
 const m19MissionObjective = 'Destroy The MONSTER Before Time Runs Out.';
-const journeyMissionDefinitions = [journeyDallasTerritoryDefense01,journeyDallasTwinHunters01, journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasAirportHop01, journeyDallasCapture01,
+const journeyMissionDefinitions = [journeyDallasCaptureThree01,journeyDallasTerritoryDefense01,journeyDallasTwinHunters01, journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasAirportHop01, journeyDallasCapture01,
   journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
   journeyDallasAceIntercept01, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18,
   journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12,
@@ -2260,11 +2261,11 @@ function drawRadarTerritories(direction: THREE.Vector3, onlyId?: string): void {
     radarContext.closePath();
     const journeyTarget = definition.id === focusedTerritoryTargetId();
     if (journeyTarget) {
-      radarContext.fillStyle = state?.controllerId ? definition.fixedColor : neutralTerritoryColor;
+      radarContext.fillStyle = state?.controllerId || journeyAttempt?.missionId===journeyDallasCaptureThree01.id ? definition.fixedColor : neutralTerritoryColor;
       radarContext.globalAlpha = 0.16;
       radarContext.fill();
     }
-    radarContext.strokeStyle = state?.controllerId ? definition.fixedColor : neutralTerritoryColor;
+    radarContext.strokeStyle = state?.controllerId || journeyAttempt?.missionId===journeyDallasCaptureThree01.id ? definition.fixedColor : neutralTerritoryColor;
     radarContext.globalAlpha = journeyTarget ? 0.9 : state?.contested ? 0.58 : 0.28;
     radarContext.lineWidth = journeyTarget ? 2.5 : state?.contested ? 2 : 1;
     radarContext.stroke();
@@ -2288,7 +2289,7 @@ function drawRadarTerritories(direction: THREE.Vector3, onlyId?: string): void {
         label.y = Math.max(center - radarRadius + 24, Math.min(center + radarRadius - 4, label.y));
       }
       radarContext.globalAlpha = 1;
-      radarContext.fillStyle = state?.controllerId ? definition.fixedColor : neutralTerritoryColor;
+      radarContext.fillStyle = state?.controllerId || journeyAttempt?.missionId===journeyDallasCaptureThree01.id ? definition.fixedColor : neutralTerritoryColor;
       radarContext.font = 'bold 9px ui-monospace, monospace';
       radarContext.textAlign = 'center';
       radarContext.fillText('CAPTURE', label.x, label.y - 12);
@@ -2320,7 +2321,7 @@ function updateRadar(direction: THREE.Vector3): void {
     // Fit the real boundary and original approach at one stable scale. All markers
     // use this same range so the shaded area and aircraft cannot disagree.
     const { minX, maxX, minZ, maxZ } = captureTerritory.bounds;
-    const spawn = journeyAttempt?.missionId===journeyDallasTerritoryDefense01.id?journeyDallasTerritoryDefense01.airborneSpawn:journeyDallasCapture01.airborneSpawn;
+    const spawn = journeyAttempt?.missionId===journeyDallasCaptureThree01.id?airplane.position:journeyAttempt?.missionId===journeyDallasTerritoryDefense01.id?journeyDallasTerritoryDefense01.airborneSpawn:journeyDallasCapture01.airborneSpawn;
     const farX = Math.max(Math.abs(minX - spawn.x), Math.abs(maxX - spawn.x));
     const farZ = Math.max(Math.abs(minZ - spawn.z), Math.abs(maxZ - spawn.z));
     radarRange = Math.max(radarRange, Math.hypot(farX, farZ) * 1.15);
@@ -2854,7 +2855,7 @@ function createTerritoryWallGeometry(definition: CityTerritory): THREE.BufferGeo
 }
 
 function territoryDisplayName(definition: CityTerritory): string {
-  return definition.id === focusedTerritoryTargetId()
+  return definition.id === focusedTerritoryTargetId() && journeyAttempt?.missionId!==journeyDallasCaptureThree01.id
     ? 'LAS COLINAS' : definition.displayName;
 }
 function createCityTerritoryBorders(){return territoryDefinitions.map((definition) => {
@@ -2915,6 +2916,11 @@ function displayedTerritoryState(id: string): NetworkTerritoryState | undefined 
       captureProgress: journeyAttempt.captureMs * 100 / journeyDallasTerritoryDefense01.captureDurationMs,
       contested: owned && !overrun && journeyAttempt.invaderInside === true };
   }
+  if(journeyMode&&journeyAttempt?.missionId===journeyDallasCaptureThree01.id){
+    const index=journeyDallasCaptureThree01.territoryIds.indexOf(id as typeof journeyDallasCaptureThree01.territoryIds[number]);
+    if(index>=0){const completed=index<(journeyAttempt.captureStage??0);return {id,controllerId:completed?localPlayerId??undefined:undefined,controllerName:completed?serverProfile.pilotName:undefined,
+      contested:false,captureProgress:completed?100:index===(journeyAttempt.captureStage??0)?journeyAttempt.captureMs*100/journeyDallasCaptureThree01.captureDurationMs:0};}
+  }
   return territoryState.get(id);
 }
 
@@ -2929,7 +2935,7 @@ function refreshTerritoryBorders(): void {
     entry.appearance = appearance;
     entry.missionTarget = missionTerritories.includes(definition.id) ||
       definition.id === focusedTerritoryTargetId();
-    entry.displayColor = state?.controllerId ? definition.fixedColor : neutralTerritoryColor;
+    entry.displayColor = state?.controllerId || journeyAttempt?.missionId===journeyDallasCaptureThree01.id ? definition.fixedColor : neutralTerritoryColor;
     applyTerritoryBorderStyle(entry);
     entry.owner.textContent = definition.id === focusedTerritoryTargetId()
       ? journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id
@@ -3162,6 +3168,10 @@ function airportHopDestination(nextLanding = false): AirportDefinition | undefin
 }
 
 function updateJourneyHud(): void {
+  const captureThree=journeyAttempt?.missionId===journeyDallasCaptureThree01.id;
+  const leavingCaptureThree=!captureThree&&skyChallengeElement.classList.contains('journey-capture-three');
+  skyChallengeElement.classList.toggle('journey-capture-three',captureThree);
+  if(leavingCaptureThree)for(const segment of journeyHudSegments){segment.textContent='';segment.hidden=false;segment.classList.remove('is-current','is-cleared');}
   const territoryDefense = journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id;
   gameplayInfoCard.setTerritoryPanelHost(territoryDefense ? missionTerritoryCard : null);
   missionTerritoryCard.hidden = !territoryDefense || !journeyAttempt || !['APPROACH', 'RACING'].includes(journeyAttempt.status);
@@ -3267,6 +3277,22 @@ function updateJourneyHud(): void {
     if (journeyHudEnemy) journeyHudEnemy.hidden = true;
     monsterBossHud.classList.add('hidden'); escortHealthHud.classList.add('hidden');
     return;
+  }
+  if(captureThree){
+    const stage=journeyAttempt.captureStage??0;
+    if(journeyHudObjective)journeyHudObjective.textContent=journeyDallasCaptureThree01.objective;
+    if(journeyHudProgress){journeyHudProgress.hidden=false;journeyHudProgress.textContent=`TERRITORIES ${stage}/3`;}
+    if(journeyHudTarget){journeyHudTarget.hidden=false;journeyHudTarget.textContent=journeyAttempt.captureMs>0?`CAPTURING ${Math.floor(journeyAttempt.captureMs/1000)}/15 SEC`:'ENTER THE MARKED TERRITORY';}
+    if(journeyHudSegmentRow)journeyHudSegmentRow.hidden=false;
+    const names=['LAS COLINAS','METRO CENTRAL','CENTRAL DISTRICT'];
+    journeyHudSegments.forEach((segment,index)=>{
+      segment.hidden=index>=3;
+      const text=index<3?`${index<stage?'✓ ':index===stage?'› ':''}${names[index]}`:'';
+      if(segment.textContent!==text)segment.textContent=text;
+      segment.classList.toggle('is-cleared',index<stage);segment.classList.toggle('is-current',index===stage);
+    });
+    for(const item of [journeyHudTimer,journeyHudHint,journeyHudEnemy])if(item)item.hidden=true;
+    monsterBossHud.classList.add('hidden');escortHealthHud.classList.add('hidden');updateCaptureHud();return;
   }
   if (journeyAttempt.missionId === journeyDallasCapture01.id) {
     if (journeyHudObjective && !journeyHudObjective.querySelector('.capture-mission-instructions:not(.territory-defense-instructions)')) {
@@ -3614,7 +3640,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   const finishTime = formatResultTime(attempt.finishTimeMs ?? 0);
   const bestTime = formatResultTime(attempt.bestTimeMs ?? attempt.finishTimeMs ?? 0);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
-    ? attempt.missionId === journeyDallasCoinHunt01.id ? `${attempt.coinHunt?.collected??0} CREDITS COLLECTED · ${attempt.firstClearCredits} CREDITS AWARDED` : attempt.missionId === journeyDallasSharpshooter01.id ? 'TARGETS 3/3 — MISSION COMPLETE!' : attempt.missionId === journeyDallasAirportHop01.id ? `LANDINGS 2/2 · TIME: ${finishTime}` : attempt.missionId === journeyDallasCapture01.id ? 'TERRITORY CAPTURED!' : (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 GOLDEN GATES CLEARED · TIME: ${finishTime} · BEST: ${bestTime}`
+    ? attempt.missionId === journeyDallasCaptureThree01.id ? 'ALL 3 TERRITORIES CAPTURED! · TERRITORIES 3/3' : attempt.missionId === journeyDallasCoinHunt01.id ? `${attempt.coinHunt?.collected??0} CREDITS COLLECTED · ${attempt.firstClearCredits} CREDITS AWARDED` : attempt.missionId === journeyDallasSharpshooter01.id ? 'TARGETS 3/3 — MISSION COMPLETE!' : attempt.missionId === journeyDallasAirportHop01.id ? `LANDINGS 2/2 · TIME: ${finishTime}` : attempt.missionId === journeyDallasCapture01.id ? 'TERRITORY CAPTURED!' : (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 GOLDEN GATES CLEARED · TIME: ${finishTime} · BEST: ${bestTime}`
       : legendaryMission ? `AIRPORT CHAOS — JOURNEY COMPLETE · 20/20 PLAYABLE MISSIONS · PRECISION FLIGHT — COMPLETE · LEGENDARY ACE — DEFEATED · PERFECT LANDING — ACHIEVED · SCORE: ${attempt.landingScore ?? 0}/1000 · LEGENDARY PILOT UNLOCKED`
       : pursuitMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
       : monsterShowdownMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
@@ -3640,7 +3666,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
       : attempt.failureReason === 'ACE_INTERRUPTED' ? 'ACE ENCOUNTER INTERRUPTED'
       : attempt.failureReason === 'GIANT PLANE & FOUR ESCORTS_INTERRUPTED' ? 'ENCOUNTER INTERRUPTED'
       : attempt.failureReason === 'DEFENSE_INTERRUPTED' ? 'DEFENSE INTERRUPTED'
-      : attempt.failureReason === 'TIME_UP' ? attempt.missionId===journeyDallasTerritoryDefense01.id?'TIME UP': (huntMission||monsterShowdownMission||pursuitMission||finalBossMission) ? 'TIME EXPIRED' : breakoutMission ? 'The monster destroyed Downtown' : "TIME'S UP" : attempt.failureReason === 'MONSTER_KILLED' ? 'Your aircraft was destroyed' : attempt.failureReason === 'CRASHED' && interceptMission ? 'AIRCRAFT DESTROYED' : attempt.failureReason === 'CRASHED' ? breakoutMission ? 'Your aircraft crashed' : firstContactMission || surpriseMission || interceptMission || aceMission || showdownMission || breakoutMission ? 'AIRCRAFT DESTROYED' : 'AIRCRAFT CRASHED'
+      : attempt.failureReason === 'TIME_UP' ? attempt.missionId===journeyDallasTerritoryDefense01.id?'TIME UP': (huntMission||monsterShowdownMission||pursuitMission||finalBossMission) ? 'TIME EXPIRED' : breakoutMission ? 'The monster destroyed Downtown' : "TIME'S UP" : attempt.failureReason === 'MONSTER_KILLED' ? 'Your aircraft was destroyed' : attempt.failureReason === 'CRASHED' && (interceptMission||attempt.missionId===journeyDallasCaptureThree01.id) ? 'AIRCRAFT DESTROYED' : attempt.failureReason === 'CRASHED' ? breakoutMission ? 'Your aircraft crashed' : firstContactMission || surpriseMission || interceptMission || aceMission || showdownMission || breakoutMission ? 'AIRCRAFT DESTROYED' : 'AIRCRAFT CRASHED'
       : 'FLIGHT INTERRUPTED';
   const resultDetail = journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!;
   const failureReasonLabel = resultDetail.textContent?.trim() || 'FLIGHT INTERRUPTED';
@@ -3648,6 +3674,10 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   const gateCount = resultMission && 'gates' in resultMission ? resultMission.gates.length : 0;
   resultDetail.classList.toggle('has-metrics', gateCount > 0);
   resultDetail.hidden = !success && gateCount === 0 && !aceMission;
+  if(attempt.missionId===journeyDallasCaptureThree01.id){
+    resultDetail.hidden=false;resultDetail.classList.add('has-metrics');
+    resultDetail.replaceChildren(journeyResultMetric('TERRITORIES',`${attempt.captureStage??0}/3`),journeyResultMetric('TIME',finishTime),journeyResultMetric('BEST',bestTime));
+  }
   if (gateCount > 0) {
     const elapsedMs = attempt.finishTimeMs ?? (attempt.startedAt !== null && attempt.finishedAt !== null
       ? Math.max(0, attempt.finishedAt - attempt.startedAt) : null);
@@ -3664,7 +3694,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   }
   journeyResultElement.querySelector<HTMLElement>('[data-journey-reward-copy]')!.textContent = success
     ? attempt.firstClearCredits > 0 ? `+${attempt.firstClearCredits.toLocaleString()} CREDITS` : 'NO ADDITIONAL CREDITS'
-    : attempt.failureReason === 'CRASHED' && interceptMission ? 'AIRCRAFT DESTROYED' : attempt.failureReason === 'CRASHED' ? 'AIRCRAFT CRASHED' : failureReasonLabel;
+    : attempt.failureReason === 'CRASHED' && (interceptMission||attempt.missionId===journeyDallasCaptureThree01.id) ? 'AIRCRAFT DESTROYED' : attempt.failureReason === 'CRASHED' ? 'AIRCRAFT CRASHED' : failureReasonLabel;
   journeyResultElement.querySelector<HTMLElement>('[data-journey-loss-copy]')!.hidden = success;
   journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.textContent = success ? 'CONTINUE' : 'RETRY MISSION';
   const journeyExit = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!;
@@ -3837,7 +3867,7 @@ const missionClearDirection = new THREE.Vector3();
 const missionClearLevel = new THREE.Quaternion();
 const missionClearVelocity = new THREE.Vector3();
 const missionClearCruiseVelocity = new THREE.Vector3();
-const missionClearMissionIds = new Set<string>([journeyDallasAceIntercept01.id,journeyDallasTerritoryDefense01.id,journeyDallasCoinHunt01.id,journeyDallasSharpshooter01.id, journeyDallasAirportHop01.id, journeyDallasCapture01.id, journeyDallas01.id, journeyDallas02.id, journeyDallas03.id,
+const missionClearMissionIds = new Set<string>([journeyDallasCaptureThree01.id,journeyDallasAceIntercept01.id,journeyDallasTerritoryDefense01.id,journeyDallasCoinHunt01.id,journeyDallasSharpshooter01.id, journeyDallasAirportHop01.id, journeyDallasCapture01.id, journeyDallas01.id, journeyDallas02.id, journeyDallas03.id,
   journeyDallas04.id, journeyDallas05.id, journeyDallas06.id]);
 const MISSION_CLEAR_DURATION_MS = 4_200;
 const MISSION_CLEAR_REVEAL_MS = 700;
@@ -5499,6 +5529,7 @@ function clearFlightLaunchPresentation(): void {
   missionIntroSkip.hidden = true;
   flightGameRoot.classList.remove('golden-gates-intro', 'airport-hop-intro', 'capture-intro-row', 'twin-hunters-intro', 'territory-defense-intro');
   if (journeyAttempt?.missionId === journeyDallasCapture01.id) updateTerritoryPanel();
+  else if(journeyAttempt?.missionId===journeyDallasCaptureThree01.id)refreshTerritoryBorders();
   flightGameRoot.style.removeProperty('--golden-gates-wipe-opacity');
   flightGameRoot.classList.remove('launch-cinematic-pending', 'launch-cinematic-active', 'launch-cinematic-handoff');
   flightGameRoot.style.removeProperty('--launch-hud-opacity');
@@ -5630,7 +5661,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     if (missionCaptureIntroPath && !skipped) {
       updateTerritoryPanel();
       const text = missionCaptureIntroPath.text(elapsed);
-      if (elapsed >= 3_000 && !missionCaptureIntroPath.defense) {
+      if (elapsed >= 3_000 && !missionCaptureIntroPath.defense && !missionCaptureIntroPath.sequence) {
         if (!flightLaunchTitle.querySelector('.capture-intro-instructions')) {
           const list = document.createElement('ul');
           list.className = 'capture-intro-instructions';
@@ -6904,7 +6935,7 @@ function updateWorldMap(direction: THREE.Vector3): void {
         id: definition.id,
         label: territoryDisplayName(definition),
         bounds: definition.bounds,
-        color: state?.controllerId ? definition.fixedColor : neutralTerritoryColor,
+        color: state?.controllerId || journeyAttempt?.missionId===journeyDallasCaptureThree01.id ? definition.fixedColor : neutralTerritoryColor,
         missionTarget: missionTerritories.includes(definition.id) || definition.id === focusedTerritoryTargetId(),
         controllerName: state?.controllerName,
         status: state?.contested ? 'Contested' : state?.controllerId === localPlayerId ? 'Owned by you' : state?.controllerName ? `Owned by ${state.controllerName}` : 'Neutral',
@@ -8059,7 +8090,7 @@ function pilotMenuData(): PilotMenuData {
       name: territoryDisplayName(definition),
       controller: state?.controllerName ? `Owned by ${state.controllerName}` : 'NEUTRAL',
       contested: state?.contested ?? false,
-      color: state?.controllerId ? definition.fixedColor : neutralTerritoryColor,
+      color: state?.controllerId || journeyAttempt?.missionId===journeyDallasCaptureThree01.id ? definition.fixedColor : neutralTerritoryColor,
       fixedColor: definition.fixedColor,
       progress: state?.captureProgress ?? 0,
       distance: Math.hypot(airplane.position.x - definition.center.x, airplane.position.z - definition.center.z),
@@ -9791,6 +9822,11 @@ function syncLeaderObjective(): void {
 }
 /** Only the active capture attempt exposes a mission territory marker. */
 function focusedTerritoryTargetId(): string | null {
+  if(journeyAttempt?.missionId===journeyDallasCaptureThree01.id&&['APPROACH','RACING'].includes(journeyAttempt.status)){
+    const intro=missionCaptureIntroPath?.sequence&&flightLaunchState==='active'&&flightLaunchSkipStartedAt===undefined&&missionCaptureIntroPath.showsTerritory(performance.now()-flightLaunchStartedAt)
+      ?missionCaptureIntroPath.territoryAt(performance.now()-flightLaunchStartedAt)?.id:undefined;
+    return intro??journeyCaptureTerritoryId(journeyAttempt.missionId,journeyAttempt.captureStage??0)??null;
+  }
   return (journeyAttempt?.missionId === journeyDallasCapture01.id||journeyAttempt?.missionId===journeyDallasTerritoryDefense01.id) &&
     (journeyAttempt.status === 'APPROACH' || journeyAttempt.status === 'RACING') ? journeyDallasCapture01.territoryId : null;
 }
@@ -13138,6 +13174,13 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         hapticsManager.emit('confirmation', `${message.attempt.attemptId}:ace-${message.attempt.targetHealth <= 100 ? 100 : 200}`);
       }
     }
+    if(message.attempt.missionId===journeyDallasCaptureThree01.id){
+      const stage=message.attempt.captureStage??0;
+      if(previousAttempt?.attemptId===message.attempt.attemptId&&stage>(previousAttempt.captureStage??0))showProgressMessage('TERRITORY CAPTURED!');
+      if(previousAttempt?.attemptId!==message.attempt.attemptId||stage!==(previousAttempt.captureStage??0)){
+        refreshTerritoryBorders();const target=journeyCaptureTerritoryId(message.attempt.missionId,stage);if(target)pulseTerritoryBoundary(target);
+      }
+    }
     if(message.attempt.missionId===journeyDallasAceIntercept01.id&&message.attempt.aceInterceptPhase==='ESCAPE'&&previousAttempt?.attemptId===message.attempt.attemptId&&previousAttempt.aceInterceptPhase==='DOGFIGHT')showProgressMessage('FIREHAWK IS ESCAPING!');
     if(message.attempt.missionId===journeyDallas15.id&&message.attempt.status==='RACING'&&message.attempt.escapeRemaining!==undefined&&
       message.attempt.escapeRemaining<5000&&(previousAttempt?.escapeRemaining===undefined||previousAttempt.escapeRemaining>=5000))
@@ -13209,7 +13252,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       missionObjective = { ...missionObjective, fixedTop: false, peripheralCue: true };
     if (focusedTerritoryTargetId()) {
       const target = territoryDefinitions.find(item => item.id === focusedTerritoryTargetId())!;
-      missionObjective = {id: `${message.attempt.attemptId}:territory`, label:'LAS COLINAS',
+      missionObjective = {id: `${message.attempt.attemptId}:territory`, label:journeyAttempt?.missionId===journeyDallasCaptureThree01.id?target.displayName.toUpperCase():'LAS COLINAS',
         position:new THREE.Vector3(target.center.x,getTerrainHeight(target.center.x,target.center.z)+800,target.center.z),radius:1000, peripheralCue:true};
     }
     updateSharpshooterTarget();
@@ -13261,6 +13304,10 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         missionAirportHopPresentation?.dispose();
         missionAirportHopPresentation = new AirportHopIntro(airports, getTerrainHeight, flightGameRoot);
         flightGameRoot.classList.add('airport-hop-intro');
+        beginFlightLaunchCinematic();
+      } else if (message.attempt.missionId === journeyDallasCaptureThree01.id && message.attempt.status === 'APPROACH') {
+        const sequence=journeyDallasCaptureThree01.territoryIds.map(id=>territoryDefinitions.find(item=>item.id===id)!);
+        missionCaptureIntroPath=new MissionCaptureIntroPath(sequence[0]!,journeyDallasCaptureThree01.captureDurationMs,getTerrainHeight,undefined,{player:airplane,territories:sequence});
         beginFlightLaunchCinematic();
       } else if (message.attempt.missionId === journeyDallasCapture01.id && message.attempt.status === 'APPROACH') {
         const territory = territoryDefinitions.find(item => item.id === journeyDallasCapture01.territoryId)!;

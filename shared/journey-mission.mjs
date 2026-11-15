@@ -548,6 +548,23 @@ export const journeyDallasAceIntercept01 = Object.freeze({
   ]),
 });
 
+export const journeyDallasCaptureThree01 = Object.freeze({
+  id: 'journey-dallas-capture-three-01', cityId: 'dallas', name: 'CAPTURE 3 TERRITORIES',
+  chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 240_000, firstClearCredits: 2_250,
+  objective: 'Capture all 3 marked territories before time runs out!', captureDurationMs: 15_000,
+  territoryIds: Object.freeze(['las-colinas', 'love-field', 'downtown']),
+  airborneSpawn: Object.freeze({x: -58_000, z: -28_050, altitude: 900, heading: -Math.PI / 2, speed: 650}),
+});
+
+/** The single capture engine serves both the original M05 and ordered M21. */
+export function journeyTerritoryCaptureMission(id) {
+  return id === journeyDallasCapture01.id ? journeyDallasCapture01 : id === journeyDallasCaptureThree01.id ? journeyDallasCaptureThree01 : undefined;
+}
+export function journeyCaptureTerritoryId(id, stage = 0) {
+  return id === journeyDallasCaptureThree01.id ? journeyDallasCaptureThree01.territoryIds[stage]
+    : id === journeyDallasCapture01.id ? journeyDallasCapture01.territoryId : undefined;
+}
+
 // Display slots are presentation; persisted gameplay and receipts keep their historical IDs.
 export const journeyChapters = Object.freeze(['ROOKIE PILOT', 'RISING ACE', 'SKY COMMANDER', 'DR. BOSS RISING']);
 export const journeyCatalog = Object.freeze([
@@ -571,7 +588,7 @@ export const journeyCatalog = Object.freeze([
   [9, 'Giant Plane & Three Escorts'],
   [6, 'Golden Championship'],
   [journeyDallasAceIntercept01.id, 'Ace Intercept'],
-  [null, 'Capture 3 Territories'],
+  [journeyDallasCaptureThree01.id, 'Capture 3 Territories'],
   [10, 'Giant Plane & Four Escorts'],
   [17, 'Iron Hunter'],
   [11, 'Armored Giant Plane'],

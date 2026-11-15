@@ -7442,3 +7442,10 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 #game-root.launch-cinematic-active.twin-hunters-intro > #mission-status-layer { opacity: 1 !important; --launch-hud-opacity: 1; }
 
 #game-root.launch-cinematic-active.territory-defense-intro > #mission-status-layer { opacity: 1 !important; --launch-hud-opacity: 1; }
+
+/* M21 reuses the existing compact Journey progress indicators. */
+.journey-capture-three .journey-hud-segments { grid-template-columns: 1fr; gap: 3px; }
+.journey-capture-three .journey-hud-segments i { height: auto; padding: 2px 4px; font: inherit; font-style: normal; font-size: .9em; opacity: .55; background: none; box-shadow: none; }
+.journey-capture-three .journey-hud-segments i.is-current { opacity: 1; color: #ffd766; border-color: #ffd766; }
+.journey-capture-three .journey-hud-segments i.is-cleared { opacity: .65; color: #8df3cc; background: none; box-shadow: none; }
+.journey-capture-three .journey-hud-segments i[hidden] { display: none; }

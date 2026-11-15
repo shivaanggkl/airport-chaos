@@ -250,3 +250,13 @@ export const journeyDallasAceIntercept01: Readonly<{
   enemySpawn: Readonly<{x: -17000; z: -18500; altitude: 1200; heading: 2.709}>;
   escapeRoute: readonly Readonly<{x: number; z: number}>[];
 }>;
+
+export const journeyDallasCaptureThree01: Readonly<{
+  id: 'journey-dallas-capture-three-01'; cityId: 'dallas'; name: 'CAPTURE 3 TERRITORIES';
+  chapter: 'SKY COMMANDER'; difficulty: 'HARD'; timeLimitMs: 240000; firstClearCredits: 2250;
+  objective: 'Capture all 3 marked territories before time runs out!'; captureDurationMs: 15000;
+  territoryIds: readonly ['las-colinas','love-field','downtown'];
+  airborneSpawn: Readonly<{x: -58000; z: -28050; altitude: 900; heading: number; speed: 650}>;
+}>;
+export function journeyTerritoryCaptureMission(id: string | undefined): typeof journeyDallasCapture01 | typeof journeyDallasCaptureThree01 | undefined;
+export function journeyCaptureTerritoryId(id: string | undefined, stage?: number): string | undefined;
