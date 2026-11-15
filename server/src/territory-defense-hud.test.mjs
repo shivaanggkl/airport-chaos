@@ -37,11 +37,11 @@ test('M16 territory row uses neutral, capture percentage, pilot name, attack and
 test('reviewed mission card has two objectives and a hold clock, with no duplicate capture or enemy status UI',()=>{
  const {ctx}=fixture();ctx.renderM16();
  assert.deepEqual(Array.from(ctx.journeyHudObjective.children[0].children,item=>item.textContent),[
-  'Fly inside LAS COLINAS to capture it.','Hold it for 2 minutes after capturing it.'
+  'Fly inside LAS COLINAS to capture it.','Hold it for 1 minute after capturing it.'
  ]);
  assert.equal(ctx.journeyHudProgress.hidden,true,'capture progress belongs only in the territory row');
  ctx.journeyAttempt.captureMs=mission.captureDurationMs;ctx.journeyAttempt.defenseMs=26000;ctx.journeyAttempt.invaderInside=true;ctx.journeyAttempt.enemyCaptureMs=25000;
- ctx.renderM16();assert.equal(ctx.journeyHudProgress.hidden,false);assert.equal(ctx.journeyHudProgress.textContent,'HELD: 0:26 / 2:00');
+ ctx.renderM16();assert.equal(ctx.journeyHudProgress.hidden,false);assert.equal(ctx.journeyHudProgress.textContent,'HELD: 0:26 / 1:00');
  assert.equal(ctx.journeyHudObjective.children.length,1);
  for(const key of ['journeyHudTarget','journeyHudTimer','journeyHudHint','journeyHudEnemy','segments'])assert.equal(ctx[key].hidden,true,key);
 });

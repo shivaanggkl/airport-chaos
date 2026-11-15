@@ -3389,7 +3389,7 @@ function updateJourneyHud(): void {
       const list = document.createElement('span');
       list.className = 'capture-mission-instructions territory-defense-instructions';
       list.setAttribute('role', 'list');
-      for (const instruction of ['Fly inside LAS COLINAS to capture it.', 'Hold it for 2 minutes after capturing it.']) {
+      for (const instruction of ['Fly inside LAS COLINAS to capture it.', 'Hold it for 1 minute after capturing it.']) {
         const item = document.createElement('span');
         item.setAttribute('role', 'listitem');
         item.textContent = instruction;
