@@ -6621,6 +6621,14 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   grid-column: 2;
   text-align: left;
 }
+/* Detached mission territory panel follows the city-list dot/name/status layout. */
+#game-root .journey-status-layer .mission-territory-card .city-territory-row {
+  grid-template-columns: 9px minmax(0, 1fr) minmax(0, 1fr);
+}
+#game-root .journey-status-layer .mission-territory-card .city-territory-row > strong {
+  grid-column: 3;
+  text-align: right;
+}
 #game-root .gameplay-info-card.is-tutorial {
   display: grid !important;
   height: auto;

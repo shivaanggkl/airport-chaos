@@ -3051,13 +3051,12 @@ function updateTerritoryPanel(allowDemonstration = true): void {
   if(journeyMode&&journeyAttempt?.missionId===journeyDallasTerritoryDefense01.id){
     const mission = journeyDallasTerritoryDefense01;
     const state = displayedTerritoryState(mission.territoryId)!;
-    const owned = journeyAttempt.captureMs >= mission.captureDurationMs;
     const percent = Math.floor(journeyAttempt.captureMs * 100 / mission.captureDurationMs);
     cityTerritoriesPanel.update([{name:'LAS COLINAS',
       color:state.controllerId ? territoryDefinitions.find(item=>item.id===mission.territoryId)!.fixedColor : neutralTerritoryColor,
       controllerId:state.controllerId, controllerName:state.controllerName, contested:state.contested,
-      statusLabel:owned ? `${state.controllerName ?? 'PILOT'} · ${journeyAttempt.defenseEligible ? 'DEFENDING' : 'RETURN TO LAS COLINAS'}`
-        : journeyAttempt.status === 'APPROACH' ? 'TAKE OFF' : `CAPTURING ${percent}%`}],localPlayerId);
+      statusLabel:state.contested ? 'UNDER ATTACK' : state.controllerId ? state.controllerName ?? 'PILOT'
+        : percent > 0 ? `Capturing ${percent}%` : 'Neutral'}],localPlayerId);
     refreshTerritoryBorders();
     return;
   }
@@ -3386,12 +3385,11 @@ function updateJourneyHud(): void {
     return;
   }
   if(journeyAttempt.missionId===journeyDallasTerritoryDefense01.id){
-    const percent=Math.min(100,Math.floor((journeyAttempt.enemyCaptureMs??0)*100/journeyDallasTerritoryDefense01.enemyCaptureDurationMs));
     if (journeyHudObjective && !journeyHudObjective.querySelector('.territory-defense-instructions')) {
       const list = document.createElement('span');
       list.className = 'capture-mission-instructions territory-defense-instructions';
       list.setAttribute('role', 'list');
-      for (const instruction of ['Take off', 'Capture LAS COLINAS territory', 'Hold for 2 minutes', 'Defend from opponents']) {
+      for (const instruction of ['Fly inside LAS COLINAS to capture it.', 'Hold it for 2 minutes after capturing it.']) {
         const item = document.createElement('span');
         item.setAttribute('role', 'listitem');
         item.textContent = instruction;
@@ -3401,12 +3399,11 @@ function updateJourneyHud(): void {
     }
     monsterBossHud.classList.add('hidden');
     escortHealthHud.classList.add('hidden');
-    if(journeyHudProgress){journeyHudProgress.hidden=false;journeyHudProgress.textContent=journeyAttempt.captureMs < journeyDallasTerritoryDefense01.captureDurationMs
-      ? `CAPTURE LAS COLINAS: ${Math.floor(journeyAttempt.captureMs * 100 / journeyDallasTerritoryDefense01.captureDurationMs)}%`
-      : `HELD: ${Math.floor((journeyAttempt.defenseMs??0)/1000)}/${journeyDallasTerritoryDefense01.defenseDurationMs/1000} SEC`;}
-    if(journeyHudTarget){journeyHudTarget.hidden=false;journeyHudTarget.textContent=journeyAttempt.status === 'APPROACH' ? 'TAKE OFF FROM DFW' : journeyAttempt.captureMs < journeyDallasTerritoryDefense01.captureDurationMs ? 'FLY INSIDE LAS COLINAS TO CAPTURE IT' : journeyAttempt.defenseEligible ? 'LAS COLINAS — DEFENDING' : 'HOLD PAUSED — RETURN TO LAS COLINAS';}
-    if(journeyHudTimer){journeyHudTimer.hidden=false;journeyHudTimer.textContent=`${journeyAttempt.invaderInside?'INVADER INSIDE TERRITORY! · ':''}ENEMY CAPTURE: ${percent}%`;}
-    if(journeyHudEnemy){journeyHudEnemy.hidden=false;journeyHudEnemy.style.setProperty('--enemy-health',`${percent}%`);journeyHudEnemy.setAttribute('aria-label',`ENEMY CAPTURE: ${percent}%`);}
+    if (journeyHudProgress) {
+      journeyHudProgress.hidden = journeyAttempt.captureMs < journeyDallasTerritoryDefense01.captureDurationMs;
+      journeyHudProgress.textContent = `HELD: ${formatJourneyResultTime(journeyAttempt.defenseMs ?? 0)} / ${formatJourneyResultTime(journeyDallasTerritoryDefense01.defenseDurationMs)}`;
+    }
+    for (const item of [journeyHudTarget, journeyHudTimer, journeyHudHint, journeyHudEnemy]) if (item) item.hidden = true;
     if(segments)segments.hidden=true;updateTerritoryPanel();updateCaptureHud();return;
   }
   if (firstContactMission) {
