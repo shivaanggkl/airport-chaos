@@ -5421,7 +5421,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .mission-status-layer { top: max(84px, calc(var(--safe-area-top) + 74px)); left: max(12px, var(--safe-area-left)); width: min(340px, 35vw); }
 #game-root .mission-status-layer.journey-status-layer {
   top: max(84px, calc(var(--safe-area-top) + 74px));
-  width: min(clamp(190px, 24vw, 230px), calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 24px));
+  width: min(clamp(180px, 22vw, 210px), calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 24px));
 }
 @media (max-height: 520px) {
   #game-root .mission-status-layer.journey-status-layer { top: max(70px, calc(var(--safe-area-top) + 56px)); }
@@ -5435,7 +5435,10 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 }
 #game-root .journey-status-layer .sky-challenge.journey-hud > :is(strong, span) {
   min-width: 0;
-  overflow-wrap: break-word;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
 }
 #game-root .journey-status-layer .sky-challenge.journey-hud [data-journey-heading] { font-size: clamp(11px, 1.1vw, 13px); }
 #game-root .journey-hud-toggle {
@@ -6539,6 +6542,25 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
 #game-root .city-territory-row.you > strong { color: #82e9ff; }
 #game-root .city-territory-row.contested > strong { color: #ffca62; }
 #game-root .city-territory-row.neutral > strong { color: #bdc9cc; }
+/* Mission territory names and owner/status text stay complete in the narrow HUD. */
+#game-root .journey-status-layer .journey-hud .city-territory-row {
+  grid-template-columns: 9px minmax(0, 1fr);
+  align-items: start;
+  row-gap: 3px;
+  line-height: 1.2;
+}
+#game-root .journey-status-layer .journey-hud .city-territory-row > :is(span, strong) {
+  min-width: 0;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+#game-root .journey-status-layer .journey-hud .city-territory-row > strong {
+  grid-column: 2;
+  text-align: left;
+}
 #game-root .gameplay-info-card.is-tutorial {
   display: grid !important;
   height: auto;
