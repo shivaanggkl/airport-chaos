@@ -187,7 +187,8 @@ test('server roster and territory updates fill scroll lists without a row cap or
 test('card keeps shared responsive placement and internal touch scrolling', () => {
   const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
   const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
-  assert.match(css, /#game-root \.mission-status-layer\.journey-status-layer\s*\{[^}]*width: min\(clamp\(210px, 28vw, 260px\)/);
+  assert.match(css, /--mission-details-width: min\(clamp\(180px, 22vw, 210px\)/);
+  assert.match(css, /#game-root \.mission-status-layer\.journey-status-layer\s*\{[^}]*width: var\(--mission-details-width\)/);
   assert.match(css, /#game-root \.gameplay-info-card\.is-multiplayer\s*\{[^}]*height: clamp\(104px, 24dvh, 124px\)/);
   assert.match(css, /#game-root \.gameplay-info-list\s*\{[^}]*overflow: hidden auto;[^}]*touch-action: pan-y;/);
   assert.match(css, /#game-root \.gameplay-info-card\.is-multiplayer \.gameplay-info-multiplayer\s*\{[^}]*grid-template-rows: 34px minmax\(0, 1fr\);/);
