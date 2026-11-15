@@ -3268,7 +3268,7 @@ function updateJourneyHud(): void {
     return;
   }
   if (journeyAttempt.missionId === journeyDallasCapture01.id) {
-    if (journeyHudObjective && !journeyHudObjective.querySelector('[role="list"]')) {
+    if (journeyHudObjective && !journeyHudObjective.querySelector('.capture-mission-instructions:not(.territory-defense-instructions)')) {
       const list = document.createElement('span');
       list.className = 'capture-mission-instructions';
       list.setAttribute('role', 'list');
