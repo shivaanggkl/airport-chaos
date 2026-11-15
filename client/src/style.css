@@ -5421,7 +5421,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .mission-status-layer { top: max(84px, calc(var(--safe-area-top) + 74px)); left: max(12px, var(--safe-area-left)); width: min(340px, 35vw); }
 #game-root .mission-status-layer.journey-status-layer {
   top: max(84px, calc(var(--safe-area-top) + 74px));
-  width: min(clamp(210px, 28vw, 260px), calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 24px));
+  width: min(clamp(190px, 24vw, 230px), calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 24px));
 }
 @media (max-height: 520px) {
   #game-root .mission-status-layer.journey-status-layer { top: max(70px, calc(var(--safe-area-top) + 56px)); }
