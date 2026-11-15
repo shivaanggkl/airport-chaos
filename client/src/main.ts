@@ -3529,7 +3529,6 @@ function updateJourneyHud(): void {
     if(journeyHudTimer)journeyHudTimer.textContent=enemy?`DISTANCE: ${formatObjectiveDistance(airplane.position.distanceTo(enemy.plane.position)*WORLD_METERS_PER_UNIT)}`:'';
     if(journeyHudEnemy)journeyHudEnemy.style.setProperty('--enemy-health',`${Math.max(0,hp)/maximumHealth*100}%`);
     if (definition.id === journeyDallas16.id) {
-      if (journeyHudObjective) journeyHudObjective.textContent = 'Shoot down both enemy planes before time runs out.';
       for (const item of [journeyHudProgress, journeyHudTarget, journeyHudTimer, journeyHudHint, journeyHudEnemy]) if (item) item.hidden = true;
     }
     if(enemy&&missionObjective?.id!==`${journeyAttempt.attemptId}:${enemy.playerId}`)syncAceObjective();
@@ -5475,7 +5474,7 @@ function beginFlightLaunchCinematic(): void {
         : missionCombatIntroPath.missionNumber === 15 ? '<span>TWIN HUNTERS</span>'
         : missionCombatIntroPath.missionNumber === 8 ? '<span>Find And Shoot Down BLUEJAY Plane Before Time Runs Out.</span>'
         : missionCombatIntroPath.missionNumber === 9 ? '<span>Find And Shoot Down MAMMOTH Plane Before Time Runs Out.</span>'
-        : missionCombatIntroPath.missionNumber === 10 ? '<span>Find And Shoot Down Both Enemy Planes Before Time Runs Out.</span>'
+        : missionCombatIntroPath.missionNumber === 10 ? `<span>${missionJourneyDetails.find(mission => mission.id === journeyDallas16.id)!.description}</span>`
           : missionCombatIntroPath.missionNumber === 11 ? `<span>${missionJourneyDetails.find(mission => mission.id === journeyDallas17.id)!.description}</span>`
           : missionCombatIntroPath.missionNumber === 12 ? `<span>${missionJourneyDetails.find(mission => mission.id === journeyDallas18.id)!.description}</span>`
           : '<span>Find And Shoot Down NIGHTOWL Plane Before Time Runs Out.</span>'

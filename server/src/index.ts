@@ -64,7 +64,7 @@ import { excludesFocusedBotInteraction, missionFocusForAttempt } from '../../sha
 import { journeyInteractionExcluded } from './journey-isolation.js';
 import { boundJourneyHunterPoint, dallasEscortSteeringTarget, insideJourneyHunterArena, journeyHunterSteeringTarget, keepDallasEscortInside, keepJourneyHunterInside } from './journey-hunter-airspace.js';
 import { aceDamageAuthorized } from './journey-ace.js';
-import { CrossfireFireCoordinator } from './journey-crossfire.js';
+import { CrossfireFireCoordinator, doubleThreatFireProfile } from './journey-crossfire.js';
 import { rearGuardShouldRejoin, createRearGuardFireState, finalInterceptEscortsCleared, rearGuardTakeoff, rearGuardShooter, rearGuardShotResolved, rearGuardReinforcementsJoined, shouldBeginReinforcements, type RearGuardFireState } from './rear-guard-fire.js';
 import { JOURNEY_PAUSE_LIMIT_MS, JourneyAttemptStore, type JourneyAttempt } from './journey-attempts.js';
 import { localJourneyQaUnlockEnabled, stagingJourneyQaPilotUnlockEnabled, stagingJourneyQaUnlockEnabled } from './staging-journey-qa.js';
@@ -5793,7 +5793,7 @@ function fireBlockReason(player: PlayerState, now: number, playerId?: string): '
   if(player.airAssaultId&&!airAssaultEncounters.get(player.airAssaultOwnerId!)?.canFight())return 'lifecycle';
   if (player.skyDuelMode && !player.skyDuelPractice &&
     (!player.skyDuelMatchId || skyDuelSessions.get(player.skyDuelMatchId)?.phase !== 'active')) return 'lifecycle';
-  const interval = player.bot?.journeyEscortMissionId === journeyDallas08.id || player.bot?.journeyEscortMissionId === journeyDallas09.id || player.bot?.journeyEscortMissionId === journeyDallas10.id
+  const interval = player.bot?.journeyCrossfireMissionId === journeyDallas16.id ? doubleThreatFireProfile.shotIntervalMs : player.bot?.journeyEscortMissionId === journeyDallas08.id || player.bot?.journeyEscortMissionId === journeyDallas09.id || player.bot?.journeyEscortMissionId === journeyDallas10.id
     ? Math.max(journeyDallas08.escortShotSpacingMs, fireIntervalMs(player.aircraftType)) : fireIntervalMs(player.aircraftType);
   if (now - player.lastFireAt < interval) return 'cooldown';
   return undefined;
@@ -7897,7 +7897,8 @@ function updateBots(now: number, expertOnly = false): void {
     // Bot warning state reuses the active combat target and the exact firing
     // solution below. Proximity and radar presence never create a lock.
     setServerLock(botId, player, botLockTargetId);
-    if (canAttack && (!bot.finalShowdownBurst || finalShowdownFireReady(bot.finalShowdownBurst, now)) && combatTarget && combatSolution && (now >= Math.max(bot.nextFireAt, bot.attackFireAfter, player.lastFireAt + (bot.opponent?.profile.shotIntervalMs ?? enemyAiLevels.MEDIUM.shotIntervalMs)))) {
+    const firingProfile = bot.journeyCrossfireMissionId === journeyDallas16.id ? doubleThreatFireProfile : bot.opponent?.profile ?? enemyAiLevels.MEDIUM;
+    if (canAttack && (!bot.finalShowdownBurst || finalShowdownFireReady(bot.finalShowdownBurst, now)) && combatTarget && combatSolution && (now >= Math.max(bot.nextFireAt, bot.attackFireAfter, player.lastFireAt + firingProfile.shotIntervalMs))) {
       const [targetId, target] = combatTarget;
       const solution = combatSolution;
       // Attack-pass shots use the normal ballistic projectile pipeline. The
@@ -7917,7 +7918,7 @@ function updateBots(now: number, expertOnly = false): void {
       if (canShoot && crossfireAllowed && escortAllowed && (smoothHunter(player) || player.skyDuelPracticeOwnerId || bot.journeyRearGuardEscort || Math.random() < (bot.defenseTerritoryId ? 0.92 : 0.84))) {
         // Hunters use restrained independent aim error. Dedicated modes retain
         // their authored spread; every shot remains a server-owned ballistic.
-        const aim = opponentAim(bot.opponent?.profile ?? enemyAiLevels.MEDIUM,solution.aimX,solution.aimY);
+        const aim = opponentAim(firingProfile,solution.aimX,solution.aimY);
         if (createProjectile(botId, player, undefined, undefined, aim,
           bot.journeyFinalShowdown && player.aircraftType === 'fighter' ? journeyDallas18.enemyDamage : bot.journeyRearGuardEscort ? journeyDallas08.escortShotDamage : undefined)) {
           if (bot.finalShowdownBurst) recordFinalShowdownShot(bot.finalShowdownBurst, now);
@@ -7938,7 +7939,7 @@ function updateBots(now: number, expertOnly = false): void {
         if (bot.defenseTerritoryId) console.log(`DEFENDER_NO_FIRE dist=${Math.round(solution.distance)} vertical=${Math.round(solution.vertical)} angle=${Math.round(solution.angle * 180 / Math.PI)} reason=${bot.noFireReason}`);
         else console.log(`HUNTER_NO_FIRE ${bot.noFireReason} target=${bot.combatTargetId}`);
       }
-      bot.nextFireAt = now + (canShoot ? bot.opponent?.profile.shotIntervalMs ?? enemyAiLevels.MEDIUM.shotIntervalMs : 200);
+      bot.nextFireAt = now + (canShoot ? firingProfile.shotIntervalMs : 200);
 
     }
 

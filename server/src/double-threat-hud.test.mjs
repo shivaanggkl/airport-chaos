@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
+import {missionJourneyDetails} from '../../client/src/mission-journey-content.ts';
 import ts from 'typescript';
 import {journeyDallas16,journeyDallasTwinHunters01,journeyDallas17,journeyMissionSlot} from '../../shared/journey-mission.mjs';
 const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
@@ -20,6 +21,12 @@ test('displayed M17 keeps its objective and named health rows while hiding dupli
   for(const key of ['journeyHudProgress','journeyHudTarget','journeyHudTimer','journeyHudHint','journeyHudEnemy'])assert.equal(ctx[key].hidden,m17,`${definition.id}: ${key}`);
   assert.equal(ctx.escortHealthHud.hidden,false,'existing named health rows remain visible');
   assert.equal(ctx.journeyHudHeaderTimer.hidden,false,'mission deadline stays visible');
-  assert.equal(ctx.journeyHudObjective.textContent,m17?'Shoot down both enemy planes before time runs out.':'Existing mission copy');
+  assert.equal(ctx.journeyHudObjective.textContent,'Existing mission copy');
  }
+});
+
+test('M17 Journey, screenplay and gameplay use the same objective',()=>{
+ assert.equal(missionJourneyDetails.find(mission=>mission.id===journeyDallas16.id).description,'SHOOT down both enemy planes before TIME runs out');
+ assert.ok(source.includes('missionCombatIntroPath.missionNumber === 10 ? `<span>${missionJourneyDetails.find(mission => mission.id === journeyDallas16.id)!.description}</span>`'));
+ assert.ok(source.includes('journeyHudObjective.textContent=missionJourneyDetails.find(mission=>mission.id===definition.id)!.description'));
 });
