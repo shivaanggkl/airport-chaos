@@ -533,6 +533,21 @@ export const journeyDallasCapture01 = Object.freeze({
     altitude: 800, heading: -Math.PI / 2, speed: 650}),
 });
 
+// M20 coordinates are authoritative Dallas world coordinates, already scaled.
+export const journeyDallasAceIntercept01 = Object.freeze({
+  id: 'journey-dallas-ace-intercept-01', cityId: 'dallas', name: 'ACE INTERCEPT',
+  chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 240_000, firstClearCredits: 2_150,
+  objective: 'Destroy the enemy Firehawk!', enemyAircraft: 'fighter', enemyLivery: 'firehawk-stealth-gray',
+  enemyHealth: 350, escapeHealth: 175, fireDelayMs: 6_000, aggressionDistance: 9_000,
+  dogfightRadius: 10_000, cruiseSpeed: 650, escapeCruiseSpeed: 750, escapeMaxSpeed: 850, arrivalRadius: 650,
+  airborneSpawn: Object.freeze({x: -20_000, z: -25_000, altitude: 1_100, heading: -.432, speed: 650}),
+  enemySpawn: Object.freeze({x: -17_000, z: -18_500, altitude: 1_200, heading: 2.709}),
+  escapeRoute: Object.freeze([
+    Object.freeze({x: -6_000, z: -12_000}), Object.freeze({x: 10_000, z: -2_000}),
+    Object.freeze({x: 25_000, z: 16_000}), Object.freeze({x: 38_000, z: 43_000}),
+  ]),
+});
+
 // Display slots are presentation; persisted gameplay and receipts keep their historical IDs.
 export const journeyChapters = Object.freeze(['ROOKIE PILOT', 'RISING ACE', 'SKY COMMANDER', 'DR. BOSS RISING']);
 export const journeyCatalog = Object.freeze([
@@ -555,7 +570,7 @@ export const journeyCatalog = Object.freeze([
   [16, 'Double Threat'],
   [9, 'Giant Plane & Three Escorts'],
   [6, 'Golden Championship'],
-  [null, 'Ace Intercept'],
+  [journeyDallasAceIntercept01.id, 'Ace Intercept'],
   [null, 'Capture 3 Territories'],
   [10, 'Giant Plane & Four Escorts'],
   [17, 'Iron Hunter'],

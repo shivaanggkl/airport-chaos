@@ -239,3 +239,14 @@ export const journeyDallasTerritoryDefense01: Readonly<{
  enemyAltitude:1000;cruiseSpeed:420;aggressionDistance:5000;fireDelayMs:8000;
  patrolRoute:readonly Readonly<{x:number;z:number}>[];
 }>;
+
+export const journeyDallasAceIntercept01: Readonly<{
+  id: 'journey-dallas-ace-intercept-01'; cityId: 'dallas'; name: 'ACE INTERCEPT'; chapter: 'SKY COMMANDER'; difficulty: 'HARD';
+  timeLimitMs: 240000; firstClearCredits: 2150; objective: 'Destroy the enemy Firehawk!';
+  enemyAircraft: 'fighter'; enemyLivery: 'firehawk-stealth-gray'; enemyHealth: 350; escapeHealth: 175;
+  fireDelayMs: 6000; aggressionDistance: 9000; dogfightRadius: 10000; cruiseSpeed: 650;
+  escapeCruiseSpeed: 750; escapeMaxSpeed: 850; arrivalRadius: 650;
+  airborneSpawn: Readonly<{x: -20000; z: -25000; altitude: 1100; heading: -0.432; speed: 650}>;
+  enemySpawn: Readonly<{x: -17000; z: -18500; altitude: 1200; heading: 2.709}>;
+  escapeRoute: readonly Readonly<{x: number; z: number}>[];
+}>;
