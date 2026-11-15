@@ -1434,7 +1434,7 @@ const journeyMissionDefinitions = [journeyDallasMostWantedSurvival01,journeyDall
 ] as const;
 function journeyMissionHeading(id: string): string {
   const slot = journeyCatalog.find(slot => slot.id === id);
-  return slot ? `M${slot.number}: ${slot.title}` : 'MISSION';
+  return id === journeyDallas01.id ? 'M1: 10 RINGS' : slot ? `M${slot.number}: ${slot.title}` : 'MISSION';
 }
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
 const journeyHudProgress = skyChallengeElement.querySelector<HTMLElement>('[data-journey-progress]');
@@ -2420,7 +2420,7 @@ function updateRadar(direction: THREE.Vector3): void {
   const challengeMarker = skyChallenges?.getRadarMarker(airplane.position);
   if (challengeMarker && !missionFocus) drawRadarMarker(direction, challengeMarker.x, challengeMarker.z, 'challenge');
   const journeyTarget = journeyGates?.target();
-  if (journeyTarget) drawRadarMarker(direction, journeyTarget.x, journeyTarget.z, 'mission', `GATE ${journeyTarget.index + 1}`);
+  if (journeyTarget) drawRadarMarker(direction, journeyTarget.x, journeyTarget.z, 'mission', `${journeyAttempt?.missionId === journeyDallas01.id ? 'RING' : 'GATE'} ${journeyTarget.index + 1}`);
   if(transportMissionHasLiveTarget(journeyAttempt) && transportView && missionFocus)drawRadarMarker(direction,transportView.position.x,transportView.position.z,'mission',journeyAttempt?.missionId===journeyDallas10.id?'GUNSHIP':'TRANSPORT');
   if (((journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id)||journeyAttempt?.missionId===journeyDallas20.id) &&
     (journeyAttempt.status === 'APPROACH' || journeyAttempt.status === 'RACING') &&
@@ -3538,14 +3538,14 @@ function updateJourneyHud(): void {
     const mission = championshipMission ? journeyDallas06 : precisionMission ? journeyDallas05 : downtownMission ? journeyDallas04 : ascentMission ? journeyDallas03 : lakeMission ? journeyDallas02 : journeyDallas01;
     const gateCount = mission.gates.length;
     const distanceMeters = target ? distance * WORLD_METERS_PER_UNIT : 0;
-    if (journeyHudObjective) journeyHudObjective.textContent = dfwMission ? journeyDallas01.objective : lakeMission ? journeyDallas02.objective : ascentMission ? journeyDallas03.objective : downtownMission ? journeyDallas04.objective : precisionMission ? journeyDallas05.objective : journeyDallas06.objective;
-    if (journeyHudProgress) journeyHudProgress.textContent = `GATE ${Math.min(gateIndex + 1, gateCount)} / ${gateCount}`;
-    if (journeyHudTarget && !downtownMission) journeyHudTarget.textContent = `GATE ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
+    if (journeyHudObjective) journeyHudObjective.textContent = dfwMission ? missionJourneyDetails.find(mission => mission.id === journeyDallas01.id)!.description : lakeMission ? journeyDallas02.objective : ascentMission ? journeyDallas03.objective : downtownMission ? journeyDallas04.objective : precisionMission ? journeyDallas05.objective : journeyDallas06.objective;
+    if (journeyHudProgress) journeyHudProgress.textContent = `${dfwMission ? 'RING' : 'GATE'} ${Math.min(gateIndex + 1, gateCount)} / ${gateCount}`;
+    if (journeyHudTarget && !downtownMission) journeyHudTarget.textContent = `${dfwMission ? 'RING' : 'GATE'} ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
     if (journeyHudTimer) journeyHudTimer.hidden = true;
     skyChallengeElement.classList.toggle('journey-timer-urgent', timeLeft !== null && timeLeft <= 10);
     if (journeyHudHint) {
       journeyHudHint.hidden = !contextualHints.isEnabled() || !missionObjectiveGuidance?.hintVisible;
-      journeyHudHint.textContent = journeyHudHint.hidden ? '' : `Follow the arrow to gate ${gateIndex + 1}`;
+      journeyHudHint.textContent = journeyHudHint.hidden ? '' : `Follow the arrow to ${dfwMission ? 'ring' : 'gate'} ${gateIndex + 1}`;
     }
     journeyHudSegments.forEach((segment, index) => segment.classList.toggle('is-cleared', index < gateIndex));
     return;
@@ -3654,7 +3654,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   const finishTime = formatResultTime(attempt.finishTimeMs ?? 0);
   const bestTime = formatResultTime(attempt.bestTimeMs ?? attempt.finishTimeMs ?? 0);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
-    ? attempt.missionId === journeyDallasMostWantedSurvival01.id ? 'MOST WANTED SURVIVED! · YOU ESCAPED THE HUNTERS!' : attempt.missionId === journeyDallasCaptureThree01.id ? 'ALL 3 TERRITORIES CAPTURED! · TERRITORIES 3/3' : attempt.missionId === journeyDallasCoinHunt01.id ? `${attempt.coinHunt?.collected??0} CREDITS COLLECTED · ${attempt.firstClearCredits} CREDITS AWARDED` : attempt.missionId === journeyDallasSharpshooter01.id ? 'TARGETS 3/3 — MISSION COMPLETE!' : attempt.missionId === journeyDallasAirportHop01.id ? `LANDINGS 2/2 · TIME: ${finishTime}` : attempt.missionId === journeyDallasCapture01.id ? 'TERRITORY CAPTURED!' : (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 GOLDEN GATES CLEARED · TIME: ${finishTime} · BEST: ${bestTime}`
+    ? attempt.missionId === journeyDallasMostWantedSurvival01.id ? 'MOST WANTED SURVIVED! · YOU ESCAPED THE HUNTERS!' : attempt.missionId === journeyDallasCaptureThree01.id ? 'ALL 3 TERRITORIES CAPTURED! · TERRITORIES 3/3' : attempt.missionId === journeyDallasCoinHunt01.id ? `${attempt.coinHunt?.collected??0} CREDITS COLLECTED · ${attempt.firstClearCredits} CREDITS AWARDED` : attempt.missionId === journeyDallasSharpshooter01.id ? 'TARGETS 3/3 — MISSION COMPLETE!' : attempt.missionId === journeyDallasAirportHop01.id ? `LANDINGS 2/2 · TIME: ${finishTime}` : attempt.missionId === journeyDallasCapture01.id ? 'TERRITORY CAPTURED!' : (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 ${dfwMission ? 'RINGS' : 'GOLDEN GATES'} CLEARED · TIME: ${finishTime} · BEST: ${bestTime}`
       : legendaryMission ? `AIRPORT CHAOS — JOURNEY COMPLETE · 20/20 PLAYABLE MISSIONS · PRECISION FLIGHT — COMPLETE · LEGENDARY ACE — DEFEATED · PERFECT LANDING — ACHIEVED · SCORE: ${attempt.landingScore ?? 0}/1000 · LEGENDARY PILOT UNLOCKED`
       : pursuitMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
       : monsterShowdownMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
@@ -3701,7 +3701,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
         ? journeyResultMetric('SCORE', `${attempt.landingScore}/1000`)
         : journeyResultMetric(success ? 'STATUS' : 'BEST', success ? 'CLEARED' : '—');
     resultDetail.replaceChildren(
-      journeyResultMetric('GATES', `${attempt.gateIndex} / ${gateCount}`),
+      journeyResultMetric(dfwMission ? 'RINGS' : 'GATES', dfwMission && success ? '10/10 RINGS CLEARED' : `${attempt.gateIndex} / ${gateCount}`),
       journeyResultMetric('TIME', elapsedMs === null ? '—' : formatJourneyResultTime(elapsedMs, true)),
       thirdMetric,
     );
@@ -5478,7 +5478,7 @@ function beginFlightLaunchCinematic(): void {
           : missionCombatIntroPath.missionNumber === 11 ? `<span>${missionJourneyDetails.find(mission => mission.id === journeyDallas17.id)!.description}</span>`
           : missionCombatIntroPath.missionNumber === 12 ? `<span>${missionJourneyDetails.find(mission => mission.id === journeyDallas18.id)!.description}</span>`
           : '<span>Find And Shoot Down NIGHTOWL Plane Before Time Runs Out.</span>'
-      : journeyAttempt?.missionId === journeyDallas01.id ? `<span>${journeyDallas01.objective}</span>` : journeyAttempt?.missionId === journeyDallas02.id ? `<span>${journeyDallas02.objective}</span>` : journeyAttempt?.missionId === journeyDallas03.id ? `<span>${journeyDallas03.objective}</span>` : journeyAttempt?.missionId === journeyDallas04.id ? `<span>${journeyDallas04.objective}</span>` : journeyAttempt?.missionId === journeyDallas05.id ? `<span>${journeyDallas05.objective}</span>` : journeyAttempt?.missionId === journeyDallas06.id ? `<span>${journeyDallas06.objective}</span>` : '<span>Fly through 10 Golden Gates before time runs out.</span>';
+      : journeyAttempt?.missionId === journeyDallas01.id ? `<span>${missionJourneyDetails.find(mission => mission.id === journeyDallas01.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas02.id ? `<span>${journeyDallas02.objective}</span>` : journeyAttempt?.missionId === journeyDallas03.id ? `<span>${journeyDallas03.objective}</span>` : journeyAttempt?.missionId === journeyDallas04.id ? `<span>${journeyDallas04.objective}</span>` : journeyAttempt?.missionId === journeyDallas05.id ? `<span>${journeyDallas05.objective}</span>` : journeyAttempt?.missionId === journeyDallas06.id ? `<span>${journeyDallas06.objective}</span>` : '<span>Fly through 10 Golden Gates before time runs out.</span>';
     flightLaunchTitle.classList.toggle('is-monster-arrival',Boolean(missionCombatIntroPath?.arrivalIntro||missionCombatIntroPath?.strikingIntro||missionCombatIntroPath?.huntingIntro));
     if(missionCombatIntroPath?.arrivalIntro)flightLaunchTitle.textContent=m19IntroText(0);
     if(missionCombatIntroPath?.strikingIntro)flightLaunchTitle.textContent=m20IntroText(0);
@@ -8132,7 +8132,7 @@ function pilotMenuData(): PilotMenuData {
     flightMission: journeyMode && journeyAttempt ? {
       name: journeyAttempt ? journeyMissionHeading(journeyAttempt.missionId) : 'MISSION',
       objective: journeyHudObjective?.textContent ?? '',
-      progress: flightGateCount ? `GATE ${journeyAttempt.gateIndex} / ${flightGateCount}` : journeyHudProgress?.textContent ?? '',
+      progress: flightGateCount ? `${journeyAttempt.missionId === journeyDallas01.id ? 'RING' : 'GATE'} ${journeyAttempt.gateIndex} / ${flightGateCount}` : journeyHudProgress?.textContent ?? '',
       time: journeyHudTimer?.textContent ?? '',
       gatesCleared: journeyAttempt.gateIndex,
       gateCount: flightGateCount,
@@ -13306,7 +13306,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       message.attempt.gateIndex > previousGate && message.attempt.gateIndex < (message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas20.id ? 6 : 4)) journeyGateClearedUntil = performance.now() + 1_400;
     if (message.attempt.gateIndex > previousGate && !((message.attempt.missionId === journeyDallas11.id) && message.attempt.status === 'COMPLETED')) {
       playCheckpointSound();
-      showProgressMessage(`GATE ${message.attempt.gateIndex}/${message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas24.id ? 3 : message.attempt.missionId === journeyDallas20.id ? 6 : 4} CLEARED`);
+      showProgressMessage(`${message.attempt.missionId === journeyDallas01.id ? 'RING' : 'GATE'} ${message.attempt.gateIndex}/${message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas24.id ? 3 : message.attempt.missionId === journeyDallas20.id ? 6 : 4} CLEARED`);
     }
     updateJourneyHud();
     if (airborneIntroAwaiting || runwayJourneyIntroAwaiting) {

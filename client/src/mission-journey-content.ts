@@ -24,7 +24,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-sharpshooter-01': journeyDallasSharpshooter01.objective,
   'journey-dallas-airport-hop-01': journeyDallasAirportHop01.objective,
   'journey-dallas-capture-01': captureMissionInstructions.join('\n'),
-  'journey-dallas-01': journeyDallas01.objective,
+  'journey-dallas-01': 'Fly through 10 RINGS before time ends',
   'journey-dallas-02': journeyDallas02.objective,
   'journey-dallas-03': journeyDallas03.objective,
   'journey-dallas-04': journeyDallas04.objective,
@@ -57,7 +57,7 @@ export const missionJourneyDetails = journeyCatalog.filter(slot => slot.implemen
   const mission = missions.find(mission => mission.id === slot.id)!;
   return {
     id: mission.id,
-    title: slot.title,
+    title: mission.id === journeyDallas01.id ? '10 RINGS' : slot.title,
     description: descriptions[mission.id],
     rewardCredits: mission.firstClearCredits,
     timeLimit: formatTimeLimit('timeLimitMs' in mission ? mission.timeLimitMs : undefined),

@@ -121,3 +121,11 @@
 .mission-journey-detail-heading { display: flex; align-items: center; gap: .6em; min-width: 0; }
 .mission-journey-detail-heading [data-mission-bonus] { display: inline-flex; flex: 0 0 auto; width: 4.5em; }
 .mission-journey-detail-heading .mission-journey-bonus { position: static; width: 100%; transform: none; filter: drop-shadow(0 1px 2px #b67b3755); }
+
+/* M1 keeps its normal node and state animations; only the ribbon is new. */
+.mission-journey-golden-rush { position: absolute; z-index: 1; width: clamp(104px, 11vw, 138px); bottom: calc(100% + 28px); left: 50%; transform: translateX(-50%); pointer-events: none; filter: drop-shadow(0 1px 3px #032750); }
+.mission-journey-golden-rush svg { display: block; width: 100%; overflow: visible; }
+.mission-journey-golden-rush text { font: 900 14px var(--font-display); }
+.mission-journey-node.is-current .mission-journey-golden-rush path { stroke: #ffeaa2; }
+.mission-journey-detail-heading [data-mission-golden-rush] { display: inline-flex; flex: 0 0 auto; width: 6.5em; }
+.mission-journey-detail-heading .mission-journey-golden-rush { position: static; width: 100%; transform: none; filter: none; }
