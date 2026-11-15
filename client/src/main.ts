@@ -3478,6 +3478,10 @@ function updateJourneyHud(): void {
     if(journeyHudTarget)journeyHudTarget.textContent=enemy ? crossfireMission || ironMission || showdownMission ? aircraftDefinitions[enemy.aircraftType].callsign : `${aircraftDefinitions[enemy.aircraftType].callsign}: ${Math.max(0,hp)} / ${maximumHealth} HP` : 'LOCATING ENEMIES';
     if(journeyHudTimer)journeyHudTimer.textContent=enemy?`DISTANCE: ${formatObjectiveDistance(airplane.position.distanceTo(enemy.plane.position)*WORLD_METERS_PER_UNIT)}`:'';
     if(journeyHudEnemy)journeyHudEnemy.style.setProperty('--enemy-health',`${Math.max(0,hp)/maximumHealth*100}%`);
+    if (definition.id === journeyDallas16.id) {
+      if (journeyHudObjective) journeyHudObjective.textContent = 'Shoot down both enemy planes before time runs out.';
+      for (const item of [journeyHudProgress, journeyHudTarget, journeyHudTimer, journeyHudHint, journeyHudEnemy]) if (item) item.hidden = true;
+    }
     if(enemy&&missionObjective?.id!==`${journeyAttempt.attemptId}:${enemy.playerId}`)syncAceObjective();
     return;
   }
