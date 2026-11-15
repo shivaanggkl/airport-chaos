@@ -38,7 +38,7 @@ function capture(f, attemptId, now=2000) {
  return now;
 }
 
-test('takeoff uses the existing runway and capture must finish before the full two-minute hold',()=>{
+test('takeoff uses the existing runway and capture must finish before the full one-minute hold',()=>{
  assert.equal(mission.runwayStart,true);assert.equal(mission.startAirportId,'dfw');
  assert.equal(authorizedJourneyAirborneSpawn({missionId:mission.id,status:'APPROACH'},mission,()=>0),undefined);
  const f=fixture();try{
@@ -56,10 +56,10 @@ test('takeoff uses the existing runway and capture must finish before the full t
   assert.equal(f.store.completeHunter('pilot',a.attemptId,'wrong',now+1),undefined);
   state=f.store.completeHunter('pilot',a.attemptId,'invader',now+2);assert.equal(state.status,'RACING');assert.equal(state.crossfireKills,1);
   while(state.status==='RACING'){state=f.store.advanceTerritoryDefense('pilot',a.attemptId,true,false,now+=400);}
-  assert.equal(state.defenseMs,120000);assert.equal(state.firstClearCredits,1700);
+  assert.equal(state.defenseMs,60000);assert.equal(state.firstClearCredits,1700);
   assert.equal(f.store.completeHunter('pilot',a.attemptId,'invader',now+1),undefined);
   const replay=start(f,now+1000);f.store.startFirstContact('pilot',replay.attemptId,now+=2000);now=capture(f,replay.attemptId,now);
-  for(let i=0;i<300;i++)state=f.store.advanceTerritoryDefense('pilot',replay.attemptId,true,false,now+=400);
+  for(let i=0;i<150;i++)state=f.store.advanceTerritoryDefense('pilot',replay.attemptId,true,false,now+=400);
   assert.equal(state.status,'COMPLETED');assert.equal(state.firstClearCredits,0);assert.equal(f.db.prepare('SELECT credits FROM player_profiles').get().credits,1700);
  }finally{f.close();}
 });
@@ -108,7 +108,7 @@ test('production AI follows ordered route, enters near 17 seconds and cycles the
 test('12-second shared territory cinematic uses real aircraft and exact text with unchanged handoff transforms',async()=>{
  const THREE=await import('three'),{MissionCaptureIntroPath}=await import('../../client/src/mission-capture-intro.ts');const player=new THREE.Group(),invader=new THREE.Group();player.position.set(-47000,900,-28050);invader.position.set(-22000,1100,-28050);
  const intro=new MissionCaptureIntroPath(territory,90000,()=>0,{player,invader}),position=new THREE.Vector3(),target=new THREE.Vector3(),chase=new THREE.Vector3(-48000,1200,-28050),aim=player.position.clone();assert.equal(intro.durationMs,12000);
- assert.deepEqual([0,3000,6000,9000].map(t=>intro.text(t)),['TERRITORY DEFENSE','Take off and capture LAS COLINAS.','Stay inside to capture the territory.','Hold for 2 minutes. Defend against the invader!']);
+ assert.deepEqual([0,3000,6000,9000].map(t=>intro.text(t)),['TERRITORY DEFENSE','Take off and capture LAS COLINAS.','Stay inside to capture the territory.','Hold for 1 minute. Defend against the invader!']);
  for(let t=0;t<=12000;t+=100){intro.sample(t,position,target,chase,aim);assert.ok([...position,...target].every(Number.isFinite));assert.equal(intro.demonstrationPercent(t),undefined);}
  assert.ok(position.equals(chase));assert.ok(target.equals(aim));assert.equal(player.position.x,-47000);assert.equal(invader.position.x,-22000);
 });
