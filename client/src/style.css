@@ -5329,6 +5329,41 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   box-sizing: border-box;
 }
 
+/* The M16 ownership panel follows the mission card in the same narrow stack. */
+#game-root .mission-territory-card {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid rgb(111 230 255 / 45%);
+  border-radius: 8px;
+  background: var(--gameplay-info-card-fill);
+  color: #f6fbff;
+  font: 800 clamp(9px, min(1vw, 2.6dvh), 11px)/1.2 var(--font-display);
+  text-shadow: 0 1px 3px rgb(0 12 28 / 90%);
+  pointer-events: auto;
+}
+#game-root .mission-territory-card[hidden] { display: none; }
+#game-root .mission-territory-card.gameplay-info-card.has-mission-territories .gameplay-info-multiplayer { margin: 0; padding: 0; border: 0; }
+#game-root .mission-territory-card .gameplay-info-target-heading { min-height: 20px; padding-right: 26px; }
+#game-root .mission-territory-toggle {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgb(130 181 207 / 55%);
+  border-radius: 4px;
+  background: transparent;
+  color: #d5ecf5;
+  font: inherit;
+  font-size: 17px;
+  cursor: pointer;
+}
+#game-root .mission-territory-card.is-collapsed #city-territories { display: none; }
+
 /* In-flight instruments: keep the world open while matching the gold/cyan cockpit artwork. */
 #game-root .flight-game-hud {
   grid-template: "menu stats utilities" auto / minmax(0, 1fr) auto minmax(0, 1fr);
@@ -7314,6 +7349,7 @@ html.custom-control-layout #game-root #radar-panel {
   letter-spacing: 0;
 }
 #game-root .capture-mission-instructions > [role="listitem"] { display: list-item; list-style-type: disc; }
+#game-root .has-mission-territories .territory-defense-instructions { font-size: inherit; line-height: 1.2; }
 
 #game-root.airport-hop-intro .flight-launch-title {
   top: auto;

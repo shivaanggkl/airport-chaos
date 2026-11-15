@@ -1400,6 +1400,24 @@ const missionStatusLayer = document.querySelector<HTMLDivElement>('#mission-stat
 missionStatusLayer.classList.toggle('journey-status-layer', journeyMode || trainingRequested || launchMode === 'free-fly' && !trainingRequested);
 missionStatusLayer.prepend(gameplayInfoElement);
 const gameplayInfoCard = new GameplayInfoCard(gameplayInfoElement);
+const missionTerritoryCard = document.createElement('section');
+missionTerritoryCard.className = 'mission-territory-card gameplay-info-card journey-hud has-mission-territories';
+missionTerritoryCard.hidden = true;
+missionTerritoryCard.setAttribute('aria-label', 'City territories');
+const missionTerritoryToggle = document.createElement('button');
+missionTerritoryToggle.type = 'button';
+missionTerritoryToggle.className = 'mission-territory-toggle';
+missionTerritoryToggle.textContent = '−';
+missionTerritoryToggle.setAttribute('aria-label', 'Hide territory details');
+missionTerritoryToggle.setAttribute('aria-expanded', 'true');
+missionTerritoryToggle.addEventListener('click', () => {
+  const collapsed = missionTerritoryCard.classList.toggle('is-collapsed');
+  missionTerritoryToggle.textContent = collapsed ? '+' : '−';
+  missionTerritoryToggle.setAttribute('aria-expanded', String(!collapsed));
+  missionTerritoryToggle.setAttribute('aria-label', collapsed ? 'Show territory details' : 'Hide territory details');
+});
+missionTerritoryCard.append(missionTerritoryToggle);
+missionStatusLayer.append(missionTerritoryCard);
 gameplayInfoCard.setMode(journeyMode ? 'mission' : launchMode === 'free-fly' && !trainingRequested ? 'multiplayer' : 'none');
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
 const journeyHudHeaderTimer = skyChallengeElement.querySelector<HTMLElement>('[data-journey-header-timer]');
@@ -3144,6 +3162,9 @@ function airportHopDestination(nextLanding = false): AirportDefinition | undefin
 }
 
 function updateJourneyHud(): void {
+  const territoryDefense = journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id;
+  gameplayInfoCard.setTerritoryPanelHost(territoryDefense ? missionTerritoryCard : null);
+  missionTerritoryCard.hidden = !territoryDefense || !journeyAttempt || !['APPROACH', 'RACING'].includes(journeyAttempt.status);
   gameplayInfoCard.setMode(journeyAttempt?.missionId === journeyDallasCapture01.id||journeyAttempt?.missionId===journeyDallasTerritoryDefense01.id ? 'mission-territories' : 'mission');
   skyChallengeElement.classList.add('journey-hud');
   skyChallengeElement.classList.toggle('hidden', journeyAttempt?.status === 'COMPLETED' || journeyAttempt?.status === 'FAILED' || journeyAttempt?.status === 'ABANDONED');
@@ -3192,7 +3213,7 @@ function updateJourneyHud(): void {
     return;
   }
   const missionNumber = journeyMissionSlot(journeyAttempt.missionId);
-  if (journeyHudHeading) journeyHudHeading.textContent = missionNumber
+  if (journeyHudHeading) journeyHudHeading.textContent = territoryDefense ? 'M16: TERRITORY' : missionNumber
     ? journeyMissionHeading(journeyAttempt.missionId) : 'MISSION';
   const missionDefinition = journeyMissionDefinitions.find(mission => mission.id === journeyAttempt?.missionId);
   const initialLimit = missionDefinition && 'timeLimitMs' in missionDefinition ? missionDefinition.timeLimitMs : null;
@@ -3276,7 +3297,7 @@ function updateJourneyHud(): void {
   const activeMissionId = journeyAttempt.missionId;
   const escortMission = escortHudMissions.find(item => item.id === activeMissionId);
   const healthPointEnemies = showdownMission ? journeyDallas18.enemies : ironMission ? journeyDallas17.enemies : crossfireMission ? crossfireMission.enemies : undefined;
-  const singleHealthMission = journeyAttempt.missionId===journeyDallasTerritoryDefense01.id?journeyDallasTerritoryDefense01:firstContactMission ? journeyDallas13 : surpriseMission ? journeyDallas14 : aceMission ? journeyDallas15 : undefined;
+  const singleHealthMission = territoryDefense ? undefined : firstContactMission ? journeyDallas13 : surpriseMission ? journeyDallas14 : aceMission ? journeyDallas15 : undefined;
   const showsHealthPoints = Boolean(singleHealthMission || healthPointEnemies);
   const activeEscortPhase = showsHealthPoints || escortMission && (journeyAttempt.fighterEscortsAlive??0)>0;
   const activeHud = journeyAttempt.status === 'APPROACH' || journeyAttempt.status === 'RACING';
@@ -3366,7 +3387,20 @@ function updateJourneyHud(): void {
   }
   if(journeyAttempt.missionId===journeyDallasTerritoryDefense01.id){
     const percent=Math.min(100,Math.floor((journeyAttempt.enemyCaptureMs??0)*100/journeyDallasTerritoryDefense01.enemyCaptureDurationMs));
-    if(journeyHudObjective)journeyHudObjective.textContent=journeyDallasTerritoryDefense01.objective;
+    if (journeyHudObjective && !journeyHudObjective.querySelector('.territory-defense-instructions')) {
+      const list = document.createElement('span');
+      list.className = 'capture-mission-instructions territory-defense-instructions';
+      list.setAttribute('role', 'list');
+      for (const instruction of ['Take off', 'Capture LAS COLINAS territory', 'Hold for 2 minutes', 'Defend from opponents']) {
+        const item = document.createElement('span');
+        item.setAttribute('role', 'listitem');
+        item.textContent = instruction;
+        list.append(item);
+      }
+      journeyHudObjective.replaceChildren(list);
+    }
+    monsterBossHud.classList.add('hidden');
+    escortHealthHud.classList.add('hidden');
     if(journeyHudProgress){journeyHudProgress.hidden=false;journeyHudProgress.textContent=journeyAttempt.captureMs < journeyDallasTerritoryDefense01.captureDurationMs
       ? `CAPTURE LAS COLINAS: ${Math.floor(journeyAttempt.captureMs * 100 / journeyDallasTerritoryDefense01.captureDurationMs)}%`
       : `HELD: ${Math.floor((journeyAttempt.defenseMs??0)/1000)}/${journeyDallasTerritoryDefense01.defenseDurationMs/1000} SEC`;}

@@ -11,6 +11,7 @@ export class GameplayInfoCard {
   private readonly tabs: Record<GameplayInfoTab, HTMLButtonElement>;
   private readonly counts: Record<GameplayInfoTab, HTMLElement>;
   private mode: GameplayInfoMode = 'none';
+  private territoryPanelHost: HTMLElement | null = null;
   private tab: GameplayInfoTab = 'players';
 
   constructor(private readonly root: HTMLElement) {
@@ -99,6 +100,16 @@ export class GameplayInfoCard {
     this.root.append(content);
   }
 
+  /** Move the existing territory panel; keep its list, identity and event handlers. */
+  setTerritoryPanelHost(host: HTMLElement | null): void {
+    if (host === this.territoryPanelHost) return;
+    if (this.territoryPanelHost) this.territoryPanelHost.hidden = true;
+    this.territoryPanelHost = host;
+    (host ?? this.root).append(this.multiplayer);
+    this.targetHeading.textContent = host ? 'CITY TERRITORIES' : 'TARGET TERRITORY';
+    if (host) host.hidden = this.mode !== 'mission-territories';
+  }
+
   setMode(mode: GameplayInfoMode): void {
     if (mode === this.mode) return;
     this.mode = mode;
@@ -109,6 +120,7 @@ export class GameplayInfoCard {
     this.territoriesRoot.setAttribute('aria-labelledby', mode === 'mission-territories' ? this.targetHeading.id : this.tabs.territories.id);
     this.root.classList.toggle('is-tutorial', mode === 'tutorial');
     this.multiplayer.hidden = mode !== 'multiplayer' && mode !== 'mission-territories';
+    if (this.territoryPanelHost) this.territoryPanelHost.hidden = mode !== 'mission-territories';
     this.setTab('players');
     this.setCollapsed(false);
   }

@@ -27,7 +27,15 @@ class FakeElement {
   get className() { return [...this.classes].join(' '); }
   set textContent(value) { this._text = String(value); this.children = []; }
   get textContent() { return this._text + this.children.map(child => typeof child === 'string' ? child : child.textContent).join(''); }
-  append(...children) { this.children.push(...children); }
+  append(...children) {
+    for (const child of children) {
+      if (typeof child !== 'string') {
+        if (child.parentElement) child.parentElement.children = child.parentElement.children.filter(item => item !== child);
+        child.parentElement = this;
+      }
+      this.children.push(child);
+    }
+  }
   insertBefore(child, before) { this.children.splice(this.children.indexOf(before), 0, child); }
   setAttribute(name, value) { this.attributes.set(name, value); }
   getAttribute(name) { return this.attributes.get(name); }
@@ -199,4 +207,17 @@ test('card keeps shared responsive placement and internal touch scrolling', () =
   assert.match(css, /#game-root \.gameplay-info-tabs button\s*\{[^}]*min-height: 34px;[^}]*pointer-events: auto;/);
   assert.match(css, /#game-root\.noncombat-journey[^}]*\[data-touch-control="fire"\][^}]*\[data-desktop-control="fire"\]/);
   assert.doesNotMatch(html, /id="right-hud-stack"/);
+});
+
+
+test('M16 can detach the existing territory list into a separate box and restore it without duplicates',()=>{
+ const root=new FakeElement('div'),host=new FakeElement('section'),card=new GameplayInfoCard(root);
+ card.setMode('mission-territories');const panel=root.children[0],list=card.territoriesRoot;
+ card.setTerritoryPanelHost(host);
+ assert.equal(root.children.includes(panel),false);assert.equal(host.children[0],panel);assert.equal(host.hidden,false);
+ assert.equal(panel.children[1].textContent,'CITY TERRITORIES');assert.equal(card.territoriesRoot,list);
+ card.setMode('mission');assert.equal(host.hidden,true);
+ card.setTerritoryPanelHost(null);card.setMode('mission-territories');
+ assert.equal(host.children.length,0);assert.equal(root.children.filter(child=>child===panel).length,1);
+ assert.equal(panel.children[1].textContent,'TARGET TERRITORY');assert.equal(card.territoriesRoot,list);
 });
