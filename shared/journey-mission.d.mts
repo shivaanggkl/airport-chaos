@@ -228,7 +228,7 @@ export const journeyDallasTwinHunters01: Readonly<{
   airborneSpawn: Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
   enemies: readonly Readonly<{aircraft:'trainer'|'privateJet';livery:string;name:string;level:'EASY'|'MEDIUM';fireDelayMs:number;x:number;z:number;altitude:number}>[];
 }>;
-export function journeyCrossfireMission(missionId: string | undefined): typeof journeyDallasTwinHunters01 | typeof journeyDallas16 | undefined;
+export function journeyCrossfireMission(missionId: string | undefined): typeof journeyDallasMostWantedSurvival01 | typeof journeyDallasTwinHunters01 | typeof journeyDallas16 | undefined;
 
 export const journeyDallasTerritoryDefense01: Readonly<{
  id:'journey-dallas-territory-defense-01';cityId:'dallas';name:'TERRITORY DEFENSE';difficulty:'MEDIUM';objective:string;territoryId:'las-colinas';
@@ -238,4 +238,37 @@ export const journeyDallasTerritoryDefense01: Readonly<{
  enemyAircraft:'privateJet';enemyLivery:string;enemyHealth:300;enemySpawn:Readonly<{x:number;z:number}>;
  enemyAltitude:1000;cruiseSpeed:420;aggressionDistance:5000;fireDelayMs:8000;
  patrolRoute:readonly Readonly<{x:number;z:number}>[];
+}>;
+
+export const journeyDallasAceIntercept01: Readonly<{
+  id: 'journey-dallas-ace-intercept-01'; cityId: 'dallas'; name: 'ACE INTERCEPT'; chapter: 'SKY COMMANDER'; difficulty: 'HARD';
+  timeLimitMs: 240000; firstClearCredits: 2150; objective: 'Destroy the enemy Firehawk!';
+  enemyAircraft: 'fighter'; enemyLivery: 'firehawk-stealth-gray'; enemyHealth: 350; escapeHealth: 175;
+  fireDelayMs: 6000; aggressionDistance: 9000; dogfightRadius: 10000; cruiseSpeed: 650;
+  escapeCruiseSpeed: 750; escapeMaxSpeed: 850; arrivalRadius: 650;
+  airborneSpawn: Readonly<{x: -20000; z: -25000; altitude: 1100; heading: -0.432; speed: 650}>;
+  enemySpawn: Readonly<{x: -17000; z: -18500; altitude: 1200; heading: 2.709}>;
+  escapeRoute: readonly Readonly<{x: number; z: number}>[];
+}>;
+
+export const journeyDallasCaptureThree01: Readonly<{
+  id: 'journey-dallas-capture-three-01'; cityId: 'dallas'; name: 'CAPTURE 3 TERRITORIES';
+  chapter: 'SKY COMMANDER'; difficulty: 'HARD'; timeLimitMs: 240000; firstClearCredits: 2250;
+  objective: 'Capture all 3 marked territories before time runs out!'; captureDurationMs: 15000;
+  territoryIds: readonly ['las-colinas','love-field','downtown'];
+  airborneSpawn: Readonly<{x: -58000; z: -28050; altitude: 900; heading: number; speed: 650}>;
+}>;
+export function journeyTerritoryCaptureMission(id: string | undefined): typeof journeyDallasCapture01 | typeof journeyDallasCaptureThree01 | undefined;
+export function journeyCaptureTerritoryId(id: string | undefined, stage?: number): string | undefined;
+
+export const journeyDallasMostWantedSurvival01: Readonly<{
+  id: 'journey-dallas-most-wanted-survival-01'; cityId: 'dallas'; name: 'MOST WANTED SURVIVAL'; chapter: 'SKY COMMANDER'; difficulty: 'VERY HARD';
+  timeLimitMs: 120000; firstClearCredits: 2600; objective: 'Survive until the timer reaches zero!';
+  replacementDelayMs: 15000; boundaryGraceMs: 10000; enemyHealth: 300; aggressionDistance: 9000; startAirportId: 'dfw'; gates: readonly never[];
+  airborneSpawn: Readonly<{x: -28000; z: -22000; altitude: 1100; heading: number; speed: 650}>;
+  bounds: Readonly<{minX: -61000; maxX: 3000; minZ: -54000; maxZ: 10000}>;
+  enemies: readonly [
+    Readonly<{aircraft:'fighter';livery:'firehawk-stealth-gray';level:'HARD';health:300;fireDelayMs:8000;x:-31800;z:-17100;altitude:100}>,
+    Readonly<{aircraft:'privateJet';livery:'nightowl-sunset-red';level:'MEDIUM';health:250;fireDelayMs:10000;x:-23200;z:-26600;altitude:-100}>
+  ];
 }>;

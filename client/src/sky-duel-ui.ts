@@ -1,3 +1,4 @@
+import { audioManager } from './audio-manager';
 import { animateCreditFlight } from './credit-flight';
 import { CombatStatsHeader } from './combat-stats-header';
 import { competitiveModes } from '../../shared/competitive-modes.mjs';
@@ -764,6 +765,7 @@ export class SkyDuelUi {
     const number = remaining <= 0 ? 'GO!' : String(Math.min(5, Math.ceil(remaining / 1_000)));
     if (this.countdownNumber.textContent !== number) {
       this.countdownNumber.textContent = number;
+      audioManager.playOnce(`duel-countdown:${this.matchId}:${this.countdownEndsAt}:${number}`,'checkpoint',{gain:.5,cooldown:.3});
       if (!reducedMotion()) this.countdownNumber.animate([
         { transform: 'scale(.93)', opacity: .7 }, { transform: 'scale(1)', opacity: 1 },
       ], { duration: 420, easing: 'ease-out' });

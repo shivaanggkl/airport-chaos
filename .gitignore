@@ -19,3 +19,6 @@ native-auth/android/.gradle/
 # Deterministic server collision packages are rebuilt from tracked city sources.
 server/collision-data/*.bin
 server/collision-data/*.tmp
+
+# Reference recordings; only selected compressed clips ship.
+/deletelater/

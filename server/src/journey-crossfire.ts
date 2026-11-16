@@ -1,3 +1,12 @@
+import { enemyAiLevels } from '../../shared/enemy-ai.mjs';
+
+// M17-only weapon tuning; retain the existing HARD movement and tactics.
+export const doubleThreatFireProfile = Object.freeze({
+  ...enemyAiLevels.HARD,
+  shotIntervalMs: enemyAiLevels.HARD.shotIntervalMs / 4,
+  aimError: enemyAiLevels.HARD.aimError / 4,
+});
+
 /** Permission for new shots only; existing ballistic projectiles are untouched. */
 export class CrossfireFireCoordinator {
   private shooterId: string | null = null;

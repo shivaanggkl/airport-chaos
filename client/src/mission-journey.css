@@ -121,3 +121,5 @@
 .mission-journey-detail-heading { display: flex; align-items: center; gap: .6em; min-width: 0; }
 .mission-journey-detail-heading [data-mission-bonus] { display: inline-flex; flex: 0 0 auto; width: 4.5em; }
 .mission-journey-detail-heading .mission-journey-bonus { position: static; width: 100%; transform: none; filter: drop-shadow(0 1px 2px #b67b3755); }
+
+.mission-journey-detail.is-mission-one [data-mission-title] { color: var(--ui-gold); }

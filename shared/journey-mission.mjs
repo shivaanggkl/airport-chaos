@@ -498,7 +498,7 @@ export const journeyDallasTwinHunters01 = Object.freeze({
   ]),
 });
 export function journeyCrossfireMission(missionId) {
-  return missionId === journeyDallasTwinHunters01.id ? journeyDallasTwinHunters01 : missionId === journeyDallas16.id ? journeyDallas16 : undefined;
+  return missionId === journeyDallasMostWantedSurvival01.id ? journeyDallasMostWantedSurvival01 : missionId === journeyDallasTwinHunters01.id ? journeyDallasTwinHunters01 : missionId === journeyDallas16.id ? journeyDallas16 : undefined;
 }
 
 const captureTerritory = territoriesForCity('dallas').find(territory => territory.id === 'las-colinas');
@@ -533,6 +533,51 @@ export const journeyDallasCapture01 = Object.freeze({
     altitude: 800, heading: -Math.PI / 2, speed: 650}),
 });
 
+// M20 coordinates are authoritative Dallas world coordinates, already scaled.
+export const journeyDallasAceIntercept01 = Object.freeze({
+  id: 'journey-dallas-ace-intercept-01', cityId: 'dallas', name: 'ACE INTERCEPT',
+  chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 240_000, firstClearCredits: 2_150,
+  objective: 'Destroy the enemy Firehawk!', enemyAircraft: 'fighter', enemyLivery: 'firehawk-stealth-gray',
+  enemyHealth: 350, escapeHealth: 175, fireDelayMs: 6_000, aggressionDistance: 9_000,
+  dogfightRadius: 10_000, cruiseSpeed: 650, escapeCruiseSpeed: 750, escapeMaxSpeed: 850, arrivalRadius: 650,
+  airborneSpawn: Object.freeze({x: -20_000, z: -25_000, altitude: 1_100, heading: -.432, speed: 650}),
+  enemySpawn: Object.freeze({x: -17_000, z: -18_500, altitude: 1_200, heading: 2.709}),
+  escapeRoute: Object.freeze([
+    Object.freeze({x: -6_000, z: -12_000}), Object.freeze({x: 10_000, z: -2_000}),
+    Object.freeze({x: 25_000, z: 16_000}), Object.freeze({x: 38_000, z: 43_000}),
+  ]),
+});
+
+export const journeyDallasCaptureThree01 = Object.freeze({
+  id: 'journey-dallas-capture-three-01', cityId: 'dallas', name: 'CAPTURE 3 TERRITORIES',
+  chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 240_000, firstClearCredits: 2_250,
+  objective: 'Capture all 3 marked territories before time runs out!', captureDurationMs: 15_000,
+  territoryIds: Object.freeze(['las-colinas', 'love-field', 'downtown']),
+  airborneSpawn: Object.freeze({x: -58_000, z: -28_050, altitude: 900, heading: -Math.PI / 2, speed: 650}),
+});
+
+/** The single capture engine serves both the original M05 and ordered M21. */
+export function journeyTerritoryCaptureMission(id) {
+  return id === journeyDallasCapture01.id ? journeyDallasCapture01 : id === journeyDallasCaptureThree01.id ? journeyDallasCaptureThree01 : undefined;
+}
+export function journeyCaptureTerritoryId(id, stage = 0) {
+  return id === journeyDallasCaptureThree01.id ? journeyDallasCaptureThree01.territoryIds[stage]
+    : id === journeyDallasCapture01.id ? journeyDallasCapture01.territoryId : undefined;
+}
+
+export const journeyDallasMostWantedSurvival01 = Object.freeze({
+  id: 'journey-dallas-most-wanted-survival-01', cityId: 'dallas', name: 'MOST WANTED SURVIVAL',
+  chapter: 'SKY COMMANDER', difficulty: 'VERY HARD', timeLimitMs: 120_000, firstClearCredits: 2_600,
+  objective: 'Survive until the timer reaches zero!', replacementDelayMs: 15_000, boundaryGraceMs: 10_000,
+  enemyHealth: 300, aggressionDistance: 9_000, startAirportId: 'dfw', gates: Object.freeze([]),
+  airborneSpawn: Object.freeze({x: -28_000, z: -22_000, altitude: 1_100, heading: Math.PI, speed: 650}),
+  bounds: Object.freeze({minX: -61_000, maxX: 3_000, minZ: -54_000, maxZ: 10_000}),
+  enemies: Object.freeze([
+    Object.freeze({aircraft: 'fighter', livery: 'firehawk-stealth-gray', level: 'HARD', health: 300, fireDelayMs: 8_000, x: -31_800, z: -17_100, altitude: 100}),
+    Object.freeze({aircraft: 'privateJet', livery: 'nightowl-sunset-red', level: 'MEDIUM', health: 250, fireDelayMs: 10_000, x: -23_200, z: -26_600, altitude: -100}),
+  ]),
+});
+
 // Display slots are presentation; persisted gameplay and receipts keep their historical IDs.
 export const journeyChapters = Object.freeze(['ROOKIE PILOT', 'RISING ACE', 'SKY COMMANDER', 'DR. BOSS RISING']);
 export const journeyCatalog = Object.freeze([
@@ -555,13 +600,13 @@ export const journeyCatalog = Object.freeze([
   [16, 'Double Threat'],
   [9, 'Giant Plane & Three Escorts'],
   [6, 'Golden Championship'],
-  [null, 'Ace Intercept'],
-  [null, 'Capture 3 Territories'],
+  [journeyDallasAceIntercept01.id, 'Ace Intercept'],
+  [journeyDallasCaptureThree01.id, 'Capture 3 Territories'],
   [10, 'Giant Plane & Four Escorts'],
   [17, 'Iron Hunter'],
   [11, 'Armored Giant Plane'],
   [18, 'Final Showdown'],
-  [null, 'Most Wanted Survival'],
+  [journeyDallasMostWantedSurvival01.id, 'Most Wanted Survival'],
   [null, 'Triple Territory Defense'],
   [12, 'Armored Giant & Two Escorts'],
   [23, 'Monster Pursuit'],

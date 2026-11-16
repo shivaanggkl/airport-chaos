@@ -441,6 +441,8 @@ export class MissionJourney {
   private renderDetails(): void {
     const stage = missionJourneyStages[this.selectedStage - 1];
     this.detail.querySelector<HTMLElement>('[data-mission-bonus]')!.hidden = stage?.id !== 'journey-dallas-coin-hunt-01';
+    this.detail.classList.toggle('is-mission-one', stage?.number === 1);
+    this.detail.querySelector<HTMLElement>('.mission-journey-detail-heading')!.hidden = stage?.number === 1;
     if (!stage) {
       this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = 'MISSIONS LOCKED';
       this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = '';
@@ -468,10 +470,10 @@ export class MissionJourney {
     const signInRequired = this.signInRequired && stage.number === 1 && !completed;
     const locked = this.cityLocked || (!completed && !eligible && !signInRequired);
     this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}`;
-    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card.title;
+    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = stage.number === 1 ? `M1: ${card.title}` : card.title;
     const objective = this.detail.querySelector<HTMLElement>('[data-mission-objective]')!;
     objective.textContent = card.description;
-    if (card.id === 'journey-dallas-capture-01' || card.id === 'journey-dallas-airport-hop-01') {
+    if (stage.number === 1 || card.id === 'journey-dallas-capture-01' || card.id === 'journey-dallas-airport-hop-01') {
       const list = document.createElement('span');
       list.className = 'mission-journey-instructions';
       list.setAttribute('role', 'list');

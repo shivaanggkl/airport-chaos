@@ -273,6 +273,9 @@ export class MonsterArrivalView {
   private readonly pixelHeight:()=>number;
   onEndingComplete?:()=>void;
   onCasting?:()=>void;
+  onAbilitySound?:(id:string)=>void;
+  onLandingSound?:()=>void;
+  onDefeatSound?:()=>void;
   onRoar?:()=>void;onFootfall?:()=>void;onWarning?:()=>void;onProjectile?:()=>void;onHit?:()=>void;onDestruction?:()=>void;
 
   constructor(scene:THREE.Scene,terrainY:number,targetGroundY:number,camera?:THREE.Camera,
@@ -289,7 +292,7 @@ export class MonsterArrivalView {
     this.creature.root.rotation.y=Math.atan2((journeyDallas19.monster.x-journeyDallas19.airborneSpawn.x)*facing,
       (journeyDallas19.monster.z-journeyDallas19.airborneSpawn.z)*facing);
     this.creature.onFootContact=(p)=>{if(this.pursuitIntroEnabled&&this.introTime!==null)this.introFootstepTime=this.introTime;this.particles.emit(p.x,p.y,p.z,true,10,65,1.5);this.onFootfall?.();};
-    this.creature.onLanding=(p)=>{this.particles.emit(p.x,p.y,p.z,true,14,95,1.5);this.onFootfall?.();};
+    this.creature.onLanding=(p)=>{this.onLandingSound?.();this.particles.emit(p.x,p.y,p.z,true,14,95,1.5);this.onFootfall?.();};
     this.beam.name='titan-authoritative-energy-beam';this.beam.visible=false;this.wave.visible=false;this.roar.visible=false;this.roar.visible=false;
     if(this.striking){this.castingHand=new THREE.Mesh(coreGeometry,this.warningMaterial);this.castingHand.name='m20-left-casting-hand';this.castingHand.visible=false;scene.add(this.castingHand);}
     this.mouthFire.name='monster-mouth-warning';this.mouthFire.scale.setScalar(16);this.mouthFire.visible=false;
@@ -300,6 +303,7 @@ export class MonsterArrivalView {
   setState(state:MonsterStateMessage):void {
     if(this.ending)return;
     this.setIntroTime(null);
+    const previousAbility=this.state?.titan?.ability;
     const oldPhase=this.state?.phase,firstTitan=!!state.titan&&!this.state?.titan;
     if(firstTitan){this.creature.root.position.set(state.x,state.y+(state.titan?.poseOffsetY??0),state.z);this.creature.root.rotation.y=state.yaw;}
     this.state=state;
@@ -313,6 +317,9 @@ export class MonsterArrivalView {
       const p=state.hitPosition;this.particles.emit(p?.x??state.x,p?.y??state.y+300,p?.z??state.z,false,5,this.crimsonCore?28:7);
     }
     if(state.phase==='windup' && oldPhase!=='windup'){if(this.crimsonCore&&state.titan?.ability?.id==='roaring-shockwave')this.onRoar?.();else this.onWarning?.();if(!state.titan)this.creature.windup();}
+    const ability=state.titan?.ability;
+    if(ability?.stage==='WARNING'&&previousAbility?.stage!=='WARNING')this.onCasting?.();
+    if(ability?.stage==='ACTIVE'&&(previousAbility?.stage!=='ACTIVE'||previousAbility.id!==ability.id))this.onAbilitySound?.(ability.id);
     let released=false;
     for(const visual of this.pool) {
       if(visual.id===null)continue;
@@ -431,6 +438,7 @@ export class MonsterArrivalView {
     if (this.stationary && kind === 'defeat' && this.elapsed < (this.victoryAt ??= this.elapsed + .16)) return;
     this.beam.visible=false;this.wave.visible=false;this.roar.visible=false;
     this.ending=kind;this.endingElapsed=0;
+    if(kind==='defeat')this.onDefeatSound?.();
     if(this.state?.titan?.locomotion==='jump'||this.state?.jumpProgress!==null && this.state?.jumpProgress!==undefined){
       this.endingDrop={from:this.creature.root.position.y,ground:this.creature.groundAt?.(this.creature.root.position.x,this.creature.root.position.z)??this.target.y};
     }
