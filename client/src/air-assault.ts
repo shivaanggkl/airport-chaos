@@ -139,7 +139,7 @@ export class AirAssaultUi {
       this.results.hidden = false;
       this.title.textContent = state.result === 'full' ? '30 ENEMIES DESTROYED' : state.result === 'survival' ? 'YOU SURVIVED' : state.result === 'boundary' ? 'COMBAT AREA LEFT' : state.result === 'grounded' ? 'SURVIVAL REQUIRES FLIGHT' : state.result === 'disconnected' ? 'CONNECTION LOST' : state.result === 'exit' ? 'BATTLE ENDED' : 'AIRCRAFT DESTROYED';
       const elapsed = state.startedAt === null ? 0 : Math.min(480, Math.floor((state.phaseAt - state.startedAt) / 1000));
-      this.detail.textContent = `${state.destroyed}/30 DESTROYED · ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')} · ${state.reward} CREDITS${state.dailyClaimed ? ' · TODAY’S VICTORY REWARD ALREADY CLAIMED' : ''}`;
+      this.detail.textContent = `${state.destroyed}/30 DESTROYED · ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`;
     }
   }
   update(camera: THREE.PerspectiveCamera, player: THREE.Group): void {

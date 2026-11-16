@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
+import { DAILY_REWARD_COOLDOWN_MS } from '../../shared/daily-rewards.mjs';
 import { REWARDED_AD_MAX_REWARDS, REWARDED_AD_WINDOW_MS, rewardedAdCredits } from '../../shared/rewarded-ads.mjs';
 import { PlayerProfileStore } from './player-profiles.js';
 import { AdMobSsvVerifier, RewardedAdStore, rewardedAdConfiguration, type RewardedAdConfiguration, type VerifiedAdMobReward } from './rewarded-ads.js';
@@ -100,9 +101,10 @@ test('four optional ads pay 50, 75, 100, 150 Credits per hourly chain', () => {
     assert.equal(fixture.store.createAttempt('rewarded-pilot', 'android', start + 100).ok, false);
     assert.equal(fixture.profiles.getOrCreate('rewarded-pilot', 'Rewarded Pilot').credits, 400);
     assert.equal(fixture.store.status('rewarded-pilot', 'android', start + REWARDED_AD_WINDOW_MS).remaining, 0);
-    fixture.profiles.claimDailyReward('rewarded-pilot', start + REWARDED_AD_WINDOW_MS);
-    assert.equal(fixture.store.status('rewarded-pilot', 'android', start + REWARDED_AD_WINDOW_MS).remaining, 4);
-    assert.equal(fixture.store.status('rewarded-pilot', 'android', start + REWARDED_AD_WINDOW_MS).rewardCredits, 50);
+    assert.equal(fixture.profiles.claimDailyReward('rewarded-pilot', start + REWARDED_AD_WINDOW_MS)?.claimed,false);
+    fixture.profiles.claimDailyReward('rewarded-pilot', start + DAILY_REWARD_COOLDOWN_MS);
+    assert.equal(fixture.store.status('rewarded-pilot', 'android', start + DAILY_REWARD_COOLDOWN_MS).remaining, 4);
+    assert.equal(fixture.store.status('rewarded-pilot', 'android', start + DAILY_REWARD_COOLDOWN_MS).rewardCredits, 50);
   } finally { rmSync(fixture.directory, { recursive: true, force: true }); }
 });
 

@@ -7,7 +7,8 @@ import { capabilitiesForCity } from '../../shared/city-capabilities.mjs';
 import { missionForCity } from '../../shared/city-missions.mjs';
 import { ECONOMY_VERSION, REDSPEAR_TRIAL_DURATION_MS, aircraftCreditPrice, aircraftDisplayOrder, aircraftEntitlement, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { aircraftSkyTokenPrice, skyTokenPack, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
-import { cargoCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
+import { challengeCreditReward } from '../../shared/reward-economy.mjs';
+import { challengeForCity } from '../../shared/city-challenges.mjs';
 import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
 import { earnedRankIdForLevel, pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayId, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
 import { DAILY_REWARD_COOLDOWN_MS, dailyRewardCredits, dailyRewardForDay } from '../../shared/daily-rewards.mjs';
@@ -43,6 +44,7 @@ export type PlayerProfile = {
   deaths: number;
   discoveries: Partial<Record<CityId, string[]>>;
   challengeCompletions: number;
+  claimedSkyChallenges: string[];
   eventCompletions: number;
   objectives: Partial<Record<CityId, ObjectiveCycleState>>;
   mastery: Partial<Record<CityId, CityMastery>>;
@@ -117,12 +119,10 @@ export type ProfileProgress = {
 
 const aircraftOrder = aircraftDisplayOrder;
 const aircraftTypes = new Set<AircraftType>(aircraftOrder);
-const newPilotCredits = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_STARTING_CREDITS, 0, 10_000);
 const migratedDevCredits = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_MIGRATED_DEV_CREDITS, 1_000, 10_000);
 const legacyDevCreditThreshold = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_LEGACY_DEV_CREDIT_THRESHOLD, 100_000, 1_000_000);
 const rewardReceiptFormatVersion = '2';
 const rewardReceiptRetentionMs = 7 * 24 * 60 * 60 * 1_000;
-const rewardReceiptFutureToleranceMs = 5 * 60 * 1_000;
 const rewardReceiptPerPilotLimit = 2_048;
 const rewardReceiptGlobalLimit = 100_000;
 const cityIds = new Set<CityId>(['milwaukee', 'dallas']);
@@ -199,13 +199,6 @@ function boundedInteger(value: unknown, maximum: number): number {
 
 function boundedNumber(value: unknown, maximum: number): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.min(maximum, value) : 0;
-}
-
-function rewardReceiptIssuedAt(rewardId: string): number | undefined {
-  const match = /^reward-([a-z0-9]{8,12})-[a-z0-9-]{8,64}$/i.exec(rewardId);
-  if (!match) return undefined;
-  const issuedAt = Number.parseInt(match[1], 36);
-  return Number.isSafeInteger(issuedAt) ? issuedAt : undefined;
 }
 
 function parseMastery(value: unknown): Partial<Record<CityId, CityMastery>> {
@@ -308,16 +301,16 @@ function rowDiscoveries(row: ProfileRow): Partial<Record<CityId, string[]>> {
   try { return parseDiscoveries(JSON.parse(row.discoveries)); } catch { return {}; }
 }
 
-const objectiveDefinitions: Record<ObjectiveActivity, { label: string; dailyTarget: number; weeklyTarget: number; dailyReward: number; weeklyReward: number }> = {
-  stunt: { label: 'Complete stunt actions', dailyTarget: 2, weeklyTarget: 8, dailyReward: 55, weeklyReward: 180 },
-  territoryCapture: { label: 'Capture territories', dailyTarget: 1, weeklyTarget: 5, dailyReward: 90, weeklyReward: 260 },
-  event: { label: 'Complete Chaos Events', dailyTarget: 1, weeklyTarget: 3, dailyReward: 70, weeklyReward: 210 },
-  discovery: { label: 'Discover new locations', dailyTarget: 1, weeklyTarget: 5, dailyReward: 65, weeklyReward: 190 },
-  kill: { label: 'Destroy real players', dailyTarget: 1, weeklyTarget: 3, dailyReward: 80, weeklyReward: 230 },
-  heat3: { label: 'Reach Heat 3', dailyTarget: 1, weeklyTarget: 3, dailyReward: 60, weeklyReward: 175 },
-  challenge: { label: 'Complete Sky Challenges', dailyTarget: 1, weeklyTarget: 5, dailyReward: 70, weeklyReward: 220 },
-  distance: { label: 'Fly meaningful distance', dailyTarget: 12_000, weeklyTarget: 75_000, dailyReward: 60, weeklyReward: 240 },
-  landing: { label: 'Land at different airports', dailyTarget: 2, weeklyTarget: 4, dailyReward: 75, weeklyReward: 250 },
+const objectiveDefinitions: Record<ObjectiveActivity, { label: string; dailyTarget: number; weeklyTarget: number }> = {
+  stunt: { label: 'Complete stunt actions', dailyTarget: 2, weeklyTarget: 8 },
+  territoryCapture: { label: 'Capture territories', dailyTarget: 1, weeklyTarget: 5 },
+  event: { label: 'Complete Chaos Events', dailyTarget: 1, weeklyTarget: 3 },
+  discovery: { label: 'Discover new locations', dailyTarget: 1, weeklyTarget: 5 },
+  kill: { label: 'Destroy real players', dailyTarget: 1, weeklyTarget: 3 },
+  heat3: { label: 'Reach Heat 3', dailyTarget: 1, weeklyTarget: 3 },
+  challenge: { label: 'Complete Sky Challenges', dailyTarget: 1, weeklyTarget: 5 },
+  distance: { label: 'Fly meaningful distance', dailyTarget: 12_000, weeklyTarget: 75_000 },
+  landing: { label: 'Land at different airports', dailyTarget: 2, weeklyTarget: 4 },
 };
 
 function dayId(now = new Date()): string { return now.toISOString().slice(0, 10); }
@@ -326,7 +319,7 @@ export type WeeklyLeaderboardCategory = 'stunt' | 'kills' | 'wantedSurvival' | '
 function objectiveItem(activity: ObjectiveActivity, weekly: boolean, cityId?: CityId): ObjectiveItem {
   const definition = objectiveDefinitions[activity];
   const target = activity === 'landing' && weekly && cityId ? capabilitiesForCity(cityId).airportCount : weekly ? definition.weeklyTarget : definition.dailyTarget;
-  return { id: `${weekly ? 'weekly' : 'daily'}-${activity}`, label: definition.label, activity, target, progress: 0, reward: weekly ? definition.weeklyReward : definition.dailyReward, completed: false, rewarded: false };
+  return { id: `${weekly ? 'weekly' : 'daily'}-${activity}`, label: definition.label, activity, target, progress: 0, reward: 0, completed: false, rewarded: false };
 }
 function freshObjectives(cityId: CityId, discoveredCount = 0, now = new Date()): ObjectiveCycleState {
   const capabilities = capabilitiesForCity(cityId);
@@ -346,6 +339,7 @@ function parseObjectives(value: unknown, cityId: CityId, discoveredCount = 0): O
     const state = (parsed?.[cityId] ?? parsed) as ObjectiveCycleState | undefined;
     if (state && state.dailyId === dayId() && state.weeklyId === weekId() && Array.isArray(state.daily) && Array.isArray(state.weekly)) {
       const capabilities = capabilitiesForCity(cityId);
+      for (const item of [...state.daily, ...state.weekly]) item.reward = 0;
       if (discoveredCount < capabilities.discoveryTotal) return state;
       const supported = capabilities.objectiveSupportedTypes.filter((activity) => activity !== 'discovery') as ObjectiveActivity[];
       const replace = (items: ObjectiveItem[], weekly: boolean) => items.map((item, index) => {
@@ -834,12 +828,8 @@ export class PlayerProfileStore {
         route.fromCityId!==prior.from||route.toCityId!==prior.to||prior.routeId!==routeId||state.session!==prior.session||state.from!==prior.from||state.to!==prior.to||state.routeId!==prior.routeId||state.phase!=='COMMITTED')throw new Error('Invalid portal settlement');
       if(prior.phase==='COMMITTED'||prior.phase==='ARRIVED')return prior.reward;
       if(prior.phase!=='DESTINATION_READY'||!prior.ready||now-prior.startedAt<portalRules.tunnelMinMs||now-prior.startedAt>portalRules.timeoutMs)throw new Error('Portal is not ready');
-      let credited=0;
-      if(!this.intercityRewardClaimed(pilotId,routeId)){
-        const result=wallet.credit({pilotId,currency:'CREDITS',amount:route.rewardProfile!.credits,reason:'INTERCITY_REWARD',idempotencyKey:`portal-route:${routeId}`,referenceId:routeId,createdAt:now});
-        credited=result.applied?Math.max(0,(result.balance??pilot.credits)-pilot.credits):0;
-        this.database.prepare('INSERT OR IGNORE INTO pilot_intercity_completions(pilot_id,route_id,attempt_started_at,completed_at,credits) VALUES(?,?,?,?,?)').run(pilotId,routeId,now,now,credited);
-      }
+      const credited=0;
+      this.database.prepare('INSERT OR IGNORE INTO pilot_intercity_completions(pilot_id,route_id,attempt_started_at,completed_at,credits) VALUES(?,?,?,?,?)').run(pilotId,routeId,now,now,0);
       this.database.prepare('UPDATE pilot_portal_flights SET state=? WHERE pilot_id=?').run(JSON.stringify({...state,reward:credited}),pilotId);
       this.database.prepare('DELETE FROM pilot_intercity_routes WHERE pilot_id=?').run(pilotId);
       return credited;
@@ -1011,10 +1001,7 @@ export class PlayerProfileStore {
         }
         this.database.prepare("INSERT INTO pilot_tutorial_state (pilot_id, version, status, updated_at, required) VALUES (?, 'tutorial_v1', 'new', ?, 1)")
           .run(pilotId, Date.now());
-        if (newPilotCredits > 0) wallet.credit({
-          pilotId, currency: 'CREDITS', amount: newPilotCredits, reason: 'MIGRATION',
-          referenceId: 'new-player-starting-balance',
-        });
+
       });
       row = this.getRow(pilotId)!;
     } else {
@@ -1454,8 +1441,6 @@ export class PlayerProfileStore {
       const rewarded = !(pairSince.at && now - pairSince.at < 30 * 60_000) && daily.count < 5;
       const inserted = this.database.prepare('INSERT OR IGNORE INTO pvp_reward_wins VALUES(?,?,?,?,?)').run(challengeId, winnerId, opponentId, rewarded ? 1 : 0, now).changes;
       if (!inserted) return { rewarded: false };
-      const amount = boundedInteger(credits, 100_000);
-      if (rewarded && amount > 0) wallet.credit({ pilotId:winnerId, currency:'CREDITS', amount, reason:'COMBAT_REWARD', idempotencyKey:`pvp:${challengeId}`, referenceId:challengeId, createdAt:now });
       return { rewarded, profile: this.toProfile(this.getRow(winnerId)!) };
     });
   }
@@ -1471,10 +1456,6 @@ export class PlayerProfileStore {
       if (!row) throw new Error('Profile disappeared during legacy import');
       if (row.legacy_imported) return this.toProfile(row);
       this.ensurePilotProgression(row);
-      const importedCredits = boundedInteger(legacy.credits, 1_000_000);
-      const credits = importedCredits >= legacyDevCreditThreshold
-        ? migratedDevCredits
-        : Math.max(boundedInteger(row.credits, 1_000_000), importedCredits);
       const usableAircraft = usableAircraftForRow(row);
       const trial = parseFighterTrial(row.fighter_trial);
       const requestedAircraft = trial.status === 'pending' || trial.status === 'active'
@@ -1486,9 +1467,7 @@ export class PlayerProfileStore {
           assignedPilotName(legacy.pilotName ?? row.pilot_name, pilotId), boundedInteger(legacy.score, 100_000_000), selectedAircraft,
           row.total_distance, row.successful_landings, row.discoveries, pilotId,
         );
-      const difference = credits - boundedInteger(row.credits, 1_000_000);
-      if (difference > 0) wallet.credit({ pilotId, currency: 'CREDITS', amount: difference, reason: 'MIGRATION', referenceId: 'legacy-profile' });
-      if (difference < 0) wallet.debit({ pilotId, currency: 'CREDITS', amount: -difference, reason: 'MIGRATION', referenceId: 'legacy-profile' });
+
       return this.toProfile(this.getRow(pilotId)!);
     });
   }
@@ -1519,9 +1498,6 @@ export class PlayerProfileStore {
       if ((discoveries[cityId] ?? []).includes(locationId)) return undefined;
       discoveries[cityId] = [...(discoveries[cityId] ?? []), locationId];
       this.database.prepare('UPDATE player_profiles SET discoveries=? WHERE pilot_id=?').run(JSON.stringify(discoveries), pilotId);
-      const credit = wallet.credit({ pilotId, currency: 'CREDITS', amount: economyRewards.discovery,
-        reason: 'DISCOVERY_REWARD', referenceId: locationId, idempotencyKey: `discovery:${cityId}:${locationId}`, createdAt: now });
-      if (!credit.ok) throw new Error('Discovery credit failed');
       const xp = this.xpLedger.awardInTransaction({ pilotId, source: 'DISCOVERY', eventId: `${cityId}:${locationId}`, cityId, now });
       return { profile: this.toProfile(this.getRow(pilotId)!), xp };
     });
@@ -1694,23 +1670,34 @@ export class PlayerProfileStore {
     }
   }
 
-  applyClientReward(pilotId: string, rewardId: string, source: unknown): PlayerProfile | undefined {
-    const row = this.getRow(pilotId);
-    const now = Date.now();
-    const issuedAt = rewardReceiptIssuedAt(rewardId);
-    if (!row || issuedAt === undefined || now - issuedAt > rewardReceiptRetentionMs || issuedAt - now > rewardReceiptFutureToleranceMs || typeof source !== 'string' || !(source in economyRewards.contractCredits)) return undefined;
-    const credits = economyRewards.contractCredits[source as keyof typeof economyRewards.contractCredits];
-    return this.wallet.transaction((wallet) => {
-      const current = this.getRow(pilotId);
-      if (!current) return undefined;
-      const prior = this.database.prepare('SELECT MAX(created_at) AS created_at FROM profile_reward_receipts WHERE pilot_id = ? AND reward_id LIKE ?')
-        .get(pilotId, 'contract:%') as { created_at?: number } | undefined;
-      if (prior?.created_at && now - prior.created_at < economyRewards.contractClaimCooldownMs) return this.toProfile(current);
-      const receiptId = `contract:${source}:${rewardId}`;
-      const receipt = this.database.prepare('INSERT OR IGNORE INTO profile_reward_receipts (pilot_id, reward_id, created_at) VALUES (?, ?, ?)').run(pilotId, receiptId, now);
-      if (receipt.changes === 0) return this.toProfile(current);
-      wallet.credit({ pilotId, currency: 'CREDITS', amount: credits, reason: 'FLIGHT_REWARD', idempotencyKey: receiptId, referenceId: rewardId, createdAt: now });
-      return this.toProfile(this.getRow(pilotId)!);
+  // Compatibility for old callers: client-created contracts can never mint Credits.
+  applyClientReward(_pilotId: string, _rewardId: string, _source: unknown): undefined { return undefined; }
+
+  claimedSkyChallenges(pilotId: string): string[] {
+    const paid = (this.database.prepare("SELECT DISTINCT reference_id FROM wallet_transactions WHERE pilot_id=? AND currency='CREDITS' AND direction='CREDIT' AND reason='CHALLENGE_REWARD' AND reference_id IS NOT NULL")
+      .all(pilotId) as Array<{ reference_id: string }>).map(row => row.reference_id);
+    const claims = (this.database.prepare("SELECT idempotency_key FROM wallet_idempotency_receipts WHERE pilot_id=? AND idempotency_key LIKE 'sky-challenge:%'")
+      .all(pilotId) as Array<{ idempotency_key: string }>).map(row => row.idempotency_key.split(':').slice(2).join(':'));
+    return [...new Set([...paid, ...claims])];
+  }
+
+  completeSkyChallenge(pilotId: string, cityId: CityId, challengeId: string, now = Date.now()): { profile?: PlayerProfile; credits: number } {
+    const challenge = challengeForCity(cityId, challengeId);
+    if (!challenge) return { credits: 0 };
+    return this.wallet.transaction(wallet => {
+      const row = this.getRow(pilotId);
+      if (!row) return { credits: 0 };
+      // Historical payouts also count, so existing pilots cannot claim a paid challenge again.
+      const claimed = this.database.prepare("SELECT 1 FROM wallet_transactions WHERE pilot_id=? AND reason='CHALLENGE_REWARD' AND direction='CREDIT' AND reference_id=? LIMIT 1").get(pilotId, challengeId);
+      let credits = 0;
+      if (!claimed) {
+        const paid = wallet.credit({ pilotId, currency: 'CREDITS', amount: challengeCreditReward(challenge.reward),
+          reason: 'CHALLENGE_REWARD', referenceId: challengeId, idempotencyKey: `sky-challenge:${cityId}:${challengeId}`, createdAt: now });
+        if (!paid.ok) throw new Error('Challenge reward settlement failed');
+        if (paid.applied && !paid.duplicate) credits = Math.max(0, (paid.balance ?? row.credits) - row.credits);
+      }
+      this.database.prepare('UPDATE player_profiles SET challenge_completions=MIN(1000000,challenge_completions+1) WHERE pilot_id=?').run(pilotId);
+      return { profile: this.toProfile(this.getRow(pilotId)!), credits };
     });
   }
 
@@ -1767,8 +1754,9 @@ export class PlayerProfileStore {
     const row = this.getRow(pilotId);
     if (!row) return {};
     const xp = this.wallet.transaction((wallet) => {
-      const amount = boundedInteger(credits, 100_000);
-      if (amount > 0) wallet.credit({ pilotId, currency: 'CREDITS', amount, reason, referenceId });
+      // Gameplay helpers retain stats/XP; approved rewards use dedicated claim methods.
+      if (reason === 'ADMIN_ADJUSTMENT' && boundedInteger(credits, 100_000) > 0)
+        wallet.credit({ pilotId, currency: 'CREDITS', amount: boundedInteger(credits, 100_000), reason, referenceId });
       this.database.prepare(`UPDATE player_profiles SET kills = kills + ?, deaths = deaths + ?, challenge_completions = challenge_completions + ?, event_completions = event_completions + ? WHERE pilot_id = ?`)
         .run(
           boundedInteger(stats?.kills, 1_000_000), boundedInteger(stats?.deaths, 1_000_000),
@@ -1799,11 +1787,6 @@ export class PlayerProfileStore {
       const receipt = this.database.prepare('INSERT OR IGNORE INTO profile_reward_receipts (pilot_id, reward_id, created_at) VALUES (?, ?, ?)')
         .run(pilotId, `server:${compactId}`, now);
       if (receipt.changes > 0) {
-        const amount = boundedInteger(credits, 100_000);
-        if (amount > 0) wallet.credit({
-          pilotId, currency: 'CREDITS', amount, reason,
-          idempotencyKey: `server:${compactId}`, referenceId: compactId,
-        });
         this.database.prepare(`UPDATE player_profiles SET kills = kills + ?, deaths = deaths + ?, challenge_completions = challenge_completions + ?, event_completions = event_completions + ? WHERE pilot_id = ?`)
           .run(
             boundedInteger(stats?.kills, 1_000_000), boundedInteger(stats?.deaths, 1_000_000),
@@ -1871,21 +1854,18 @@ export class PlayerProfileStore {
         amount = 1;
       }
       const completed: ObjectiveItem[] = [];
-      let credits = 0;
       for (const item of [...state.daily, ...state.weekly]) {
         if (item.activity !== activity || item.completed) continue;
         item.progress = Math.min(item.target, item.progress + Math.floor(amount));
         if (item.progress >= item.target) {
           item.completed = true;
-          if (!item.rewarded) { item.rewarded = true; credits += item.reward; completed.push(item); }
+          if (!item.rewarded) { item.rewarded = true; completed.push(item); }
         }
       }
-      let bonusCredits = 0;
-      if (!state.dailyBonusAwarded && state.daily.every((item) => item.completed)) { state.dailyBonusAwarded = true; bonusCredits += 100; }
-      if (!state.weeklyBonusAwarded && state.weekly.every((item) => item.completed)) { state.weeklyBonusAwarded = true; bonusCredits += 300; }
+      const bonusCredits = 0;
+      if (!state.dailyBonusAwarded && state.daily.every((item) => item.completed)) state.dailyBonusAwarded = true;
+      if (!state.weeklyBonusAwarded && state.weekly.every((item) => item.completed)) state.weeklyBonusAwarded = true;
       this.database.prepare('UPDATE player_profiles SET objectives = ? WHERE pilot_id = ?').run(JSON.stringify(all), pilotId);
-      const reward = credits + bonusCredits;
-      if (reward > 0) wallet.credit({ pilotId, currency: 'CREDITS', amount: reward, reason: 'OBJECTIVE_REWARD', referenceId: `${cityId}:${activity}` });
       return { profile: this.toProfile(this.getRow(pilotId)!), completed, bonusCredits };
     });
   }
@@ -2002,16 +1982,11 @@ export class PlayerProfileStore {
       if (!active || active.attemptId !== attemptId) return undefined;
       const mission = missionForCity(cityId, active.missionId);
       if (!mission) return undefined;
-      const cargoReward = cargoCreditReward(mission.creditReward, row.selected_aircraft, 'mission', mission.id, mission.cargoCreditBonus === true);
       const previous = all[cityId]!.completions[mission.id];
       all[cityId]!.completions[mission.id] = { count: Math.min(1_000_000, (previous?.count ?? 0) + 1), lastCompletedAt: now };
       all[cityId]!.active = undefined;
       this.database.prepare('UPDATE player_profiles SET missions = ?, score = MIN(100000000, score + ?) WHERE pilot_id = ?')
         .run(JSON.stringify(all), mission.scoreReward, pilotId);
-      if (cargoReward.credits > 0) wallet.credit({
-        pilotId, currency: 'CREDITS', amount: cargoReward.credits, reason: 'MISSION_REWARD',
-        idempotencyKey: `mission:${attemptId}`, referenceId: mission.id, context: { cityId }, createdAt: now,
-      });
       this.ensurePilotProgression(row);
       const xp = mission.difficulty === 'PRACTICE'
         ? { awarded: false, amount: 0, beforeLevel: this.pilotProgression(pilotId).level,
@@ -2019,8 +1994,8 @@ export class PlayerProfileStore {
         : this.xpLedger.awardInTransaction({ pilotId, source: previous ? 'MISSION_REPLAY' : 'MISSION_FIRST',
           eventId: previous ? `${cityId}:${mission.id}:${utcDayId(now)}` : `${cityId}:${mission.id}`,
           cityId, missionId: mission.id, difficulty: mission.difficulty, now });
-      return { profile: this.toProfile(this.getRow(pilotId)!), credits: cargoReward.credits, score: mission.scoreReward,
-        missionId: mission.id, cargoBonusCredits: cargoReward.bonusCredits, xp,
+      return { profile: this.toProfile(this.getRow(pilotId)!), credits: 0, score: mission.scoreReward,
+        missionId: mission.id, cargoBonusCredits: 0, xp,
         xpSource: mission.difficulty === 'PRACTICE' ? null : previous ? 'MISSION_REPLAY' : 'MISSION_FIRST' };
     });
   }
@@ -2114,6 +2089,7 @@ export class PlayerProfileStore {
       deaths: boundedInteger(row.deaths, 1_000_000),
       discoveries: rowDiscoveries(row),
       challengeCompletions: boundedInteger(row.challenge_completions, 1_000_000),
+      claimedSkyChallenges: this.claimedSkyChallenges(row.pilot_id),
       eventCompletions: boundedInteger(row.event_completions, 1_000_000),
       objectives,
       mastery,

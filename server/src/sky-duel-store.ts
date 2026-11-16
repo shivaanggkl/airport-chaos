@@ -87,6 +87,7 @@ export class SkyDuelStore {
   }
 
   reserve(pilotA: string, pilotB: string, now = Date.now()): { ok: true; match: DuelRecord } | { ok: false; reason: 'SAME_ACCOUNT' | 'BUSY' | 'INSUFFICIENT_CREDITS' | 'WALLET_CAP' | 'PROFILE_NOT_FOUND' } {
+    if(pilotA.startsWith('sky-duel-ai:')||pilotB.startsWith('sky-duel-ai:'))return {ok:false,reason:'PROFILE_NOT_FOUND'};
     return this.reserveMatch(pilotA, pilotB, now, false);
   }
 
@@ -101,30 +102,15 @@ export class SkyDuelStore {
       const accounts = this.db.prepare('SELECT pilot_id,credits FROM player_profiles WHERE pilot_id IN (?,?)').all(pilotA, pilotB) as AccountRow[];
       if (accounts.length !== 2) return { ok: false, reason: 'PROFILE_NOT_FOUND' } as const;
       if (this.activeFor(pilotA) || this.activeFor(pilotB)) return { ok: false, reason: 'BUSY' } as const;
-      const humanBalance = accounts.find(row => row.pilot_id === pilotA)!.credits;
-      if (humanBalance < SKY_DUEL_ENTRY) return { ok: false, reason: 'INSUFFICIENT_CREDITS' } as const;
-      if (humanBalance + SKY_DUEL_ENTRY > CREDIT_CAP) return { ok: false, reason: 'WALLET_CAP' } as const;
-      if (aiOpponent) {
-        const balance = wallet.balances(pilotB)?.credits;
-        if (balance === undefined) throw new Error('Sky Duel AI wallet missing');
-        // The server-owned AI wallet supplies a real second stake in the same
-        // transaction as the human reservation. Its funds are never client-owned.
-        const adjustment = balance < SKY_DUEL_ENTRY
-          ? wallet.credit({ pilotId: pilotB, currency: 'CREDITS', amount: SKY_DUEL_ENTRY - balance,
-            reason: 'ADMIN_ADJUSTMENT', referenceId: `sky-duel-ai-fund:${randomUUID()}`, createdAt: now })
-          : balance + SKY_DUEL_ENTRY > CREDIT_CAP
-            ? wallet.debit({ pilotId: pilotB, currency: 'CREDITS', amount: balance - SKY_DUEL_ENTRY,
-              reason: 'ADMIN_ADJUSTMENT', referenceId: `sky-duel-ai-trim:${randomUUID()}`, createdAt: now })
-            : undefined;
-        if (adjustment && (!adjustment.ok || !adjustment.applied)) throw new Error('Sky Duel AI wallet funding failed');
-        accounts.find(row => row.pilot_id === pilotB)!.credits = wallet.balances(pilotB)!.credits;
-      }
-      if (accounts.some(row => row.credits < SKY_DUEL_ENTRY)) return { ok: false, reason: 'INSUFFICIENT_CREDITS' } as const;
-      if (accounts.some(row => row.credits + SKY_DUEL_ENTRY > CREDIT_CAP)) return { ok: false, reason: 'WALLET_CAP' } as const;
       const id = randomUUID();
-      const first = wallet.debit({ pilotId: pilotA, currency: 'CREDITS', amount: SKY_DUEL_ENTRY, reason: 'SKY_DUEL_ENTRY', referenceId: id, idempotencyKey: `${id}:entry:a`, createdAt: now });
-      const second = wallet.debit({ pilotId: pilotB, currency: 'CREDITS', amount: SKY_DUEL_ENTRY, reason: 'SKY_DUEL_ENTRY', referenceId: id, idempotencyKey: `${id}:entry:b`, createdAt: now });
-      if (!first.ok || !second.ok || !first.applied || !second.applied) throw new Error('Sky Duel reservation failed inside wallet transaction');
+      // AI sessions are free practice: neither an entry debit nor a funded AI stake.
+      if(!aiOpponent){
+        if (accounts.some(row => row.credits < SKY_DUEL_ENTRY)) return { ok: false, reason: 'INSUFFICIENT_CREDITS' } as const;
+        if (accounts.some(row => row.credits + SKY_DUEL_ENTRY > CREDIT_CAP)) return { ok: false, reason: 'WALLET_CAP' } as const;
+        const first=wallet.debit({pilotId:pilotA,currency:'CREDITS',amount:SKY_DUEL_ENTRY,reason:'SKY_DUEL_ENTRY',referenceId:id,idempotencyKey:`${id}:entry:a`,createdAt:now});
+        const second=wallet.debit({pilotId:pilotB,currency:'CREDITS',amount:SKY_DUEL_ENTRY,reason:'SKY_DUEL_ENTRY',referenceId:id,idempotencyKey:`${id}:entry:b`,createdAt:now});
+        if(!first.ok||!second.ok||!first.applied||!second.applied)throw new Error('Sky Duel reservation failed inside wallet transaction');
+      }
       this.db.prepare("INSERT INTO sky_duel_matches(id,pilot_a,pilot_b,status,created_at) VALUES (?,?,?,'RESERVED',?)").run(id, pilotA, pilotB, now);
       return { ok: true, match: this.get(id)! } as const;
     });
@@ -154,9 +140,12 @@ export class SkyDuelStore {
         a: rankedResult && xpEligible.a && (outcome === 'WIN_A' || activeMs >= 60_000 && scoreA > 0),
         b: rankedResult && xpEligible.b && (outcome === 'WIN_B' || activeMs >= 60_000 && scoreB > 0),
       };
-      const amountA = outcome === 'WIN_A' ? SKY_DUEL_POOL : outcome === 'DRAW' || outcome === 'CANCELLED' ? SKY_DUEL_ENTRY : 0;
-      const amountB = outcome === 'WIN_B' && !aiForfeit ? SKY_DUEL_POOL : outcome === 'DRAW' || outcome === 'CANCELLED' ? SKY_DUEL_ENTRY : 0;
-      const reason = outcome === 'WIN_A' || outcome === 'WIN_B' ? 'SKY_DUEL_PAYOUT' : 'SKY_DUEL_REFUND';
+      const aiMatch=match.pilotB===`sky-duel-ai:${match.pilotA}`;
+      // Refund only actual historic AI stakes, never create a prize from practice.
+      const aiStake=(pilotId:string)=>Number((this.db.prepare("SELECT COALESCE(SUM(amount),0) AS amount FROM wallet_transactions WHERE pilot_id=? AND reference_id=? AND direction='DEBIT' AND reason='SKY_DUEL_ENTRY'").get(pilotId,id) as {amount:number}).amount);
+      const amountA = aiMatch ? aiStake(match.pilotA) : outcome === 'WIN_A' ? SKY_DUEL_POOL : outcome === 'DRAW' || outcome === 'CANCELLED' ? SKY_DUEL_ENTRY : 0;
+      const amountB = aiMatch ? aiStake(match.pilotB) : outcome === 'WIN_B' && !aiForfeit ? SKY_DUEL_POOL : outcome === 'DRAW' || outcome === 'CANCELLED' ? SKY_DUEL_ENTRY : 0;
+      const reason = aiMatch ? 'SKY_DUEL_REFUND' : outcome === 'WIN_A' || outcome === 'WIN_B' ? 'SKY_DUEL_PAYOUT' : 'SKY_DUEL_REFUND';
       if (amountA) {
         const result = wallet.credit({ pilotId: match.pilotA, currency: 'CREDITS', amount: amountA, reason, referenceId: id, idempotencyKey: `${id}:settle:a`, createdAt: now });
         if (!result.ok || !result.applied) throw new Error('Sky Duel settlement A failed');

@@ -98,7 +98,7 @@ import { competitiveModes } from '../../shared/competitive-modes.mjs';
 import { runwayPowerScale, runwayRotationSpeed, landingApproachSpeedTarget, airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, COORDINATED_BANK_CAP, COORDINATED_BANK_STRONG_TARGET, desktopTurnIntent, hasRunwayLiftoffLift, normalizedPitchCommand, smoothMobileSteering, stepBoostBlend, stepCoordinatedBank, throttleSpeedTarget, throttleDecelerationResponse, controlledEngineThrust, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
 import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
-import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
+import { challengeCreditReward } from '../../shared/reward-economy.mjs';
 import { pilotXpForLevel } from '../../shared/pilot-progression.mjs';
 import { weatherZoneAt, weatherZonesForCity, type WeatherZone } from '../../shared/weather-zones.mjs';
 import { combatThreatDirection } from '../../shared/combat-warning.mjs';
@@ -834,7 +834,6 @@ type ContractDefinition = {
   id: number;
   type: ContractType;
   aircraftType: AircraftType;
-  reward: number;
   originAirportId: AirportId;
   destinationAirportId: AirportId;
   regionNames: RegionName[];
@@ -4176,7 +4175,7 @@ stuntCombo = new StuntComboSystem(cityWorld.stuntZones ?? [], {
     recordBestScore(score);
     sendPlayerUpdate();
   },
-  onCredits: () => { /* stunt Credits are banked by the server Chaos path */ },
+  onCredits: () => { /* stunts award score and XP only */ },
   onMessage: showProgressMessage,
   onStunt: (type) => {
     if (type === 'nearMiss') gameplayFeedback.push({ type:'near-miss', primaryText:'CLOSE CALL', secondaryText:'NEAR MISS', intensity:'small' });
@@ -4224,10 +4223,6 @@ const contractAircraft: Record<ContractType, AircraftType> = {
   sightseeing: 'trainer',
   intercept: 'fighter',
 };
-const contractRewards: Record<ContractType, number> = {
-  ...economyRewards.contractCredits,
-};
-
 function airportById(id: AirportId): AirportDefinition {
   return airports.find((airport) => airport.id === id) ?? centralAirport;
 }
@@ -4263,7 +4258,6 @@ function generateContract(): void {
     id,
     type,
     aircraftType: contractAircraft[type],
-    reward: contractRewards[type],
     originAirportId: airports[originIndex].id,
     destinationAirportId: airports[destinationIndex].id,
     regionNames,
@@ -4292,7 +4286,7 @@ function updateContractPanel(): void {
   contractAircraftElement.textContent = accessReason
     ? `${aircraftDefinitions[availableContract.aircraftType].name} · LOCKED`
     : aircraftDefinitions[availableContract.aircraftType].name;
-  contractRewardElement.textContent = `+${availableContract.reward} credits`;
+  contractRewardElement.hidden = true;
   contractAcceptElement.disabled = Boolean(accessReason);
   contractAcceptElement.textContent = accessReason ? 'Aircraft Locked' : 'Accept';
 }
@@ -4309,7 +4303,7 @@ function updateActiveContractHud(): void {
   header.textContent = `ACTIVE CONTRACT · ${contractTitle(contract.type)}`;
   const meta = document.createElement('div');
   meta.className = 'active-contract-meta';
-  meta.textContent = `${aircraftName} · Reward: ${contract.reward} credits`;
+  meta.textContent = aircraftName;
   const route = document.createElement('div');
   route.className = 'active-contract-route';
 
@@ -4359,10 +4353,9 @@ function acceptAvailableContract(): void {
 
 function completeContract(): void {
   if (!activeContract) return;
-  const { reward, type } = activeContract.definition;
+  const { type } = activeContract.definition;
   activeContract = null;
   updateActiveContractHud();
-  addCredits(reward, type);
   showProgressMessage(`${contractTitle(type)} COMPLETE`);
   generateContract();
 }
@@ -4512,7 +4505,7 @@ function applyHeatState(state: NetworkHeatState): void {
     localHeatMultiplier = state.multiplier;
     heatLevelElement.textContent = level.toString();
     heatRowElement.dataset.level = level.toString();
-    if (state.levelChanged && levelRaised) showProgressMessage(`${visualLanguage.heat.icon} DANGER ${level} — More danger. Better rewards.`);
+    if (state.levelChanged && levelRaised) showProgressMessage(`${visualLanguage.heat.icon} DANGER ${level} — More danger. Higher Score.`);
     return;
   }
   const remote = remotePlayers.get(state.playerId);
@@ -4524,12 +4517,6 @@ function updatePendingAircraftEquip(): void {
     pendingEquip = undefined;
     showProgressMessage('AIRCRAFT SWITCH NOT CONFIRMED — TRY AGAIN');
   }
-}
-
-function addCredits(amount: number, source: ContractType): boolean {
-  if (flightTestMode) return false;
-  queueProfileReward(source);
-  return false;
 }
 
 function checkRegionDiscovery(): void {
@@ -5931,6 +5918,7 @@ type NetworkProfile = {
   deaths: number;
   discoveries: Partial<Record<CityId, string[]>>;
   challengeCompletions: number;
+  claimedSkyChallenges?: string[];
   eventCompletions: number;
   objectives: Partial<Record<CityId, NetworkObjectiveCycle>>;
   mastery: Partial<Record<CityId, NetworkMastery>>;
@@ -7054,8 +7042,8 @@ function playerFacingEventDetail(event: NetworkCityEvent): string {
     case 'skyRush': return 'Fly the temporary gate route fastest for the top reward.';
     case 'riskZone': return 'Build a bonus inside the zone, then leave safely to bank it.';
     case 'emergencyEscort': return 'Fly near the event aircraft until it reaches its destination.';
-    case 'cargoConvoy': return 'Escort the Dallas cargo convoy to build shared progress. MAMMOTH CARGO BONUS: +40% Credits.';
-    case 'aceIntercept': return 'Track and destroy the elite event aircraft; rewards scale with your contribution.';
+    case 'cargoConvoy': return 'Escort the Dallas cargo convoy to build shared progress.';
+    case 'aceIntercept': return 'Track and destroy the elite event aircraft; Score scales with your contribution.';
     case 'vipEscort': return 'Stay near the VIP aircraft until it reaches the city center for a shared reward.';
     case 'goldenSkyRun': return 'Race the rare high-value gate route before time expires.';
     case 'cityEmergency': return 'Survive the temporary emergency corridor, then leave safely to collect your reward.';
@@ -8014,7 +8002,7 @@ function pilotMenuData(): PilotMenuData {
     activities.push({
       name: challenge.name,
       detail: unavailableReason ?? `${challenge.type.replace(/([A-Z])/g, ' $1')} skill route. Fly its gates before time expires.`,
-      meta: `+${challengeCreditReward(challenge.reward)} credits · ${Math.round(Math.hypot(airplane.position.x - gate.x, airplane.position.z - gate.z))}m · ${pilotChallengeSuitability(challenge.type)}`,
+      meta: `${serverProfile.claimedSkyChallenges?.includes(challenge.id) ? 'REWARD CLAIMED' : `+${challengeCreditReward(challenge.reward)} Credits · First completion only`} · ${Math.round(Math.hypot(airplane.position.x - gate.x, airplane.position.z - gate.z))}m · ${pilotChallengeSuitability(challenge.type)}`,
       actions: [
         { label: 'Set Waypoint', run: () => setWaypoint(gate.x, gate.z, challenge.name) },
         { label: 'Start', disabled: Boolean(unavailableReason), title: unavailableReason, run: () => { if (skyChallenges?.activate(challenge.id)) updateSkyChallengeHud(); } },
@@ -8026,7 +8014,7 @@ function pilotMenuData(): PilotMenuData {
   const liveEvent = event && eventObjective ? {
     name: `${visualLanguage[event.eventType === 'mostWanted' ? 'wanted' : 'event'].icon} ` + event.name.replace(/\s*·\s*.*/, ''),
     detail: playerFacingEventDetail(event),
-    meta: (() => { const cargoReward = cargoCreditReward(event.rewardCredits ?? 0, aircraftType, 'event', event.eventType); return `${event.lifecycle === 'active' ? 'ACTIVE' : 'NEXT'} · +${cargoReward.credits} Credits${cargoReward.applied ? ' · MAMMOTH CARGO BONUS +40%' : ''} · ${Math.max(0, Math.ceil((event.expiresAt - Date.now()) / 1000))}s · ${Math.round(Math.hypot(airplane.position.x - eventObjective.x, airplane.position.z - eventObjective.z))}m`; })(),
+    meta: `${event.lifecycle === 'active' ? 'ACTIVE' : 'NEXT'} · ${Math.max(0, Math.ceil((event.expiresAt - Date.now()) / 1000))}s · ${Math.round(Math.hypot(airplane.position.x - eventObjective.x, airplane.position.z - eventObjective.z))}m`,
     actions: [
       { label: 'Set Waypoint', run: () => setWaypoint(eventObjective.x, eventObjective.z, event.name) },
       ...(localPlayerId && connectionReady() ? [{ label: joinedEventId === event.id ? 'Joined' : 'Join Event', run: () => {
@@ -8166,7 +8154,7 @@ function pilotMenuData(): PilotMenuData {
       providerAuth: providerAccountRequest,
     },
     city: { name: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', timePreset: worldTimeOfDay.toUpperCase(), changeCity: openWorldSelector },
-    intercity:{routes:portalNavigationState?[{routeId:portalNavigationState.gate.routeId,destination:portalNavigationState.gate.destination.toUpperCase(),distanceLabel:portalNavigationState.claimed?'250-Credit exploration reward already claimed':'First arrival: 250 Credits',available:!portalInTransit,start:setPortalWaypoint}]:[]},
+    intercity:{routes:portalNavigationState?[{routeId:portalNavigationState.gate.routeId,destination:portalNavigationState.gate.destination.toUpperCase(),distanceLabel:'Intercity travel',available:!portalInTransit,start:setPortalWaypoint}]:[]},
     missions: {
       practice: cityRules.practiceMode,
       activeId: profileActiveMissionAttempt(serverProfile)?.missionId,
@@ -11283,7 +11271,7 @@ function refreshPortalGate(): void {
     portalVisuals?.setGate(portalGate,getTerrainHeight);
     portalMapRoute.hidden = !portalNavigationState;
     if (portalNavigationState) {
-        const status = portalNavigationState.claimed ? '250 Credits already claimed' : 'First arrival: 250 Credits';
+        const status = 'Intercity travel';
         portalMapLabel.textContent = `${cityId.toUpperCase()} → ${portalNavigationState.gate.destination.toUpperCase()} · ${status}`;
         portalMapButton.disabled = portalInTransit;
     }
@@ -12364,41 +12352,7 @@ if (chaosQaMode) {
   });
   document.body.append(panel);
 }
-const pendingProfileRewards = new Map<string, ContractType>();
-let inFlightProfileReward: { id: string; sentAt: number } | undefined;
 let profileProgressTimer: number | undefined;
-let profileSyncUnavailableNotified = false;
-
-function flushProfileRewards(): void {
-  if (!localPlayerId || !connectionReady()) return;
-  // One receipt at a time: resending the entire pending map on each new
-  // reward amplified delayed acknowledgements into a WS/HTTP starvation loop.
-  if (inFlightProfileReward && performance.now() - inFlightProfileReward.sentAt < 5000) return;
-  const next = pendingProfileRewards.entries().next();
-  if (next.done) return;
-  const [rewardId, rewardSource] = next.value;
-  socket.send(JSON.stringify({ type: 'profileReward', rewardId, rewardSource }));
-  inFlightProfileReward = { id: rewardId, sentAt: performance.now() };
-}
-
-function queueProfileReward(source: ContractType): void {
-  if (flightTestMode) return;
-  // The timestamp makes a reward receipt self-expiring: after the server's
-  // retention window it cannot be replayed even though its row was pruned.
-  const nonce = typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2, 18);
-  const rewardId = `reward-${Date.now().toString(36)}-${nonce}`;
-  pendingProfileRewards.set(rewardId, source);
-  if (!localPlayerId || !connectionReady()) {
-    if (!profileSyncUnavailableNotified) {
-      profileSyncUnavailableNotified = true;
-      showProgressMessage('PROGRESS WAITING FOR SERVER');
-    }
-    return;
-  }
-  flushProfileRewards();
-}
 
 function queueProfileProgress(): void {
   if (flightTestMode || !cityRules.progressionEnabled || profileProgressTimer !== undefined) return;
@@ -12420,10 +12374,6 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   if (!isNetworkProfile(profile)) return false;
   if (!Number.isSafeInteger(revision) || revision < 0) return false;
   const previousRevision = selectionRevision;
-  if (rewardId) {
-    pendingProfileRewards.delete(rewardId);
-    if (inFlightProfileReward?.id === rewardId) inFlightProfileReward = undefined;
-  }
   // A delayed pre-equip profile may acknowledge a reward, but must never
   // restore the previous aircraft (or its older progression snapshot).
   if (revision < selectionRevision) return true;
@@ -12464,7 +12414,6 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   refreshTerritoryBorders();
   updateMissionHud();
   profileHydrated = true;
-  profileSyncUnavailableNotified = false;
   persistedPlayer.pilotId = profile.pilotId;
   persistedPlayer.selectedAircraft = profile.selectedAircraft;
   credits = profile.credits;
@@ -12760,7 +12709,6 @@ function sendLocalState(introHandshake = false): void {
   if (freeFlyRespawnPending || journeyPaused || trainingPaused || !localPlayerId || !connectionReady()) return;
   if (!introHandshake && (missionStartCountdownPending || missionStartCountdownStartedAt !== null)) return;
   if (!introHandshake && (airborneIntroAwaiting || runwayJourneyIntroAwaiting || (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath || missionCoinHuntIntro || missionSharpshooterIntro || missionAirportHopIntro || missionCaptureIntroPath || missionCombatIntroPath) && flightLaunchState === 'active')) return;
-  flushProfileRewards();
   socket.send(
     JSON.stringify({
       type: 'state',
@@ -13596,7 +13544,6 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     applyTerritoryState(message.territories ?? []);
     weeklyLeaderboards = message.weeklyLeaderboards ?? [];
     applyCityEvent(message.event);
-    flushProfileRewards();
     if (shouldBeginFlightLaunch && !message.airborneSpawn && !runwayJourneyIntroAwaiting) beginFlightLaunchCinematic();
     else if (!airborneIntroAwaiting && !runwayJourneyIntroAwaiting) { cancelPendingFlightLaunch(); offerDallasPracticeSuggestion(serverProfile); }
     sendLocalState(airborneIntroAwaiting || runwayJourneyIntroAwaiting || Boolean(missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath || missionCoinHuntIntro || missionSharpshooterIntro || missionAirportHopIntro || missionCaptureIntroPath || missionCombatIntroPath));
@@ -13934,9 +13881,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     if (!perfectLanding || guidedTutorialActive) {
       gameplayFeedback.push({ type: 'landing', primaryText: grade, secondaryText: `${message.quality} / 1,000`, intensity: perfectLanding ? 'major' : 'medium' });
     } else {
-      const rewardText = message.credits > 0
-        ? `${message.score.toLocaleString()} / 1,000 · REWARD APPLIED`
-        : `${message.score.toLocaleString()} / 1,000 · NO REWARDS`;
+      const rewardText = `${message.score.toLocaleString()} / 1,000`;
       cinematicDirector.requestPerfectLanding(`${message.airportId}:${message.quality}:${lastLandingResult.at}`, rewardText);
     }
     queueAtcCallout(`landing-${message.grade}`, message.grade === 'ROUGH' ? 'TOWER: ROUGH LANDING' : 'TOWER: LANDING CONFIRMED', message.grade === 'PERFECT' || message.grade === 'LEGENDARY' ? 'SMOOTH TOUCHDOWN' : undefined);

@@ -173,7 +173,7 @@ test('Kills at/after deadline cannot overtake survival; final valid kill before 
   r.tick(r.encounter.deadlineAt!);
   assert.equal(r.encounter.result, 'survival');
 });
-test('Daily victory ledger is durable, atomic, cross-result idempotent and UTC-day scoped', () => {
+test('AI victories and survival never grant Credits, including after restart', () => {
   const dir = mkdtempSync(join(tmpdir(), 'assault-rewards-')), path = join(dir, 'profiles.sqlite');
   try {
     const profiles = new PlayerProfileStore(path);
@@ -182,14 +182,14 @@ test('Daily victory ledger is durable, atomic, cross-result idempotent and UTC-d
     const before = profiles.getOrCreate('pilot', 'Pilot').credits;
     assert.equal(rewards.settle('pilot', 'unstarted', null, 'full', now).reward, 0);
     assert.equal(rewards.settle('pilot', 'lost', now - 1000, 'destroyed', now).reward, 0);
-    assert.equal(rewards.settle('pilot', 'first', now - 1000, 'survival', now).reward, 250);
-    assert.deepEqual(rewards.settle('pilot', 'second', now - 1000, 'full', now), { reward: 0, dailyClaimed: true });
+    assert.equal(rewards.settle('pilot', 'first', now - 1000, 'survival', now).reward, 0);
+    assert.deepEqual(rewards.settle('pilot', 'second', now - 1000, 'full', now), { reward: 0, dailyClaimed: false });
     rewards.close();
     rewards = new AirAssaultRewards(path);
     assert.equal(rewards.settle('pilot', 'restart', now - 1000, 'full', now).reward, 0);
-    assert.equal(rewards.settle('pilot', 'tomorrow', now, 'full', now + 86400000).reward, 600);
+    assert.equal(rewards.settle('pilot', 'tomorrow', now, 'full', now + 86400000).reward, 0);
     rewards.close();
-    assert.equal(profiles.getOrCreate('pilot', 'Pilot').credits, before + 850);
+    assert.equal(profiles.getOrCreate('pilot', 'Pilot').credits, before);
   }
   finally {
     rmSync(dir, { recursive: true, force: true });

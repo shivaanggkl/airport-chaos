@@ -99,13 +99,13 @@ test('aircraft grant and Credit debit roll back together', () => {
   try {
     const profiles = new PlayerProfileStore(temporary.path);
     profiles.getOrCreate('atomic-pilot', 'Atomic Pilot');
-    profiles.awardServerReward('atomic-pilot', 13_000, undefined, 'ADMIN_ADJUSTMENT');
+    profiles.awardServerReward('atomic-pilot', 15_000, undefined, 'ADMIN_ADJUSTMENT');
     const database = new DatabaseSync(temporary.path);
     database.exec(`CREATE TRIGGER reject_aircraft_grant BEFORE UPDATE OF owned_aircraft ON player_profiles
       BEGIN SELECT RAISE(ABORT, 'simulated grant failure'); END`);
     assert.throws(() => profiles.purchaseCosmetic('atomic-pilot', 'mammoth-sand'), /simulated grant failure/);
     const after = profiles.getOrCreate('atomic-pilot', 'Atomic Pilot');
-    assert.equal(after.credits, 13_000);
+    assert.equal(after.credits, 15_000);
     assert.equal(after.unlockedAircraft.includes('cargo'), false);
     assert.equal(after.cosmetics.ownedIds.includes('mammoth-sand'), false);
     assert.equal((database.prepare("SELECT COUNT(*) AS total FROM wallet_transactions WHERE pilot_id=? AND reason='COSMETIC_PURCHASE'").get('atomic-pilot') as { total: number }).total, 0);
@@ -121,7 +121,7 @@ test('independent purchase requests cannot overspend the same Credit balance', a
     const first = new PlayerProfileStore(temporary.path);
     const second = new PlayerProfileStore(temporary.path);
     first.getOrCreate('spend-pilot', 'Spend Pilot');
-    first.awardServerReward('spend-pilot', 33_000, undefined, 'ADMIN_ADJUSTMENT');
+    first.awardServerReward('spend-pilot', 20_000, undefined, 'ADMIN_ADJUSTMENT');
     const [cargo, privateJet] = await Promise.all([
       new Promise<ReturnType<PlayerProfileStore['purchaseCosmetic']>>((resolve) => setImmediate(() => resolve(first.purchaseCosmetic('spend-pilot', 'mammoth-sand')))),
       new Promise<ReturnType<PlayerProfileStore['purchaseCosmetic']>>((resolve) => setImmediate(() => resolve(second.purchaseCosmetic('spend-pilot', 'nightowl-sky-blue')))),
