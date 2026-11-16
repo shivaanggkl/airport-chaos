@@ -82,7 +82,7 @@ test('production coordinator uses only accepted flight inside the current real b
  ctx.pausedJourneyAttempts.add(a.attemptId);const before=f.store.get('pilot',a.attemptId).captureMs;tick();assert.equal(f.store.get('pilot',a.attemptId).captureMs,before);
  const tables=f.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%territor%' AND name NOT LIKE 'journey%'").all();
  for(const {name} of tables)assert.equal(f.db.prepare(`SELECT COUNT(*) AS n FROM "${name}"`).get().n,0,'mission cannot create multiplayer ownership');
- assert.ok(source.includes('if (missionId === journeyDallasCaptureThree01.id || missionId === journeyDallasTerritoryDefense01.id'));
+ assert.match(source,/if \(missionId === (?:journeyDallasMostWantedSurvival01\.id \|\| missionId === )?journeyDallasCaptureThree01\.id \|\| missionId === journeyDallasTerritoryDefense01\.id/);
  }finally{f.close();}
 });
 test('pause, durable reconnect, timeout, failure, fresh retry and verified continuation preserve the correct stage',()=>{
