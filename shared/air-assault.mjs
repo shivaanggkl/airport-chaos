@@ -1,7 +1,7 @@
 import { enemyAiLevels } from './enemy-ai.mjs';
 import { cityAirports } from './city-airports.mjs';
 import { DALLAS_WORLD_SCALE, scaleDallasPoint } from './dallas-world-scale.mjs';
-export const airAssaultRules = Object.freeze({ cityId: 'dallas', fullCredits: 600, survivalCredits: 250, durationMs: 480000 * DALLAS_WORLD_SCALE, introMs: 15000, countdownMs: 3000, returnMs: 10000, reconnectMs: 30000, maxActive: 4, heartCooldownMs: 60000 });
+export const airAssaultRules = Object.freeze({ cityId: 'dallas', durationMs: 480000 * DALLAS_WORLD_SCALE, introMs: 15000, countdownMs: 3000, returnMs: 10000, reconnectMs: 30000, maxActive: 4, heartCooldownMs: 60000 });
 // Hull values belong to this encounter; intelligence is the canonical shared object.
 export const airAssaultTiers = Object.freeze({
   medium: Object.freeze({ health: 100, level: 'MEDIUM', ai: enemyAiLevels.MEDIUM }),

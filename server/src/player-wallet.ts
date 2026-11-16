@@ -1,3 +1,4 @@
+import { approvedCreditReason } from '../../shared/reward-economy.mjs';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
@@ -94,6 +95,8 @@ class WalletTransaction {
   }
 
   credit(request: WalletMutationRequest): WalletMutationResult {
+    if (request.currency === 'CREDITS' && !approvedCreditReason(request.reason))
+      return { ok: false, applied: false, duplicate: false, code: 'INVALID_MUTATION' };
     return this.mutate('CREDIT', request);
   }
 

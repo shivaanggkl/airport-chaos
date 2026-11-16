@@ -39,7 +39,7 @@ test('exit preserves speed, attitude, heading offset and altitude above terrain'
     const back = portalExit(portalForCity('dallas', flat)!, pose, pose, flat, true, 100);
     assert.ok(Math.abs(Math.sin(back.rotation.y - pose.rotation.y - Math.PI)) < 1e-8);
 });
-test('durable session, lifecycle settlement, historical claims and repeat rewards', () => {
+test('durable portal lifecycle preserves travel and historical claims without new Credit rewards', () => {
     const dir = mkdtempSync(join(tmpdir(), 'portal-unit-')), path = join(dir, 'profiles.sqlite');
     const profiles = new PlayerProfileStore(path), transitions = new PortalTransitionStore(path), db = new DatabaseSync(path);
     try {
@@ -59,9 +59,9 @@ test('durable session, lifecycle settlement, historical claims and repeat reward
         transitions.save(f);
         assert.throws(() => profiles.commitPortalArrival('pilot', f.routeId, f.id, JSON.stringify({ ...f, phase: 'COMMITTED' }), now + 6999));
         const json = JSON.stringify({ ...f, phase: 'COMMITTED' });
-        assert.equal(profiles.commitPortalArrival('pilot', f.routeId, f.id, json, now + 7000), 250);
-        assert.equal(profiles.commitPortalArrival('pilot', f.routeId, f.id, json, now + 7001), 250);
-        assert.equal(profiles.getOrCreate('pilot', 'Pilot').credits, before + 250);
+        assert.equal(profiles.commitPortalArrival('pilot', f.routeId, f.id, json, now + 7000), 0);
+        assert.equal(profiles.commitPortalArrival('pilot', f.routeId, f.id, json, now + 7001), 0);
+        assert.equal(profiles.getOrCreate('pilot', 'Pilot').credits, before);
         f = transitions.get('pilot')!;
         f.phase = 'ARRIVED';
         transitions.save(f);
@@ -71,7 +71,7 @@ test('durable session, lifecycle settlement, historical claims and repeat reward
         f.ready = true;
         transitions.save(f);
         assert.equal(profiles.commitPortalArrival('pilot', f.routeId, f.id, JSON.stringify({ ...f, phase: 'COMMITTED' }), now + 7000), 0);
-        assert.equal(profiles.getOrCreate('pilot', 'Pilot').credits, before + 250);
+        assert.equal(profiles.getOrCreate('pilot', 'Pilot').credits, before);
         profiles.getOrCreate('historical', 'Pilot');
         db.prepare('INSERT INTO pilot_intercity_completions VALUES(?,?,?,?,?)').run('historical', 'milwaukee-dallas', 1, 2, 250);
         assert.ok(profiles.intercityRewardClaimed('historical', 'milwaukee-dallas'));

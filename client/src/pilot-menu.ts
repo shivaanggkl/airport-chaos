@@ -967,7 +967,7 @@ export class PilotMenu {
 
     if (this.activeSection === 'MISSIONS') {
     const missions = section(identityText('mission').toUpperCase() + 'S');
-    missions.append(textElement('p', data.missions.practice ? 'Practice tasks build flight skills and give no permanent rewards.' : 'Choose one mission. Finish it for the full Credits and Score reward.', 'pilot-menu-muted'));
+    missions.append(textElement('p', data.missions.practice ? 'Practice tasks build flight skills and give no permanent rewards.' : 'Choose one mission. Complete it to earn Score and XP.', 'pilot-menu-muted'));
     const current = data.missions.entries.find((entry) => entry.id === data.missions.activeId);
     if (current) {
       const activeSection = document.createElement('div');
@@ -976,7 +976,7 @@ export class PilotMenu {
       const active = this.createCard({
         name: `ACTIVE · ${current.name}`,
         detail: current.progressText ?? current.detail,
-        meta: data.missions.practice ? 'PRACTICE — NO REWARDS' : `REWARD · ${visualLanguage.credits.icon} ${current.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} ${current.score.toLocaleString()} Score`,
+        meta: data.missions.practice ? 'PRACTICE — NO REWARDS' : `REWARD · ${visualLanguage.score.icon} ${current.score.toLocaleString()} Score`,
         actions: [
           ...(current.setWaypoint ? [{ label: 'Set Waypoint', run: current.setWaypoint }] : []),
           { label: 'Abandon Mission', run: data.missions.abandon, intent: 'danger' },
@@ -1016,7 +1016,7 @@ export class PilotMenu {
       const card = this.createCard({
         name: `${item.name}${item.completions ? ` · COMPLETED ×${item.completions}` : ''}`,
         detail: item.detail,
-        meta: `${item.difficulty} · ${data.missions.practice ? 'PRACTICE — NO REWARDS' : `${visualLanguage.credits.icon} ${item.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} ${item.score.toLocaleString()} Score`}${cooling ? ` · Replay in ${Math.ceil((item.cooldownUntil - now) / 60_000)} min` : ''}${unavailableReason ? ` · ${unavailableReason}` : ''}`,
+        meta: `${item.difficulty} · ${data.missions.practice ? 'PRACTICE — NO REWARDS' : `${visualLanguage.score.icon} ${item.score.toLocaleString()} Score`}${cooling ? ` · Replay in ${Math.ceil((item.cooldownUntil - now) / 60_000)} min` : ''}${unavailableReason ? ` · ${unavailableReason}` : ''}`,
         actions: [{
           label: item.retired ? 'RETIRED' : cooling ? 'COOLDOWN' : unavailableReason ? 'UNAVAILABLE' : item.completions ? 'REPLAY' : 'ACCEPT',
           disabled: item.retired || cooling || Boolean(unavailableReason),
@@ -1107,10 +1107,10 @@ export class PilotMenu {
     }
 
     if (this.activeSection === 'REWARDS' && data.rewards) {
-      const rewards = section('HOURLY REWARD');
+      const rewards = section('DAILY REWARD');
       rewards.classList.add('pilot-rewards', 'game-card-frame');
       rewards.querySelector('h2')?.prepend(rewardImage('/media/hub/rewards.png', 'pilot-rewards-heading-art'));
-      rewards.append(textElement('p', 'Claim 25 free Credits every hour.', 'pilot-rewards-friendly'));
+      rewards.append(textElement('p', 'Claim 25 free Credits every 20 hours.', 'pilot-rewards-friendly'));
       const state = data.rewards.state;
       const remaining = Math.max(0, state.nextEligibleAt - state.serverNow - Math.max(0, Date.now() - state.serverNow));
       const available = state.claimable || remaining === 0;
@@ -1120,7 +1120,7 @@ export class PilotMenu {
       const claimAmount = textElement('strong', `${state.nextAmount.toLocaleString()} CREDITS`);
       claimAmount.prepend(rewardImage('/media/hub/credits.avif', 'pilot-reward-inline-credit'));
       claimDetails.append(
-        textElement('span', 'FREE HOURLY CLAIM'),
+        textElement('span', 'FREE DAILY CLAIM'),
         claimAmount,
       );
       claimArea.append(claimDetails);
@@ -1300,7 +1300,7 @@ export class PilotMenu {
     const dailyPlan = this.progressCard('daily-plan', '☀ DAILY FLIGHT PLAN', `${data.objectives.daily.filter(item => item.completed).length} / ${data.objectives.daily.length} COMPLETE`, 'Finish today’s short flight goals. Resets at UTC midnight.');
     for (const item of data.objectives.daily) {
       const row = document.createElement('div'); row.className = 'pilot-progress-detail';
-      row.append(textElement('span', `${item.completed ? '✓' : '○'} ${item.label} · ${Math.min(item.progress, item.target).toLocaleString()} / ${item.target.toLocaleString()} · +${item.reward} Credits`));
+      row.append(textElement('span', `${item.completed ? '✓' : '○'} ${item.label} · ${Math.min(item.progress, item.target).toLocaleString()} / ${item.target.toLocaleString()}`));
       const bar = document.createElement('progress'); bar.max = Math.max(1, item.target); bar.value = Math.min(item.target, item.progress); row.append(bar); dailyPlan.append(row);
     }
     cards.append(dailyPlan);

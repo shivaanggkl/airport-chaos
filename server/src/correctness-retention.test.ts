@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { killNotice } from '../../shared/kill-notice.mjs';
 import { cityDefinition } from '../../shared/city-registry.mjs';
-import { economyRewards } from '../../shared/reward-economy.mjs';
+import { approvedCreditReason } from '../../shared/reward-economy.mjs';
 import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { PlayerProfileStore } from './player-profiles.js';
 
@@ -40,10 +40,9 @@ test('exit flight and city guide behavior remains available without cluttering a
   assert.match(main, /if \(guidedTutorialActive \|\| trainingRequested\) return;/);
 });
 
-test('passive distance keeps its existing reward and only persisted credit receipts are displayed', () => {
-  assert.equal(economyRewards.distanceBatchMeters, 10_000);
-  assert.equal(economyRewards.distanceBatchCredits, 5);
-  assert.equal(economyRewards.landing, 75);
+test('passive distance has no Credit reward and only persisted receipts are displayed', () => {
+  assert.equal(approvedCreditReason('FLIGHT_REWARD'), false);
+  assert.equal(approvedCreditReason('LANDING_REWARD'), false);
   const main = read('client/src/main.ts');
   assert.match(main, /reconcileCreditSnapshot\(serverProfile\.credits, serverProfile\.creditRevision/);
   assert.match(main, /queueRewardFeedback\(creditUpdate\.toastDelta\)/);

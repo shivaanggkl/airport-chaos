@@ -11,7 +11,7 @@ function databasePath(): string {
   return join(mkdtempSync(join(tmpdir(), 'airport-daily-reward-')), 'profiles.sqlite');
 }
 
-test('free reward starts available and grants 25 Credits each hour', () => {
+test('free reward starts available and grants 25 Credits every 20 hours', () => {
   const path = databasePath();
   const profiles = new PlayerProfileStore(path);
   const start = Date.UTC(2026, 0, 1);
@@ -42,7 +42,9 @@ test('cooldown rejects early claims and missed time never resets reward progress
   const profiles = new PlayerProfileStore(databasePath());
   const start = Date.UTC(2026, 2, 1);
   profiles.getOrCreate('daily-cooldown', 'Cooldown Pilot');
+  assert.equal(DAILY_REWARD_COOLDOWN_MS,20*60*60*1000);
   assert.equal(profiles.claimDailyReward('daily-cooldown', start)?.day, 1);
+  assert.equal(profiles.claimDailyReward('daily-cooldown', start+60*60*1000)?.claimed,false);
   assert.equal(profiles.claimDailyReward('daily-cooldown', start + DAILY_REWARD_COOLDOWN_MS - 1)?.claimed, false);
   assert.equal(profiles.claimDailyReward('daily-cooldown', start + DAILY_REWARD_COOLDOWN_MS)?.day, 2);
   assert.equal(profiles.claimDailyReward('daily-cooldown', start + 8 * 86_400_000)?.day, 3);
@@ -110,7 +112,7 @@ test('Hub exposes the compact Rewards flow while active-flight navigation does n
   assert.match(shell, /app-shell-rewards[\s\S]*data-rewards-indicator/);
   assert.match(bootstrap, /openHubPilotMenu\('REWARDS', true, true\)/);
   assert.match(bootstrap, /method: 'POST'[\s\S]*body: '\{\}'/);
-  assert.match(menu, /HOURLY REWARD[\s\S]*CLAIM[\s\S]*CREDITS/);
+  assert.match(menu, /DAILY REWARD[\s\S]*CLAIM[\s\S]*CREDITS/);
   assert.match(menu, /is-rewards-overlay/);
   assert.match(menu, /options\.sections \?\? \['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP'\]/);
 });

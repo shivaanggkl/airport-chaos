@@ -1,44 +1,18 @@
 import { planOpponentTactics, recordOpponentShot } from './opponent-tactics.js';
 import { createOpponent, opponentIntercept, incomingOpponentThreat, opponentDodge, chooseOpponentEvasion, type OpponentRuntime, type OpponentDefinition } from './opponent.js';
 import { advanceHunterFlight, hunterBallisticSolution } from './hunter-flight.js';
-import { randomUUID, createHash } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
-import { PlayerWallet } from './player-wallet.js';
+import { randomUUID } from 'node:crypto';
 import { airAssaultRules as rules, airAssaultTiers as tiers, airAssaultManifest, airAssaultAirports, airAssaultQueuePosition, airAssaultInside, airAssaultHearts, type AssaultTier, type AssaultVector as V, type AssaultEnemy, type AssaultSnapshot } from '../../shared/air-assault.mjs';
 import { ballisticIntercept, ballisticShotSpeed, COMBAT_RANGE, BASE_PROJECTILE_SPEED } from '../../shared/protocol.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
+// Compatibility with the encounter lifecycle; ordinary AI encounters have no wallet payout.
 export class AirAssaultRewards {
-  private db: DatabaseSync;
-  private wallet: PlayerWallet;
-  constructor(path: string) {
-    this.db = new DatabaseSync(path);
-    this.db.exec('PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON');
-    this.wallet = new PlayerWallet(this.db);
-    this.db.exec('CREATE TABLE IF NOT EXISTS air_assault_daily (pilot_id TEXT NOT NULL REFERENCES player_profiles(pilot_id), day TEXT NOT NULL, match_id TEXT NOT NULL, reward INTEGER NOT NULL, PRIMARY KEY(pilot_id,day))');
+  constructor(_path: string) {}
+  settle(_pilotId: string, _matchId: string, _startedAt: number | null, _result: AssaultSnapshot['result'], _now: number): {reward:number;dailyClaimed:boolean} {
+    return {reward:0,dailyClaimed:false};
   }
-  settle(pilotId: string, matchId: string, startedAt: number | null, result: AssaultSnapshot['result'], now: number): {
-    reward: number;
-    dailyClaimed: boolean;
-  } {
-    if (startedAt === null || now < startedAt || result !== 'full' && result !== 'survival')
-      return { reward: 0, dailyClaimed: false };
-    const amount = result === 'full' ? rules.fullCredits : rules.survivalCredits;
-    const day = new Date(now).toISOString().slice(0, 10);
-    const pilotKey = createHash('sha256').update(pilotId).digest('hex').slice(0, 32);
-    return this.wallet.transaction(wallet => {
-      if (this.db.prepare('SELECT 1 FROM air_assault_daily WHERE pilot_id=? AND day=?').get(pilotId, day))
-        return { reward: 0, dailyClaimed: true };
-      const before = wallet.balances(pilotId)?.credits;
-      const paid = wallet.credit({ pilotId, currency: 'CREDITS', amount, reason: 'EVENT_REWARD', idempotencyKey: `air-assault:${pilotKey}:${day}`, referenceId: matchId, context: { mode: 'air-assault', result }, createdAt: now });
-      if (!paid.ok || before === undefined)
-        throw new Error('Air Assault reward could not be settled');
-      const reward = Math.max(0, (paid.balance ?? before) - before);
-      this.db.prepare('INSERT INTO air_assault_daily(pilot_id,day,match_id,reward) VALUES (?,?,?,?)').run(pilotId, day, matchId, reward);
-      return { reward, dailyClaimed: false };
-    });
-  }
-  close(): void { this.db.close(); }
+  close(): void {}
 }
 type Enemy = AssaultEnemy & {
   opponent: OpponentRuntime; expertControl?: boolean; bankControl: number; combatTurnSign: number; flightAltitude?: number; terrainAltitude?: number;

@@ -76,7 +76,6 @@ import { landingGradeForScore, landingPrecisionScore } from '../../shared/landin
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
-import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
 import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, localFiringDirection, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
@@ -176,7 +175,6 @@ type PlayerState = Transform & {
   journeySurvivalAttemptId?:string;
   journeyDefenseRejectedAt?:number;
   journeyCaptureResumeUntil?:number;
-  distanceRewardMeters?: number;
   distanceXpMeters?: number;
   lastDistancePersistAt?: number;
   missionDistanceMeters?: number;
@@ -1133,7 +1131,7 @@ const formations = new Map<CityId, Map<string, FormationState>>();
 const formationDelayMs = 5_000;
 const formationRewardMs = 15_000;
 const socialRewards = {
-  formation: { score: 40, credits: 5 },
+  formation: { score: 40, credits: 0 },
 } as const;
 
 const chaosActionCooldownMs = 8_000;
@@ -1144,7 +1142,7 @@ const chaosActionValues: Record<string, number> = {
   eventGate: 60,
   risk: 50,
 };
-const playerChaos = new Map<string, { multiplier: number; lastAction?: string; lastAt: number; pendingCredits: number }>();
+const playerChaos = new Map<string, { multiplier: number; lastAction?: string; lastAt: number }>();
 type PlayerHeat = { value: number; level: number; updatedAt: number; lastBroadcastAt: number; lastDangerAt: number };
 const heatTiers = [0, 20, 45, 75, 110, 150] as const;
 const heatMultipliers = [1, 1.05, 1.10, 1.20, 1.35, 1.50] as const;
@@ -2908,7 +2906,6 @@ function awardSocialPlayer(playerId: string, score: number, credits: number, rea
     reason.includes('CHALLENGE WON') ? 'CHALLENGE_REWARD' : 'FLIGHT_REWARD',
   );
   if (profile) sendProfile(playerId, profile, undefined, undefined, reason);
-  if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'social' });
   sendToPlayer(playerId, { type: 'socialReward', score: reward.score, credits: reward.credits, reason });
   broadcastLeaderboard(player.cityId);
   updateKing(player.cityId);
@@ -2999,23 +2996,23 @@ type CityEventTemplate = {
 // a different world coordinate system.
 const dallasEventTemplates: ReadonlyArray<CityEventTemplate> = ([
   {
-    type: 'stormLanding', name: `STORM LANDING · ${place.love}`, rewardScore: 260, rewardCredits: 180,
+    type: 'stormLanding', name: `STORM LANDING · ${place.love}`, rewardScore: 260, rewardCredits: 0,
     objective: { x: -5_140, y: 240, z: -7_780 }, targetAirportId: 'love', durationMs:180_000, rarity: 'normal', weight: 32,
   },
   {
-    type: 'fogApproach', name: `FOG APPROACH · ${place.addison}`, rewardScore: 240, rewardCredits: 165,
+    type: 'fogApproach', name: `FOG APPROACH · ${place.addison}`, rewardScore: 240, rewardCredits: 0,
     objective: { x: -3_700, y: 180, z: -21_100 }, targetAirportId: 'addison', durationMs:180_000, rarity: 'normal', weight: 30,
   },
   {
-    type: 'cargoRush', name: `CARGO RUSH · ${place.dfw} TO ${place.executive}`, rewardScore: 320, rewardCredits: 240,
+    type: 'cargoRush', name: `CARGO RUSH · ${place.dfw} TO ${place.executive}`, rewardScore: 320, rewardCredits: 0,
     objective: { x: -22_800, y: 150, z: -13_600 }, pickupAirportId: 'dfw', targetAirportId: 'executive', durationMs:240_000, rarity: 'normal', weight: 28,
   },
   {
-    type: 'soloAirportSprint', name: `AIRPORT SPRINT · ${place.dfw} TO ${place.love}`, rewardScore: 280, rewardCredits: 200,
+    type: 'soloAirportSprint', name: `AIRPORT SPRINT · ${place.dfw} TO ${place.love}`, rewardScore: 280, rewardCredits: 0,
     objective: { x: -5_140, y: 180, z: -7_780 }, targetAirportId: 'love', durationMs:150_000, rarity: 'normal', weight: 30,
   },
   {
-    type: 'skyRush', name: `SKY RUSH · ${place.dfw} CORRIDOR`, rewardScore: 400, rewardCredits: 260,
+    type: 'skyRush', name: `SKY RUSH · ${place.dfw} CORRIDOR`, rewardScore: 400, rewardCredits: 0,
     objective: { x: -20_400, y: 420, z: -10_100 },
     route: [
       { x: -20_400, y: 420, z: -10_100 }, { x: -16_600, y: 540, z: -8_900 },
@@ -3024,11 +3021,11 @@ const dallasEventTemplates: ReadonlyArray<CityEventTemplate> = ([
     routeSpeed: 170,
   },
   {
-    type: 'supplyDrop', name: 'SUPPLY DROP · TRINITY', rewardScore: 350, rewardCredits: 240,
+    type: 'supplyDrop', name: 'SUPPLY DROP · TRINITY', rewardScore: 350, rewardCredits: 0,
     objective: { x: -2_400, y: 360, z: 1_100 }, routeSpeed: 0,
   },
   {
-    type: 'emergencyEscort', name: `EMERGENCY ESCORT · ${place.dfw} TO ${place.love}`, rewardScore: 360, rewardCredits: 260,
+    type: 'emergencyEscort', name: `EMERGENCY ESCORT · ${place.dfw} TO ${place.love}`, rewardScore: 360, rewardCredits: 0,
     objective: { x: -22_800, y: 230, z: -10_650 },
     route: [
       { x: -22_800, y: 230, z: -10_650 }, { x: -16_500, y: 560, z: -9_900 },
@@ -3038,7 +3035,7 @@ const dallasEventTemplates: ReadonlyArray<CityEventTemplate> = ([
     eventRouteIds: ['civilian-dfw-love'],
   },
   {
-    type: 'cargoConvoy', name: 'CARGO CONVOY · DALLAS CROSSING', rewardScore: 380, rewardCredits: 300,
+    type: 'cargoConvoy', name: 'CARGO CONVOY · DALLAS CROSSING', rewardScore: 380, rewardCredits: 0,
     objective: { x: -20_000, y: 300, z: -10_850 },
     route: [
       { x: -20_000, y: 300, z: -10_850 }, { x: -15_000, y: 1_000, z: -7_500 },
@@ -3048,7 +3045,7 @@ const dallasEventTemplates: ReadonlyArray<CityEventTemplate> = ([
     eventRouteIds: ['cargo-dfw-executive', 'cargo-dfw-addison', 'cargo-dfw-east-logistics'],
   },
   {
-    type: 'riskZone', name: `RISK ZONE · ${place.lasColinas}`, rewardScore: 340, rewardCredits: 240,
+    type: 'riskZone', name: `RISK ZONE · ${place.lasColinas}`, rewardScore: 340, rewardCredits: 0,
     objective: { x: -14_000, y: 2_400, z: -9_200 },
     route: [
       { x: -14_000, y: 2_400, z: -9_200 }, { x: -12_000, y: 2_700, z: -8_200 },
@@ -3057,11 +3054,11 @@ const dallasEventTemplates: ReadonlyArray<CityEventTemplate> = ([
     routeSpeed: 45,
   },
   {
-    type: 'mostWanted', name: 'MOST WANTED PILOT', rewardScore: 500, rewardCredits: 300,
+    type: 'mostWanted', name: 'MOST WANTED PILOT', rewardScore: 500, rewardCredits: 0,
     objective: { x: -600, y: 650, z: -450 }, routeSpeed: 0,
   },
   {
-    type: 'aceIntercept', name: 'ACE INTERCEPT · DALLAS AIRSPACE', rewardScore: 900, rewardCredits: 520,
+    type: 'aceIntercept', name: 'ACE INTERCEPT · DALLAS AIRSPACE', rewardScore: 900, rewardCredits: 0,
     objective: { x: -8_800, y: 1_450, z: -5_800 },
     route: [
       { x: -15_400, y: 1_120, z: -10_900 }, { x: -8_800, y: 1_450, z: -5_800 },
@@ -3072,7 +3069,7 @@ const dallasEventTemplates: ReadonlyArray<CityEventTemplate> = ([
     rarity: 'rare', weight: 4,
   },
   {
-    type: 'vipEscort', name: `VIP ESCORT · ${place.lasColinas} TO ${place.downtown}`, rewardScore: 620, rewardCredits: 390,
+    type: 'vipEscort', name: `VIP ESCORT · ${place.lasColinas} TO ${place.downtown}`, rewardScore: 620, rewardCredits: 0,
     objective: { x: -13_500, y: 620, z: -9_350 },
     route: [
       { x: -13_500, y: 620, z: -9_350 }, { x: -8_600, y: 720, z: -5_300 },
@@ -3082,7 +3079,7 @@ const dallasEventTemplates: ReadonlyArray<CityEventTemplate> = ([
     rarity: 'rare', weight: 5,
   },
   {
-    type: 'goldenSkyRun', name: 'GOLDEN SKY RUN · METRO GAUNTLET', rewardScore: 850, rewardCredits: 560,
+    type: 'goldenSkyRun', name: 'GOLDEN SKY RUN · METRO GAUNTLET', rewardScore: 850, rewardCredits: 0,
     objective: { x: -21_000, y: 500, z: -10_800 },
     route: [
       { x: -21_000, y: 500, z: -10_800 }, { x: -16_000, y: 760, z: -9_400 },
@@ -3092,7 +3089,7 @@ const dallasEventTemplates: ReadonlyArray<CityEventTemplate> = ([
     routeSpeed: 225, rarity: 'rare', weight: 4,
   },
   {
-    type: 'cityEmergency', name: 'CITY EMERGENCY · TRINITY STORM CORRIDOR', rewardScore: 620, rewardCredits: 400,
+    type: 'cityEmergency', name: 'CITY EMERGENCY · TRINITY STORM CORRIDOR', rewardScore: 620, rewardCredits: 0,
     objective: { x: -2_600, y: 680, z: 950 },
     route: [{ x: -7_400, y: 640, z: 3_000 }, { x: -2_600, y: 680, z: 950 }, { x: 2_000, y: 590, z: -1_600 }],
     routeSpeed: 42, rarity: 'rare', weight: 5,
@@ -3219,7 +3216,7 @@ function eventSnapshot(event: CityEvent): object {
       rare: event.rare,
       bossHealth: event.bossHealth,
       bossMaxHealth: event.bossMaxHealth,
-      rewardCredits: Math.round((template?.rewardCredits ?? 0) * (event.goldenDrop ? 2 : 1) * bountyMultiplier(event)),
+      rewardCredits: 0,
     },
   };
 }
@@ -4233,8 +4230,9 @@ function passSkyChallengeGate(playerId: string, player: PlayerState, challengeId
   const challengeScore = canProgress ? challenge.reward : 0;
   player.score += challengeScore;
   persistScore(player, challengeScore);
-  const challengeCredits = canProgress ? challengeCreditReward(challenge.reward) : 0;
-  const profile = canProgress ? profileStore.awardServerReward(player.pilotId, challengeCredits, { challengeCompletions: 1 }, 'CHALLENGE_REWARD', challenge.id) : undefined;
+  const settled = canProgress ? profileStore.completeSkyChallenge(player.pilotId, player.cityId, challenge.id, now) : undefined;
+  const challengeCredits = settled?.credits ?? 0;
+  const profile = settled?.profile;
   if (profile) sendProfile(playerId, profile, undefined, undefined, 'Sky Challenge');
   if (challengeCredits > 0) recordAnalytics(playerId, 'credits_earned', { amount: challengeCredits, source: 'challenge' }, now);
   recordObjectiveActivity(playerId, 'challenge');
@@ -4342,7 +4340,7 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
     sendToPlayer(playerId, { type: 'landingScored', airportId: airport.id, quality, grade, score: quality, credits: 0 });
     return;
   }
-  const landingCredits = economyRewards.landing;
+  const landingCredits = 0;
   const landingReward = profileStore.awardServerRewardAndXp(player.pilotId, landingCredits, undefined, 'LANDING_REWARD', airport.id,
     { source: 'LANDING', eventId: `${player.cityId}:${airport.id}:${utcDayId(now)}`, cityId: player.cityId, now });
   const landingProfile = landingReward.profile;
@@ -4356,7 +4354,6 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
   pilotProfileSummaryStore.recordSmoothLanding(player.pilotId, quality, now);
   if (grade === 'PERFECT' || grade === 'LEGENDARY') recordAnalytics(playerId, 'perfect_landing_earned', { source: airport.id }, now);
   sendToPlayer(playerId, { type: 'landingScored', airportId: airport.id, quality, grade, score: quality, credits: landingCredits });
-  recordAnalytics(playerId, 'credits_earned', { amount: landingCredits, source: 'landing' }, now);
   recordObjectiveActivity(playerId, 'landing', 1, airport.id);
   recordWeeklyActivity(playerId, 'precisionLanding', quality, true);
   const sprint = challengeForPlayer(playerId);
@@ -4436,8 +4433,7 @@ function awardEventPlayer(event: CityEvent, playerId: string, score: number, cre
     sendToPlayer(playerId, { type: 'eventReward', eventId: event.id, score: 0, credits: 0, reason: 'PRACTICE — NO REWARDS' });
     return;
   }
-  const cargoReward = cargoCreditReward(credits, player.aircraftType, 'event', event.type);
-  const reward = rewardWithHeat(playerId, score, cargoReward.credits);
+  const reward = rewardWithHeat(playerId, score, 0);
   if (isHumanPilot(player)) {
     const now = Date.now();
     const result = profileStore.awardServerRewardOnce(player.pilotId, `chaos-event:${event.id}`, reward.credits,
@@ -4446,7 +4442,6 @@ function awardEventPlayer(event: CityEvent, playerId: string, score: number, cre
     persistScore(player, reward.score);
     const profile = profileStore.getOrCreate(player.pilotId, player.displayName);
     if (profile) sendProfile(playerId, profile, undefined, undefined, reason);
-    if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'event', metadata: { eventType: event.type, mammothCargoBonus: cargoReward.bonusCredits, cargoBonusApplied: cargoReward.applied } });
     recordObjectiveActivity(playerId, 'event');
     if (result.xp) reportPilotXp(playerId, 'EVENT', result.xp, now);
     recordAnalytics(playerId, 'chaos_moment_completed', { source: event.type });
@@ -4488,7 +4483,7 @@ function registerChaosAction(playerId: string, action: keyof typeof chaosActionV
   const player = players.get(playerId);
   if (!player || player.lifeState !== 'alive') return;
   if (!progressionEnabled(player)) return;
-  const previous = playerChaos.get(playerId) ?? { multiplier: 1, lastAt: 0, pendingCredits: 0 };
+  const previous = playerChaos.get(playerId) ?? { multiplier: 1, lastAt: 0 };
   if (previous.lastAction === action && now - previous.lastAt < chaosActionCooldownMs) return;
   const chained = previous.lastAction !== undefined && now - previous.lastAt <= 10_000;
   const multiplier = chained && previous.lastAction !== action ? Math.min(5, previous.multiplier + 1) : 1;
@@ -4499,12 +4494,11 @@ function registerChaosAction(playerId: string, action: keyof typeof chaosActionV
   const heatGain = action === 'nearMiss' ? heatGains.nearMiss : action === 'stunt' ? heatGains.stunt : 0;
   if (heatGain > 0) addHeat(playerId, heatGain, now);
   const reward = rewardWithHeat(playerId, baseScore, 0, now);
-  previous.pendingCredits += Math.max(1, Math.floor(reward.score / 50));
   player.score += reward.score;
   persistScore(player, reward.score);
   playerChaos.set(playerId, previous);
   if (action === 'stunt') recordObjectiveActivity(playerId, 'stunt');
-  sendToPlayer(playerId, { type: 'chaosState', multiplier, action, score: reward.score, pendingCredits: previous.pendingCredits });
+  sendToPlayer(playerId, { type: 'chaosState', multiplier, action, score: reward.score, pendingCredits: 0 });
   broadcastLeaderboard(player.cityId);
 }
 
@@ -4574,7 +4568,7 @@ function reduceHeatAfterDestruction(playerId: string, now = Date.now()): void {
 
 function rewardWithHeat(playerId: string, score: number, credits: number, now = Date.now()): { score: number; credits: number; multiplier: number } {
   const multiplier = heatMultiplier(currentHeat(playerId, now).level);
-  return { score: Math.round(score * multiplier), credits: Math.round(credits * multiplier), multiplier };
+  return { score: Math.round(score * multiplier), credits: 0, multiplier };
 }
 
 function updateCityHeat(now: number): void {
@@ -4652,7 +4646,7 @@ function awardTerritory(playerId: string, territory: TerritoryRuntime, kind: 'ca
   const cooldown = kind === 'capture' ? territoryCaptureRewardCooldownMs : territoryControlRewardMs;
   if ((territoryRewardCooldown.get(key) ?? 0) > now - cooldown) return;
   territoryRewardCooldown.set(key, now);
-  const reward = rewardWithHeat(playerId, kind === 'capture' ? 125 : 35, kind === 'capture' ? 250 : 15, now);
+  const reward = rewardWithHeat(playerId, kind === 'capture' ? 125 : 35, 0, now);
   player.score += reward.score;
   persistScore(player, reward.score);
   if (isHumanPilot(player)) {
@@ -4661,7 +4655,6 @@ function awardTerritory(playerId: string, territory: TerritoryRuntime, kind: 'ca
     const profile = territoryReward.profile;
     if (profile) sendProfile(playerId, profile, undefined, undefined, kind === 'capture' ? 'Territory Captured' : 'Territory Held');
     if (kind === 'capture') recordObjectiveActivity(playerId, 'territoryCapture');
-    if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: kind === 'capture' ? 'territory_capture' : 'territory_control' }, now);
     if (kind === 'capture') recordAnalytics(playerId, 'territory_captured', { source: territory.definition.id }, now);
     if (kind === 'capture') {
       if (territoryReward.xp) reportPilotXp(playerId, 'TERRITORY', territoryReward.xp, now);
@@ -5031,23 +5024,9 @@ function updateTerritories(now: number): void {
   }
 }
 
-function bankChaos(playerId: string, reason: string): void {
-  const state = playerChaos.get(playerId);
-  const player = players.get(playerId);
-  if (!state || !player || !progressionEnabled(player) || state.pendingCredits <= 0) return;
-  const reward = rewardWithHeat(playerId, 0, state.pendingCredits);
-  const credits = reward.credits;
-  state.pendingCredits = 0;
-  const profile = profileStore.awardServerReward(player.pilotId, credits);
-  if (profile) sendProfile(playerId, profile, undefined, undefined, reason || 'Stunt Combo');
-  if (credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: credits, source: 'chaos' });
-  sendToPlayer(playerId, { type: 'chaosReward', credits, reason });
-}
-
 function expireChaos(now: number): void {
   for (const [playerId, state] of playerChaos) {
     if (now - state.lastAt < 10_000) continue;
-    bankChaos(playerId, 'CHAOS STREAK BANKED');
     playerChaos.delete(playerId);
   }
 }
@@ -5145,7 +5124,7 @@ function activateEvent(event: CityEvent, now: number): void {
     setEventTerminal(event, 'failed', now);
     return;
   }
-  broadcastToCity(event.cityId, { type: 'eventAnnouncement', eventId: event.id, name: eventName(event), reward: Math.round(template.rewardCredits * (event.goldenDrop ? 2 : 1) * bountyMultiplier(event)), expiresAt: event.expiresAt });
+  broadcastToCity(event.cityId, { type: 'eventAnnouncement', eventId: event.id, name: eventName(event), reward: 0, expiresAt: event.expiresAt });
   for (const [playerId, player] of players) if (isHumanPilot(player) && player.cityId === event.cityId) {
     recordAnalytics(playerId, 'chaos_moment_started', { source: event.type }, now);
     recordAnalytics(playerId, 'chaos_event_offered', { source: event.type }, now);
@@ -6192,7 +6171,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   const eligibleForReward = isHumanPilot(killer) && progressionEnabled(killer) && (recentHeatKills.get(heatKillKey) ?? 0) <= now - heatKillCooldownMs;
   if (eligibleForReward) {
     recentHeatKills.set(heatKillKey, now);
-    // Bot takedowns remain a small score/credit reward, never a renewable
+    // Bot takedowns retain their score reward, never a renewable
     // Heat/combo source. Human-versus-human combat retains the full path.
     if (!victim.isBot) {
       addHeat(ownerId, heatGains.kill, now);
@@ -6201,7 +6180,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   }
   if (eligibleForReward && !campaignTargetDefeat) missionSignal(ownerId, { type: 'kill', at: now, targetId: victimId, isBot: victim.isBot, valid: true, controlledTerritories: controlledTerritoryIds(ownerId, killer.cityId) });
   const rewardScale = victim.isBot ? botKillRewardMultiplier : 1;
-  const baseKillReward = eligibleForReward ? rewardWithHeat(ownerId, 500 * rewardScale, 200 * rewardScale, now) : { score: 0, credits: 0, multiplier: 1 };
+  const baseKillReward = eligibleForReward ? rewardWithHeat(ownerId, 500 * rewardScale, 0, now) : { score: 0, credits: 0, multiplier: 1 };
   const killReward = victim.bot?.journeySurvivalSlot!==undefined ? {...baseKillReward,score:0,credits:0} : campaignTargetDefeat ? { ...baseKillReward, credits: 0 } : baseKillReward;
   killer.score += killReward.score;
   persistScore(killer, killReward.score);
@@ -6213,7 +6192,6 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
           ? { source: 'AI_KILL', eventId: `${victimId}:${now}`, cityId: killer.cityId, now } : undefined);
     const killerProfile = campaignTargetDefeat ? profileStore.getOrCreate(killer.pilotId, killer.displayName) : killerReward?.profile;
     if (killerProfile) sendProfile(ownerId, killerProfile, undefined, undefined, victim.isBot ? 'AI Pilot Destroyed' : 'Enemy Destroyed');
-    if (killerProfile && killReward.credits > 0) recordAnalytics(ownerId, 'credits_earned', { amount: killReward.credits, source: victim.isBot ? 'bot_combat' : 'player_combat' }, now);
     if (killerReward?.xp) reportPilotXp(ownerId, 'AI_KILL', killerReward.xp, now);
     if (eligibleForReward && shotDistance > 0 && profileStore.updatePersonalRecord(killer.pilotId, 'longest_kill', shotDistance, killer.cityId, now)) {
       recordAnalytics(ownerId, 'personal_record_broken', { metadata: { recordType: 'longest_kill', value: Math.round(shotDistance) } }, now);
@@ -8960,7 +8938,6 @@ server.on('connection', (socket, request) => {
     soloExploreMode,
     freeFlyMode:portalModeAllowed(connectionParams.get('launchMode')??'',tutorialMode,Boolean(requestedJourneyAttemptId))?connectionParams.get('launchMode')!:undefined,
     territoryIds: new Set(),
-    distanceRewardMeters: 0,
     spawnSlot,
   });
   if(portalRestore){
@@ -10180,7 +10157,6 @@ server.on('connection', (socket, request) => {
           candidate.highestAltitude = Math.max(candidate.highestAltitude, player.position.y - botTerrainHeight(player.cityId, player.position.x, player.position.z));
           candidate.distance += acceptedTravel;
           flightRecordCandidates.set(playerId, candidate);
-          player.distanceRewardMeters = currentJourney?.missionId===journeyDallasCoinHunt01.id ? 0 : (player.distanceRewardMeters ?? 0) + acceptedTravel;
           player.distanceXpMeters = (player.distanceXpMeters ?? 0) + acceptedTravel;
           if (stateNow - (player.lastDistancePersistAt ?? 0) >= 1_000 && player.distanceXpMeters > 0) {
             const acceptedMeters = player.distanceXpMeters;
@@ -10191,13 +10167,6 @@ server.on('connection', (socket, request) => {
             for (const result of distanceAwards)
               reportPilotXp(playerId, 'DISTANCE', result, stateNow);
             recordObjectiveActivity(playerId, 'distance', acceptedMeters);
-          }
-          const batches = Math.floor(player.distanceRewardMeters / economyRewards.distanceBatchMeters);
-          if (batches > 0) {
-            player.distanceRewardMeters -= batches * economyRewards.distanceBatchMeters;
-            const rewarded = profileStore.awardServerReward(player.pilotId, batches * economyRewards.distanceBatchCredits);
-            if (rewarded) sendProfile(playerId, rewarded, undefined, undefined, 'Flight Distance');
-            if (rewarded) recordAnalytics(playerId, 'credits_earned', { amount: batches * economyRewards.distanceBatchCredits, source: 'flight_distance' }, stateNow);
           }
         } else {
           player.distanceXpMeters = (player.distanceXpMeters ?? 0) + acceptedTravel;

@@ -2,7 +2,7 @@ import { actionKeyLabel, menuKeyLabel } from './flight-input';
 export const contextualHintDefinitions = {
   missionBoard: {
     title: 'CHOOSE A MISSION',
-    body: `Press ${menuKeyLabel('menu')} → MISSIONS. Finish one mission to earn Credits and Score.`,
+    body: `Complete Journey missions for first-clear Credits. Replays earn no Credits.`,
     durationMs: 5_500,
   },
   runwayControls: {
@@ -62,7 +62,7 @@ export const contextualHintDefinitions = {
   },
   mostWanted: {
     title: 'MOST WANTED',
-    body: 'The marked pilot earns a bounty by surviving; bringing them down earns the reward.',
+    body: 'Survive as the marked pilot or bring them down to earn Score.',
     durationMs: 5_500,
   },
 } as const;

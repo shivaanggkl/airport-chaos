@@ -98,7 +98,7 @@ test('a concurrent wallet action cannot spend held entry Credits', () => {
   } finally { f.close(); }
 });
 
-test('AI contributes its own reserved stake; a human win pays 1,000 once and cancellation refunds both', () => {
+test('AI practice never debits entries, funds bots or pays prizes', () => {
   const f = fixture();
   const aiId = 'sky-duel-ai:a';
   try {
@@ -107,12 +107,12 @@ test('AI contributes its own reserved stake; a human win pays 1,000 once and can
     const first = f.store.reserveAi('a', aiId, 1);
     assert.equal(first.ok, true);
     if (!first.ok) return;
-    assert.equal(f.store.balance('a'), 4500);
+    assert.equal(f.store.balance('a'), 5000);
     assert.equal(f.store.balance(aiId), 0);
     f.store.start(first.match.id, 2);
     const win = f.store.settle(first.match.id, 'WIN_A', 3, 0, 3, { a: false, b: false })!;
-    assert.equal(win.balanceA, 5500);
-    assert.equal(f.store.settle(first.match.id, 'WIN_A', 3, 0, 4)?.balanceA, 5500);
+    assert.equal(win.balanceA, 5000);
+    assert.equal(f.store.settle(first.match.id, 'WIN_A', 3, 0, 4)?.balanceA, 5000);
 
     const second = f.store.reserveAi('a', aiId, 5);
     assert.equal(second.ok, true);
@@ -120,12 +120,12 @@ test('AI contributes its own reserved stake; a human win pays 1,000 once and can
     assert.equal(f.store.balance('a'), 5000);
     assert.equal(f.store.balance(aiId), 0);
     f.store.settle(second.match.id, 'CANCELLED', 0, 0, 6);
-    assert.equal(f.store.balance('a'), 5500);
-    assert.equal(f.store.balance(aiId), 500);
+    assert.equal(f.store.balance('a'), 5000);
+    assert.equal(f.store.balance(aiId), 0);
   } finally { f.close(); }
 });
 
-test('an absent human loses the reserved entry without paying the AI wallet', () => {
+test('an absent human in AI practice cannot lose Credits or pay the AI wallet', () => {
   const f = fixture();
   const aiId = 'sky-duel-ai:a';
   try {
@@ -136,8 +136,25 @@ test('an absent human loses the reserved entry without paying the AI wallet', ()
     f.store.start(reserved.match.id, 2);
     const result = f.store.settle(reserved.match.id, 'WIN_B', 0, 0, 3, { a: false, b: false }, true)!;
     assert.equal(result.match.outcome, 'WIN_B');
-    assert.equal(result.balanceA, 4_500);
+    assert.equal(result.balanceA, 5_000);
     assert.equal(result.balanceB, 0);
     assert.equal(f.store.settle(reserved.match.id, 'WIN_B', 0, 0, 4)?.balanceB, 0);
   } finally { f.close(); }
+});
+
+
+test('legacy AI escrow refunds actual entries once without a practice prize',()=>{
+ const f=fixture();try{
+  const aiId='sky-duel-ai:a';new PlayerProfileStore(f.path).getOrCreate(aiId,'AI');
+  const reserved=f.store.reserveAi('a',aiId,1);assert.equal(reserved.ok,true);if(!reserved.ok)return;
+  const db=new DatabaseSync(f.path),wallet=new PlayerWallet(db),id=reserved.match.id;
+  wallet.credit({pilotId:aiId,currency:'CREDITS',amount:500,reason:'ADMIN_ADJUSTMENT'});
+  for(const pilotId of ['a',aiId])wallet.debit({pilotId,currency:'CREDITS',amount:500,reason:'SKY_DUEL_ENTRY',referenceId:id});
+  f.store.start(id,2);
+  assert.equal(f.store.settle(id,'WIN_A',3,0,3)!.balanceA,5000);
+  assert.equal(f.store.settle(id,'WIN_A',3,0,4)!.balanceA,5000);
+  assert.equal(f.store.balance(aiId),500);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM wallet_transactions WHERE reference_id=? AND reason='SKY_DUEL_PAYOUT'").get(id)!.n,0);
+  db.close();
+ }finally{f.close();}
 });

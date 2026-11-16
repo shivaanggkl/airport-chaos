@@ -43,8 +43,6 @@ export type AssaultSnapshot = {
 };
 export const airAssaultRules: Readonly<{
   cityId: string;
-  fullCredits: number;
-  survivalCredits: number;
   durationMs: number;
   introMs: number;
   countdownMs: number;

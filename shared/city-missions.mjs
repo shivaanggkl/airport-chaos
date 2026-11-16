@@ -30,13 +30,13 @@ const dallasGrandTourSteps = Object.freeze([
 
 const mission = (number, id, type, displayName, description, difficulty, credits, score, requirements, cooldownMinutes, retired = false) => Object.freeze({
   id, cityId: 'dallas', number, type, displayName, description, difficulty,
-  creditReward: credits, scoreReward: score, requirements: Object.freeze(requirements),
+  creditReward: 0, scoreReward: score, requirements: Object.freeze(requirements),
   replayCooldownMs: cooldownMinutes * 60_000, retired,
 });
 
 const cityMission = (cityId, number, id, type, displayName, description, difficulty, credits, score, requirements, cooldownMinutes, retired = false) => Object.freeze({
   id, cityId, number, type, displayName, description, difficulty,
-  creditReward: credits, scoreReward: score, requirements: Object.freeze(requirements),
+  creditReward: 0, scoreReward: score, requirements: Object.freeze(requirements),
   replayCooldownMs: cooldownMinutes * 60_000, retired,
 });
 

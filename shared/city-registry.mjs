@@ -28,8 +28,8 @@ export function nearestCityAirport(cityId, position) {
 }
 
 export const intercityRoutes=Object.freeze([
-  Object.freeze({routeId:'dallas-milwaukee',fromCityId:'dallas',toCityId:'milwaukee',distanceLabel:'Northbound Intercity Corridor',rewardProfile:{credits:250},sponsorSlotId:undefined,enabled:true}),
-  Object.freeze({routeId:'milwaukee-dallas',fromCityId:'milwaukee',toCityId:'dallas',distanceLabel:'Southbound Intercity Corridor',rewardProfile:{credits:250},sponsorSlotId:undefined,enabled:true}),
+  Object.freeze({routeId:'dallas-milwaukee',fromCityId:'dallas',toCityId:'milwaukee',distanceLabel:'Northbound Intercity Corridor',sponsorSlotId:undefined,enabled:true}),
+  Object.freeze({routeId:'milwaukee-dallas',fromCityId:'milwaukee',toCityId:'dallas',distanceLabel:'Southbound Intercity Corridor',sponsorSlotId:undefined,enabled:true}),
 ]);
 export function routeDefinition(routeId){return intercityRoutes.find(route=>route.routeId===routeId&&route.enabled);}
 export function routesFromCity(cityId){return intercityRoutes.filter(route=>route.enabled&&route.fromCityId===normalizeCityId(cityId));}
