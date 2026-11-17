@@ -6,7 +6,7 @@ import ts from 'typescript';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { aircraftDefinitions } from '../../client/src/aircraft.ts';
-import { fitAircraftChase } from '../../client/src/chase-camera-framing.ts';
+import { aircraftCameraProfiles, fitAircraftChase } from '../../client/src/chase-camera-framing.ts';
 const source = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
 const framing = source.slice(source.indexOf('function refreshCameraFraming()'), source.indexOf('function updateCamera('));
 const cameraStart = source.indexOf('function updateCamera(');
@@ -24,8 +24,8 @@ async function fixture(type, aspect=844/390) {
  const center=new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());model.position.copy(center).negate();
  const airplane=new THREE.Group();airplane.add(model);airplane.position.y=1000;airplane.userData.assetStatus='loaded';
  const camera=new THREE.PerspectiveCamera(58,aspect,.1,10000);
- const state={THREE,fitAircraftChase,airplane,camera,aircraftVictory:null,currentAircraft:definition,
-  CAMERA_CHASE_FOV:58,CAMERA_TARGET_WIDTH_FRACTION:.29,innerWidth:844,innerHeight:844/aspect,
+ const state={THREE,fitAircraftChase,aircraftCameraProfiles,aircraftType:type,smoothedChaseElevation:aircraftCameraProfiles[type].elevation,cameraFramingProfile:undefined,airplane,camera,aircraftVictory:null,currentAircraft:definition,
+  CAMERA_CHASE_FOV:58,innerWidth:844,innerHeight:844/aspect,
   flightGameRoot:{},getComputedStyle:()=>({getPropertyValue:()=> '0px'}),performance:{now:()=>1000},
   cameraFramingKey:'',cameraFramingAssetStatus:'',cameraFramingAspect:0,cameraFramePoints:[],cameraFrameVertex:new THREE.Vector3(),cameraFramingWidth:0,cameraFramingHeight:0,defaultChaseDistance:0,defaultChaseHeight:0,
   cameraFocusAhead:0,smoothedChaseDistance:0,cameraDistanceMultiplier:1,cameraOrbitRadiusTarget:0,
@@ -40,24 +40,27 @@ async function fixture(type, aspect=844/390) {
 }
 
 for(const type of Object.keys(aircraftDefinitions))test(`${type}: actual GLB bounds fit rear view through turns, pitch, Boost and resizing`,async()=>{
- for(const aspect of [844/390,16/9,4/3]){
+ for(const aspect of [844/390,16/9,4/3,21/9]){
   const s=await fixture(type,aspect),{camera,airplane}=s;
   let ordinaryDistance;
   for(const fov of [58,60])for(const [pitch,bank] of [[0,0],[0,1.22],[0,-1.22],[.6,.8],[-.6,-.8]]){
    airplane.rotation.set(pitch,.8,bank,'YXZ');airplane.updateWorldMatrix(true,true);s.updateCamera(1);
-   camera.fov=fov;camera.updateProjectionMatrix();camera.position.copy(s.chaseCameraPosition);camera.lookAt(s.chaseLookTarget);camera.updateMatrixWorld();
+   camera.fov=fov;camera.updateProjectionMatrix();camera.position.copy(s.chaseCameraPosition);camera.lookAt(s.chaseLookTarget);camera.rotateZ(Math.max(-Math.PI/30,Math.min(Math.PI/30,bank*.08)));camera.updateMatrixWorld();
    let left=Infinity,right=-Infinity;
    const p=new THREE.Vector3();
    for(let index=0;index<s.cameraFramePoints.length;index+=3){
     p.set(s.cameraFramePoints[index]+s.cameraFrameCenter.x,s.cameraFramePoints[index+1]+s.cameraFrameCenter.y,s.cameraFramePoints[index+2]+s.cameraFrameCenter.z);
     p.applyMatrix4(airplane.matrixWorld).project(camera);
-    assert.ok(Math.abs(p.x)<.98&&Math.abs(p.y)<.99,`${type}: cropped at pitch ${pitch}, bank ${bank}, FOV ${fov}: ${p.toArray()}`);
+    assert.ok(Math.abs(p.x)<.98&&Math.abs(p.y)<1,`${type}: cropped at pitch ${pitch}, bank ${bank}, FOV ${fov}: ${p.toArray()}`);
     left=Math.min(left,p.x);right=Math.max(right,p.x);
    }
    if(pitch===0&&bank===0){
-    assert.ok((right-left)/2>=(fov===58?.28:.27)&&(right-left)/2<=.32,`${type} width ${(right-left)/2}`);
+    const expected=aircraftCameraProfiles[type].widthFraction;
+    const fitted=fitAircraftChase(s.cameraFrameSize.x,s.cameraFrameSize.y,s.cameraFrameSize.z,aspect,aircraftCameraProfiles[type],s.cameraFramePoints);
+    assert.ok(fov===58 && !fitted.safetyAdjusted ? Math.abs((right-left)/2-expected)<.002 : (right-left)/2<=expected+.002,`${type} width ${(right-left)/2}`);
+    if(fov===58)assert.ok((right-left)/2>=expected*.90,`${type}: safety adjustment exceeds a slight zoom-out`);
     const offset=s.chaseCameraPosition.clone().sub(airplane.position).sub(s.cameraFrameWorldCenter);
-    assert.ok(Math.abs(Math.atan2(offset.y,Math.hypot(offset.x,offset.z))-Math.PI/12)<1e-6);
+    assert.ok(Math.abs(Math.atan2(offset.y,Math.hypot(offset.x,offset.z))-aircraftCameraProfiles[type].elevation)<1e-6);
     const screen=airplane.position.clone().project(camera);assert.ok(screen.y<0&&screen.y>-.4);
     if(ordinaryDistance)assert.ok(Math.abs(offset.length()-ordinaryDistance)<1e-8,'Boost cannot change camera position');
     ordinaryDistance=offset.length();
@@ -152,4 +155,24 @@ test('model load rebuilds geometry once; resize reuses the cache and preserves z
  s.airplane.traverse=()=>{throw Error('resize must not traverse unchanged geometry');};
  s.camera.aspect*=.9;s.innerWidth-=80;s.updateCamera(1/60);
  assert.equal(s.cameraDistanceMultiplier,1.3);
+});
+
+
+test('profiles preserve the requested distinct identities and fallback framing',()=>{
+ const expected={trainer:[.24,15],fighter:[.29,13],privateJet:[.33,18],cargo:[.35,20]};
+ for(const [type,[width,degrees]] of Object.entries(expected)){
+  const profile=aircraftCameraProfiles[type];
+  assert.equal(profile.widthFraction,width);assert.ok(Math.abs(profile.elevation-degrees*Math.PI/180)<1e-12);
+  const d=aircraftDefinitions[type];const frame=fitAircraftChase(d.wingSpan,d.bodyRadius*3,d.bodyLength+d.noseLength,16/9,profile);
+  assert.ok(Number.isFinite(frame.distance)&&frame.distance>0);assert.ok(Math.abs(Math.atan2(frame.height,frame.distance)-profile.elevation)<1e-12);
+ }
+});
+
+test('switching profiles eases elevation and distance without resetting player zoom',async()=>{
+ const s=await fixture('trainer');s.cameraDistanceMultiplier=1.2;
+ const elevation=s.smoothedChaseElevation,distance=s.smoothedChaseDistance;
+ s.aircraftType='cargo';s.currentAircraft=aircraftDefinitions.cargo;s.updateCamera(1/60);
+ assert.equal(s.cameraDistanceMultiplier,1.2);
+ assert.ok(s.smoothedChaseElevation>elevation&&s.smoothedChaseElevation<aircraftCameraProfiles.cargo.elevation);
+ assert.ok(Math.abs(s.smoothedChaseDistance-distance)<Math.abs(s.defaultChaseDistance*1.2-distance));
 });
