@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { journeyDallas07 } from '../../shared/journey-mission.mjs';
+import { missionJourneyDetails } from './mission-journey-content';
+import { setMissionInstructions } from './mission-instructions';
 import { transportFootprintRadius, transportPose, transportTuning } from '../../shared/giant-incoming.mjs';
 
 /** Local briefing before transportReady starts the authoritative encounter. */
@@ -37,6 +40,10 @@ export class TransportArrivalSequence {
       : escorts.length
         ? `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'GIANT PLANE & FOUR ESCORTS' : missionName === 'GIANT PLANE & THREE ESCORTS' ? 'GIANT PLANE & THREE ESCORTS' : 'GIANT PLANE & TWO ESCORTS'}</strong><p>Destroy the ${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'gunship' : 'transport'} to win. Escorts are optional.</p>`
         : '<strong>GIANT PLANE</strong><p>SHOOT IT DOWN</p>';
+    if(missionId===journeyDallas07.id){
+      this.alert.classList.add('is-m9-instructions');
+      setMissionInstructions(this.alert,missionJourneyDetails.find(mission=>mission.id===journeyDallas07.id)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
+    }
     document.body.append(this.alert);
     if (escorts.length) this.scene.add(...escorts);
   }

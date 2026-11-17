@@ -1436,7 +1436,7 @@ const journeyMissionDefinitions = [journeyDallasMostWantedSurvival01,journeyDall
 ] as const;
 function journeyMissionHeading(id: string): string {
   const slot = journeyCatalog.find(slot => slot.id === id);
-  return id === journeyDallasSharpshooter01.id ? 'M8: TARGETS' : id === journeyDallasAirportHop01.id ? 'M7: AIRPORT HOP' : id === journeyDallasCapture01.id ? 'M5: TERRITORY' : id === journeyDallas03.id ? 'M4: 10 RINGS' : id === journeyDallas14.id ? 'M6: BATTLE - 1 PLANE' : id === journeyDallas13.id ? 'M3: BATTLE - 1 PLANE' : id === journeyDallas01.id ? 'M1: 10 RINGS' : id === journeyDallas02.id ? 'M2: 10 RINGS' : slot ? `M${slot.number}: ${slot.title}` : 'MISSION';
+  return id === journeyDallas07.id ? 'M9: BATTLE - 1 GIANT' : id === journeyDallasSharpshooter01.id ? 'M8: TARGETS' : id === journeyDallasAirportHop01.id ? 'M7: AIRPORT HOP' : id === journeyDallasCapture01.id ? 'M5: TERRITORY' : id === journeyDallas03.id ? 'M4: 10 RINGS' : id === journeyDallas14.id ? 'M6: BATTLE - 1 PLANE' : id === journeyDallas13.id ? 'M3: BATTLE - 1 PLANE' : id === journeyDallas01.id ? 'M1: 10 RINGS' : id === journeyDallas02.id ? 'M2: 10 RINGS' : slot ? `M${slot.number}: ${slot.title}` : 'MISSION';
 }
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
 const journeyHudProgress = skyChallengeElement.querySelector<HTMLElement>('[data-journey-progress]');
@@ -3193,6 +3193,7 @@ function updateJourneyHud(): void {
   if(leavingCaptureThree)for(const segment of journeyHudSegments){segment.textContent='';segment.hidden=false;segment.classList.remove('is-current','is-cleared');}
   const territoryDefense = journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id;
   skyChallengeElement.classList.toggle('journey-airport-card', journeyAttempt?.missionId === journeyDallasAirportHop01.id);
+  skyChallengeElement.classList.toggle('journey-targets-card', journeyAttempt?.missionId === journeyDallasSharpshooter01.id);
   const separateTerritoryPanel = territoryDefense || journeyAttempt?.missionId === journeyDallasCapture01.id;
   skyChallengeElement.classList.toggle('journey-territory-card', journeyAttempt?.missionId === journeyDallasCapture01.id);
   gameplayInfoCard.setTerritoryPanelHost(separateTerritoryPanel ? missionTerritoryCard : null);
@@ -3400,13 +3401,14 @@ function updateJourneyHud(): void {
     return;
   }
   if(elevatorMission){
-    if(journeyHudObjective)journeyHudObjective.textContent=journeyAttempt.missionId===journeyDallas12.id
+    if(journeyHudObjective && journeyAttempt.missionId!==journeyDallas07.id)journeyHudObjective.textContent=journeyAttempt.missionId===journeyDallas12.id
       ? 'Shoot Down Both ESCORT Planes And Destroy the GIANT PLANE’s Two WINGS And ENGINE Before Time Runs Out.'
       : journeyAttempt.missionId===journeyDallas11.id ? 'Destroy the GIANT PLANE’s Two WINGS And Its ENGINE Before Time Runs Out.'
       : journeyAttempt.missionId===journeyDallas10.id ? 'Shoot Down the GIANT PLANE And All Four ESCORT Planes Before Time Runs Out.'
       : journeyAttempt.missionId===journeyDallas09.id ? 'Shoot Down the GIANT PLANE And All Three ESCORT Planes Before Time Runs Out.'
       : journeyAttempt.missionId===journeyDallas08.id ? 'Shoot Down the GIANT PLANE And Both ESCORT Planes Before Time Runs Out.'
       : 'Find And Shoot Down The GIANT PLANE Before Time Runs Out.';
+    if(journeyAttempt.missionId===journeyDallas07.id && journeyHudObjective) setMissionInstructions(journeyHudObjective, missionJourneyDetails.find(mission=>mission.id===journeyDallas07.id)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
     if(journeyHudProgress)journeyHudProgress.textContent=(journeyAttempt.missionId===journeyDallas08.id||journeyAttempt.missionId===journeyDallas09.id||journeyAttempt.missionId===journeyDallas10.id)?`GIANT PLANE: ${(journeyAttempt.monsterHealth??1)===0?'DESTROYED':'ACTIVE'} · ESCORTS LEFT: ${journeyAttempt.fighterEscortsAlive??(journeyAttempt.missionId===journeyDallas10.id?4:journeyAttempt.missionId===journeyDallas09.id?3:2)}/${journeyAttempt.missionId===journeyDallas10.id?4:journeyAttempt.missionId===journeyDallas09.id?3:2}`:'';
     if (journeyHudTarget) {
       journeyHudTarget.hidden = !escortMission && journeyAttempt.missionId !== journeyDallas11.id;
@@ -5683,6 +5685,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
       Array.from(sharpshooterViews.values(),view=>view.root.position),journeyDallasSharpshooter01.targetRadius,flightGameRoot);
     sharpshooterIntroPresentation.sample(elapsed,handoff,camera,airplane,chasePosition,chaseTarget,chaseFov,
       point=>spawnFlash(impactFlashes,impactFlashPool,point,.22,24),window.innerHeight);
+    flightLaunchCurrentTarget.copy(sharpshooterIntroPresentation.cameraTarget);
     const text=`• ${journeyDallasSharpshooter01.objective}`;
     if(flightLaunchTitle.firstElementChild?.textContent!==text)
       flightLaunchTitle.replaceChildren(Object.assign(document.createElement('span'),{textContent:text}));
@@ -8179,7 +8182,7 @@ function pilotMenuData(): PilotMenuData {
   return {
     flightMission: journeyMode && journeyAttempt ? {
       name: journeyAttempt ? journeyMissionHeading(journeyAttempt.missionId) : 'MISSION',
-      objective: journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas14.id || journeyAttempt.missionId === journeyDallasCapture01.id || journeyAttempt.missionId === journeyDallasAirportHop01.id || journeyAttempt.missionId === journeyDallasSharpshooter01.id
+      objective: journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas14.id || journeyAttempt.missionId === journeyDallasCapture01.id || journeyAttempt.missionId === journeyDallasAirportHop01.id || journeyAttempt.missionId === journeyDallasSharpshooter01.id || journeyAttempt.missionId === journeyDallas07.id
         ? missionJourneyDetails.find(mission => mission.id === journeyAttempt?.missionId)!.description.split('\n').map(line => `• ${line}`).join('\n')
         : journeyHudObjective?.textContent ?? '',
       progress: flightGateCount ? `${journeyAttempt.missionId === journeyDallas01.id ? 'RING' : 'GATE'} ${journeyAttempt.gateIndex} / ${flightGateCount}` : journeyHudProgress?.textContent ?? '',
@@ -11836,8 +11839,12 @@ function animate(): void {
     try {renderer.render(scene,camera);}finally{airplane.visible=visible;}
   } else if (missionSharpshooterIntro && sharpshooterIntroPresentation && flightLaunchState==='active') {
     sharpshooterIntroPresentation.begin(airplane,getCurrentMuzzlePosition,performance.now()-flightLaunchStartedAt);
+    for(const view of sharpshooterViews.values())view.beginIntro(camera,window.innerHeight,sharpshooterIntroPresentation.overviewOpacity);
     try { renderer.render(scene,camera); }
-    finally { sharpshooterIntroPresentation.end(airplane); }
+    finally {
+      for(const view of sharpshooterViews.values())view.endIntro();
+      sharpshooterIntroPresentation.end(airplane);
+    }
   } else if (missionCaptureIntroPath && flightLaunchState === 'active') {
     const wasVisible = airplane.visible;
     // Overview shots show the objective, not a miniature or relocated preview aircraft.

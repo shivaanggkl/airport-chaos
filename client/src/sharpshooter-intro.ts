@@ -6,6 +6,8 @@ export class SharpshooterIntro {
   private readonly round=createProjectileCore();
   readonly aimPoint=new THREE.Vector3();
   readonly flightPosition=new THREE.Vector3();
+  overviewOpacity=0;
+  get cameraTarget():THREE.Vector3{return this.look;}
   aiming=false;
   locked=false;
   private readonly focus=new THREE.Vector3();
@@ -42,12 +44,10 @@ export class SharpshooterIntro {
       const title=document.createElement('strong');title.textContent='TARGETS';
       const subtitle=document.createElement('span');subtitle.textContent=`${targets.length} TARGETS · SHOOT IN ANY ORDER`;
       heading.append(title,subtitle);this.overlay.append(heading);
-      const descriptions=['STRAIGHT AHEAD','LEFT CLIMB','MOVING TARGET','LEFT FLANK','HIGH RIGHT','HIGHEST AHEAD'];
       for(let index=0;index<targets.length;index++){
         const label=document.createElement('div');label.className='sharpshooter-placement';
         const number=document.createElement('b');number.textContent=String(index+1);
-        const caption=document.createElement('span');caption.textContent=descriptions[index]??`TARGET ${index+1}`;
-        label.append(number,caption);this.overlay.append(label);this.labels.push(label);
+        label.append(number);this.overlay.append(label);this.labels.push(label);
       }
       host.append(this.overlay);
     }
@@ -55,6 +55,7 @@ export class SharpshooterIntro {
   sample(elapsed:number,handoff:number,camera:THREE.PerspectiveCamera,aircraft:THREE.Object3D,
     chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3,chaseFov:number,onImpact:(point:THREE.Vector3)=>void,viewportHeight=1080):void {
     this.viewCamera=camera;this.viewportHeight=viewportHeight;
+    this.overviewOpacity=this.targets.length>3?1-handoff:0;
     if(Math.abs(camera.fov-chaseFov)>=.01){camera.fov=chaseFov;camera.updateProjectionMatrix();}
     this.aiming=false;this.locked=false;
     const t=Math.min(elapsed,11_000);

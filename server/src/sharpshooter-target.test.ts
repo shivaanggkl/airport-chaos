@@ -132,6 +132,30 @@ test('one reusable target, both faces, deterministic motion, clean resource disp
  third.dispose();assert.equal(disposed,7);assert.equal(scene.children.length,0);
 });
 
+test('M8 overview escapes the cinematic fade and shows readable targets without changing gameplay transforms',()=>{
+ const css=readFileSync('client/src/style.css','utf8');
+ const fade=css.slice(css.indexOf('#game-root.launch-cinematic-active > :not(canvas)'),css.indexOf('body.launch-cinematic-active #tutorial-help'));
+ assert.match(fade,/:not\(\.sharpshooter-placement-overview\)/);
+ const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(60,1280/589,.1,126000);
+ const pilot=new THREE.Vector3(0,800,0),aircraft=new THREE.Object3D();aircraft.position.copy(pilot);
+ const targets=Array.from({length:mission.targetCount},(_,stage)=>target(stage));
+ const points=targets.map(t=>new THREE.Vector3(t.x,t.y,t.z));
+ const intro=new SharpshooterIntro(scene,points,mission.targetRadius);
+ intro.sample(5000,0,camera,aircraft,new THREE.Vector3(0,810,100),new THREE.Vector3(0,800,-100),60,()=>{});
+ for(const t of targets){
+  const view=new SharpshooterTargetView(scene);view.update(t,0,pilot);
+  const position=view.root.position.clone(),rotation=view.root.quaternion.clone(),scale=view.root.scale.clone();
+  view.beginIntro(camera,589,intro.overviewOpacity);
+  const depth=-position.clone().applyMatrix4(camera.matrixWorldInverse).z;
+  const unitsPerPixel=2*depth*Math.tan(Math.PI/6)/589;
+  assert.ok(view.root.scale.x*mission.targetRadius/unitsPerPixel>=17.99,'target radius is readable on iPhone');
+  assert.ok(view.root.position.equals(position),'authoritative placement stays unchanged');
+  view.endIntro();assert.ok(view.root.scale.equals(scale));assert.ok(view.root.quaternion.equals(rotation));
+  view.dispose();
+ }
+ assert.ok(intro.cameraTarget.length()>0);intro.dispose();
+});
+
 test('production intro frames all six targets with steady instructions and restores chase on finish or skip',async()=>{
  const {createContext,runInContext}=await import('node:vm'),ts=await import('typescript');
  const source=readFileSync('client/src/main.ts','utf8');
