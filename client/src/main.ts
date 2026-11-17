@@ -1,3 +1,4 @@
+import { fitAircraftChase } from './chase-camera-framing';
 import { TerritoryCaptureBar, territoryCaptureCelebrationMs } from './territory-capture-bar';
 import { dallasDisplayNames as dallasAirportNames } from '../../shared/dallas-display-names.mjs';
 import { setMissionInstructions } from './mission-instructions';
@@ -365,7 +366,7 @@ const CAMERA_NEAR = 2;
 let CAMERA_BASE_FAR = isDallas ? 42_000 * DALLAS_WORLD_SCALE : WORLD_SIZE > 20_000 ? 30_000 : 22_000;
 let CAMERA_HIGH_FAR = isDallas ? 50_000 * DALLAS_WORLD_SCALE : WORLD_SIZE > 20_000 ? 44_000 : 32_000;
 const CAMERA_CHASE_FOV = 58;
-const CAMERA_TARGET_WIDTH_FRACTION = 0.305;
+const CAMERA_TARGET_WIDTH_FRACTION = 0.29;
 const SKY_DOME_RADIUS = 18_000;
 
 let portalInTransit = false;
@@ -5153,6 +5154,16 @@ const cameraWorldUp = new THREE.Vector3(0, 1, 0);
 const cameraFrameLocalBounds = new THREE.Box3();
 const cameraFrameMeshBounds = new THREE.Box3();
 const cameraFrameSize = new THREE.Vector3();
+const cameraFrameVertex = new THREE.Vector3();
+const cameraFramePoints: number[] = [];
+const cameraFrameCenter = new THREE.Vector3();
+const cameraFrameWorldCenter = new THREE.Vector3();
+const cameraOrbitReturnFocus = new THREE.Vector3();
+let cameraChaseRoll = 0;
+let cameraFramingWidth = 0;
+let cameraFramingHeight = 0;
+let cameraFramingAspect = 0;
+let cameraFramingAssetStatus = '';
 const cameraFrameRootInverse = new THREE.Matrix4();
 const cameraFrameRelativeMatrix = new THREE.Matrix4();
 const chaseCameraPosition = new THREE.Vector3();
@@ -5173,7 +5184,10 @@ let cameraOrbitDragging = false;
 let cameraOrbitPointerId: number | null = null;
 let cameraOrbitPointerX = 0;
 let cameraOrbitPointerY = 0;
-const cameraTouchPointers = new Map<number, { x: number; y: number }>();
+const cameraTouchPointers = new Map<number, { x: number; y: number; startX: number; startY: number }>();
+let cameraPendingPointerId: number | null = null;
+let cameraPinchStartDistance = 0;
+let cameraPinchActive = false;
 let cameraPinchDistance = 0;
 let trackpadGestureScale = 0;
 let cameraOrbitRecenterAt: number | null = null;
@@ -8444,85 +8458,83 @@ const beginCameraOrbit = (event: PointerEvent): void => {
 };
 
 renderer.domElement.addEventListener('pointerdown', (event) => {
-  if (flightLaunchState === 'active') {
-    event.preventDefault();
-    requestFlightLaunchSkip();
-    return;
-  }
-  if (flightLaunchState === 'pending') {
-    event.preventDefault();
-    return;
-  }
-  // Controls and HUD elements own their own pointers because they are layered
-  // above the canvas. Only unused gameplay canvas space reaches this handler.
+  if (flightLaunchState === 'active') { event.preventDefault(); requestFlightLaunchSkip(); return; }
+  if (flightLaunchState === 'pending') { event.preventDefault(); return; }
   const touch = event.pointerType === 'touch';
   if ((!touch && (event.pointerType !== 'mouse' || event.button !== 0)) || worldMap.isOpen() || pilotMenu.isOpen() || aircraftGarage.isOpen() || flightDialogOpen()) return;
   event.preventDefault();
-  if (touch) {
-    cameraTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    renderer.domElement.setPointerCapture(event.pointerId);
-    if (cameraTouchPointers.size > 1) {
-      cameraOrbitDragging = false;
-      cameraOrbitPointerId = null;
-      const [first, second] = [...cameraTouchPointers.values()];
-      cameraPinchDistance = Math.hypot(second.x - first.x, second.y - first.y);
-      return;
-    }
+  if (!touch) { beginCameraOrbit(event); return; }
+  // Only canvas touches join camera gestures. Stick, throttle, Fire and radar own theirs.
+  if (cameraTouchPointers.size >= 2) return;
+  cameraTouchPointers.set(event.pointerId, {x:event.clientX,y:event.clientY,startX:event.clientX,startY:event.clientY});
+  renderer.domElement.setPointerCapture(event.pointerId);
+  if (cameraTouchPointers.size === 1) {
+    cameraPendingPointerId = event.pointerId;
+  } else {
+    cameraPendingPointerId = null;
+    cameraOrbitDragging = false; cameraOrbitPointerId = null;
+    cameraOrbitRecenterAt = null;
+    const iterator = cameraTouchPointers.values();
+    const first = iterator.next().value!, second = iterator.next().value!;
+    cameraPinchStartDistance = cameraPinchDistance = Math.hypot(second.x-first.x,second.y-first.y);
+    cameraPinchActive = false;
   }
-  beginCameraOrbit(event);
 });
 
 renderer.domElement.addEventListener('pointermove', (event) => {
-  if (event.pointerType === 'touch' && cameraTouchPointers.has(event.pointerId)) {
-    cameraTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (cameraTouchPointers.size > 1) {
+  const touch = cameraTouchPointers.get(event.pointerId);
+  if (touch) {
+    touch.x = event.clientX; touch.y = event.clientY;
+    if (cameraTouchPointers.size === 2) {
       event.preventDefault();
-      const [first, second] = [...cameraTouchPointers.values()];
-      const distance = Math.hypot(second.x - first.x, second.y - first.y);
-      applyCameraZoom(pinchZoomFactor(cameraPinchDistance, distance));
+      const iterator = cameraTouchPointers.values();
+      const first = iterator.next().value!, second = iterator.next().value!;
+      const distance = Math.hypot(second.x-first.x,second.y-first.y);
+      if (!cameraPinchActive) {
+        if (Math.abs(distance-cameraPinchStartDistance) < 12) return;
+        cameraPinchActive = true;
+      } else applyCameraZoom(pinchZoomFactor(cameraPinchDistance,distance));
       cameraPinchDistance = distance;
       return;
+    }
+    if (cameraPendingPointerId === event.pointerId) {
+      if (Math.hypot(touch.x-touch.startX,touch.y-touch.startY) < 12) return;
+      cameraPendingPointerId = null;
+      beginCameraOrbit(event);
+      trainingSlides.recordAction('cameraLook');
+      return; // Consume the threshold movement; orbit begins from the rendered view.
     }
   }
   if (!cameraOrbitDragging || event.pointerId !== cameraOrbitPointerId) return;
   event.preventDefault();
-  const deltaX = event.clientX - cameraOrbitPointerX;
-  const deltaY = event.clientY - cameraOrbitPointerY;
+  const deltaX = event.clientX-cameraOrbitPointerX, deltaY = event.clientY-cameraOrbitPointerY;
   if(guidedTutorialActive&&!tutorialIntroPending&&guidedTutorialStep==='cameraLook'){
     tutorialCameraTravel+=Math.hypot(deltaX,deltaY);
     if(tutorialCameraTravel>=60)advanceGuidedTutorial('cameraMoved');
   }
   if(Math.hypot(deltaX,deltaY)>8)trainingSlides.recordAction('cameraLook');
-  cameraOrbitPointerX = event.clientX;
-  cameraOrbitPointerY = event.clientY;
-  // This is the single continuous manual yaw accumulator. It is deliberately
-  // never clamped or wrapped while the pointer is held.
-  cameraOrbitYaw -= deltaX * 0.008;
-  cameraOrbitPitch = THREE.MathUtils.clamp(cameraOrbitPitch - deltaY * 0.006, -1.25, 1.25);
+  cameraOrbitPointerX=event.clientX; cameraOrbitPointerY=event.clientY;
+  cameraOrbitYaw -= deltaX * (event.pointerType === 'touch' ? .004 : .008);
+  cameraOrbitPitch = THREE.MathUtils.clamp(cameraOrbitPitch-deltaY*(event.pointerType === 'touch' ? .003 : .006),-1.25,1.25);
 });
 
 const stopCameraOrbit = (event: PointerEvent): void => {
-  const wasTouch = event.pointerType === 'touch' && cameraTouchPointers.delete(event.pointerId);
-  const wasPinching = cameraPinchDistance > 0;
-  if (wasTouch && cameraTouchPointers.size < 2) cameraPinchDistance = 0;
+  const wasPinching = cameraTouchPointers.size === 2 && cameraTouchPointers.has(event.pointerId);
+  const wasTouch = cameraTouchPointers.delete(event.pointerId);
+  if (cameraPendingPointerId === event.pointerId) cameraPendingPointerId = null;
   if (wasPinching) {
-    cameraOrbitDragging = false;
-    cameraOrbitPointerId = null;
-    cameraOrbitRecenterAt = performance.now() + 2_000;
-    if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
-    return;
-  }
-  if (!cameraOrbitDragging || event.pointerId !== cameraOrbitPointerId) return;
-  if (event.cancelable) event.preventDefault();
-  const pointerId = event.pointerId;
-  cameraOrbitDragging = false;
-  cameraOrbitPointerId = null;
-  // Normalize only after release, preserving the identical viewing direction
-  // while keeping the later chase blend numerically short.
-  cameraOrbitYaw = THREE.MathUtils.euclideanModulo(cameraOrbitYaw + Math.PI, Math.PI * 2) - Math.PI;
-  // Only a completed/cancelled drag arms the chase return.
-  cameraOrbitRecenterAt = performance.now() + 2_000;
-  if (renderer.domElement.hasPointerCapture(pointerId)) renderer.domElement.releasePointerCapture(pointerId);
+    cameraPinchDistance=0; cameraPinchStartDistance=0; cameraPinchActive=false;
+    cameraOrbitDragging=false; cameraOrbitPointerId=null;
+    cameraOrbitRecenterAt = cameraOrbitBlend > 0 ? performance.now()+250 : null;
+    for (const [id, touch] of cameraTouchPointers) {
+      touch.startX=touch.x; touch.startY=touch.y; cameraPendingPointerId=id;
+    }
+  } else if (cameraOrbitDragging && event.pointerId === cameraOrbitPointerId) {
+    cameraOrbitDragging=false; cameraOrbitPointerId=null;
+    cameraOrbitYaw=THREE.MathUtils.euclideanModulo(cameraOrbitYaw+Math.PI,Math.PI*2)-Math.PI;
+    cameraOrbitRecenterAt=performance.now()+250;
+  } else if (!wasTouch) return;
+  if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
 };
 renderer.domElement.addEventListener('pointerup', stopCameraOrbit);
 renderer.domElement.addEventListener('pointercancel', stopCameraOrbit);
@@ -8531,12 +8543,10 @@ const resetCameraPointers = (): void => {
   for (const pointerId of cameraTouchPointers.keys()) {
     if (renderer.domElement.hasPointerCapture(pointerId)) renderer.domElement.releasePointerCapture(pointerId);
   }
-  cameraTouchPointers.clear();
-  cameraPinchDistance = 0;
-  trackpadGestureScale = 0;
-  cameraOrbitDragging = false;
-  cameraOrbitPointerId = null;
-  cameraOrbitRecenterAt = performance.now() + 2_000;
+  cameraTouchPointers.clear(); cameraPendingPointerId=null;
+  cameraPinchDistance=0; cameraPinchStartDistance=0; cameraPinchActive=false;
+  trackpadGestureScale=0; cameraOrbitDragging=false; cameraOrbitPointerId=null;
+  cameraOrbitRecenterAt=cameraOrbitBlend>0?performance.now()+250:null;
 };
 const gameplayCinematicStartPosition = new THREE.Vector3();
 const gameplayCinematicStartTarget = new THREE.Vector3();
@@ -10981,41 +10991,57 @@ function updateRunTimer(delta: number): void {
 }
 
 function refreshCameraFraming(): void {
-  const assetStatus = String(airplane.userData.assetStatus ?? 'fallback');
-  const framingKey = `${airplane.uuid}:${assetStatus}:${camera.aspect.toFixed(3)}`;
-  if (framingKey === cameraFramingKey) return;
+  const assetStatus = airplane.userData.assetStatus ?? 'fallback';
+  const modelChanged = airplane.uuid !== cameraFramingKey || assetStatus !== cameraFramingAssetStatus;
+  if (!modelChanged && cameraFramingWidth === innerWidth && cameraFramingHeight === innerHeight && cameraFramingAspect === camera.aspect) return;
 
-  airplane.updateWorldMatrix(true, true);
-  cameraFrameRootInverse.copy(airplane.matrixWorld).invert();
-  cameraFrameLocalBounds.makeEmpty();
-  airplane.traverse((object) => {
-    if (!(object instanceof THREE.Mesh) || !object.visible) return;
-    let ancestor: THREE.Object3D | null = object.parent;
-    while (ancestor && ancestor !== airplane) {
-      if (!ancestor.visible) return;
-      ancestor = ancestor.parent;
+  if (modelChanged) {
+    airplane.updateWorldMatrix(true, true);
+    cameraFrameRootInverse.copy(airplane.matrixWorld).invert();
+    cameraFrameLocalBounds.makeEmpty();
+    cameraFramePoints.length = 0;
+    airplane.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || !object.visible) return;
+      let ancestor: THREE.Object3D | null = object.parent;
+      while (ancestor && ancestor !== airplane) {
+        if (!ancestor.visible) return;
+        ancestor = ancestor.parent;
+      }
+      const geometry = object.geometry;
+      if (!geometry.boundingBox) geometry.computeBoundingBox();
+      if (!geometry.boundingBox) return;
+      cameraFrameMeshBounds.copy(geometry.boundingBox);
+      cameraFrameRelativeMatrix.multiplyMatrices(cameraFrameRootInverse, object.matrixWorld);
+      cameraFrameMeshBounds.applyMatrix4(cameraFrameRelativeMatrix);
+      cameraFrameLocalBounds.union(cameraFrameMeshBounds);
+      const positions = geometry.getAttribute('position');
+      if (positions) for (let index = 0; index < positions.count; index++) {
+        cameraFrameVertex.fromBufferAttribute(positions, index).applyMatrix4(cameraFrameRelativeMatrix);
+        cameraFramePoints.push(cameraFrameVertex.x, cameraFrameVertex.y, cameraFrameVertex.z);
+      }
+    });
+    if (cameraFrameLocalBounds.isEmpty()) return;
+
+    cameraFrameLocalBounds.getSize(cameraFrameSize);
+    cameraFrameLocalBounds.getCenter(cameraFrameCenter);
+    for (let index = 0; index < cameraFramePoints.length; index += 3) {
+      cameraFramePoints[index] -= cameraFrameCenter.x;
+      cameraFramePoints[index + 1] -= cameraFrameCenter.y;
+      cameraFramePoints[index + 2] -= cameraFrameCenter.z;
     }
-    const geometry = object.geometry;
-    if (!geometry.boundingBox) geometry.computeBoundingBox();
-    if (!geometry.boundingBox) return;
-    cameraFrameMeshBounds.copy(geometry.boundingBox);
-    cameraFrameRelativeMatrix.multiplyMatrices(cameraFrameRootInverse, object.matrixWorld);
-    cameraFrameMeshBounds.applyMatrix4(cameraFrameRelativeMatrix);
-    cameraFrameLocalBounds.union(cameraFrameMeshBounds);
-  });
-  if (cameraFrameLocalBounds.isEmpty()) return;
-
-  cameraFrameLocalBounds.getSize(cameraFrameSize);
-  const visualSpan = Math.max(cameraFrameSize.x, cameraFrameSize.z * 0.9);
-  const horizontalHalfFov = Math.atan(Math.tan(THREE.MathUtils.degToRad(CAMERA_CHASE_FOV) * 0.5) * camera.aspect);
-  const viewRange = visualSpan / (2 * CAMERA_TARGET_WIDTH_FRACTION * Math.tan(horizontalHalfFov));
-  cameraFocusAhead = THREE.MathUtils.clamp(cameraFrameSize.z * 0.22, 1, 2.7);
-  defaultChaseDistance = Math.max(cameraFrameSize.z * 0.75, viewRange - cameraFocusAhead) * currentAircraft.cameraFrameScale;
-  // Earlier rear viewing height only; targeting and camera behavior stay current.
-  defaultChaseHeight = Math.max(currentAircraft.cameraHeight * 0.74, cameraFrameSize.y * 0.65);
-  cameraFocusAhead = Math.max(cameraFocusAhead, defaultChaseDistance * 0.45);
+  }
+  const safeStyle = getComputedStyle(flightGameRoot);
+  const usableWidth = Math.max(innerWidth * .7, innerWidth - (parseFloat(safeStyle.getPropertyValue('--safe-area-left')) || 0)
+    - (parseFloat(safeStyle.getPropertyValue('--safe-area-right')) || 0));
+  const frame = fitAircraftChase(cameraFrameSize.x, cameraFrameSize.y, cameraFrameSize.z,
+    camera.aspect, CAMERA_TARGET_WIDTH_FRACTION * usableWidth / innerWidth, cameraFramePoints);
+  defaultChaseDistance = frame.distance;
+  defaultChaseHeight = frame.height;
+  cameraFocusAhead = frame.focusHeight;
   if (!cameraFramingKey) smoothedChaseDistance = defaultChaseDistance * cameraDistanceMultiplier;
-  cameraFramingKey = framingKey;
+  cameraFramingWidth = innerWidth; cameraFramingHeight = innerHeight;
+  cameraFramingKey = airplane.uuid;
+  cameraFramingAssetStatus = assetStatus; cameraFramingAspect = camera.aspect;
 }
 
 function updateCamera(delta: number): void {
@@ -11049,22 +11075,18 @@ function updateCamera(delta: number): void {
 
   refreshCameraFraming();
   const cameraFollow = currentAircraft.cameraDamping;
-  const targetChaseDistance = defaultChaseDistance * 0.92 * cameraDistanceMultiplier;
+  const targetChaseDistance = defaultChaseDistance * cameraDistanceMultiplier;
   smoothedChaseDistance = THREE.MathUtils.lerp(
     smoothedChaseDistance,
     targetChaseDistance,
-    Math.min(1, delta * 6),
+    1 - Math.exp(-Math.max(0, delta) * 6),
   );
   if (cameraOrbitRadiusTarget > 0) {
-    cameraOrbitRadius = THREE.MathUtils.lerp(cameraOrbitRadius, cameraOrbitRadiusTarget, Math.min(1, delta * 8));
+    cameraOrbitRadius = THREE.MathUtils.lerp(cameraOrbitRadius, cameraOrbitRadiusTarget, 1 - Math.exp(-Math.max(0, delta) * 8));
   }
   const recentering = !cameraOrbitDragging && cameraOrbitRecenterAt !== null && performance.now() >= cameraOrbitRecenterAt;
-  if (recentering) {
-    cameraOrbitBlend = Math.max(0, cameraOrbitBlend - delta * 0.7);
-    if (cameraOrbitBlend === 0) cameraOrbitRecenterAt = null;
-  }
   cameraAircraftForward.set(0, 0, -1).applyQuaternion(airplane.quaternion);
-  const chasePitch = THREE.MathUtils.clamp(Math.atan2(cameraAircraftForward.y,Math.hypot(cameraAircraftForward.x,cameraAircraftForward.z))*.45,-.18,.18);
+  const chasePitch = THREE.MathUtils.clamp(Math.atan2(cameraAircraftForward.y,Math.hypot(cameraAircraftForward.x,cameraAircraftForward.z))*.45,-.22,.22);
   cameraAircraftForward.y = 0;
   if (cameraAircraftForward.lengthSq() < 0.0001) cameraAircraftForward.set(0, 0, -1).applyQuaternion(cameraOrbitYawQuaternion);
   else cameraAircraftForward.normalize();
@@ -11074,32 +11096,51 @@ function updateCamera(delta: number): void {
   // This keeps the horizon level and the tail view connected to flight attitude.
   cameraChasePitchQuaternion.setFromAxisAngle(cameraPitchAxis,chasePitch);
   cameraChaseQuaternion.copy(cameraOrbitYawQuaternion).multiply(cameraChasePitchQuaternion);
+  cameraFrameWorldCenter.copy(cameraFrameCenter).applyQuaternion(airplane.quaternion);
   chaseCameraPosition.copy(cameraOrbitOffset
     .set(
       0,
-      // Reveal the wings and runway over the tail, including wider aircraft.
-      Math.max(defaultChaseHeight * 1.3, defaultChaseDistance * 0.28)
-        * (0.82 + cameraDistanceMultiplier * 0.18),
+      smoothedChaseDistance * Math.tan(Math.PI / 12),
       smoothedChaseDistance,
     )
     .applyQuaternion(cameraChaseQuaternion))
     .add(airplane.position);
+  chaseCameraPosition.add(cameraFrameWorldCenter);
   chaseCameraPosition.y = Math.max(
     chaseCameraPosition.y,
     groundPlaneY(chaseCameraPosition.x, chaseCameraPosition.z) + 2.2,
   );
   chaseLookTarget
-    .set(0, 0.7, -cameraFocusAhead)
+    .set(0, smoothedChaseDistance * .075, 0)
     .applyQuaternion(cameraChaseQuaternion)
     .add(airplane.position);
+  chaseLookTarget.add(cameraFrameWorldCenter);
+  cameraOrbitReferenceQuaternion.copy(cameraOrbitYawQuaternion);
+  if (recentering) {
+    const weight = 1 - Math.exp(-Math.max(0, delta) * 5);
+    cameraOrbitInverseYawQuaternion.copy(cameraOrbitYawQuaternion).invert();
+    cameraOrbitOffset.copy(chaseCameraPosition).sub(airplane.position).applyQuaternion(cameraOrbitInverseYawQuaternion);
+    const radius = cameraOrbitOffset.length();
+    const pitch = Math.asin(THREE.MathUtils.clamp(cameraOrbitOffset.y / Math.max(.01, radius), -1, 1));
+    const yaw = Math.atan2(cameraOrbitOffset.x, cameraOrbitOffset.z);
+    cameraOrbitYaw += (yaw - cameraOrbitYaw) * weight;
+    cameraOrbitPitch += (pitch - cameraOrbitPitch) * weight;
+    cameraOrbitRadiusTarget = radius;
+    cameraOrbitReturnFocus.copy(chaseLookTarget).sub(airplane.position).applyQuaternion(cameraOrbitInverseYawQuaternion);
+    cameraOrbitFocusLocal.lerp(cameraOrbitReturnFocus, weight);
+    if (Math.abs(cameraOrbitYaw - yaw) < .002 && Math.abs(cameraOrbitPitch - pitch) < .002 && Math.abs(cameraOrbitRadius - radius) < radius * .002) {
+      cameraOrbitBlend = 0; cameraOrbitRecenterAt = null;
+    }
+  }
 
   if (cameraOrbitBlend > 0) {
     // Ease the orbit pivot onto the airframe, rather than circling the chase
     // look-ahead point and pushing the aircraft toward the edge of the screen.
-    const focusWeight=1-Math.exp(-Math.min(delta,.1)*10);
-    cameraOrbitFocusLocal.x*=1-focusWeight;
-    cameraOrbitFocusLocal.z*=1-focusWeight;
-    cameraOrbitFocusLocal.y+=(.7-cameraOrbitFocusLocal.y)*focusWeight;
+    if (!recentering) {
+      cameraOrbitInverseYawQuaternion.copy(cameraOrbitYawQuaternion).invert();
+      cameraOrbitReturnFocus.copy(cameraFrameWorldCenter).applyQuaternion(cameraOrbitInverseYawQuaternion);
+      cameraOrbitFocusLocal.lerp(cameraOrbitReturnFocus, 1 - Math.exp(-Math.max(0, delta) * 6));
+    }
     const horizontalRadius = cameraOrbitRadius * Math.cos(cameraOrbitPitch);
     orbitCameraPosition.set(
       Math.sin(cameraOrbitYaw) * horizontalRadius,
@@ -11121,7 +11162,7 @@ function updateCamera(delta: number): void {
 
   // Keep throttle changes from moving the aircraft or aim circle on screen.
   // Boost retains its explicit visual feedback; normal airspeed does not reframe.
-  let targetFov = CAMERA_CHASE_FOV + boostVisualStrength * 4.0;
+  let targetFov = CAMERA_CHASE_FOV + boostVisualStrength * 2.0;
   const cinematicFrame = cinematicDirector.cameraFrame();
   const launchCameraApplied = applyFlightLaunchCamera(chaseCameraPosition, chaseLookTarget, targetFov);
   let gameplayCameraApplied = false;
@@ -11165,7 +11206,7 @@ function updateCamera(delta: number): void {
     // when its configured chase distance never changes.
     targetCameraRelativeOffset.copy(targetCameraPosition).sub(airplane.position);
     targetCameraLookOffset.copy(lookTarget).sub(airplane.position);
-    const followWeight=1-Math.exp(-Math.min(delta,.1)*(cameraOrbitDragging?14:cameraFollow));
+    const followWeight=1-Math.exp(-Math.max(0,delta)*(cameraOrbitDragging?14:Math.max(8,cameraFollow*2)));
     if (!cameraRelativeOffsetInitialized) {
       smoothedCameraRelativeOffset.copy(targetCameraRelativeOffset);
       smoothedCameraLookOffset.copy(targetCameraLookOffset);
@@ -11181,11 +11222,14 @@ function updateCamera(delta: number): void {
       groundPlaneY(camera.position.x, camera.position.z) + 2.2,
     );
     camera.lookAt(lookTarget);
+    const rollTarget = THREE.MathUtils.clamp(roll * .08, -Math.PI / 30, Math.PI / 30) * (1 - cameraOrbitBlend);
+    cameraChaseRoll += (rollTarget - cameraChaseRoll) * (1 - Math.exp(-Math.max(0, delta) * 6));
+    camera.rotateZ(cameraChaseRoll);
   }
 
   const nextFov = launchCameraApplied || gameplayCameraApplied
     ? camera.fov
-    : THREE.MathUtils.lerp(camera.fov, targetFov, Math.min(0.15, delta * 2.5));
+    : THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.exp(-Math.max(0, delta) * 2.5));
   skyDome.position.copy(camera.position);
   const altitudeFactor = THREE.MathUtils.clamp(altitudeAboveTerrain() / 6000, 0, 1);
   const captureOverview = launchCameraApplied && (missionCoinHuntIntro || missionSharpshooterIntro || missionAirportHopIntro || missionCaptureIntroPath &&
