@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { dallasCoinTrail } from '../../shared/collectible-trail.mjs';
 export const coinHuntIntroTexts=[
- 'DALLAS BONUS ROUND!','Follow the golden coin trail!',
- 'Every coin is worth 1 Credit!','Collect as many as you can before time runs out!',
+ '• Collect as many COINS as possible before time ends',
 ] as const;
 /** Presentation only: the real aircraft, pickup state and mission clock never advance. */
 export class CoinHuntIntro {

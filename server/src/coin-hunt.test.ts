@@ -128,7 +128,7 @@ test('intro uses four moving presentation-only shots and restores chase camera',
  intro.sample(3249,0,1100,camera,chase,look,60);const beforeStep=intro.target.clone();
  intro.sample(3251,0,1100,camera,chase,look,60);assert.ok(intro.target.distanceTo(beforeStep)<1);
  intro.sample(12000,1,1100,camera,chase,look,60);assert.ok(camera.position.equals(chase));assert.equal(camera.fov,60);
- assert.deepEqual([...coinHuntIntroTexts],['DALLAS BONUS ROUND!','Follow the golden coin trail!','Every coin is worth 1 Credit!','Collect as many as you can before time runs out!']);
+ assert.deepEqual([...coinHuntIntroTexts],['• Collect as many COINS as possible before time ends']);
  assert.equal(createHash('sha256').update(readFileSync('client/public/media/missions/credit-coin.webp')).digest('hex'),'58f2b5011fe3ef496a146f8032c454705d8654af569cad261fc4f4509cec2014');
 });
 

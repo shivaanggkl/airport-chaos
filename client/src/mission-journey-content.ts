@@ -21,7 +21,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-ace-intercept-01': journeyDallasAceIntercept01.objective,
   'journey-dallas-territory-defense-01':journeyDallasTerritoryDefense01.objective,
   'journey-dallas-twin-hunters-01': journeyDallasTwinHunters01.objective,
-  'journey-dallas-coin-hunt-01': journeyDallasCoinHunt01.objective,
+  'journey-dallas-coin-hunt-01': 'Collect as many COINS as possible before time ends',
   'journey-dallas-sharpshooter-01': journeyDallasSharpshooter01.objective,
   'journey-dallas-airport-hop-01': journeyDallasAirportHop01.objective,
   'journey-dallas-capture-01': captureMissionInstructions.join('\n'),
@@ -58,7 +58,7 @@ export const missionJourneyDetails = journeyCatalog.filter(slot => slot.implemen
   const mission = missions.find(mission => mission.id === slot.id)!;
   return {
     id: mission.id,
-    title: mission.id === journeyDallas07.id ? 'BATTLE - 1 GIANT' : mission.id === journeyDallasSharpshooter01.id ? 'TARGETS' : mission.id === journeyDallas01.id || mission.id === journeyDallas02.id || mission.id === journeyDallas03.id || mission.id === journeyDallas04.id ? '10 RINGS' : (mission.id === journeyDallas13.id || mission.id === journeyDallas14.id || mission.id === journeyDallas15.id) ? 'BATTLE - 1 PLANE' : mission.id === journeyDallasCapture01.id ? 'TERRITORY' : mission.id === journeyDallasAirportHop01.id ? 'AIRPORT HOP' : slot.title,
+    title: mission.id === journeyDallasCoinHunt01.id ? 'COLLECT COINS' : mission.id === journeyDallas07.id ? 'BATTLE - 1 GIANT' : mission.id === journeyDallasSharpshooter01.id ? 'TARGETS' : mission.id === journeyDallas01.id || mission.id === journeyDallas02.id || mission.id === journeyDallas03.id || mission.id === journeyDallas04.id ? '10 RINGS' : (mission.id === journeyDallas13.id || mission.id === journeyDallas14.id || mission.id === journeyDallas15.id) ? 'BATTLE - 1 PLANE' : mission.id === journeyDallasCapture01.id ? 'TERRITORY' : mission.id === journeyDallasAirportHop01.id ? 'AIRPORT HOP' : slot.title,
     description: descriptions[mission.id],
     rewardCredits: mission.firstClearCredits,
     timeLimit: formatTimeLimit('timeLimitMs' in mission ? mission.timeLimitMs : undefined),
