@@ -492,10 +492,10 @@ export const journeyDallasTerritoryDefense01 = Object.freeze({
 export const journeyDallasTwinHunters01 = Object.freeze({
   id: 'journey-dallas-twin-hunters-01', cityId: 'dallas', name: 'TWIN HUNTERS', difficulty: 'MEDIUM',
   objective: 'Shoot down both enemy aircraft before time runs out!',
-  timeLimitMs: 242_000, firstClearCredits: 1500, enemyHealth: 200, aggressionDistance: 6000,
+  timeLimitMs: 242_000, firstClearCredits: 1500, enemyHealth: 300, aggressionDistance: 6000,
   airborneSpawn: Object.freeze({x: -27000, z: -40000, altitude: 1100, heading: Math.PI, speed: 650}),
   enemies: Object.freeze([
-    Object.freeze({aircraft: 'trainer', livery: 'bluejay-skybolt', name: 'BLUEJAY', level: 'EASY', fireDelayMs: 6000, x: -28900, z: -35700, altitude: 100}),
+    Object.freeze({aircraft: 'trainer', livery: 'bluejay-skybolt', name: 'BLUEJAY', level: 'MEDIUM', fireDelayMs: 6000, x: -28900, z: -35700, altitude: 100}),
     Object.freeze({aircraft: 'privateJet', livery: 'nightowl-sunset-red', name: 'NIGHTOWL', level: 'MEDIUM', fireDelayMs: 8000, x: -25100, z: -35700, altitude: 150}),
   ]),
 });

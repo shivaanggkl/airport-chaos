@@ -224,9 +224,9 @@ export const journeyDallasCoinHunt01: Readonly<{
 
 export const journeyDallasTwinHunters01: Readonly<{
   id: 'journey-dallas-twin-hunters-01'; cityId: 'dallas'; name: 'TWIN HUNTERS'; difficulty: 'MEDIUM';
-  objective: string; timeLimitMs: 242000; firstClearCredits: 1500; enemyHealth: 200; aggressionDistance: 6000;
+  objective: string; timeLimitMs: 242000; firstClearCredits: 1500; enemyHealth: 300; aggressionDistance: 6000;
   airborneSpawn: Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
-  enemies: readonly Readonly<{aircraft:'trainer'|'privateJet';livery:string;name:string;level:'EASY'|'MEDIUM';fireDelayMs:number;x:number;z:number;altitude:number}>[];
+  enemies: readonly Readonly<{aircraft:'trainer'|'privateJet';livery:string;name:string;level:'MEDIUM';fireDelayMs:number;x:number;z:number;altitude:number}>[];
 }>;
 export function journeyCrossfireMission(missionId: string | undefined): typeof journeyDallasMostWantedSurvival01 | typeof journeyDallasTwinHunters01 | typeof journeyDallas16 | undefined;
 

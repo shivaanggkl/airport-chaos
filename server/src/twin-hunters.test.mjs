@@ -1,4 +1,4 @@
-import {journeyDallasTerritoryDefense01} from '../../shared/journey-mission.mjs';
+import {journeyDallasMostWantedSurvival01,journeyDallasAceIntercept01,journeyDallasTerritoryDefense01} from '../../shared/journey-mission.mjs';
 import {missionFocusForAttempt} from '../../shared/mission-focus.mjs';
 import {journeyCrossfireMission,journeyDallasTwinHunters01} from '../../shared/journey-mission.mjs';
 import {journeyDallas18} from '../../shared/journey-mission.mjs';
@@ -22,7 +22,7 @@ import {createOpponent} from './opponent.js';
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
 import {recordOpponentHit,recordOpponentDamage} from './opponent-tactics.js';
 const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
-function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyDallasTerritoryDefense01,journeyCrossfireMission,journeyDallasTwinHunters01,journeyDallas18,journeyDallas17,hunterObservedPosition,recordOpponentHit,recordOpponentDamage,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
+function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyDallasMostWantedSurvival01,journeyDallasAceIntercept01,journeyDallasTerritoryDefense01,journeyCrossfireMission,journeyDallasTwinHunters01,journeyDallas18,journeyDallas17,hunterObservedPosition,recordOpponentHit,recordOpponentDamage,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
 
 const mission=journeyDallasTwinHunters01;
 function fixture(){const dir=mkdtempSync(join(tmpdir(),'twin-hunters-')),path=join(dir,'p.sqlite'),db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");const store=new JourneyAttemptStore(path,true);return{dir,path,db,store};}
@@ -38,14 +38,14 @@ test('M15 GO clock, no gate completion, two distinct kills, deadline and once-on
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 
-test('production damage requires eight Bluejay hits per enemy and settles only after the second destruction',()=>{
+test('production damage requires twelve Bluejay hits per enemy and settles only after the second destruction',()=>{
  const f=fixture();try{const a=assigned(f);f.store.startDoubleThreat('pilot',a.attemptId,2000);const pilot={pilotId:'pilot',entityType:'player',cityId:'dallas',lifeState:'alive',isBot:false,score:0,aircraftType:'trainer'};
  const make=type=>({entityType:'player',cityId:'dallas',lifeState:'alive',isBot:true,score:0,health:mission.enemyHealth,spawnProtectedUntil:0,aircraftType:type,position:{x:-13000,y:1000,z:-18000},bot:{journeyCrossfire:true,journeyCrossfireMissionId:mission.id,journeyAttemptId:a.attemptId,journeyTargetPlayerId:'owner',journeyProvoked:true}});
  const enemies=[make('privateJet'),make('trainer')],players=new Map([['owner',pilot],['one',enemies[0]],['two',enemies[1]]]),packets=[],updates=[];
  const ctx=runtime(['applyCombatHit','transportEscortHealth'],{journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas23,journeyDallas16:legacyMission,players,journeyStore:f.store,playerJourneyAttempts:new Map([['owner',a.attemptId]]),playerJourneyDfwTakeoff:new Set(),playerJourneyRunwayPrep:new Set(),crossfireDefeatedHunters:new Map(),crossfireFireCoordinators:new Map([[a.attemptId,new CrossfireFireCoordinator()]]),crossfireHunterMotion:new Map(),runwayCombatProtected:()=>false,focusedBotInteractionExcluded:()=>false,tutorialCombatPairAllowed:()=>true,sameCombatContext:()=>true,insideJourneyHunterArena:()=>true,stabilityDiagnosticsEnabled:false,airportRepairStays:new Map(),sendToPlayer:(_id,p)=>packets.push(p),sendJourneyState:(_id,a)=>updates.push(a.crossfireKills),provokeJourneyHunter:()=>{},markPlayerDestroyed:(_id,p)=>p.lifeState='destroyed',isHumanPilot:()=>false,botKillRewardMultiplier:.1,persistScore:()=>{},broadcastToCity:()=>assert.fail('private actor leaked'),broadcastLeaderboard:()=>{},removeBot:id=>players.delete(id),updateKing:()=>{},cityKings:new Map(),handleWantedDestruction:()=>{},challengeForPlayer:()=>undefined});
  enemies[0].bot.journeyProvoked=false;assert.equal(ctx.applyCombatHit('owner','one','dallas',2500,25),false,'takeoff alone cannot bypass safe-departure activation');assert.equal(enemies[0].health,mission.enemyHealth);enemies[0].bot.journeyProvoked=true;
- for(const [index,id] of ['one','two'].entries())for(let hit=1;hit<=8;hit++){assert.equal(ctx.applyCombatHit('owner',id,'dallas',3000+index*5000+hit*500,25),true);assert.equal(enemies[index].health,mission.enemyHealth-hit*25);assert.equal(f.store.get('pilot',a.attemptId).status,index===1&&hit===8?'COMPLETED':'RACING');}
- assert.equal(f.store.get('pilot',a.attemptId).firstClearCredits,1500);assert.equal(players.has('one')||players.has('two'),false);assert.equal(packets.filter(p=>p.type==='damage').length,16);assert.equal(updates.length,16,'both targets must refresh authoritative HUD health after every hit');
+ for(const [index,id] of ['one','two'].entries())for(let hit=1;hit<=12;hit++){assert.equal(ctx.applyCombatHit('owner',id,'dallas',3000+index*8000+hit*500,25),true);assert.equal(enemies[index].health,mission.enemyHealth-hit*25);assert.equal(f.store.get('pilot',a.attemptId).status,index===1&&hit===12?'COMPLETED':'RACING');}
+ assert.equal(f.store.get('pilot',a.attemptId).firstClearCredits,1500);assert.equal(players.has('one')||players.has('two'),false);assert.equal(packets.filter(p=>p.type==='damage').length,24);assert.equal(updates.length,24,'both targets must refresh authoritative HUD health after every hit');
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 
@@ -61,7 +61,7 @@ test('production M15 factory preserves exact already-scaled spawns, cosmetics an
 test('M15 catalog and M17 configuration remain distinct',()=>{
  assert.equal(journeyMissionSlot(mission.id),15);assert.equal(mission.timeLimitMs,242000);
  assert.equal(missionFocusForAttempt({missionId:mission.id,status:'APPROACH'}).showAmbientAIAircraft,false);assert.equal(missionFocusForAttempt({missionId:mission.id,status:'RACING'}).showAmbientAIMarkers,false);assert.equal(missionFocusForAttempt({missionId:mission.id,status:'COMPLETED'}),null);
- assert.equal(mission.enemyHealth,200);assert.deepEqual(mission.enemies.map(e=>e.level),['EASY','MEDIUM']);
+ assert.equal(mission.enemyHealth,300);assert.deepEqual(mission.enemies.map(e=>e.level),['MEDIUM','MEDIUM']);
  assert.deepEqual(mission.enemies.map(e=>e.fireDelayMs),[6000,8000]);
  assert.equal(mission.airborneSpawn.speed,650);assert.equal(mission.airborneSpawn.heading,Math.PI);
  assert.equal(legacyMission.enemyHealth,300);assert.equal(legacyMission.timeLimitMs,180000);assert.equal(legacyMission.startAirportId,'dfw');
