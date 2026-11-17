@@ -18,8 +18,21 @@ const bounds = primitives.map(primitive => model.accessors[primitive.attributes.
 const span = bounds.max[0] - bounds.min[0];
 const length = bounds.max[2] - bounds.min[2];
 const scale = Math.min(6.8 / span, 8.5 / length);
-const centerY = (bounds.min[1] + bounds.max[1]) / 2;
-const centerZ = (bounds.min[2] + bounds.max[2]) / 2;
+const authoredCenter = model.scenes[model.scene ?? 0].extras.aircraftNormalizationCenter;
+const centerY = authoredCenter[1];
+const centerZ = authoredCenter[2];
+
+test('Firehawk stabilizer is half size with its original airframe alignment', () => {
+  assert.deepEqual(authoredCenter, [0, .34, -.425]);
+  const fin = primitives.filter(primitive => model.materials[primitive.material].name === 'AC_FIREHAWK_FIN')
+    .map(primitive => model.accessors[primitive.attributes.POSITION]);
+  const min = [0, 1, 2].map(axis => Math.min(...fin.map(accessor => accessor.min[axis])));
+  const max = [0, 1, 2].map(axis => Math.max(...fin.map(accessor => accessor.max[axis])));
+  for (const [actual, expected] of [[min[0], -.065], [max[0], .065],
+    [min[1], .24], [max[1], .995], [min[2], 1.97], [max[2], 3.05]]) {
+    assert.ok(Math.abs(actual - expected) < .0001, `fin bound ${actual} should be ${expected}`);
+  }
+});
 
 test('Firehawk has a compact single-engine model and unchanged purchase identity', () => {
   const triangles = primitives.reduce((total, primitive) => total +

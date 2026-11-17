@@ -1,10 +1,14 @@
 import { Vector3, type Quaternion } from 'three';
 
-export const aircraftCameraProfile = { widthFraction: .35, elevation: 16 * Math.PI / 180 } as const;
+export const aircraftCameraProfile = { widthFraction: .35, elevation: 16 * Math.PI / 180, focusRatio: .075, groundClearance: 2.2 } as const;
+const firehawkCameraProfile = { widthFraction: .34, elevation: 5 * Math.PI / 180, focusRatio: .01, groundClearance: 1.1 } as const;
+export function normalAircraftCameraProfile(type: string) {
+  return type === 'fighter' ? firehawkCameraProfile : aircraftCameraProfile;
+}
 
 /** Fit cached visible geometry in straight, level flight only. */
-export function fitAircraftChase(width: number, height: number, length: number, aspect: number, points?: readonly number[]) {
-  const elevation = Math.tan(aircraftCameraProfile.elevation), focusRatio = .075;
+export function fitAircraftChase(width: number, height: number, length: number, aspect: number, points?: readonly number[], profile: { widthFraction: number; elevation: number; focusRatio: number } = aircraftCameraProfile) {
+  const elevation = Math.tan(profile.elevation), focusRatio = profile.focusRatio;
   const angle = Math.atan(elevation - focusRatio);
   const sin = Math.sin(angle), cos = Math.cos(angle);
   const verticalTan = Math.tan(58 * Math.PI / 360), horizontalTan = verticalTan * aspect;
@@ -17,7 +21,7 @@ export function fitAircraftChase(width: number, height: number, length: number, 
     const z = points ? points[index * 3 + 2]! : (index & 4 ? 1 : -1) * length / 2;
     const depthOffset = y * sin + z * cos, verticalOffset = y * cos - z * sin;
     distance = Math.max(distance, (2.2 + depthOffset) / depthScale,
-      (Math.abs(x) / (aircraftCameraProfile.widthFraction * horizontalTan) + depthOffset) / depthScale,
+      (Math.abs(x) / (profile.widthFraction * horizontalTan) + depthOffset) / depthScale,
       (verticalOffset + .94 * verticalTan * depthOffset) / (.94 * verticalTan * depthScale - verticalScale),
       (.94 * verticalTan * depthOffset - verticalOffset) / (verticalScale + .94 * verticalTan * depthScale));
   }
@@ -44,8 +48,8 @@ export function cacheAircraftSafetyPoints(points: readonly number[]): number[] {
 
 const safetyVertex = new Vector3();
 /** Minimum temporary distance for the current attitude; bounded cached points only. */
-export function requiredChaseDistance(points: readonly number[], rotation: Quaternion, aspect: number, elevation: number, roll: number): number {
-  const slope = Math.tan(elevation), angle = Math.atan(slope - .075);
+export function requiredChaseDistance(points: readonly number[], rotation: Quaternion, aspect: number, elevation: number, roll: number, focusRatio: number = aircraftCameraProfile.focusRatio): number {
+  const slope = Math.tan(elevation), angle = Math.atan(slope - focusRatio);
   const sin = Math.sin(angle), cos = Math.cos(angle), rollSin = Math.sin(roll), rollCos = Math.cos(roll);
   const vertical = Math.tan(58 * Math.PI / 360) * .94, horizontal = vertical * aspect;
   const depthScale = slope * sin + cos, screenScale = sin - slope * cos;
