@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { journeyDallas07, journeyDallas08 } from '../../shared/journey-mission.mjs';
+import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
 import { missionJourneyDetails } from './mission-journey-content';
 import { setMissionInstructions } from './mission-instructions';
 import { transportFootprintRadius, transportPose, transportTuning } from '../../shared/giant-incoming.mjs';
@@ -40,7 +40,7 @@ export class TransportArrivalSequence {
       : escorts.length
         ? `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'GIANT PLANE & FOUR ESCORTS' : missionName === 'GIANT PLANE & THREE ESCORTS' ? 'GIANT PLANE & THREE ESCORTS' : 'GIANT PLANE & TWO ESCORTS'}</strong><p>Destroy the ${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'gunship' : 'transport'} to win. Escorts are optional.</p>`
         : '<strong>GIANT PLANE</strong><p>SHOOT IT DOWN</p>';
-    if(missionId===journeyDallas07.id || missionId===journeyDallas08.id){
+    if(missionId===journeyDallas07.id || missionId===journeyDallas08.id || missionId===journeyDallas09.id || missionId===journeyDallas10.id || missionId===journeyDallas11.id || missionId===journeyDallas12.id){
       this.alert.classList.add('is-m9-instructions');
       setMissionInstructions(this.alert,missionJourneyDetails.find(mission=>mission.id===missionId)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
     }
