@@ -39,7 +39,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-12': 'Shoot Down Both ESCORT Planes And Destroy the GIANT PLANE’s Two WINGS And ENGINE Before Time Runs Out.',
   'journey-dallas-13': 'Take off from airport\nSHOOT down 1 PLANE before time ends',
   'journey-dallas-14': 'Take off from airport\nSHOOT down 1 PLANE before time ends',
-  'journey-dallas-15': 'Find And Shoot Down MAMMOTH Plane Before Time Runs Out.',
+  'journey-dallas-15': 'Take off from airport\nSHOOT down 1 PLANE before time ends',
   'journey-dallas-16': 'SHOOT down both enemy planes before TIME runs out',
   'journey-dallas-17': 'Find And Shoot Down MAMMOTH, NIGHTOWL And BLUEJAY Planes Before Time Runs Out.',
   'journey-dallas-18': 'Find And Shoot Down Both FIREHAWKS, NIGHTOWL And BLUEJAY Before Time Runs Out.',
@@ -58,7 +58,7 @@ export const missionJourneyDetails = journeyCatalog.filter(slot => slot.implemen
   const mission = missions.find(mission => mission.id === slot.id)!;
   return {
     id: mission.id,
-    title: mission.id === journeyDallas07.id ? 'BATTLE - 1 GIANT' : mission.id === journeyDallasSharpshooter01.id ? 'TARGETS' : mission.id === journeyDallas01.id || mission.id === journeyDallas02.id || mission.id === journeyDallas03.id || mission.id === journeyDallas04.id ? '10 RINGS' : (mission.id === journeyDallas13.id || mission.id === journeyDallas14.id) ? 'BATTLE - 1 PLANE' : mission.id === journeyDallasCapture01.id ? 'TERRITORY' : mission.id === journeyDallasAirportHop01.id ? 'AIRPORT HOP' : slot.title,
+    title: mission.id === journeyDallas07.id ? 'BATTLE - 1 GIANT' : mission.id === journeyDallasSharpshooter01.id ? 'TARGETS' : mission.id === journeyDallas01.id || mission.id === journeyDallas02.id || mission.id === journeyDallas03.id || mission.id === journeyDallas04.id ? '10 RINGS' : (mission.id === journeyDallas13.id || mission.id === journeyDallas14.id || mission.id === journeyDallas15.id) ? 'BATTLE - 1 PLANE' : mission.id === journeyDallasCapture01.id ? 'TERRITORY' : mission.id === journeyDallasAirportHop01.id ? 'AIRPORT HOP' : slot.title,
     description: descriptions[mission.id],
     rewardCredits: mission.firstClearCredits,
     timeLimit: formatTimeLimit('timeLimitMs' in mission ? mission.timeLimitMs : undefined),
