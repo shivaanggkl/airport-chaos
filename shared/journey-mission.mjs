@@ -1,3 +1,5 @@
+import { dallasDisplayNames as airportName } from './dallas-display-names.mjs';
+import { sharpshooterPlacements } from './sharpshooter-target.mjs';
 import { territoriesForCity } from './city-territories.mjs';
 import { transportTuning, transportLockParts } from './giant-incoming.mjs';
 import { remoteAircraftScale } from './remote-aircraft-visual-rules.mjs';
@@ -512,14 +514,14 @@ export const journeyDallasCoinHunt01 = Object.freeze({
 
 export const journeyDallasSharpshooter01 = Object.freeze({
   id: 'journey-dallas-sharpshooter-01', cityId: 'dallas', name: 'SKY SHARPSHOOTER', difficulty: 'MEDIUM',
-  objective: 'Shoot all three targets before time runs out!',
-  timeLimitMs: 180_000, firstClearCredits: 800, targetHealth: 25, targetCount: 3, targetRadius: 220,
+  objective: 'SHOOT down 6 TARGETS',
+  timeLimitMs: 180_000, firstClearCredits: 800, targetHealth: 25, targetCount: sharpshooterPlacements.length, targetRadius: 220,
   airborneSpawn: Object.freeze({x: cityAirports.dallas.find(a => a.id === 'love').x,
     z: cityAirports.dallas.find(a => a.id === 'love').z, altitude: 800, heading: 0, speed: 180}),
 });
 export const journeyDallasAirportHop01 = Object.freeze({
   id: 'journey-dallas-airport-hop-01', cityId: 'dallas', name: 'AIRPORT HOP', difficulty: 'MEDIUM',
-  objective: 'TAKE OFF from METROPLEX INTERNATIONAL runway.\nFLY to METRO CENTRAL AIRPORT and LAND.\nTAKE OFF from METRO CENTRAL AIRPORT. FLY to NORTH METRO AIRFIELD and LAND.',
+  objective: `Take off from ${airportName.dfw}\nFly to ${airportName.love} and land\nFly to ${airportName.addison} and land before time ends`,
   startAirportId: 'dfw', firstAirportId: 'love', finishAirportId: 'addison',
   timeLimitMs: 480_000, firstClearCredits: 750,
 });

@@ -1,4 +1,5 @@
 /* Shared client/server discovery locations. Keep gameplay validation and display on one manifest. */
+import { dallasDisplayNames as airportName } from './dallas-display-names.mjs';
 import { DALLAS_WORLD_SCALE, scaleDallasPoint } from './dallas-world-scale.mjs';
 export const cityDiscoveries = Object.freeze({
   "milwaukee": [
@@ -131,7 +132,7 @@ export const cityDiscoveries = Object.freeze({
   "dallas": [
     {
       "id": "dfw-international",
-      "name": "METROPLEX INTERNATIONAL",
+      "name": airportName.dfw,
       "type": "airport",
       "x": -22800,
       "z": -13600,
@@ -144,7 +145,7 @@ export const cityDiscoveries = Object.freeze({
     },
     {
       "id": "love-field",
-      "name": "METRO CENTRAL AIRPORT",
+      "name": airportName.love,
       "type": "airport",
       "x": -5140,
       "z": -7780,
@@ -157,7 +158,7 @@ export const cityDiscoveries = Object.freeze({
     },
     {
       "id": "addison-airport",
-      "name": "NORTH METRO AIRFIELD",
+      "name": airportName.addison,
       "type": "airport",
       "x": -3700,
       "z": -21100,
@@ -170,7 +171,7 @@ export const cityDiscoveries = Object.freeze({
     },
     {
       "id": "dallas-executive",
-      "name": "SOUTH METRO AIRFIELD",
+      "name": airportName.executive,
       "type": "airstrip",
       "x": -6700,
       "z": 10600,

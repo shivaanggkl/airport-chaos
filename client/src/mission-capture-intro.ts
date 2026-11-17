@@ -36,7 +36,6 @@ export class MissionCaptureIntroPath {
   text(elapsed: number): string {
     if(this.sequence)return elapsed<3000?'CAPTURE 3 TERRITORIES':elapsed<6000?'Three Dallas territories are waiting!':elapsed<9000?'Fly inside each marked territory.':'Capture all three before time runs out!';
     if(this.defense)return elapsed<3000?'TERRITORY DEFENSE':elapsed<6000?'Take off and capture LAS COLINAS.':elapsed<9000?'Stay inside to capture the territory.':'Hold for 1 minute. Defend against the invader!';
-    if (elapsed < 3_000) return 'CAPTURE 1 TERRITORY';
     return captureMissionInstructions.join('\n');
   }
 

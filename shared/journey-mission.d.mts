@@ -203,15 +203,15 @@ export const journeyDallasCapture01: Readonly<{
 
 export const journeyDallasAirportHop01: Readonly<{
   id: 'journey-dallas-airport-hop-01'; cityId: 'dallas'; name: 'AIRPORT HOP'; difficulty: 'MEDIUM';
-  objective: 'TAKE OFF from METROPLEX INTERNATIONAL runway.\nFLY to METRO CENTRAL AIRPORT and LAND.\nTAKE OFF from METRO CENTRAL AIRPORT. FLY to NORTH METRO AIRFIELD and LAND.';
+  objective: string;
   startAirportId: 'dfw'; firstAirportId: 'love'; finishAirportId: 'addison';
   timeLimitMs: 480000; firstClearCredits: 750;
 }>;
 
 export const journeyDallasSharpshooter01: Readonly<{
  id:'journey-dallas-sharpshooter-01';cityId:'dallas';name:'SKY SHARPSHOOTER';difficulty:'MEDIUM';
- objective:'Shoot all three targets before time runs out!';timeLimitMs:180000;firstClearCredits:800;
- targetHealth:25;targetCount:3;targetRadius:220;
+ objective:'SHOOT down 6 TARGETS';timeLimitMs:180000;firstClearCredits:800;
+ targetHealth:25;targetCount:number;targetRadius:220;
  airborneSpawn:Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
 }>;
 

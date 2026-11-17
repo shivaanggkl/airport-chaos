@@ -1,3 +1,4 @@
+import { setMissionInstructions } from './mission-instructions';
 import { observeMissionCopyFit } from './fit-mission-copy';
 import { openControlLayoutEditor } from './control-layout-editor';
 import { rewardedAdPrivacy } from './rewarded-ads';
@@ -463,7 +464,8 @@ export class PilotMenu {
           if (element && element.textContent !== value) element.textContent = value;
         };
         update('h2', mission.name);
-        update('.pilot-flight-mission-objective', mission.objective);
+        const objective = details.querySelector<HTMLElement>('.pilot-flight-mission-objective');
+        if (objective) setMissionInstructions(objective, mission.objective);
         update('.pilot-flight-progress-value', mission.progress);
         update('.pilot-flight-time', mission.time);
         const segments = details.querySelector('.pilot-flight-gate-segments');
@@ -723,10 +725,9 @@ export class PilotMenu {
       const mission = data.flightMission;
       const layout = document.createElement('section'); layout.className = 'pilot-flight-mission-layout';
       const details = document.createElement('div'); details.className = 'pilot-flight-mission-details';
-      details.append(
-        textElement('h2', mission?.name ?? 'CONNECTING TO MISSION'),
-        textElement('p', mission?.objective ?? 'Connecting to mission', 'pilot-flight-mission-objective'),
-      );
+      const objective = textElement('p', '', 'pilot-flight-mission-objective');
+      setMissionInstructions(objective, mission?.objective ?? 'Connecting to mission');
+      details.append(textElement('h2', mission?.name ?? 'CONNECTING TO MISSION'), objective);
       const progress = document.createElement('div'); progress.className = 'pilot-flight-mission-progress';
       progress.append(textElement('strong', mission?.progress ?? '', 'pilot-flight-progress-value'),
         textElement('span', mission?.time ?? '', 'pilot-flight-time'));

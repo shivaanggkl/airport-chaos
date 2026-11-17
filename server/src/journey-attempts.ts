@@ -671,7 +671,7 @@ export class JourneyAttemptStore {
   prepareSharpshooter(pilotId:string,attemptId:string,targets:SharpshooterTarget[]):JourneyAttempt|undefined {
     this.database.prepare(`UPDATE journey_attempts SET sharpshooter_state=? WHERE pilot_id=? AND attempt_id=?
       AND mission_id=? AND status IN ('APPROACH','RACING') AND (sharpshooter_state IS NULL OR json_type(sharpshooter_state,'$.targets') IS NULL)`)
-      .run(JSON.stringify({destroyed:3-targets.length,targets}),pilotId,attemptId,journeyDallasSharpshooter01.id);
+      .run(JSON.stringify({destroyed:journeyDallasSharpshooter01.targetCount-targets.length,targets}),pilotId,attemptId,journeyDallasSharpshooter01.id);
     return this.get(pilotId,attemptId);
   }
 
@@ -692,7 +692,8 @@ export class JourneyAttemptStore {
       const destroyed=a.sharpshooter!.destroyed+1;
       this.database.prepare('UPDATE journey_attempts SET sharpshooter_state=? WHERE pilot_id=? AND attempt_id=?')
         .run(JSON.stringify({destroyed,targets:a.sharpshooter!.targets.filter(target=>target.stage!==stage)}),pilotId,attemptId);
-      if(destroyed===journeyDallasSharpshooter01.targetCount){
+      // Existing three-target attempts retain their saved objective; new attempts have six.
+      if(a.sharpshooter!.targets.length===1){
         const elapsed=now-a.startedAt!;
         const first=this.database.prepare(`INSERT OR IGNORE INTO journey_completions
           (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`)

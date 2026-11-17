@@ -1,3 +1,4 @@
+import { dallasDisplayNames as airportName } from './dallas-display-names.mjs';
 import { DALLAS_WORLD_SCALE, scaleDallasPoint } from './dallas-world-scale.mjs';
 export const weatherZoneTypes = Object.freeze(['clear', 'windy', 'storm', 'fog', 'dusk_signal', 'turbulence']);
 
@@ -5,8 +6,8 @@ export const cityWeatherZones = Object.freeze({
   dallas: Object.freeze([
     Object.freeze({ id: 'dfw-crosswind', cityId: 'dallas', type: 'windy', name: 'DFW CROSSWIND', center: Object.freeze({ x: -22_800, z: -13_600 }), radius: 1_650, intensity: 0.22, airportId: 'dfw', visualProfile: 'wind-streaks', gameplayProfile: 'light-drift' }),
     Object.freeze({ id: 'white-rock-storm', cityId: 'dallas', type: 'storm', name: 'WHITE ROCK STORM', center: Object.freeze({ x: 6_400, z: -8_900 }), radius: 1_050, altitudeMax: 3_800, intensity: 0.42, visualProfile: 'cool-storm', gameplayProfile: 'storm-drift' }),
-    Object.freeze({ id: 'love-storm', cityId: 'dallas', type: 'storm', name: 'METRO CENTRAL STORM', center: Object.freeze({ x: -5_140, z: -7_780 }), radius: 1_450, altitudeMax: 2_200, intensity: 0.38, airportId: 'love', eventId: 'stormLanding', visualProfile: 'cool-storm', gameplayProfile: 'storm-drift' }),
-    Object.freeze({ id: 'love-fog', cityId: 'dallas', type: 'fog', name: 'METRO CENTRAL FOG', center: Object.freeze({ x: -5_140, z: -7_780 }), radius: 1_350, altitudeMax: 850, intensity: 0.46, airportId: 'love', visualProfile: 'approach-fog', gameplayProfile: 'visibility-only' }),
+    Object.freeze({ id: 'love-storm', cityId: 'dallas', type: 'storm', name: `${airportName.love} STORM`, center: Object.freeze({ x: -5_140, z: -7_780 }), radius: 1_450, altitudeMax: 2_200, intensity: 0.38, airportId: 'love', eventId: 'stormLanding', visualProfile: 'cool-storm', gameplayProfile: 'storm-drift' }),
+    Object.freeze({ id: 'love-fog', cityId: 'dallas', type: 'fog', name: `${airportName.love} FOG`, center: Object.freeze({ x: -5_140, z: -7_780 }), radius: 1_350, altitudeMax: 850, intensity: 0.46, airportId: 'love', visualProfile: 'approach-fog', gameplayProfile: 'visibility-only' }),
     Object.freeze({ id: 'trinity-turbulence', cityId: 'dallas', type: 'turbulence', name: 'TRINITY TURBULENCE', center: Object.freeze({ x: -2_400, z: 1_100 }), radius: 720, intensity: 0.18, visualProfile: 'wind-streaks', gameplayProfile: 'light-turbulence' }),
     Object.freeze({ id: 'midnight-signal', cityId: 'dallas', type: 'dusk_signal', name: 'MIDNIGHT SIGNAL', center: Object.freeze({ x: 4_900, z: -15_800 }), radius: 900, altitudeMin: 120, altitudeMax: 2_400, intensity: 0.3, visualProfile: 'signal-glow', gameplayProfile: 'none' }),
   ].map(zone => Object.freeze({ ...zone, center: Object.freeze(scaleDallasPoint(zone.center)), radius: zone.radius * DALLAS_WORLD_SCALE,
