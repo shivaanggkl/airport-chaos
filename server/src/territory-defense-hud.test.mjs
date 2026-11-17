@@ -51,18 +51,25 @@ test('reviewed mission card has two objectives and a hold clock, with no duplica
  for(const key of ['journeyHudTarget','journeyHudTimer','journeyHudHint','journeyHudEnemy','segments'])assert.equal(ctx[key].hidden,true,key);
 });
 
-test('M16 reuses the M5 live capture bar until ownership, then leaves the hold clock',()=>{
+test('M16 switches the bottom capture bar to the authoritative hold clock after ownership',()=>{
  const captureHud=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='updateCaptureHud');
  const calls=[];
  const ctx=vm.createContext({journeyDallasCapture01,journeyDallasTerritoryDefense01:mission,
   journeyAttempt:{missionId:mission.id,status:'RACING',captureMs:15000},journeyPaused:false,
   captureMissionTerritoryName:'LAS COLINAS',flightGameRoot:{classList:{toggle(name,live){calls.push(['live',live]);}}},
-  missionCaptureBar:{show(...args){calls.push(['show',...args]);},hide(){calls.push(['hide']);}}});
- vm.runInContext(ts.transpileModule(captureHud.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);
+  missionCaptureBar:{show(...args){calls.push(['show',...args]);},showHold(...args){calls.push(['hold',...args]);},hide(){calls.push(['hide']);}}});
+ const formatter=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='formatJourneyResultTime');
+ vm.runInContext(ts.transpileModule(formatter.getText(ast)+'\n'+captureHud.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);
  ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['show','LAS COLINAS',25,false]);
  ctx.journeyPaused=true;ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hide']);
  ctx.journeyPaused=false;ctx.journeyAttempt.captureMs=mission.captureDurationMs;
+ ctx.journeyAttempt.defenseMs=6000;
+ ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hold','LAS COLINAS','0:06','1:00']);
+ ctx.journeyAttempt.defenseMs=90000;
+ ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hold','LAS COLINAS','1:00','1:00']);
+ ctx.journeyPaused=true;
  ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hide']);
+ ctx.journeyPaused=false;
  ctx.journeyAttempt.status='FAILED';ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hide']);
  ctx.journeyAttempt={missionId:journeyDallasCapture01.id,status:'COMPLETED',captureMs:journeyDallasCapture01.captureDurationMs};
  ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['show','LAS COLINAS',100,true]);

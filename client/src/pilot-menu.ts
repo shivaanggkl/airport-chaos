@@ -1411,7 +1411,7 @@ export class PilotMenu {
       const other = document.createElement('div'); other.className = 'pilot-settings-more-content';
       const touchOptions = section('TOUCH CONTROLS');
       if (data.preferences.touchLayout) touchOptions.append(textElement('p',
-        'The left stick controls turning and altitude. The right throttle lever holds power; drag into its Boost Zone to use Boost.', 'pilot-menu-muted'));
+        'The left stick controls turning and altitude. The right speed lever holds your selected setting. Hold the separate BOOST button for extra speed.', 'pilot-menu-muted'));
       else {
         touchOptions.append(textElement('p', 'Keyboard and mouse reference for desktop flight.', 'pilot-menu-muted'));
         for (const group of controlGroups) {
@@ -1470,7 +1470,7 @@ export class PilotMenu {
       selectRow('FLIGHT PITCH',data.flightPitch.inverted?'inverted':'normal',['normal','inverted'],value=>data.flightPitch.setInverted(value==='inverted')),
     );
     if(data.preferences.touchLayout){
-      const touchDescription=textElement('p','', 'pilot-menu-muted');touchDescription.textContent='The left stick controls turning and altitude. The right throttle lever holds your selected power; drag into its Boost Zone to use Boost.';
+      const touchDescription=textElement('p','', 'pilot-menu-muted');touchDescription.textContent='The left stick controls turning and altitude. The right speed lever holds IDLE, SLOW, CRUISE or FAST. Hold the separate BOOST button for extra speed.';
       controls.append(
         touchDescription,
       );
@@ -1540,9 +1540,9 @@ export class PilotMenu {
 
     if (this.activeSection === 'HELP') {
       const help = section(this.options.appShell || flightMenu ? 'FLIGHT GUIDE' : 'HELP');
-      if (flightMenu && this.options.flightMode === 'explore') help.append(textElement('p',data.preferences.touchLayout ? 'Use the stick to turn and climb. Use the speed lever for throttle and Boost. Open the map to explore the city.' : 'Use Controls for keyboard and mouse flight input. Open the map to explore the city.','pilot-menu-muted'));
+      if (flightMenu && this.options.flightMode === 'explore') help.append(textElement('p',data.preferences.touchLayout ? 'Use the stick to turn and climb. Choose a speed with the lever; hold BOOST for extra speed. Open the map to explore the city.' : 'Use Controls for keyboard and mouse flight input. Open the map to explore the city.','pilot-menu-muted'));
       else if (flightMenu) help.append(textElement('p', data.preferences.touchLayout
-        ? 'Left stick turns and changes altitude. The right lever controls throttle and Boost. Fire and aim are separate.'
+        ? 'Left stick turns and changes altitude. The right lever selects speed; the separate BOOST button works while held. Fire and aim are separate.'
         : 'Open Controls for keyboard and mouse flight input.', 'pilot-menu-muted'));
       else {
         help.append(textElement('p', 'See the visual guide or open Controls for the current input reference.', 'pilot-menu-muted'));
@@ -1556,7 +1556,7 @@ export class PilotMenu {
         help.append(actionButton({ label: 'REPLAY TUTORIAL FLIGHT', run: data.guide.replay }));
       }
       if (!flightMenu) {
-        if(data.preferences.touchLayout){const touchHelp=textElement('p','', 'pilot-menu-controls');touchHelp.textContent='TOUCH: Left stick turns and changes altitude. The right lever holds throttle; drag above FAST and keep holding for Boost. Fire and the aim circle remain independent.';help.append(touchHelp);}
+        if(data.preferences.touchLayout){const touchHelp=textElement('p','', 'pilot-menu-controls');touchHelp.textContent='TOUCH: Left stick turns and changes altitude. The right lever holds IDLE, SLOW, CRUISE or FAST. Hold the separate BOOST button; release to return to your selected speed. Fire and the aim circle remain independent.';help.append(touchHelp);}
         else help.append(textElement('p','Open Controls for the full keyboard and mouse reference.','pilot-menu-controls'));
       }
       const hints = section('HINTS');

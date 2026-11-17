@@ -1,5 +1,5 @@
 import assert from'node:assert/strict';import{readFileSync}from'node:fs';import test from'node:test';
-import{joystickInput,joystickKnobPosition,joystickTenEdgeInput,mobileControlStyle,mobileIdleBrakeRequested,normalizeGraphicsQuality,normalizeTouchMode,pinchZoomFactor,resolvedGraphicsQuality,throttleLeverState,touchControlsEnabled}from'../../shared/mobile-input-rules.mjs';
+import{joystickInput,joystickKnobPosition,joystickTenEdgeInput,mobileControlStyle,mobileIdleBrakeRequested,normalizeGraphicsQuality,normalizeTouchMode,pinchZoomFactor,resolvedGraphicsQuality,mobileThrottleSelection,mobileThrottleStops,throttleLeverState,touchControlsEnabled}from'../../shared/mobile-input-rules.mjs';
 import{MOBILE_BANK_CAP,MOBILE_BANK_STRONG_TARGET,MOBILE_STICK_X_SMOOTH_SECONDS,MOBILE_STICK_Y_SMOOTH_SECONDS,mobileBankTarget,smoothMobileSteering,stepMobileBank,throttleSpeedTarget,throttleTargetDeceleration}from'../../shared/flight-control-rules.mjs';
 import{aircraftFlightEnvelope}from'../../shared/aircraft-flight-envelope.mjs';
 import{AIM_ENVELOPE,stepAim}from'../../shared/protocol.mjs';
@@ -12,11 +12,39 @@ test('aircraft retain distinct mobile bank response',()=>{const bankAfter=(type:
 test('continuous throttle targets make medium and slow meaningful without an instant clamp',()=>{for(const type of ['trainer','privateJet','cargo','fighter']as const){const envelope=aircraftFlightEnvelope[type];const idle=throttleSpeedTarget(0,envelope),slow=throttleSpeedTarget(.2,envelope),medium=throttleSpeedTarget(.5,envelope),fast=throttleSpeedTarget(.8,envelope),maximum=throttleSpeedTarget(1,envelope);assert.ok(idle<slow&&slow<medium&&medium<fast&&fast<maximum);assert.ok(throttleSpeedTarget(.08,envelope)<=envelope.safeLandingSpeed*1.051);const start=envelope.maxSpeed*.9;const mediumDeceleration=throttleTargetDeceleration(start,.5,envelope);const slowDeceleration=throttleTargetDeceleration(start,.2,envelope);assert.ok(mediumDeceleration>0);assert.ok(slowDeceleration>mediumDeceleration);const oneFrame=start-mediumDeceleration/60;assert.ok(oneFrame<start&&oneFrame>throttleSpeedTarget(.5,envelope));}});
 test('FAST to MEDIUM produces measurable deceleration within 250ms for every aircraft',()=>{for(const type of ['trainer','privateJet','cargo','fighter']as const){const envelope=aircraftFlightEnvelope[type];const start=envelope.maxSpeed*.9;let speed=start;let elapsed=0;while(elapsed<.25&&speed>start-envelope.maxSpeed*.01){speed-=throttleTargetDeceleration(speed,.5,envelope)/60;elapsed+=1/60;}assert.ok(speed<=start-envelope.maxSpeed*.01,`${type} did not slow perceptibly in ${elapsed}s`);assert.ok(speed>throttleSpeedTarget(.5,envelope));}});
 test('Mammoth decelerates more heavily than Bluejay while Firehawk remains quickest',()=>{const ratio=.9;const medium=(type:'trainer'|'cargo'|'fighter')=>{const envelope=aircraftFlightEnvelope[type];return throttleTargetDeceleration(envelope.maxSpeed*ratio,.5,envelope)/envelope.maxSpeed;};assert.ok(medium('fighter')>medium('trainer'));assert.ok(medium('trainer')>medium('cargo'));});
-test('persistent throttle lever maps idle through normal maximum and a separate boost zone',()=>{assert.deepEqual(throttleLeverState(100,0,100),{throttle:0,boost:false,handlePercent:100});assert.deepEqual(throttleLeverState(59,0,100),{throttle:.5,boost:false,handlePercent:59});assert.deepEqual(throttleLeverState(18,0,100),{throttle:1,boost:false,handlePercent:18});assert.deepEqual(throttleLeverState(8,0,100),{throttle:1,boost:true,handlePercent:8});});
-test('landing throttle range is continuous and the handle exactly follows each requested value',()=>{const samples=Array.from({length:83},(_,index)=>throttleLeverState(18+index,0,100));assert.equal(new Set(samples.map(sample=>sample.throttle)).size,samples.length);for(let index=1;index<samples.length;index+=1){assert.ok(samples[index]!.throttle<samples[index-1]!.throttle);assert.ok(Math.abs(samples[index]!.handlePercent-(18+index))<1e-9);}const slow=throttleLeverState(72,0,100);const nearIdle=throttleLeverState(90,0,100);assert.ok(slow.throttle>.3&&slow.throttle<.35);assert.ok(nearIdle.throttle>.1&&nearIdle.throttle<.13);});
-test('mobile IDLE requests the existing airborne brake without affecting SLOW',()=>{assert.equal(mobileIdleBrakeRequested(undefined),false);assert.equal(mobileIdleBrakeRequested(.25),false);assert.equal(mobileIdleBrakeRequested(.081),false);assert.equal(mobileIdleBrakeRequested(.08),true);assert.equal(mobileIdleBrakeRequested(0),true);});
+test('speed lever has four fixed stops, reaches normal maximum and never activates Boost',()=>{
+  for(const [position,index] of [[100,0],[200/3,1],[100/3,2],[0,3]]){
+    const state=throttleLeverState(position,0,100);
+    assert.equal(state.throttle,mobileThrottleStops[index]);assert.equal(state.boost,false);
+    assert.ok(Math.abs(state.handlePercent-position)<1e-10);
+  }
+  assert.equal(throttleLeverState(-50,0,100).throttle,1);
+  assert.equal(throttleLeverState(150,0,100).throttle,0);
+  for(const envelope of Object.values(aircraftFlightEnvelope)){
+    const speeds=mobileThrottleStops.map(throttle=>throttleSpeedTarget(throttle,envelope));
+    assert.ok(speeds.every((speed,index)=>index===0||speed>speeds[index-1]));
+    assert.equal(speeds[3],envelope.maxSpeed);
+  }
+});
+test('speed detents resist boundary jitter and remain stable when selected again',()=>{
+  const cruise=mobileThrottleStops[2];
+  assert.equal(throttleLeverState(49,0,100,cruise).throttle,cruise);
+  assert.equal(throttleLeverState(51,0,100,cruise).throttle,cruise);
+  assert.equal(throttleLeverState(55,0,100,cruise).throttle,mobileThrottleStops[1]);
+  for(const stop of mobileThrottleStops)assert.equal(mobileThrottleSelection(stop),stop);
+  assert.equal(mobileThrottleSelection(Number.NaN),0);
+});
+test('mobile IDLE requests the existing airborne brake without affecting SLOW',()=>{assert.equal(mobileIdleBrakeRequested(undefined),false);assert.equal(mobileIdleBrakeRequested(.25),false);assert.equal(mobileIdleBrakeRequested(.081),false);assert.equal(mobileIdleBrakeRequested(.08),true);assert.equal(mobileIdleBrakeRequested(0),true);assert.equal(mobileIdleBrakeRequested(0,true),false);assert.equal(mobileIdleBrakeRequested(0,false),true);});
 test('mobile markup contains one throttle lever and no obsolete speed or altitude buttons',()=>{const html=readFileSync(new URL('../../client/index.html',import.meta.url),'utf8');assert.equal(html.match(/data-touch-throttle/g)?.length,1);assert.match(html,/data-touch-control="throttle"/);assert.doesNotMatch(html,/data-hold="(?:throttleUp|throttleDown)"|data-touch-control="altitude"/);});
-test('short-screen throttle labels use five separated ticks and cannot be covered by the handle',()=>{const html=readFileSync(new URL('../../client/index.html',import.meta.url),'utf8');const css=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');assert.match(html,/touch-boost-zone">BOOST<[\s\S]*touch-throttle-fast">FAST<[\s\S]*touch-throttle-medium">MED<[\s\S]*touch-throttle-slow">SLOW<[\s\S]*touch-throttle-idle">IDLE</);for(const [selector,position]of[['touch-boost-zone',10],['touch-throttle-fast',30],['touch-throttle-medium',50],['touch-throttle-slow',70],['touch-throttle-idle',90]]as const)assert.match(css,new RegExp(`\\.${selector}\\{top:${position}%`));assert.match(css,/\.touch-throttle-track > span\{[^}]*left:41px;right:4px/);assert.match(css,/\.touch-throttle-handle\{[^}]*left:21px;width:30px;height:12px/);});
+test('touch speed control separates Boost and exposes four clear settings',()=>{
+ const html=readFileSync(new URL('../../client/index.html',import.meta.url),'utf8');
+ assert.equal(html.match(/data-touch-boost/g)?.length,1);
+ assert.match(html,/touch-throttle-medium" data-throttle-stop="2">CRUISE</);
+ assert.match(html,/touch-throttle-idle" data-throttle-stop="0">IDLE</);
+ assert.doesNotMatch(html,/touch-boost-zone|touch-boost-ready|VERY SLOW/);
+ const css=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
+ assert.doesNotMatch(css,/touch-boost-ready-wave/);
+});
 test('touch aim continues to use the existing bounded aim step',()=>{const aim={x:0,y:0};for(let index=0;index<100;index+=1)stepAim(aim,{x:10,y:-10},1,AIM_ENVELOPE);assert.ok(Math.hypot(aim.x,aim.y)<=Math.tan(AIM_ENVELOPE)+Number.EPSILON);assert.ok(aim.x>0);assert.ok(aim.y<0);});
 test('pinch zoom follows finger distance and clamps each update',()=>{assert.equal(pinchZoomFactor(100,0),1);assert.equal(pinchZoomFactor(100,200),.84);assert.equal(pinchZoomFactor(200,100),1.16);assert.equal(pinchZoomFactor(100,110),100/110);assert.equal(pinchZoomFactor(100,80),1.16);});
 test('touch and quality settings reject unknown persisted values safely',()=>{assert.equal(normalizeTouchMode('on'),'on');assert.equal(normalizeTouchMode('bad'),'auto');assert.equal(normalizeGraphicsQuality('low'),'low');assert.equal(normalizeGraphicsQuality('bad'),'auto');});
