@@ -23,7 +23,7 @@ export class TerritoryCaptureBar {
     const signature = `${name}:${percent}:${captured}`;
     if (this.root.firstElementChild !== this.content) this.root.replaceChildren(this.content);
     this.root.classList.add('is-mission-capture');
-    this.root.classList.remove('hidden');
+    this.root.classList.remove('hidden', 'is-holding');
     if (signature === this.signature) return;
     this.signature = signature;
     this.root.classList.toggle('is-captured', captured);
@@ -39,6 +39,22 @@ export class TerritoryCaptureBar {
       territory.textContent = name;
       this.label.replaceChildren(caption, territory);
     }
+  }
+
+  showHold(name: string, elapsed: string, duration: string): void {
+    const signature = `hold:${name}:${elapsed}:${duration}`;
+    if (this.root.firstElementChild !== this.content) this.root.replaceChildren(this.content);
+    this.root.classList.add('is-mission-capture', 'is-holding');
+    this.root.classList.remove('hidden', 'is-captured');
+    if (signature === this.signature) return;
+    this.signature = signature;
+    this.progress.hidden = true;
+    this.percent.textContent = `${elapsed} / ${duration}`;
+    const caption = document.createElement('small');
+    caption.textContent = 'HOLD:';
+    const territory = document.createElement('strong');
+    territory.textContent = name;
+    this.label.replaceChildren(caption, territory);
   }
 
   /** A short, cosmetic handoff; completion and Credits remain server-authoritative. */
@@ -97,7 +113,7 @@ export class TerritoryCaptureBar {
 
   hide(): void {
     this.stopCelebration();
-    this.root.classList.remove('is-mission-capture', 'is-captured');
+    this.root.classList.remove('is-mission-capture', 'is-captured', 'is-holding');
     this.root.classList.add('hidden');
     this.signature = '';
   }

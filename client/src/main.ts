@@ -3082,10 +3082,16 @@ function updateCaptureHud(): void {
     const captured = captureMission.id === journeyDallasCapture01.id && journeyAttempt.status === 'COMPLETED';
     const capturing = journeyAttempt.status === 'RACING' && journeyAttempt.captureMs > 0 &&
       (captureMission.id === journeyDallasCapture01.id || journeyAttempt.captureMs < captureMission.captureDurationMs);
-    const live = !journeyPaused && (captured || capturing);
+    const holding = captureMission.id === journeyDallasTerritoryDefense01.id && journeyAttempt.status === 'RACING' &&
+      journeyAttempt.captureMs >= captureMission.captureDurationMs;
+    const live = !journeyPaused && (captured || capturing || holding);
     flightGameRoot.classList.toggle('has-live-territory-status', live);
     if (live) {
-      missionCaptureBar.show(captureMissionTerritoryName, journeyAttempt.captureMs * 100 / captureMission.captureDurationMs, captured);
+      if (holding) {
+        missionCaptureBar.showHold(captureMissionTerritoryName,
+          formatJourneyResultTime(Math.max(0, Math.min(journeyDallasTerritoryDefense01.defenseDurationMs, journeyAttempt.defenseMs ?? 0))),
+          formatJourneyResultTime(journeyDallasTerritoryDefense01.defenseDurationMs));
+      } else missionCaptureBar.show(captureMissionTerritoryName, journeyAttempt.captureMs * 100 / captureMission.captureDurationMs, captured);
     } else missionCaptureBar.hide();
     return;
   }
@@ -10614,7 +10620,7 @@ function updateFlight(delta: number): void {
   // It never supplies reverse thrust while airborne.
   const speedBrakeRequested = !onGround && (landingSpeedTarget !== undefined
     ? currentSpeed > landingSpeedTarget
-    : (throttleDown || mobileIdleBrakeRequested(mobileThrottleTarget)) && throttle <= 0.08);
+    : (throttleDown || mobileIdleBrakeRequested(mobileThrottleTarget, heldActions.has('boost'))) && throttle <= 0.08);
   const speedBrakeResponse = currentAircraft.airbrakeResponse ?? 4;
   speedBrakeStrength = THREE.MathUtils.lerp(
     speedBrakeStrength,
@@ -10840,7 +10846,7 @@ function updateFlight(delta: number): void {
   const takeoffPowerSeconds = Math.max(8, 10 * Math.sqrt(currentAircraft.inertia));
   takeoffThrustBlend = Math.min(1, takeoffThrustBlend + delta / takeoffPowerSeconds);
   // Maintain a small approach-power reserve until the wheels touch. Ground
-  // braking still uses the actual lever, so VERY SLOW stops normally on landing.
+  // braking still uses the actual lever, so IDLE stops normally on landing.
   const approachThrottle = landingSpeedTarget !== undefined ? Math.max(.12, throttle) : throttle;
   const engineThrust = THREE.MathUtils.lerp(
     approachThrottle * currentAircraft.groundAcceleration * runwayPowerScale(approachThrottle),
@@ -11669,7 +11675,7 @@ function animate(): void {
   updateMissionStartCountdown();
   updateMissionClear(delta);
   updateAircraftVictory(delta);
-  mobileInput.syncFlightState(throttle, boostMeter, boostActive, heldActions.has('throttleUp') || heldActions.has('throttleDown'), onGround);
+  mobileInput.syncFlightState(throttle, boostMeter, boostActive, heldActions.has('throttleUp') || heldActions.has('throttleDown'));
   // Local inspection routes move only the renderer/streamer. They do not send
   // transforms, trigger gameplay rewards, or alter production flight physics.
   if (visualQaInspectionActive && visualQaRouteSpeed) airplane.position.addScaledVector(forward, visualQaRouteSpeed * delta);

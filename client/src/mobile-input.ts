@@ -1,5 +1,4 @@
 import { fireCrosshairGeometry } from './fire-icon';
-import { cruiseThrottleSelection, cruiseThrottleStops } from '../../shared/flight-control-rules.mjs';
 import { arrangeControls, fitControl, type LayoutBox } from './control-layout-geometry';
 import type { FlightAction } from './flight-input';
 import {
@@ -9,6 +8,7 @@ import {
   mobileIdleBrakeRequested,
   pinchZoomFactor,
   throttleLeverState,
+  mobileThrottleSelection, mobileThrottleStops, mobileThrottleNames,
   normalizeGraphicsQuality,
   mobileControlStyle,
   resolvedGraphicsQuality,
@@ -144,10 +144,8 @@ export class MobileInputControls {
   private demoActive = false;
   private throttlePointer: number | undefined;
   private throttleTarget: number | undefined;
-  private onGround = false;
-  private throttleBoostRequested = false;
-  private lastBoostReady: boolean | undefined;
-  private boostReadyPulseTimer: number | undefined;
+  private boostPointer: number | undefined;
+  private readonly boostButton: HTMLButtonElement | null;
   private aimPointer: number | undefined;
   private aimStart = { x: 0, y: 0 };
   private placementFrame = 0;
@@ -158,6 +156,8 @@ export class MobileInputControls {
     private setAction: (action: FlightAction, active: boolean) => void,
     private onThrottleInput?: (throttle: number) => void,
   ) {
+    this.boostButton = root.querySelector<HTMLButtonElement>('[data-touch-boost]');
+    if (this.boostButton) this.bindBoost(this.boostButton);
     const fireIcon = root.querySelector<SVGElement>('[data-touch-control="fire"] svg');
     if (fireIcon) fireIcon.innerHTML = fireCrosshairGeometry;
     root.querySelectorAll<HTMLElement>('[data-hold]').forEach((button) => {
@@ -229,40 +229,31 @@ export class MobileInputControls {
   }
 
   setThrottleState(throttle: number) {
-    const value = clamp(throttle, 0, 1);
+    const value = mobileThrottleSelection(throttle);
     // Desktop keeps its existing keyboard throttle until the lever is dragged.
     this.throttleTarget = this.deviceEnabled() || this.demoActive ? value : undefined;
-    this.renderThrottle(value, false);
+    this.renderThrottle(value);
   }
 
-  syncFlightState(throttle: number, boostMeter: number, boostActive: boolean, keyboardThrottleActive = false, onGround = false) {
-    this.onGround = onGround;
-    if (keyboardThrottleActive) {
-      this.throttleTarget = undefined;
+  syncFlightState(throttle: number, boostMeter: number, boostActive: boolean, keyboardThrottleActive = false) {
+    if (keyboardThrottleActive) this.throttleTarget = undefined;
+    const button = this.boostButton;
+    if (button) {
+      const charge = Math.round(clamp(boostMeter, 0, 100));
+      const text = boostActive ? 'BOOSTING' : charge >= 100 ? 'BOOST' : `BOOST ${charge}%`;
+      if (button.textContent !== text) {
+        button.textContent = text;
+        button.setAttribute('aria-label', `Hold for Boost, ${charge}% available`);
+      }
+      const available = String(boostMeter > .05);
+      if (button.dataset.available !== available) button.dataset.available = available;
+      button.classList.toggle('is-boosting', boostActive);
+      if (boostMeter <= .05) {
+        this.apply([], 'throttle');
+        button.classList.remove('is-active');
+      }
     }
-    const lever = this.root.querySelector<HTMLElement>('[data-touch-throttle]');
-    if (!lever) return;
-    const ready = boostMeter >= 99.5;
-    lever.classList.toggle('boost-ready', ready);
-    lever.classList.toggle('boost-recharging', !ready);
-    lever.classList.toggle('is-boosting', boostActive);
-    lever.dataset.boostMeter = Math.round(boostMeter).toString();
-    if (this.lastBoostReady === false && ready) {
-      lever.classList.remove('boost-ready-pulse');
-      void lever.offsetWidth;
-      lever.classList.add('boost-ready-pulse');
-      window.clearTimeout(this.boostReadyPulseTimer);
-      this.boostReadyPulseTimer = window.setTimeout(() => lever.classList.remove('boost-ready-pulse'), 900);
-    }
-    this.lastBoostReady = ready;
-    if (this.throttleBoostRequested && boostMeter <= 0.05) {
-      this.throttleBoostRequested = false;
-      this.throttleTarget = 1;
-      this.apply([], 'throttle');
-      this.renderThrottle(1, false);
-    } else if (this.throttleTarget === undefined) {
-      this.renderThrottle(clamp(throttle, 0, 1), false);
-    }
+    if (this.throttleTarget === undefined && this.throttlePointer === undefined) this.renderThrottle(throttle);
   }
 
   getLayout() { return cloneLayout(this.layout); }
@@ -293,16 +284,16 @@ export class MobileInputControls {
     const throttle = this.root.querySelector<HTMLElement>('[data-touch-throttle]');
     this.resetJoystick(stick);
     this.releaseCapture(throttle, this.throttlePointer);
+    this.releaseCapture(this.boostButton, this.boostPointer);
     this.releaseCapture(this.aimTarget, this.aimPointer);
     for (const action of this.active) this.setAction(action, false);
     this.active.clear();
     this.throttlePointer = undefined;
-    this.throttleTarget = undefined;
-    this.throttleBoostRequested = false;
+    this.boostPointer = undefined;
     this.aimPointer = undefined;
     this.root.querySelectorAll<HTMLElement>('.is-active').forEach((element) => element.classList.remove('is-active'));
-    window.clearTimeout(this.boostReadyPulseTimer);
-    throttle?.classList.remove('is-dragging', 'is-boosting', 'boost-ready-pulse');
+    this.boostButton?.classList.remove('is-boosting');
+    throttle?.classList.remove('is-dragging');
   }
 
   private releaseCapture(element: HTMLElement | null, pointerId: number | undefined) {
@@ -488,61 +479,103 @@ export class MobileInputControls {
     window.addEventListener('pointercancel', stop, { capture: true });
   }
 
-  private renderThrottle(throttle: number, boost: boolean, handlePercent?: number) {
+  private renderThrottle(throttle: number) {
     const lever = this.root.querySelector<HTMLElement>('[data-touch-throttle]');
     if (!lever) return;
-    const normalHandle = 100 - clamp(throttle, 0, 1) * 82;
-    lever.style.setProperty('--throttle-y', `${handlePercent ?? normalHandle}%`);
-    lever.setAttribute('aria-valuenow', Math.round(throttle * 100).toString());
-    lever.setAttribute('aria-valuetext', boost ? 'Boost' : `${Math.round(throttle * 100)}% throttle`);
-    lever.dataset.throttle = throttle.toFixed(2);
+    const index = mobileThrottleStops.indexOf(mobileThrottleSelection(throttle));
+    lever.style.setProperty('--throttle-y', `${(1 - index / 3) * 100}%`);
+    lever.setAttribute('aria-valuenow', String(index));
+    lever.setAttribute('aria-valuetext', mobileThrottleNames[index]!);
+    lever.dataset.throttle = String(mobileThrottleStops[index]);
+    lever.dataset.mode = String(index);
   }
 
   private bindThrottle(lever: HTMLElement) {
-    let cruiseBeforeBoost = 0;
+    let grabOffset = 0;
+    const select = (throttle: number) => {
+      this.throttleTarget = throttle;
+      this.renderThrottle(throttle);
+      this.onThrottleInput?.(throttle);
+    };
     const move = (event: PointerEvent) => {
       const rect = lever.getBoundingClientRect();
-      const state = throttleLeverState(event.clientY, rect.top, rect.height);
-      // Ground Boost uses FAST power until airborne; releasing retains FAST.
-      // Airborne bursts still return to the pilot's previous cruise setting.
-      if (state.boost && this.onGround) cruiseBeforeBoost = Math.max(cruiseBeforeBoost, cruiseThrottleStops[3]!);
-      this.throttleTarget = state.boost ? cruiseBeforeBoost : state.throttle;
-      this.throttleBoostRequested = state.boost;
-      this.renderThrottle(state.throttle, state.boost, state.handlePercent);
-      this.apply(state.boost ? ['boost'] : [], 'throttle');
-      this.onThrottleInput?.(this.throttleTarget);
+      select(throttleLeverState(event.clientY - grabOffset, rect.top, rect.height, this.throttleTarget).throttle);
     };
     lever.addEventListener('pointerdown', (event) => {
       event.preventDefault();
       if (this.throttlePointer !== undefined) return;
-      try { lever.setPointerCapture(event.pointerId); } catch { /* Element events still release state. */ }
-      lever.classList.add('is-dragging');
-      cruiseBeforeBoost = this.throttleTarget ?? Number(lever.dataset.throttle ?? 0);
       this.throttlePointer = event.pointerId;
-      move(event);
+      try { lever.setPointerCapture(event.pointerId); } catch { /* Window release still clears the drag. */ }
+      lever.classList.add('is-dragging');
+      const current = mobileThrottleSelection(this.throttleTarget ?? Number(lever.dataset.throttle ?? 0));
+      const index = mobileThrottleStops.indexOf(current);
+      const rect = lever.getBoundingClientRect();
+      const handleY = rect.top + (1 - index / 3) * rect.height;
+      const target = event.target as HTMLElement;
+      // Grabbing the handle never changes speed; tapping a label selects it deliberately.
+      const label = target.closest<HTMLElement>('[data-throttle-stop]');
+      const grabbing = !label && Math.abs(event.clientY - handleY) <= 22;
+      grabOffset = grabbing ? event.clientY - handleY : 0;
+      if (label) select(mobileThrottleStops[Number(label.dataset.throttleStop)]!);
+      else if (!grabbing) move(event);
     });
     lever.addEventListener('pointermove', (event) => {
       if (this.throttlePointer === event.pointerId) move(event);
     });
     const stop = (event: PointerEvent) => {
       if (this.throttlePointer !== event.pointerId) return;
-      if (this.throttleBoostRequested) {
-        this.throttleTarget = cruiseBeforeBoost;
-      }
-      this.throttleTarget = this.throttleBoostRequested ? cruiseBeforeBoost : cruiseThrottleSelection(this.throttleTarget ?? 0);
-      this.renderThrottle(this.throttleTarget, false);
-      this.onThrottleInput?.(this.throttleTarget);
-      this.throttleBoostRequested = false;
-      this.apply([], 'throttle');
-      lever.classList.remove('is-dragging', 'is-boosting');
+      const pointer = this.throttlePointer;
       this.throttlePointer = undefined;
-      this.releaseCapture(lever, event.pointerId);
+      lever.classList.remove('is-dragging');
+      this.releaseCapture(lever, pointer);
     };
     lever.addEventListener('pointerup', stop);
     lever.addEventListener('pointercancel', stop);
-    lever.addEventListener('lostpointercapture', (event) => stop(event as PointerEvent));
+    lever.addEventListener('lostpointercapture', stop);
     window.addEventListener('pointerup', stop, { capture: true });
     window.addEventListener('pointercancel', stop, { capture: true });
+    lever.addEventListener('keydown', (event) => {
+      const index = mobileThrottleStops.indexOf(mobileThrottleSelection(this.throttleTarget ?? Number(lever.dataset.throttle ?? 0)));
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? 3
+        : event.key === 'ArrowUp' || event.key === 'ArrowRight' ? Math.min(3, index + 1)
+        : event.key === 'ArrowDown' || event.key === 'ArrowLeft' ? Math.max(0, index - 1) : undefined;
+      if (next === undefined) return;
+      event.preventDefault();
+      select(mobileThrottleStops[next]!);
+    });
+  }
+
+  private bindBoost(button: HTMLButtonElement) {
+    button.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      if (this.boostPointer !== undefined || button.dataset.available === 'false') return;
+      this.boostPointer = event.pointerId;
+      try { button.setPointerCapture(event.pointerId); } catch { /* Window release still clears Boost. */ }
+      button.classList.add('is-active');
+      this.apply(['boost'], 'throttle');
+    });
+    const stop = (event: PointerEvent) => {
+      if (this.boostPointer !== event.pointerId) return;
+      const pointer = this.boostPointer;
+      this.boostPointer = undefined;
+      button.classList.remove('is-active');
+      this.apply([], 'throttle');
+      this.releaseCapture(button, pointer);
+    };
+    button.addEventListener('pointerup', stop);
+    button.addEventListener('pointercancel', stop);
+    button.addEventListener('lostpointercapture', stop);
+    window.addEventListener('pointerup', stop, { capture: true });
+    window.addEventListener('pointercancel', stop, { capture: true });
+    button.addEventListener('keydown', (event) => {
+      if ((event.key === ' ' || event.key === 'Enter') && !event.repeat && button.dataset.available !== 'false') {
+        event.preventDefault(); this.apply(['boost'], 'throttle');
+      }
+    });
+    button.addEventListener('keyup', (event) => {
+      if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); this.apply([], 'throttle'); }
+    });
+    button.addEventListener('blur', () => this.apply([], 'throttle'));
   }
 
   private bindAimTarget() {

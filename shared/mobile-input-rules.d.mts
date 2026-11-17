@@ -6,6 +6,9 @@ export declare function resolvedGraphicsQuality(mode:GraphicsQualityMode,coarse:
 export declare function joystickInput(x:number,y:number,dead?:number,horizontalCurve?:number,verticalCurve?:number):{x:number;y:number};
 export declare function joystickTenEdgeInput(x:number,y:number):{x:number;y:number};
 export declare function joystickKnobPosition(x:number,y:number,maxTravel?:number):{x:number;y:number};
-export declare function throttleLeverState(pointerY:number,top:number,height:number,boostZoneRatio?:number):{throttle:number;boost:boolean;handlePercent:number};
-export declare function mobileIdleBrakeRequested(throttleTarget:number|undefined):boolean;
+export declare const mobileThrottleStops: readonly number[];
+export declare const mobileThrottleNames: readonly string[];
+export declare function mobileThrottleSelection(value:number):number;
+export declare function throttleLeverState(pointerY:number,top:number,height:number,previousThrottle?:number):{throttle:number;boost:boolean;handlePercent:number};
+export declare function mobileIdleBrakeRequested(throttleTarget:number|undefined,boostHeld?:boolean):boolean;
 export declare function pinchZoomFactor(previousDistance:number,currentDistance:number):number;
