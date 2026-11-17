@@ -15,7 +15,7 @@ import {journeyDallasSharpshooter01 as mission} from '../../shared/journey-missi
 import {sharpshooterTargetPose} from '../../shared/sharpshooter-target.mjs';
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function freePort(){return new Promise<number>(resolve=>{const s=createServer();s.listen(0,'127.0.0.1',()=>{const port=(s.address() as {port:number}).port;s.close(()=>resolve(port));});});}
-test('live authenticated M08: intro has no deadline; real rounds hit all six private targets, completion and cleanup', {timeout:90000},async()=>{
+test('live authenticated M08: intro has no deadline; real rounds hit all six private targets, completion and cleanup', {timeout:180000},async()=>{
  const directory=mkdtempSync(join(tmpdir(),'sharp-live-')),path=join(directory,'profiles.sqlite');
  const sessions=new PilotSessionStore(path),identity=sessions.issue(undefined,false);
  const profiles=new PlayerProfileStore(path);profiles.getOrCreate(identity.pilotId,'Pilot');
@@ -41,7 +41,7 @@ test('live authenticated M08: intro has no deadline; real rounds hit all six pri
   send({type:'journeyCountdownComplete',attemptId:attempt.attemptId});
   const racing=await wait(p=>p.type==='journeyAttempt'&&p.attempt.status==='RACING');assert.equal(racing.attempt.deadlineAt-racing.attempt.startedAt,180000);
   assert.equal(racing.attempt.sharpshooter.targets.length,6);
-  for(const [count,stage]of [2,0,4,1,5,3].entries()){
+  for(const [count,stage]of [0,1,3,5,2,4].entries()){
    const current=await wait(p=>p.type==='journeyAttempt'&&p.attempt.sharpshooter?.destroyed===count&&p.attempt.status==='RACING');
    const t=current.attempt.sharpshooter.targets.find((t:any)=>t.stage===stage);
    // Turn through accepted states; no teleport or client hit/completion event.

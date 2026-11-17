@@ -40,9 +40,9 @@ test('M08 activates only its unique slot; all aircraft spawn safely, no opponent
 });
 test('separated target locations and heights, safe clearance, moving sweep and real swept face hits',()=>{
  for(let stage=0;stage<mission.targetCount;stage++){
-  const t=target(stage,1000);assert.ok(Math.abs(Math.hypot(t.x,t.z)-([2200,3900,5000,5200,6500,8500][stage]!))<1e-9);
+  const t=target(stage,1000);assert.ok(Math.abs(Math.hypot(t.x,t.z)-([4200,8000,10500,12500,14500,18000][stage]!))<1e-9);
   assert.equal(t.heading,[0,35,-40,65,-65,0][stage]!*Math.PI/180);
-  assert.equal(t.y,position.y+[0,500,1000,300,1400,1800][stage]!);
+  assert.equal(t.y,position.y+[0,650,1300,400,1800,2400][stage]!);
   const center=sharpshooterTargetPose(t,1000,{...position});
   const end={x:center.x*1.1,y:position.y+(center.y-position.y)*1.1,z:center.z*1.1};
   assert.notEqual(sharpshooterHitFraction(t,stage,position,end,1000,.05,position),null);
@@ -55,6 +55,10 @@ test('separated target locations and heights, safe clearance, moving sweep and r
  assert.deepEqual(sharpshooterTargetPose(t,9000,p),sharpshooterTargetPose(t,1000,{...position}));
  assert.equal(mission.targetRadius,220);
  assert.equal(sharpshooterPlacements.length,mission.targetCount);
+ // All but the opening target require flying into the unchanged 6 km weapon range.
+ for(let stage=1;stage<mission.targetCount;stage++) assert.ok(sharpshooterPlacements[stage]!.distance>6000);
+ const left=target(3),right=target(4);
+ assert.ok(Math.hypot(left.x-right.x,left.z-right.z)>12000,'opposite flanks cannot both be shot from one position');
  assert.throws(()=>target(6));
  assert.throws(()=>target(-1));
  for(const stage of [3,4,5]) assert.deepEqual(sharpshooterTargetPose(target(stage),9000,{...position}),sharpshooterTargetPose(target(stage),0,{...position}));
