@@ -145,7 +145,7 @@ function simulate(mission) {
  });
  if(escorted)ctx.spawnRearGuardEscorts('owner',pilot,f.store.get('pilot',a.attemptId),epoch);
  const attempt=f.store.get('pilot',a.attemptId),escortIds=escorted?[attempt.targetId,attempt.secondaryTargetId]:[],escorts=escortIds.map(id=>players.get(id));
- for(const actor of escorts){assert.equal(actor.health,1000);assert.equal(actor.aircraftType,'trainer');const pose=transportPose(0,altitude,mission.timeLimitMs,mission.id);assert.equal(transportAircraftImpact(actor.position,actor.position,actor.rotation,actor.rotation,actor.aircraftType,pose,pose),undefined,'escort spawn must clear the actual enlarged transport mesh');}
+ for(const actor of escorts){assert.equal(actor.health,300);assert.equal(actor.aircraftType,'trainer');const pose=transportPose(0,altitude,mission.timeLimitMs,mission.id);assert.equal(transportAircraftImpact(actor.position,actor.position,actor.rotation,actor.rotation,actor.aircraftType,pose,pose),undefined,'escort spawn must clear the actual enlarged transport mesh');}
  const shots=[],escortShots=[],enemyTurns=new Map(),enemyLastFire=new Map();let seed=17;
  const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
  let lastPilotFire=-Infinity,pilotHits=0,pilotShots=0,receivedHits=0,maxEscortSeparation=0,lastHeading=0,crashed=false;
