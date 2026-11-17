@@ -72,7 +72,6 @@ import { missionFocusForAttempt, type MissionFocusConfig } from '../../shared/mi
 import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } from './stunt-combo';
 import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
-import { GameplayFeedbackSystem } from './gameplay-feedback';
 import { PilotMenu, type PilotMenuAction, type PilotMenuData, type PilotMenuSection } from './pilot-menu';
 import { HubInfoDialog } from './hub-info-dialog';
 import { productAnalyticsSessionId } from './product-analytics';
@@ -677,7 +676,7 @@ ambientTraffic?.setTimeOfDay(worldTimeOfDay);
 let configuredWeatherZones = weatherZonesForCity(cityId);
 let activeWeatherZone: WeatherZone | undefined;
 let weatherZoneCheckAt = 0;
-let weatherToastAt = 0;
+let weatherAnalyticsAt = 0;
 
 function enabledWeatherZoneIds(): Set<string> {
   const enabled = new Set<string>();
@@ -702,11 +701,9 @@ function updateLocalWeather(now: number): void {
   activeWeatherZone = next;
   if(next?.type==='storm')audioManager.playEffect('thunder',{gain:.45,cooldown:8});
   document.body.dataset.weather = next?.type ?? 'clear';
-  if (next && now - weatherToastAt > 2_000) {
-    weatherToastAt = now;
-    const copy: Partial<Record<WeatherZone['type'], string>> = { windy:'CROSSWIND AHEAD', storm:'ENTERING STORM ZONE', fog:'FOG APPROACH', dusk_signal:'SIGNAL INTERFERENCE DETECTED', turbulence:'TURBULENCE AHEAD' };
-    showProgressMessage(copy[next.type] ?? `ENTERING ${next.name}`);
-    queueAtcCallout(`weather-${next.id}`, next.type === 'fog' ? 'TOWER: LOW VISIBILITY' : next.type === 'storm' || next.type === 'windy' ? 'TOWER: CROSSWIND REPORTED' : 'TOWER: CAUTION WEATHER');
+  if (next && now - weatherAnalyticsAt > 2_000) {
+    weatherAnalyticsAt = now;
+
     if (connectionReady()) socket.send(JSON.stringify({ type:'analyticsEvent', event:'chaos_weather_zone_entered', source:next.type }));
   } else if (previous && connectionReady()) {
     socket.send(JSON.stringify({ type:'analyticsEvent', event:'chaos_weather_zone_exited', source:previous.type }));
@@ -1893,11 +1890,8 @@ function updateCheckpointFeedback(delta: number): void {
 
 function setFlightState(state: FlightState): void {
   if (flightState === state) return;
-  const previous = flightState;
   flightState = state;
   updatePendingAircraftEquip();
-  if (state === 'TAKEOFF' && previous === 'TAXI') queueAtcCallout('takeoff-roll', 'TOWER: CLEARED FOR TAKEOFF');
-  else if (state === 'FLYING' && previous === 'TAKEOFF') queueAtcCallout('airborne', 'TOWER: GOOD DEPARTURE');
 }
 
 const journeyCombatMissions = [journeyDallasMostWantedSurvival01,journeyDallasAceIntercept01,journeyDallasTerritoryDefense01,journeyDallasTwinHunters01, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18];
@@ -1996,7 +1990,6 @@ function updateFlightHud(): void {
   let descentRisk = false;
   let warning = '';
   if (approachAirport) {
-    queueAtcCallout(`approach-${approachAirport.id}`, 'TOWER: MAINTAIN APPROACH', approachAirport.name.toUpperCase());
     evaluateLanding(approachAirport, landingStatus);
     speedRisk = !landingStatus.speedSafe;
     descentRisk = !landingStatus.descentSafe;
@@ -2490,6 +2483,7 @@ function updateProgressHud(): void {
   creditsElement.title = `${credits.toLocaleString()} Credits`;
 }
 
+// Reserved for connection/account errors and Sky Duel connectivity notices.
 function showProgressMessage(message: string, durationMs = 1400): void {
   if(/failed|unavailable|cannot|invalid|not enough/i.test(message))audioManager.playEffect('error',{gain:.45,cooldown:.8});
   progressMessageElement.textContent = playerFacingText(message);
@@ -2498,21 +2492,6 @@ function showProgressMessage(message: string, durationMs = 1400): void {
   progressMessageTimer = window.setTimeout(() => progressMessageElement.classList.add('hidden'), durationMs);
 }
 
-const gameplayFeedback = new GameplayFeedbackSystem(document.querySelector<HTMLElement>('#gameplay-feedback')!);
-let lastAtcCalloutAt = -20_000;
-const atcCalloutKeys = new Map<string, number>();
-function queueAtcCallout(key: string, primaryText: string, secondaryText?: string): void {
-  if(guidedTutorialActive || missionFocus)return;
-  const now = performance.now();
-  if (now - lastAtcCalloutAt < 6_000 || now - (atcCalloutKeys.get(key) ?? -30_000) < 20_000) return;
-  lastAtcCalloutAt = now;
-  atcCalloutKeys.set(key, now);
-  if (atcCalloutKeys.size > 12) {
-    const oldest = [...atcCalloutKeys.entries()].sort((left, right) => left[1] - right[1])[0];
-    if (oldest) atcCalloutKeys.delete(oldest[0]);
-  }
-  gameplayFeedback.push({ type: 'atc', primaryText, secondaryText, intensity: 'small' });
-}
 function showRewardFeedback(creditDelta: number, scoreDelta: number): void {
   if (!cityRules.progressionEnabled) return;
   if (creditDelta <= 0 && scoreDelta <= 0) return;
@@ -3226,7 +3205,7 @@ function updateJourneyHud(): void {
   const gravityMission = journeyAttempt?.missionId === journeyDallas11.id;
   const finaleMission = journeyAttempt?.missionId === journeyDallas12.id;
   const firstContactMission = journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id || journeyAttempt?.missionId === journeyDallas13.id;
-  skyChallengeElement.classList.toggle('journey-battle-card', journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id);
+  skyChallengeElement.classList.toggle('journey-battle-card', journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallas07.id);
   const surpriseMission = journeyAttempt?.missionId === journeyDallas14.id;
   const interceptMission = journeyAttempt?.missionId === journeyDallasAceIntercept01.id;
   const aceMission = journeyAttempt?.missionId === journeyDallas15.id;
@@ -4245,7 +4224,6 @@ stuntCombo = new StuntComboSystem(cityWorld.stuntZones ?? [], {
   onCredits: () => { /* stunts award score and XP only */ },
   onMessage: showProgressMessage,
   onStunt: (type) => {
-    if (type === 'nearMiss') gameplayFeedback.push({ type:'near-miss', primaryText:'CLOSE CALL', secondaryText:'NEAR MISS', intensity:'small' });
     if (!localPlayerId || !connectionReady()) return;
     socket.send(JSON.stringify({ type: 'chaosAction', action: type === 'nearMiss' ? 'nearMiss' : 'stunt' }));
   },
@@ -4259,10 +4237,6 @@ if (cityWorld.discoveries?.length) {
         savePlayerProgress();
         queueProfileProgress();
       }
-      if (!missionFocus) {
-        showProgressMessage(cityRules.practiceMode ? `PRACTICE DISCOVERY: ${definition.name}` : `DISCOVERED: ${definition.name}`);
-        gameplayFeedback.push({ type: 'secret', primaryText: definition.type === 'secret' ? 'SECRET DISCOVERED' : 'PLACE DISCOVERED', secondaryText: cityRules.practiceMode ? `${definition.name.toUpperCase()} · PRACTICE — NO REWARDS` : definition.name.toUpperCase(), intensity: definition.type === 'secret' ? 'major' : 'medium' });
-      }
       flightRecap.discoveries += 1;
       if (definition.type === 'secret' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'secret_discovered' }));
       updateProgressHud();
@@ -4275,7 +4249,6 @@ if (cityWorld.discoveries?.length) {
         savePlayerProgress();
         queueProfileProgress();
       }
-      if (!missionFocus) showProgressMessage(`${setId.replaceAll('-', ' ').toUpperCase()} COMPLETE${cityRules.practiceMode ? ' · PRACTICE — NO REWARDS' : ''}`);
     },
   });
 }
@@ -4420,19 +4393,15 @@ function acceptAvailableContract(): void {
 
 function completeContract(): void {
   if (!activeContract) return;
-  const { type } = activeContract.definition;
   activeContract = null;
   updateActiveContractHud();
-  showProgressMessage(`${contractTitle(type)} COMPLETE`);
   generateContract();
 }
 
 function failActiveContract(): void {
   if (!activeContract || activeContract.definition.type === 'intercept') return;
-  const title = contractTitle(activeContract.definition.type);
   activeContract = null;
   updateActiveContractHud();
-  showProgressMessage(`${title} CONTRACT FAILED`);
   generateContract();
 }
 
@@ -4459,7 +4428,6 @@ function handleContractRegion(regionName: RegionName): void {
     return;
   }
   activeContract.visitedRegions.add(regionName);
-  showProgressMessage(`${regionName} SIGHTSEEN`);
   updateActiveContractHud();
 }
 
@@ -4567,12 +4535,10 @@ function applyLocalHull(current: unknown, reportedMaximum: unknown, type: Aircra
 function applyHeatState(state: NetworkHeatState): void {
   const level = THREE.MathUtils.clamp(Math.round(state.level), 0, 5);
   if (state.playerId === localPlayerId) {
-    const levelRaised = level > localHeat;
     localHeat = level;
     localHeatMultiplier = state.multiplier;
     heatLevelElement.textContent = level.toString();
     heatRowElement.dataset.level = level.toString();
-    if (state.levelChanged && levelRaised) showProgressMessage(`${visualLanguage.heat.icon} DANGER ${level} — More danger. Higher Score.`);
     return;
   }
   const remote = remotePlayers.get(state.playerId);
@@ -4600,7 +4566,6 @@ function checkRegionDiscovery(): void {
     regionsDiscovered += 1;
     const presentation = regionCinematicPresentation(cityId, region.name);
     if (presentation) cinematicDirector.requestRegion(`${cityId}:${region.name}`, presentation.title, presentation.subtitle);
-    else showProgressMessage(`${region.name.toUpperCase()} FOUND`);
   }
 }
 
@@ -4660,13 +4625,11 @@ function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuali
   successfulLandings += 1;
   if (cityRules.progressionEnabled) {
     totalSuccessfulLandings += 1;
-    if (totalSuccessfulLandings % 3 === 0) gameplayFeedback.push({ type:'landing-streak', primaryText:`${totalSuccessfulLandings} LANDINGS`, secondaryText:'LANDING STREAK', intensity:'medium' });
     queueProfileProgress();
   }
   resetRegionsOnNextTakeoff = true;
   const destinationBonus = !landedAirportIds.has(airport.id);
   landedAirportIds.add(airport.id);
-  showProgressMessage(rough ? 'ROUGH LANDING' : destinationBonus ? `${airport.name.toUpperCase()} DISCOVERED` : 'LANDING VERIFIED');
   if (landingQuality && !trainingSlidesOpen) showFlightRecap('GREAT FLIGHT');
   if(landingQuality&&!(guidedTutorialActive&&(trainingSlides.currentStep()==='landing'||guidedTutorialStep==='landing')))sendLandingIntent(airport,landingQuality);
   if (landingQuality) stuntCombo?.notifyLanding(landingQuality);
@@ -4738,7 +4701,7 @@ function endRun(message: EndReason, title: string = message, reportCrash = true)
 let freeFlyRespawnPending = false;
 function restartGame(notifyServer = true): void {
   if (notifyServer && portalEligible) {
-    if (portalInTransit) { showProgressMessage('Finish gate travel before restarting.'); return; }
+    if (portalInTransit) return;
     if (freeFlyRespawnPending) return;
     if (!connectionReady()) { showProgressMessage('Reconnecting before restarting flight…'); return; }
     clearHeldActions();
@@ -4835,7 +4798,6 @@ function selectAircraft(nextType: AircraftType): void {
   if (pendingEquip) { updatePendingAircraftEquip(); return; }
   if (nextType === aircraftType) return;
   if (!canSwitchAircraft()) {
-    showProgressMessage('LAND AND STOP AT AN AIRPORT TO CHANGE AIRCRAFT');
     return;
   }
   if (flightTestMode) {
@@ -4853,7 +4815,6 @@ function selectAircraft(nextType: AircraftType): void {
   // The local model changes only after the server returns its accepted profile.
   pendingEquip = { id: ++equipSequence, aircraftType: nextType, sentAt: performance.now() };
   updatePendingAircraftEquip();
-  showProgressMessage('SWITCHING AIRCRAFT…');
   sendLocalState();
   socket.send(JSON.stringify({ type: 'equipAircraft', aircraftType: nextType, equipRequestId: pendingEquip.id }));
 }
@@ -4915,7 +4876,6 @@ function sendCosmeticAction(type: 'purchaseCosmetic' | 'equipCosmetic', cosmetic
 }
 function openGarage(): boolean {
   if (!onGround || crashed) {
-    showProgressMessage('AIRCRAFTS AVAILABLE WHEN SAFELY ON GROUND');
     return false;
   }
   // The Garage owns the whole screen while open. Clear held flight input and
@@ -7316,7 +7276,6 @@ const trainingSlides=new TrainingSlides({
   },
   onFinished:()=>{
     tutorialIntroPending=false;screenplayFlightPaused=true;
-    gameplayFeedback.clear();
     audioManager.playReward();
     hapticsManager.emit('rewardSuccess','milwaukee-training-complete');
     showTrainingResult();
@@ -7686,7 +7645,6 @@ function enterFreePractice():void{
   tutorialCompletionPending=false;guidedTutorialStep='freePractice';waypoint=null;tutorialRing.visible=false;
   tutorialCompletionActions.hidden=true;tutorialPanel.hidden=true;tutorialDimmer.hidden=true;trainingModeLabel.hidden=false;
   document.body.dataset.tutorialControl='';
-  gameplayFeedback.push({type:'mission',primaryText:'TRAINING COMPLETE',secondaryText:'FREE PRACTICE · NO REWARDS',intensity:'major'});
 }
 function showTutorialCompletion():void{
   clearHeldActions();mobileInput.reset();
@@ -7818,7 +7776,6 @@ function setNearestAirportWaypoint(): void {
     .map((candidate) => ({ candidate, distance: Math.hypot(candidate.x - airplane.position.x, candidate.z - airplane.position.z) }))
     .sort((left, right) => left.distance - right.distance)[0]?.candidate ?? centralAirport;
   setActivityWaypoint(airport.x, airport.z, airport.name);
-  showProgressMessage(`AIRPORT WAYPOINT: ${airport.name.toUpperCase()}`);
 }
 
 function remotePilotLifecycle(remote: RemotePlayer): string {
@@ -12529,7 +12486,6 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   if (visibleRecap && !flightRecapElement.hidden) showFlightRecap(visibleRecap.title, visibleRecap.landing, false);
   if (flightEndResultActive) showFlightEndResult(endTitleElement.textContent || 'CRASHED');
   savePlayerProgress();
-  if (equipConfirmed) showProgressMessage(`${aircraftDefinitions[profile.selectedAircraft].name} EQUIPPED`);
   return true;
 }
 
@@ -12743,7 +12699,7 @@ async function retryJourneyMission(): Promise<void> {
   }
 }
 window.addEventListener('airport-chaos-city-exit', (event) => {
-  if(soloExploreMode){showProgressMessage('Use an intercity gate to change cities in Free Fly.');return;}
+  if(soloExploreMode){return;}
   clearProjectileVisuals();
   clearCombatTarget();
   const destination = (event as CustomEvent<{ cityId: CityId; timePreset: CityTimeOfDay;intercity?:boolean;practiceSuggestion?:boolean }>).detail;
@@ -13118,12 +13074,8 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         message.attempt.fortressLeftHealth === 0 && message.attempt.fortressRightHealth === 0 &&
         previousAttempt?.attemptId === message.attempt.attemptId &&
         (previousAttempt.fortressLeftHealth !== 0 || previousAttempt.fortressRightHealth !== 0)) {
-      showProgressMessage('BOTH WINGS DESTROYED', 3_000);
       hapticsManager.emit('checkpoint', `${message.attempt.attemptId}:core-exposed`);
     }
-    if (message.attempt.missionId === journeyDallas12.id && previousAttempt?.attemptId === message.attempt.attemptId &&
-        previousAttempt.finalPhase === 'ESCORTS' && message.attempt.finalPhase === 'TURRETS')
-      showProgressMessage('GUARD PLANES DOWN · SHOOT THE WING GUNS', 3_000);
     flightGameRoot.classList.toggle('noncombat-journey', !journeyCombatMissionIds.has(message.attempt.missionId));
     setJourneyPaused(['READY', 'APPROACH', 'RACING'].includes(message.attempt.status) && message.attempt.pausedAt != null,
       pauseDeadlineFromServer(message.attempt.pausedAt, message.serverNow));
@@ -13208,34 +13160,20 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         hapticsManager.emit('confirmation', `${message.attempt.attemptId}:ace-${message.attempt.targetHealth <= 100 ? 100 : 200}`);
       }
     }
-    if(message.attempt.missionId===journeyDallasMostWantedSurvival01.id&&message.attempt.survival?.incoming&&!previousAttempt?.survival?.incoming)showProgressMessage('HUNTER INCOMING!');
     if(message.attempt.missionId===journeyDallasCaptureThree01.id){
       const stage=message.attempt.captureStage??0;
-      if(previousAttempt?.attemptId===message.attempt.attemptId&&stage>(previousAttempt.captureStage??0))showProgressMessage('TERRITORY CAPTURED!');
       if(previousAttempt?.attemptId!==message.attempt.attemptId||stage!==(previousAttempt.captureStage??0)){
         refreshTerritoryBorders();const target=journeyCaptureTerritoryId(message.attempt.missionId,stage);if(target)pulseTerritoryBoundary(target);
       }
     }
-    if(message.attempt.missionId===journeyDallasAceIntercept01.id&&message.attempt.aceInterceptPhase==='ESCAPE'&&previousAttempt?.attemptId===message.attempt.attemptId&&previousAttempt.aceInterceptPhase==='DOGFIGHT')showProgressMessage('FIREHAWK IS ESCAPING!');
-    if(message.attempt.missionId===journeyDallas15.id&&message.attempt.status==='RACING'&&message.attempt.escapeRemaining!==undefined&&
-      message.attempt.escapeRemaining<5000&&(previousAttempt?.escapeRemaining===undefined||previousAttempt.escapeRemaining>=5000))
-      showProgressMessage('MAMMOTH IS NEAR THE EXIT!',3000);
     if (message.attempt.missionId === journeyDallas14.id && message.attempt.ambushWarningAt !== undefined &&
       message.attempt.ambushWarningAt !== previousAttempt?.ambushWarningAt) {
-      showProgressMessage(message.attempt.ambushRearWarning ? 'ENEMY BEHIND!' : 'ENEMY ATTACKING!', journeyDallas14.warningMs);
       hapticsManager.emit('confirmation', `${message.attempt.attemptId}:ambush`);
     }
-    if (message.attempt.missionId === journeyDallas09.id && message.attempt.reinforcementWarningUntil &&
-      message.attempt.reinforcementWarningUntil !== previousAttempt?.reinforcementWarningUntil)
-      showProgressMessage('TWO MORE ESCORTS INCOMING', Math.max(0, message.attempt.reinforcementWarningUntil - message.serverNow));
     if (message.attempt.missionId === journeyDallas09.id && previousAttempt?.attemptId === message.attempt.attemptId &&
       previousAttempt.reinforcementWarningUntil && !message.attempt.reinforcementWarningUntil && message.attempt.status === 'RACING') {
-      const escortsAlive = message.attempt.fighterEscortsAlive ?? 0;
       reinforcementArrivedAttemptId = message.attempt.attemptId;
       reinforcementArrivedUntil = performance.now() + 4_000;
-      showProgressMessage(`+2 ESCORTS ARRIVED · ${escortsAlive} ACTIVE`, 4_000);
-      gameplayFeedback.push({ type: 'reinforcements', primaryText: 'TWO ESCORTS JOINED',
-        secondaryText: `${escortsAlive} PROTECTING THE TRANSPORT`, intensity: 'major' });
       playIncomingWarningSound();
       hapticsManager.emit('checkpoint', `${message.attempt.attemptId}:reinforcements`);
     }
@@ -13296,7 +13234,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       missionObjective=stage!==undefined?{id:`${message.attempt.attemptId}:bullseye`,label:`TARGET ${stage+1}`,
         position:sharpshooterPosition.clone(),radius:journeyDallasSharpshooter01.targetRadius,peripheralCue:true}:null;
       if(previousAttempt?.attemptId===message.attempt.attemptId&&(message.attempt.sharpshooter?.destroyed??0)>(previousAttempt.sharpshooter?.destroyed??0)){
-        playCheckpointSound();showProgressMessage('TARGET DESTROYED!');
+        playCheckpointSound();
       }
     }
     const hopAirport = airportHopDestination();
@@ -13304,8 +13242,6 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       waypoint = {x:hopAirport.x,z:hopAirport.z,label:hopAirport.name};
       missionObjective = {id:`${message.attempt.attemptId}:${hopAirport.id}`,label:hopAirport.name.toUpperCase(),
         position:new THREE.Vector3(hopAirport.x,getTerrainHeight(hopAirport.x,hopAirport.z),hopAirport.z),radius:100,peripheralCue:true};
-      if ((previousAttempt?.airportHopStage ?? 0) < 2 && (message.attempt.airportHopStage ?? 0) === 2)
-        showProgressMessage('FIRST LANDING COMPLETE!');
     } else if (previousAttempt?.missionId === journeyDallasAirportHop01.id) waypoint = null;
     updateCoinObjective();
     missionObjectiveGuidance?.setObjective(missionObjective);
@@ -13315,15 +13251,12 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
 
     if (message.attempt.missionId === journeyDallas24.id) {
       syncLegendaryObjective();
-      if (previousAttempt?.attemptId === message.attempt.attemptId && previousAttempt.legendaryPhase !== message.attempt.legendaryPhase)
-        showProgressMessage(message.attempt.legendaryPhase === 'ACE' ? 'FLIGHT CHALLENGE COMPLETE! · FINAL ACE INCOMING!' : 'ACE DEFEATED — HEAD TO DFW!');
     }
     if ((message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas20.id || message.attempt.missionId === journeyDallas24.id) &&
       previousAttempt?.attemptId === message.attempt.attemptId &&
       message.attempt.gateIndex > previousGate && message.attempt.gateIndex < (message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas20.id ? 6 : 4)) journeyGateClearedUntil = performance.now() + 1_400;
     if (message.attempt.gateIndex > previousGate && !((message.attempt.missionId === journeyDallas11.id) && message.attempt.status === 'COMPLETED')) {
       playCheckpointSound();
-      showProgressMessage(`${message.attempt.missionId === journeyDallas01.id ? 'RING' : 'GATE'} ${message.attempt.gateIndex}/${message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas24.id ? 3 : message.attempt.missionId === journeyDallas20.id ? 6 : 4} CLEARED`);
     }
     updateJourneyHud();
     if (airborneIntroAwaiting || runwayJourneyIntroAwaiting) {
@@ -13647,7 +13580,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         else showProgressMessage('SERVER REQUIRED TO RESTART TRAINING');
       });
     }
-    gameplayFeedback.push({type:'mission',primaryText:message.reason==='crash'?'TRY AGAIN':'TRAINING RESTARTED',secondaryText:message.reason==='crash'?'Continue this lesson.':'Let’s try that again.',intensity:'medium'});renderTutorialPanel();
+    renderTutorialPanel();
   } else if(message.type==='tutorialTarget'){
     tutorialTargetId=message.targetId;tutorialTargetRequested=true;
   } else if(message.type==='tutorialSignal'){
@@ -13666,13 +13599,6 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     weeklyLeaderboards = message.weeklyLeaderboards;
   } else if (message.type === 'missionState') {
     if (message.cityId === cityId) {
-      const previous = serverProfile.missions[cityId]?.active;
-      const next = message.state.active;
-      const required = previous ? missionForCity(cityId, previous.missionId) : undefined;
-      if (previous && previous.attemptId === next?.attemptId && previous.holdStartedAt && previous.progress > 0 && next.progress === 0 && !next.holdStartedAt &&
-        required && (next.ownedTerritoryIds?.length ?? 0) < missionRequirements(required, next).length) {
-        showProgressMessage('TERRITORY LOST · HOLD RESET TO 00:00');
-      }
       serverProfile.missions[cityId] = message.state;
       activeMissionAttemptId = profileActiveMissionAttempt(serverProfile)?.attemptId;
       refreshTerritoryBorders();
@@ -13684,7 +13610,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       completedMissionUntil = 0;
       if (message.missionId === 'precision-landing') lastLandingResult = undefined;
     }
-    showProgressMessage(message.ok ? 'MISSION ACCEPTED' : (message.reason ?? 'MISSION UNAVAILABLE'));
+    if (!message.ok) showProgressMessage(message.reason ?? 'MISSION UNAVAILABLE');
     if (message.ok && pilotMenu.isOpen()) pilotMenu.close();
     else if (pilotMenu.isOpen()) renderPilotMenu();
   } else if (message.type === 'missionCompleted') {
@@ -13705,7 +13631,6 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     if (activeMissionAttemptId) hapticsManager.emit('failure', activeMissionAttemptId);
     activeMissionAttemptId = undefined;
     completedMissionUntil = 0;
-    showProgressMessage(`MISSION FAILED · ${missionForCity(cityId, message.missionId)?.displayName ?? 'MISSION'} · ${message.reason}`);
     updateMissionHud();
   } else if (message.type === 'firehawkPromotionReady') {
     if (!firehawkPromotionSessionShown && missionForCity(cityId, message.missionId)) {
@@ -13718,20 +13643,13 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     applyCityEvent(message.event);
   } else if (message.type === 'eventClear') {
     applyCityEvent(undefined);
-  } else if (message.type === 'eventAnnouncement') {
-    if (!missionFocus) {
-      showProgressMessage(cityRules.practiceMode ? `${message.name ?? 'SKY EVENT'} · PRACTICE — NO REWARDS` : `${message.name ?? 'SKY EVENT'}`);
-      gameplayFeedback.push({ type: 'chaos-moment', primaryText: 'CHAOS MOMENT', secondaryText: message.name ?? 'SKY EVENT', intensity: 'major' });
-    }
   } else if (message.type === 'eventReward') {
     score += message.score;
     queueRewardFeedback(0, message.score);
     recordBestScore(score);
-    showProgressMessage(message.reason);
     flightRecap.eventResults.push(message.reason);
     sendPlayerUpdate();
   } else if (message.type === 'eventProgress') {
-    if (!missionFocus) showProgressMessage(message.message);
     if (message.target) setActivityWaypoint(message.target.x, message.target.z, 'CARGO DELIVERY');
   } else if (message.type === 'socialState') {
     applySocialState(message);
@@ -13746,28 +13664,21 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     score += message.score;
     queueRewardFeedback(0, message.score);
     recordBestScore(score);
-    showProgressMessage(message.reason);
     sendPlayerUpdate();
   } else if (message.type === 'chaosState') {
     score += message.score;
     queueRewardFeedback(0, message.score);
     recordBestScore(score);
-    showProgressMessage(`${message.action.toUpperCase()} · CHAOS x${message.multiplier}`);
-  } else if (message.type === 'chaosReward') {
-    showProgressMessage(message.reason);
   } else if (message.type === 'pvpChallengeInvite') {
     if(guidedTutorialActive){socket.send(JSON.stringify({type:'pvpChallengeResponse',challengeId:message.challenge.id,accept:false}));return;}
     const accepted = window.confirm(`${message.challenge.mode === 'dogfight' ? 'DOGFIGHT' : 'AIRPORT SPRINT'} CHALLENGE\nAccept?`);
     socket.send(JSON.stringify({ type: 'pvpChallengeResponse', challengeId: message.challenge.id, accept: accepted }));
   } else if (message.type === 'pvpChallengeState') {
     activePvpChallenge = message.challenge;
-    showProgressMessage(`${message.challenge.mode === 'dogfight' ? 'DOGFIGHT' : 'AIRPORT SPRINT'} · ${message.challenge.status.toUpperCase()}`);
   } else if (message.type === 'pvpChallengeCancelled') {
     activePvpChallenge = null;
-    showProgressMessage('CHALLENGE CANCELLED');
   } else if (message.type === 'pvpChallengeResult') {
     activePvpChallenge = null;
-    showProgressMessage(message.winnerId === localPlayerId ? `CHALLENGE WON${message.rewarded ? '' : ' · PRACTICE'}` : 'CHALLENGE COMPLETE');
   } else if (message.type === 'skyDuelSpawn') {
     if (!skyDuelMode) return;
     if (skyDuelUi?.hasAbandonedSearch() || document.hidden) return;
@@ -13906,28 +13817,12 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     if (territory && (message.kind === 'enter' || message.kind === 'exit')) pulseTerritoryBoundary(territory.id);
     if (territory && message.kind === 'underAttack') {
       audioManager.playWarning();
-      gameplayFeedback.push({ type:'territory-contest', primaryText:'TERRITORY CONTESTED', secondaryText:territory.displayName.toUpperCase(), intensity:'medium' });
       territoryDefenseAlertId = territory.id;
       territoryDefenseTextElement.textContent = `⚠ ${territory.displayName.toUpperCase()} UNDER ATTACK${message.attackerName ? ` · ${message.attackerName}` : ''}`;
       territoryDefenseAlertElement.classList.remove('hidden');
     } else if (territory) {
-      if (message.kind === 'captured') gameplayFeedback.push({ type: 'territory', primaryText: 'TERRITORY CAPTURED', secondaryText: territory.displayName.toUpperCase(), intensity: 'medium' });
       if (message.kind === 'captured') flightRecap.territories += 1;
-      showProgressMessage(message.kind === 'captured'
-      ? `${territory.displayName.toUpperCase()} CAPTURED`
-      : message.kind === 'defenderInbound' ? `${territory.displayName.toUpperCase()} · DEFENDER INBOUND`
-      : message.kind === 'exit' ? `LEFT ${territory.displayName.toUpperCase()}`
-      : `ENTERED ${territory.displayName.toUpperCase()}`);
     }
-  } else if (message.type === 'territoryReward') {
-    const territory = territoryDefinition(message.territoryId);
-    if (!missionFocus) showProgressMessage(`${territory?.displayName.toUpperCase() ?? 'TERRITORY'} ${message.kind === 'capture' ? 'CAPTURED' : 'HELD'}`);
-  } else if (message.type === 'objectiveComplete') {
-    if (!missionFocus) showProgressMessage(`OBJECTIVE COMPLETE: ${message.label.toUpperCase()}`);
-  } else if (message.type === 'objectiveProgress') {
-    if (!missionFocus) showProgressMessage(`DAILY: ${message.label.toUpperCase()} ${message.progress}/${message.target}`);
-  } else if (message.type === 'masteryLevel') {
-    if (message.cityId === cityId) showProgressMessage(`${cityId.toUpperCase()} CITY LEVEL ${message.level}`);
   } else if (message.type === 'landingScored') {
     if (journeyAttempt?.missionId === journeyDallas24.id || journeyAttempt?.missionId === journeyDallasAirportHop01.id)
       championshipLandingIntentPending = undefined;
@@ -13938,8 +13833,6 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     }
     if (journeyAttempt?.missionId === journeyDallas06.id || journeyAttempt?.missionId === journeyDallasAirportHop01.id) return;
     if (journeyAttempt?.missionId === journeyDallas24.id) {
-      if (journeyAttempt.status !== 'COMPLETED' && journeyAttempt.legendaryPhase === 'LANDING')
-        showProgressMessage(message.airportId === journeyDallas24.finishAirportId ? `LANDING: ${message.grade} · TAKE OFF — TRY FOR PERFECT!` : 'LAND AT DFW — TAKE OFF AND TRY AGAIN!');
       return;
     }
     if (visibleRecap) visibleRecap.landing = `${message.grade} LANDING`;
@@ -13947,20 +13840,15 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     // Tutorial completion arrives separately after the server verifies its full evidence chain.
     const grade = `${message.grade} LANDING`;
     const perfectLanding = isPerfectLandingGrade(message.grade);
-    if (!perfectLanding || guidedTutorialActive) {
-      gameplayFeedback.push({ type: 'landing', primaryText: grade, secondaryText: `${message.quality} / 1,000`, intensity: perfectLanding ? 'major' : 'medium' });
-    } else {
+    if (perfectLanding && !guidedTutorialActive) {
       const rewardText = `${message.score.toLocaleString()} / 1,000`;
       cinematicDirector.requestPerfectLanding(`${message.airportId}:${message.quality}:${lastLandingResult.at}`, rewardText);
     }
-    queueAtcCallout(`landing-${message.grade}`, message.grade === 'ROUGH' ? 'TOWER: ROUGH LANDING' : 'TOWER: LANDING CONFIRMED', message.grade === 'PERFECT' || message.grade === 'LEGENDARY' ? 'SMOOTH TOUCHDOWN' : undefined);
     if (visibleRecap && !trainingSlidesOpen && (!perfectLanding || guidedTutorialActive)) showFlightRecap(visibleRecap.title, grade, false);
   } else if (message.type === 'pilotLevelUp') {
     queueVerifiedRankHelmetUnlock(serverProfile.pilotId, message.previousLevel, message.level);
-    gameplayFeedback.push({ type: 'pilot-level', primaryText: `PILOT LEVEL ${message.level}`, secondaryText: message.title ? `TITLE UNLOCKED — ${message.title}` : undefined, intensity: 'major' });
     audioManager.playReward();
   } else if (message.type === 'weeklyRewardClaimed') {
-    gameplayFeedback.push({ type: 'weekly', primaryText: 'WEEKLY REWARD', secondaryText: `#${message.reward.rank} · REWARD APPLIED · ${message.reward.badge}`, intensity: 'major' });
     audioManager.playReward();
     hapticsManager.emit('rewardSuccess', `weekly:${message.reward.category}:${message.reward.badge}`);
   } else if (message.type === 'cosmeticResult') {
@@ -13973,12 +13861,10 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     if (remote) applyEquippedLivery(remote.plane, remote.aircraftType, message.equipped);
   } else if(message.type==='intercityRouteResult'){
     audioManager.playEffect('activation',{gain:.55});
-    showProgressMessage('FLY THROUGH THE INTERCITY GATE');
   } else if (message.type === 'challengeComplete') {
     score += message.score;
     queueRewardFeedback(0, message.score);
     recordBestScore(score);
-    showProgressMessage('SKY CHALLENGE COMPLETE');
   } else if (message.type === 'projectileRemove') {
     const projectile = clientProjectiles.get(message.projectileId);
     const monsterImpact = message.monsterImpact;
@@ -14081,7 +13967,6 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
           healthRowElement.classList.remove('repaired');
         }, 2_000);
       } else {
-        showProgressMessage(message.full ? 'AIRPORT REPAIR COMPLETE' : 'REPAIR BEACON · PLANE LIFE RESTORED');
       }
     } else {
       const remote = remotePlayers.get(message.playerId);
@@ -14165,7 +14050,6 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       if(airAssaultMode)showCombatMessage('ENEMY DESTROYED',true);
       if (!skyDuelMode && !airAssaultMode) {
         flightRecap.kills += 1;
-        gameplayFeedback.push({ type: 'combat', primaryText: killNotice(message, localPlayerId), intensity: 'medium' });
         score = Math.max(score, message.killerScore);
         recordBestScore(score);
         handleContractKill();

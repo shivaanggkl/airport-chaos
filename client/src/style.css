@@ -1644,10 +1644,6 @@ body:has(.app-shell-header:not([hidden])) .garage-card {
 .controls-card.collapsed { width: auto; min-width: 100px; }
 .controls-card.collapsed .controls-grid { display: none; }
 
-.gameplay-feedback { box-sizing: border-box; width: 100%; min-width: 0; padding: 5px 8px; text-align: left; overflow-wrap: anywhere; pointer-events: none; border: 1px solid var(--ui-border-strong); border-radius: 7px; background: var(--ui-bg); box-shadow: var(--ui-shadow); animation: feedback-in .18s ease-out; }
-.gameplay-feedback strong,.gameplay-feedback span { display:block; } .gameplay-feedback strong { color:var(--ui-gold); font:800 clamp(10px, 1.1vw, 12px)/1.15 var(--font-display); letter-spacing:.03em; } .gameplay-feedback span { margin-top:2px; color:var(--ui-text); font:700 clamp(9px, min(1vw, 2.6dvh), 11px)/1.15 var(--font-display); }
-.gameplay-feedback span:empty { display: none; }
-.gameplay-feedback.major { border-color:rgb(57 169 249 / 48%); box-shadow:0 8px 30px rgb(23 117 223 / 18%); } @keyframes feedback-in { from { opacity:0; transform:scale(.94); } }
 .flight-recap { position:fixed; z-index:12; left:50%; bottom:24px; translate:-50% 0; width:min(440px,calc(100vw - 32px)); padding:13px; color:var(--ui-text); border:1px solid var(--ui-border-strong); border-radius:8px; background:var(--ui-bg-strong); box-shadow:var(--ui-shadow); }
 .flight-recap strong { display:block; color:var(--ui-gold); font-family:var(--font-display); letter-spacing:.08em; } .flight-recap [data-recap-stats]{margin:7px 0;white-space:pre-line;font:500 var(--font-body-size)/1.55 var(--font-body)}.flight-recap button{margin-right:7px;padding:6px 10px;font-size:var(--font-control-size)}.flight-recap [data-recap-fly]{color:var(--ui-ocean-ink);background:var(--ui-gradient-primary);border:0;font-weight:700;text-shadow:0 1px 1px rgb(255 255 255 / 28%)}
 
@@ -3135,7 +3131,7 @@ body:has(#garage-overlay:not([hidden])) #reward-feedback { visibility: hidden; }
 .touch-controls-active .desktop-controls-help{display:none!important}
 body:has(#world-map-overlay:not(.hidden)) .touch-controls > *{display:none}
 body:has(#world-map-overlay:not(.hidden)) .desktop-controls-help{display:none}
-body:has(#world-map-overlay:not(.hidden)) :is(.unified-flight-hud,#flight-hud,.mission-status-layer,.territory-capture,.contextual-hint,.tutorial-help,.gameplay-feedback,.flight-recap){display:none!important}
+body:has(#world-map-overlay:not(.hidden)) :is(.unified-flight-hud,#flight-hud,.mission-status-layer,.territory-capture,.contextual-hint,.tutorial-help,.flight-recap){display:none!important}
 .portrait-guidance{display:none;position:fixed;z-index:50;inset:0;place-items:center;background:rgb(24 52 74 / 88%);color:#fff;font:900 14px ui-monospace,monospace;letter-spacing:.08em;text-align:center}
 
 @media(max-width:900px),
@@ -3241,7 +3237,7 @@ body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
   .unified-flight-hud .flight-hud-motion .flight-hud-icon { width: 14px; height: 14px; }
 }
 @media(orientation:portrait) and (max-width:900px){.touch-controls-enabled .portrait-guidance{display:grid}.touch-controls-enabled #touch-controls{display:none}}
-@media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.touch-stick,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback,.combat-threat-warning{animation:none!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){.touch-controls button,.touch-stick,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback,.combat-threat-warning{animation:none!important;transition:none!important}}
 .tutorial-welcome{display:grid;gap:14px;text-align:center;place-items:center;padding:24px 8px}.tutorial-welcome p{max-width:520px;font-size:17px;line-height:1.45}.tutorial-welcome small{color:var(--text-secondary)}
 .tutorial-flight-active #contextual-hint,.tutorial-flight-active #dynamic-event-panel,.tutorial-flight-active #mission-panel{display:none!important}
 .leaderboard-entry {
@@ -6701,8 +6697,7 @@ body:has(.app-shell-header:not([hidden])) .garage-overlay.is-equipped-page .gara
 .sky-duel-flight .flight-hud-center,
 .sky-duel-flight .territory-capture,
 .sky-duel-flight .sky-challenge,
-.sky-duel-flight .contextual-hint,
-.sky-duel-flight .gameplay-feedback { display: none !important; }
+.sky-duel-flight .contextual-hint { display: none !important; }
 #game-root.sky-duel-flight #right-flight-stack { top: calc(var(--safe-area-top) + 84px); }
 #game-root.sky-duel-flight .flight-game-hud #flight-map-button { top: calc(var(--safe-area-top) + 84px); }
 #game-root.sky-duel-flight .territory-world-labels { clip-path: inset(calc(var(--safe-area-top) + clamp(44px, 5vw, 60px) + 8px) 0 0); }
