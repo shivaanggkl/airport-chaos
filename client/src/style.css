@@ -7410,6 +7410,7 @@ html.custom-control-layout #game-root #radar-panel {
   color:#fff2b1;font:700 clamp(11px,1.4vw,17px)/1.2 var(--font-display);white-space:nowrap;
 }
 .coin-hunt-counter[hidden] {display:none;}
+#game-root.launch-cinematic-active .coin-hunt-counter {display:none;}
 .coin-hunt-counter img {width:30px;height:30px;object-fit:contain;}
 .coin-hunt-counter small {font-size:.65em;color:#ffe5a0;}
 .coin-hunt-flying-credit {position:fixed;width:30px;height:30px;object-fit:contain;pointer-events:none;z-index:100;}
@@ -7563,3 +7564,5 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 
 #game-root .journey-status-layer .journey-battle-card .monster-boss-hud:not(.hidden) { display: grid; grid-template-columns: max-content minmax(30px, 1fr) max-content; gap: 8px; }
 #game-root .journey-status-layer .journey-battle-card .monster-boss-hud > strong { min-width: 0; max-width: none; }
+
+#game-root .journey-status-layer .journey-battle-card.journey-giant-hud [data-journey-heading] { white-space: normal; }
