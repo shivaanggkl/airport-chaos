@@ -7505,15 +7505,16 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 #game-root .journey-ring-card [data-journey-progress] strong { color: #ffe16b; font: inherit; }
 
 /* Shared mission card finish within the existing card dimensions. */
+#game-root .journey-battle-card { --mission-health-columns: 64px minmax(24px, 1fr) 7ch; }
 #game-root .journey-status-layer .sky-challenge:is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card, .journey-coins-card) { border-color: #f0d26b; background: linear-gradient(#12344f, #09253c); box-shadow: inset 0 0 0 1px #d1ad5070, 0 2px 7px #05182b80; }
 #game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card, .journey-coins-card) .journey-hud-header { gap: 4px; }
 #game-root .journey-status-layer :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card, .journey-coins-card) [data-journey-heading] { font: 900 clamp(9px, 1vw, 11px)/1.15 var(--font-body); letter-spacing: -.035em; white-space: nowrap; overflow-wrap: normal; color: #ffe16b; }
 #game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card, .journey-coins-card) [data-journey-header-timer] { font-size: clamp(11px, 1.1vw, 13px); letter-spacing: -.04em; color: #ffe59a; }
 #game-root .journey-status-layer :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card, .journey-coins-card) [data-journey-objective] { font: 750 clamp(10px, 1.05vw, 12px)/1.15 var(--font-body); letter-spacing: -.015em; color: #fff; }
 #game-root .journey-status-layer .journey-battle-card :is(.escort-health-hud, .monster-boss-hud) { border-top: 1px solid #dcb54d99; padding-top: 6px; }
-#game-root .journey-status-layer .journey-battle-card .escort-health-hud > div { grid-template-columns: max-content minmax(30px, 1fr) max-content; gap: 8px; }
+#game-root .journey-status-layer .journey-battle-card .escort-health-hud > div { grid-template-columns: var(--mission-health-columns); gap: 6px; }
 #game-root .journey-status-layer .journey-battle-card :is(.escort-health-hud, .monster-boss-hud) strong { color: #ffdf58; font: 900 11px/1.1 var(--font-body); white-space: nowrap; }
-#game-root .journey-status-layer .journey-battle-card :is(.escort-health-hud, .monster-boss-hud) span { color: #fff; font: 900 10px/1.1 var(--font-display); white-space: nowrap; }
+#game-root .journey-status-layer .journey-battle-card :is(.escort-health-hud, .monster-boss-hud) span { color: #fff; font: 900 10px/1.1 var(--font-display); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 #game-root .journey-battle-card .escort-health-hud > div > div,
 #game-root .journey-battle-card .monster-boss-hud > div { height: 9px; border: 1px solid #e5687c; border-radius: 999px; background: #280b16; }
 #game-root .journey-battle-card :is(.escort-health-hud, .monster-boss-hud) i { background: linear-gradient(#ff8194, var(--ui-crimson) 45%, #910020); border-radius: inherit; }
@@ -7562,7 +7563,7 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 .transport-arrival-alert.is-m9-instructions :is(.mission-instruction-list, .mission-instruction-row, .mission-instruction-marker) { color: inherit; font: inherit; letter-spacing: normal; }
 .transport-arrival-alert.is-m9-instructions .mission-instruction-marker { display: inline; }
 
-#game-root .journey-status-layer .journey-battle-card .monster-boss-hud:not(.hidden) { display: grid; grid-template-columns: max-content minmax(30px, 1fr) max-content; gap: 8px; }
+#game-root .journey-status-layer .journey-battle-card .monster-boss-hud:not(.hidden) { display: grid; grid-template-columns: var(--mission-health-columns); gap: 6px; font: 800 10px/1.1 var(--font-display); }
 #game-root .journey-status-layer .journey-battle-card .monster-boss-hud > strong { min-width: 0; max-width: none; }
 
-#game-root .journey-status-layer .journey-battle-card.journey-giant-hud [data-journey-heading] { white-space: normal; }
+#game-root .journey-status-layer .journey-battle-card [data-journey-heading] { white-space: normal; }

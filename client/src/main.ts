@@ -10,7 +10,7 @@ import { SharpshooterIntro } from './sharpshooter-intro';
 import { SharpshooterTargetView } from './sharpshooter-target';
 import { type SharpshooterTarget } from '../../shared/sharpshooter-target.mjs';
 import { rewardedAdProvider, type RewardedAdAttempt } from './rewarded-ads';
-import { missionJourneyDetails, captureMissionInstructions, captureMissionTerritoryName } from './mission-journey-content';
+import { missionJourneyDetails, captureMissionInstructions, captureMissionTerritoryName, territoryDefenseInstructions } from './mission-journey-content';
 import { CombatStatsHeader } from './combat-stats-header';
 import { horizontalDistanceSquared, isFiniteGuidancePosition, opponentAltitudeGuidance } from './opponent-altitude-guidance';
 import { AircraftVictory } from './aircraft-victory';
@@ -1436,7 +1436,7 @@ function journeyTransportLabel(missionId?: string): string {
 }
 function journeyMissionHeading(id: string): string {
   const slot = journeyCatalog.find(slot => slot.id === id);
-  return id === journeyDallasTwinHunters01.id ? 'M15: BATTLE - 2 PLANES' : id === journeyDallas05.id ? 'M14: 10 RINGS' : id === journeyDallas08.id ? 'M13: BATTLE - 1 GIANT, 2 PLANES' : id === journeyDallasCoinHunt01.id ? 'M12: COLLECT COINS' : id === journeyDallas15.id ? 'M11: BATTLE - 1 PLANE' : id === journeyDallas04.id ? 'M10: 10 RINGS' : id === journeyDallas07.id ? 'M9: BATTLE - 1 GIANT' : id === journeyDallasSharpshooter01.id ? 'M8: TARGETS' : id === journeyDallasAirportHop01.id ? 'M7: AIRPORT HOP' : id === journeyDallasCapture01.id ? 'M5: TERRITORY' : id === journeyDallas03.id ? 'M4: 10 RINGS' : id === journeyDallas14.id ? 'M6: BATTLE - 1 PLANE' : id === journeyDallas13.id ? 'M3: BATTLE - 1 PLANE' : id === journeyDallas01.id ? 'M1: 10 RINGS' : id === journeyDallas02.id ? 'M2: 10 RINGS' : slot ? `M${slot.number}: ${slot.title}` : 'MISSION';
+  return id === journeyDallasTerritoryDefense01.id ? 'M16: TERRITORY' : id === journeyDallasTwinHunters01.id ? 'M15: BATTLE - 2 PLANES' : id === journeyDallas05.id ? 'M14: 10 RINGS' : id === journeyDallas08.id ? 'M13: BATTLE - 1 GIANT, 2 PLANES' : id === journeyDallasCoinHunt01.id ? 'M12: COLLECT COINS' : id === journeyDallas15.id ? 'M11: BATTLE - 1 PLANE' : id === journeyDallas04.id ? 'M10: 10 RINGS' : id === journeyDallas07.id ? 'M9: BATTLE - 1 GIANT' : id === journeyDallasSharpshooter01.id ? 'M8: TARGETS' : id === journeyDallasAirportHop01.id ? 'M7: AIRPORT HOP' : id === journeyDallasCapture01.id ? 'M5: TERRITORY' : id === journeyDallas03.id ? 'M4: 10 RINGS' : id === journeyDallas14.id ? 'M6: BATTLE - 1 PLANE' : id === journeyDallas13.id ? 'M3: BATTLE - 1 PLANE' : id === journeyDallas01.id ? 'M1: 10 RINGS' : id === journeyDallas02.id ? 'M2: 10 RINGS' : slot ? `M${slot.number}: ${slot.title}` : 'MISSION';
 }
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
 const journeyHudProgress = skyChallengeElement.querySelector<HTMLElement>('[data-journey-progress]');
@@ -2661,6 +2661,7 @@ const escortHealthRows = [...escortHealthHud.querySelectorAll<HTMLElement>('[dat
   row, name: row.querySelector<HTMLElement>('strong')!, value: row.querySelector<HTMLElement>('span')!,
 }));
 const escortHudHealth: (number | null)[] = Array(escortHealthRowCount).fill(null);
+const escortHudHitPoints: (number | null)[] = Array(escortHealthRowCount).fill(null);
 const escortHudAircraft: (AircraftType | null)[] = Array(escortHealthRowCount).fill(null);
 let escortHudAttemptId = '';
 function recordEscortHudHealth(remote: RemotePlayer, health = remote.health): void {
@@ -2674,6 +2675,7 @@ function recordEscortHudHealth(remote: RemotePlayer, health = remote.health): vo
   const slot = index >= 0 ? index : fallback;
   if (slot >= 0) {
     escortHudAircraft[slot] = remote.aircraftType;
+    escortHudHitPoints[slot] = remote.lifeState === 'destroyed' ? 0 : Math.max(0, health);
     escortHudHealth[slot] = remote.lifeState === 'destroyed' ? 0
       : Math.max(0, Math.min(100, health / Math.max(1, remote.maxHealth) * 100));
   }
@@ -3076,12 +3078,16 @@ function updateTerritoryPanel(allowDemonstration = true): void {
 }
 
 function updateCaptureHud(): void {
-  if (journeyAttempt?.missionId === journeyDallasCapture01.id) {
-    const captured = journeyAttempt.status === 'COMPLETED';
-    const live = !journeyPaused && (captured || journeyAttempt.status === 'RACING' && journeyAttempt.captureMs > 0);
+  const captureMission = journeyAttempt?.missionId === journeyDallasCapture01.id ? journeyDallasCapture01
+    : journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id ? journeyDallasTerritoryDefense01 : undefined;
+  if (captureMission && journeyAttempt) {
+    const captured = captureMission.id === journeyDallasCapture01.id && journeyAttempt.status === 'COMPLETED';
+    const capturing = journeyAttempt.status === 'RACING' && journeyAttempt.captureMs > 0 &&
+      (captureMission.id === journeyDallasCapture01.id || journeyAttempt.captureMs < captureMission.captureDurationMs);
+    const live = !journeyPaused && (captured || capturing);
     flightGameRoot.classList.toggle('has-live-territory-status', live);
     if (live) {
-      missionCaptureBar.show(captureMissionTerritoryName, journeyAttempt.captureMs * 100 / journeyDallasCapture01.captureDurationMs, captured);
+      missionCaptureBar.show(captureMissionTerritoryName, journeyAttempt.captureMs * 100 / captureMission.captureDurationMs, captured);
     } else missionCaptureBar.hide();
     return;
   }
@@ -3178,7 +3184,7 @@ function updateJourneyHud(): void {
   skyChallengeElement.classList.toggle('journey-targets-card', journeyAttempt?.missionId === journeyDallasSharpshooter01.id);
   skyChallengeElement.classList.toggle('journey-coins-card', journeyAttempt?.missionId === journeyDallasCoinHunt01.id);
   const separateTerritoryPanel = territoryDefense || journeyAttempt?.missionId === journeyDallasCapture01.id;
-  skyChallengeElement.classList.toggle('journey-territory-card', journeyAttempt?.missionId === journeyDallasCapture01.id);
+  skyChallengeElement.classList.toggle('journey-territory-card', territoryDefense || journeyAttempt?.missionId === journeyDallasCapture01.id);
   gameplayInfoCard.setTerritoryPanelHost(separateTerritoryPanel ? missionTerritoryCard : null);
   missionTerritoryCard.hidden = !separateTerritoryPanel || !journeyAttempt || !['APPROACH', 'RACING'].includes(journeyAttempt.status);
   gameplayInfoCard.setMode(separateTerritoryPanel ? 'mission-territories' : 'mission');
@@ -3359,7 +3365,9 @@ function updateJourneyHud(): void {
         : journeyAttempt.enemyHealths?.[index] ?? healthPointMaximum;
       const hp = healthPointMaximum === null ? null : Math.max(0, Math.min(healthPointMaximum, currentHealth ?? healthPointMaximum));
       const percent = hp === null ? escortHudHealth[index] : hp / healthPointMaximum! * 100;
-      const healthLabel = hp === null ? percent === null ? '—' : `${Math.round(percent)}%`
+      const escortHp = escortMission?.id === journeyDallas08.id ? escortHudHitPoints[index] : null;
+      const healthLabel = escortMission?.id === journeyDallas08.id ? escortHp == null ? '—' : `${Math.round(escortHp)} HP`
+        : hp === null ? percent === null ? '—' : `${Math.round(percent)}%`
         : (journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas14.id || journeyAttempt.missionId === journeyDallas15.id || journeyAttempt.missionId === journeyDallasTwinHunters01.id) ? `${Math.round(hp)} HP` : `${Math.round(hp)} / ${healthPointMaximum} HP`;
       if (value.textContent !== healthLabel) value.textContent = healthLabel;
       row.style.setProperty('--escort-health', `${percent ?? 0}%`);
@@ -3426,23 +3434,12 @@ function updateJourneyHud(): void {
     return;
   }
   if(journeyAttempt.missionId===journeyDallasTerritoryDefense01.id){
-    if (journeyHudObjective && !journeyHudObjective.querySelector('.territory-defense-instructions')) {
-      const list = document.createElement('span');
-      list.className = 'capture-mission-instructions territory-defense-instructions';
-      list.setAttribute('role', 'list');
-      for (const instruction of ['Fly inside LAS COLINAS to capture it.', 'Hold it for 1 minute after capturing it.']) {
-        const item = document.createElement('span');
-        item.setAttribute('role', 'listitem');
-        item.textContent = instruction;
-        list.append(item);
-      }
-      journeyHudObjective.replaceChildren(list);
-    }
+    if (journeyHudObjective) setMissionInstructions(journeyHudObjective, territoryDefenseInstructions.map(line=>`• ${line}`).join('\n'));
     monsterBossHud.classList.add('hidden');
     escortHealthHud.classList.add('hidden');
     if (journeyHudProgress) {
       journeyHudProgress.hidden = journeyAttempt.captureMs < journeyDallasTerritoryDefense01.captureDurationMs;
-      journeyHudProgress.textContent = `HELD: ${formatJourneyResultTime(journeyAttempt.defenseMs ?? 0)} / ${formatJourneyResultTime(journeyDallasTerritoryDefense01.defenseDurationMs)}`;
+      journeyHudProgress.textContent = journeyHudProgress.hidden ? '' : `HOLD: ${formatJourneyResultTime(Math.max(0, Math.min(journeyDallasTerritoryDefense01.defenseDurationMs, journeyAttempt.defenseMs ?? 0)))} / ${formatJourneyResultTime(journeyDallasTerritoryDefense01.defenseDurationMs)}`;
     }
     for (const item of [journeyHudTarget, journeyHudTimer, journeyHudHint, journeyHudEnemy]) if (item) item.hidden = true;
     if(segments)segments.hidden=true;updateTerritoryPanel();updateCaptureHud();return;
@@ -3532,8 +3529,15 @@ function updateJourneyHud(): void {
       const description=missionJourneyDetails.find(mission=>mission.id===definition.id)!.description;
       setMissionInstructions(journeyHudObjective,definition.id===journeyDallasTwinHunters01.id?description.split('\n').map(line=>`• ${line}`).join('\n'):description);
     }
-    if(journeyHudProgress)journeyHudProgress.textContent=definition.id === journeyDallasTwinHunters01.id ? `ENEMIES DEFEATED ${ids.length-remaining}/${ids.length}` : `ENEMIES LEFT: ${remaining}/${ids.length}`;
-    if(journeyHudTarget)journeyHudTarget.textContent=enemy ? crossfireMission || ironMission || showdownMission ? aircraftDefinitions[enemy.aircraftType].callsign : `${aircraftDefinitions[enemy.aircraftType].callsign}: ${Math.max(0,hp)} / ${maximumHealth} HP` : 'LOCATING ENEMIES';
+    const compactTwinHunters = definition.id === journeyDallasTwinHunters01.id;
+    if(journeyHudProgress){
+      journeyHudProgress.hidden=compactTwinHunters;
+      journeyHudProgress.textContent=compactTwinHunters?'':`ENEMIES LEFT: ${remaining}/${ids.length}`;
+    }
+    if(journeyHudTarget){
+      journeyHudTarget.hidden=compactTwinHunters;
+      journeyHudTarget.textContent=compactTwinHunters?'':enemy ? crossfireMission || ironMission || showdownMission ? aircraftDefinitions[enemy.aircraftType].callsign : `${aircraftDefinitions[enemy.aircraftType].callsign}: ${Math.max(0,hp)} / ${maximumHealth} HP` : 'LOCATING ENEMIES';
+    }
     if(journeyHudTimer)journeyHudTimer.textContent=enemy?`DISTANCE: ${formatObjectiveDistance(airplane.position.distanceTo(enemy.plane.position)*WORLD_METERS_PER_UNIT)}`:'';
     if(journeyHudEnemy)journeyHudEnemy.style.setProperty('--enemy-health',`${Math.max(0,hp)/maximumHealth*100}%`);
     if (definition.id === journeyDallas16.id) {
@@ -5486,7 +5490,7 @@ function beginFlightLaunchCinematic(): void {
   if (flightLaunchState !== 'pending' || trainingRequested || guidedTutorialActive) return;
   cinematicDirector.clearPresentation();
   flightLaunchState = 'active';
-  flightLaunchTitle.classList.toggle('is-m3-instructions', journeyAttempt?.missionId === journeyDallasTwinHunters01.id || journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallasAirportHop01.id || journeyAttempt?.missionId === journeyDallas15.id);
+  flightLaunchTitle.classList.toggle('is-m3-instructions', journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id || journeyAttempt?.missionId === journeyDallasTwinHunters01.id || journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallasAirportHop01.id || journeyAttempt?.missionId === journeyDallas15.id);
   if (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath || missionCoinHuntIntro || missionSharpshooterIntro || missionAirportHopIntro || missionCaptureIntroPath || missionCombatIntroPath) {
     flightLaunchTitle.classList.add('is-golden-gates');
     flightLaunchTitle.classList.add('is-runway-gates');
@@ -5701,7 +5705,9 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     if (missionCaptureIntroPath && !skipped) {
       updateTerritoryPanel();
       const text = missionCaptureIntroPath.text(elapsed);
-      if (!missionCaptureIntroPath.defense && !missionCaptureIntroPath.sequence) {
+      if (missionCaptureIntroPath.defense) {
+        setMissionInstructions(flightLaunchTitle, territoryDefenseInstructions.map(line=>`• ${line}`).join('\n'));
+      } else if (!missionCaptureIntroPath.sequence) {
         if (!flightLaunchTitle.querySelector('.capture-intro-instructions')) {
           const list = document.createElement('ul');
           list.className = 'capture-intro-instructions';
@@ -8145,7 +8151,7 @@ function pilotMenuData(): PilotMenuData {
   return {
     flightMission: journeyMode && journeyAttempt ? {
       name: journeyAttempt ? journeyMissionHeading(journeyAttempt.missionId) : 'MISSION',
-      objective: journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas14.id || journeyAttempt.missionId === journeyDallasCapture01.id || journeyAttempt.missionId === journeyDallasAirportHop01.id || journeyAttempt.missionId === journeyDallasSharpshooter01.id || journeyAttempt.missionId === journeyDallas07.id || journeyAttempt.missionId === journeyDallas15.id || journeyAttempt.missionId === journeyDallasCoinHunt01.id || journeyAttempt.missionId === journeyDallas08.id || journeyAttempt.missionId === journeyDallasTwinHunters01.id
+      objective: journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas14.id || journeyAttempt.missionId === journeyDallasCapture01.id || journeyAttempt.missionId === journeyDallasAirportHop01.id || journeyAttempt.missionId === journeyDallasSharpshooter01.id || journeyAttempt.missionId === journeyDallas07.id || journeyAttempt.missionId === journeyDallas15.id || journeyAttempt.missionId === journeyDallasCoinHunt01.id || journeyAttempt.missionId === journeyDallas08.id || journeyAttempt.missionId === journeyDallasTwinHunters01.id || journeyAttempt.missionId === journeyDallasTerritoryDefense01.id
         ? missionJourneyDetails.find(mission => mission.id === journeyAttempt?.missionId)!.description.split('\n').map(line => `• ${line}`).join('\n')
         : journeyHudObjective?.textContent ?? '',
       progress: flightGateCount ? `${journeyAttempt.missionId === journeyDallas01.id ? 'RING' : 'GATE'} ${journeyAttempt.gateIndex} / ${flightGateCount}` : journeyHudProgress?.textContent ?? '',
@@ -13074,6 +13080,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     if (escortHudAttemptId !== message.attempt.attemptId) {
       escortHudAttemptId = message.attempt.attemptId;
       escortHudHealth.fill(null);
+      escortHudHitPoints.fill(null);
       escortHudAircraft.fill(null);
     }
     if ((message.attempt.missionId === journeyDallas11.id || message.attempt.missionId === journeyDallas12.id) && message.attempt.status === 'RACING' &&
