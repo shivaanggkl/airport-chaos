@@ -7504,11 +7504,11 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 #game-root .journey-ring-card [data-journey-progress] strong { color: #ffe16b; font: inherit; }
 
 /* Shared mission card finish within the existing card dimensions. */
-#game-root .journey-status-layer .sky-challenge:is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card) { border-color: #f0d26b; background: linear-gradient(#12344f, #09253c); box-shadow: inset 0 0 0 1px #d1ad5070, 0 2px 7px #05182b80; }
-#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card) .journey-hud-header { gap: 4px; }
-#game-root .journey-status-layer :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card) [data-journey-heading] { font: 900 clamp(9px, 1vw, 11px)/1.15 var(--font-body); letter-spacing: -.035em; white-space: nowrap; overflow-wrap: normal; color: #ffe16b; }
-#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card) [data-journey-header-timer] { font-size: clamp(11px, 1.1vw, 13px); letter-spacing: -.04em; color: #ffe59a; }
-#game-root .journey-status-layer :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card) [data-journey-objective] { font: 750 clamp(10px, 1.05vw, 12px)/1.15 var(--font-body); letter-spacing: -.015em; color: #fff; }
+#game-root .journey-status-layer .sky-challenge:is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card, .journey-coins-card) { border-color: #f0d26b; background: linear-gradient(#12344f, #09253c); box-shadow: inset 0 0 0 1px #d1ad5070, 0 2px 7px #05182b80; }
+#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card, .journey-coins-card) .journey-hud-header { gap: 4px; }
+#game-root .journey-status-layer :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card, .journey-coins-card) [data-journey-heading] { font: 900 clamp(9px, 1vw, 11px)/1.15 var(--font-body); letter-spacing: -.035em; white-space: nowrap; overflow-wrap: normal; color: #ffe16b; }
+#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card, .journey-coins-card) [data-journey-header-timer] { font-size: clamp(11px, 1.1vw, 13px); letter-spacing: -.04em; color: #ffe59a; }
+#game-root .journey-status-layer :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card, .journey-coins-card) [data-journey-objective] { font: 750 clamp(10px, 1.05vw, 12px)/1.15 var(--font-body); letter-spacing: -.015em; color: #fff; }
 #game-root .journey-status-layer .journey-battle-card :is(.escort-health-hud, .monster-boss-hud) { border-top: 1px solid #dcb54d99; padding-top: 6px; }
 #game-root .journey-status-layer .journey-battle-card .escort-health-hud > div { grid-template-columns: max-content minmax(30px, 1fr) max-content; gap: 8px; }
 #game-root .journey-status-layer .journey-battle-card :is(.escort-health-hud, .monster-boss-hud) strong { color: #ffdf58; font: 900 11px/1.1 var(--font-body); white-space: nowrap; }
@@ -7544,8 +7544,8 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
   .airport-hop-route-step .airport-hop-number { width: 24px; height: 24px; font-size: 17px; }
 }
 
-#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-targets-card) .mission-instruction-marker { color: #ffdf58; }
-#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-targets-card) .mission-instruction-row + .mission-instruction-row { margin-top: 3px; }
+#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-targets-card, .journey-coins-card) .mission-instruction-marker { color: #ffdf58; }
+#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-targets-card, .journey-coins-card) .mission-instruction-row + .mission-instruction-row { margin-top: 3px; }
 
 /* M8 overview labels the assigned targets; no preview target models. */
 #game-root.launch-cinematic-active > .sharpshooter-placement-overview { position: absolute; inset: 0; z-index: 21; pointer-events: none; }
