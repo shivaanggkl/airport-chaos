@@ -247,7 +247,7 @@ body.launch-cinematic-pending:has(#game-root.journey-flight) #tutorial-help {
 /* The world canvas stays live while the normal-flight launch camera hands off.
    Every gameplay layer shares one fade and remains non-interactive until the
    exact chase-camera pose is restored. */
-#game-root.launch-cinematic-active > :not(canvas):not(.flight-launch-title):not(.mission-intro-skip):not(.image-story-sequence):not(.airport-hop-route):not(#hit-marker):not(#damage-flash):not(.transport-crash-flash) {
+#game-root.launch-cinematic-active > :not(canvas):not(.flight-launch-title):not(.mission-intro-skip):not(.image-story-sequence):not(.airport-hop-route):not(.sharpshooter-placement-overview):not(#hit-marker):not(#damage-flash):not(.transport-crash-flash) {
   opacity: var(--launch-hud-opacity, 0) !important;
   pointer-events: none !important;
   transition: opacity var(--launch-hud-fade-duration, 500ms) ease;
@@ -7509,11 +7509,11 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 #game-root .journey-ring-card [data-journey-progress] strong { color: #ffe16b; font: inherit; }
 
 /* Shared mission card finish within the existing card dimensions. */
-#game-root .journey-status-layer .sky-challenge:is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card) { border-color: #f0d26b; background: linear-gradient(#12344f, #09253c); box-shadow: inset 0 0 0 1px #d1ad5070, 0 2px 7px #05182b80; }
-#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card) .journey-hud-header { gap: 4px; }
-#game-root .journey-status-layer :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card) [data-journey-heading] { font: 900 clamp(9px, 1vw, 11px)/1.15 var(--font-body); letter-spacing: -.035em; white-space: nowrap; overflow-wrap: normal; color: #ffe16b; }
-#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card) [data-journey-header-timer] { font-size: clamp(11px, 1.1vw, 13px); letter-spacing: -.04em; color: #ffe59a; }
-#game-root .journey-status-layer :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card) [data-journey-objective] { font: 750 clamp(10px, 1.05vw, 12px)/1.15 var(--font-body); letter-spacing: -.015em; color: #fff; }
+#game-root .journey-status-layer .sky-challenge:is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card) { border-color: #f0d26b; background: linear-gradient(#12344f, #09253c); box-shadow: inset 0 0 0 1px #d1ad5070, 0 2px 7px #05182b80; }
+#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card) .journey-hud-header { gap: 4px; }
+#game-root .journey-status-layer :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card) [data-journey-heading] { font: 900 clamp(9px, 1vw, 11px)/1.15 var(--font-body); letter-spacing: -.035em; white-space: nowrap; overflow-wrap: normal; color: #ffe16b; }
+#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card) [data-journey-header-timer] { font-size: clamp(11px, 1.1vw, 13px); letter-spacing: -.04em; color: #ffe59a; }
+#game-root .journey-status-layer :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-airport-card, .journey-targets-card) [data-journey-objective] { font: 750 clamp(10px, 1.05vw, 12px)/1.15 var(--font-body); letter-spacing: -.015em; color: #fff; }
 #game-root .journey-status-layer .journey-battle-card .escort-health-hud { border-top: 1px solid #dcb54d99; padding-top: 6px; }
 #game-root .journey-status-layer .journey-battle-card .escort-health-hud > div { grid-template-columns: max-content minmax(30px, 1fr) max-content; gap: 8px; }
 #game-root .journey-status-layer .journey-battle-card .escort-health-hud strong { color: #ffdf58; font: 900 11px/1.1 var(--font-body); white-space: nowrap; }
@@ -7548,8 +7548,8 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
   .airport-hop-route-step .airport-hop-number { width: 24px; height: 24px; font-size: 17px; }
 }
 
-#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card) .mission-instruction-marker { color: #ffdf58; }
-#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card) .mission-instruction-row + .mission-instruction-row { margin-top: 3px; }
+#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-targets-card) .mission-instruction-marker { color: #ffdf58; }
+#game-root :is(.journey-battle-card, .journey-ring-card, .journey-territory-card, .journey-targets-card) .mission-instruction-row + .mission-instruction-row { margin-top: 3px; }
 
 /* M8 overview labels the assigned targets; no preview target models. */
 #game-root.launch-cinematic-active > .sharpshooter-placement-overview { position: absolute; inset: 0; z-index: 21; pointer-events: none; }
@@ -7558,5 +7558,9 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 .sharpshooter-overview-heading span { color: #fff; font: 800 clamp(10px, 1.3vw, 16px)/1.2 var(--font-body); }
 .sharpshooter-placement { position: absolute; display: grid; justify-items: center; gap: 3px; transform: translate(-50%, -100%); padding-bottom: 12px; color: #fff; font: 850 clamp(8px, 1vw, 12px)/1.1 var(--font-body); text-shadow: 0 1px 3px #001527; }
 .sharpshooter-placement b { display: grid; place-items: center; width: clamp(25px, 3vw, 38px); height: clamp(25px, 3vw, 38px); border: 2px solid #fff1a8; border-radius: 50%; background: linear-gradient(#fff2a0, #efb82a); color: #09253c; font-size: 1.8em; text-shadow: none; box-shadow: 0 0 12px #ffda6680; }
-.sharpshooter-placement span { padding: 4px 6px; border: 1px solid #f0d26b; border-radius: 5px; background: #08243fee; white-space: nowrap; }
 #game-root.sharpshooter-intro:has(.sharpshooter-placement-overview) .flight-launch-title { display: none; }
+
+.transport-arrival-alert.is-m9-instructions { color: var(--ui-gold); text-align: left; font: 800 clamp(17px, 2.3vw, 26px)/1.3 var(--font-display); }
+.transport-arrival-alert.is-m9-instructions .mission-instruction-list { display: block; }
+.transport-arrival-alert.is-m9-instructions :is(.mission-instruction-list, .mission-instruction-row, .mission-instruction-marker) { color: inherit; font: inherit; letter-spacing: normal; }
+.transport-arrival-alert.is-m9-instructions .mission-instruction-marker { display: inline; }
