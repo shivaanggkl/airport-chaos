@@ -6,7 +6,7 @@ import ts from 'typescript';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { aircraftDefinitions } from '../../client/src/aircraft.ts';
-import { aircraftCameraProfile, cacheAircraftSafetyPoints, fitAircraftChase, requiredChaseDistance } from '../../client/src/chase-camera-framing.ts';
+import { aircraftCameraProfile, normalAircraftCameraProfile, cacheAircraftSafetyPoints, fitAircraftChase, requiredChaseDistance } from '../../client/src/chase-camera-framing.ts';
 const source = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
 const framing = source.slice(source.indexOf('function refreshCameraFraming()'), source.indexOf('function updateCamera('));
 const cameraStart = source.indexOf('function updateCamera(');
@@ -22,9 +22,10 @@ async function fixture(type, aspect=844/390) {
  const size=new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
  model.scale.setScalar(Math.min(definition.wingSpan/size.x,(definition.bodyLength+definition.noseLength)/size.z));
  const center=new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());model.position.copy(center).negate();
+ if(gltf.scene.userData.aircraftNormalizationCenter)model.position.fromArray(gltf.scene.userData.aircraftNormalizationCenter).multiply(model.scale).negate();
  const airplane=new THREE.Group();airplane.add(model);airplane.position.y=1000;airplane.userData.assetStatus='loaded';
  const camera=new THREE.PerspectiveCamera(58,aspect,2,10000);
- const state={THREE,fitAircraftChase,cacheAircraftSafetyPoints,requiredChaseDistance,aircraftCameraProfile,aircraftType:type,smoothedChaseElevation:aircraftCameraProfile.elevation,cameraSafetyPoints:[],smoothedCameraSafetyDistance:0,cameraSafetyRotation:new THREE.Quaternion(),roll:0,airplane,camera,aircraftVictory:null,currentAircraft:definition,
+ const state={THREE,fitAircraftChase,cacheAircraftSafetyPoints,requiredChaseDistance,aircraftCameraProfile,normalAircraftCameraProfile,aircraftType:type,smoothedChaseElevation:normalAircraftCameraProfile(type).elevation,smoothedChaseFocusRatio:normalAircraftCameraProfile(type).focusRatio,cameraSafetyPoints:[],smoothedCameraSafetyDistance:0,cameraSafetyRotation:new THREE.Quaternion(),roll:0,airplane,camera,aircraftVictory:null,currentAircraft:definition,
   CAMERA_CHASE_FOV:58,innerWidth:844,innerHeight:844/aspect,
   flightGameRoot:{},getComputedStyle:()=>({getPropertyValue:()=> '0px'}),performance:{now:()=>1000},
   cameraFramingKey:'',cameraFramingAssetStatus:'',cameraFramingAspect:0,cameraFramePoints:[],cameraFrameVertex:new THREE.Vector3(),cameraFramingWidth:0,cameraFramingHeight:0,defaultChaseDistance:0,defaultChaseHeight:0,
@@ -55,12 +56,12 @@ for(const type of Object.keys(aircraftDefinitions))test(`${type}: actual GLB bou
     left=Math.min(left,p.x);right=Math.max(right,p.x);
    }
    if(pitch===0&&bank===0){
-    const expected=aircraftCameraProfile.widthFraction;
+    const expected=normalAircraftCameraProfile(type).widthFraction;
     assert.ok(fov===58 ? Math.abs((right-left)/2-expected)<(aspect>2.2?.025:.01) : (right-left)/2<=expected+.002,`${type} actual projected width ${(right-left)/2}, aspect ${aspect}, base ${s.defaultChaseDistance}, safety ${s.smoothedCameraSafetyDistance}`);
     assert.ok(s.smoothedCameraSafetyDistance<.01,'straight flight must not retain an extreme-attitude allowance');
     const offset=s.chaseCameraPosition.clone().sub(airplane.position).sub(s.cameraFrameWorldCenter);
-    assert.ok(Math.abs(Math.atan2(offset.y,Math.hypot(offset.x,offset.z))-aircraftCameraProfile.elevation)<1e-6);
-    const screen=airplane.position.clone().project(camera);assert.ok(screen.y<0&&screen.y>-.4);
+    assert.ok(Math.abs(Math.atan2(offset.y,Math.hypot(offset.x,offset.z))-normalAircraftCameraProfile(type).elevation)<1e-6);
+    const screen=s.cameraFrameWorldCenter.clone().add(airplane.position).project(camera);assert.ok(screen.y<0&&screen.y>-.4);
     if(ordinaryDistance)assert.ok(Math.abs(offset.length()-ordinaryDistance)<1e-6,`Boost cannot change camera position: ${ordinaryDistance} / ${offset.length()}, safety ${s.smoothedCameraSafetyDistance}`);
     ordinaryDistance=offset.length();
    }
@@ -95,7 +96,7 @@ test('camera damping has the same result at 30, 60 and 120 FPS and roll stays wi
  const block=source.slice(start,end).replace(/\n  }\s*$/,'');
  const results=[];
  for(const fps of [30,60,120]){
-  const s={THREE,delta:1/fps,cameraFollow:4.7,cameraOrbitDragging:false,cameraOrbitBlend:0,cameraChaseRoll:0,roll:2,cameraRelativeOffsetInitialized:true,
+  const s={THREE,normalCameraProfile:aircraftCameraProfile,delta:1/fps,cameraFollow:4.7,cameraOrbitDragging:false,cameraOrbitBlend:0,cameraChaseRoll:0,roll:2,cameraRelativeOffsetInitialized:true,
    airplane:new THREE.Group(),camera:new THREE.PerspectiveCamera(),targetCameraPosition:new THREE.Vector3(10,20,30),lookTarget:new THREE.Vector3(5,10,15),groundPlaneY:()=>-1000};
   for(const k of ['targetCameraRelativeOffset','targetCameraLookOffset','smoothedCameraRelativeOffset','smoothedCameraLookOffset'])s[k]=new THREE.Vector3();
   vm.createContext(s);
@@ -197,5 +198,37 @@ test('temporary safety distance is attitude-specific, smooth and returns to the 
   assert.equal(s.cameraDistanceMultiplier,1.1,'temporary safety never rewrites user zoom');
   assert.equal(s.cameraSafetyPoints.length,count);
   assert.ok(peak>=0);
+ }
+});
+
+
+test('Firehawk reference view is lower and centered higher, with comparable wingspan',async()=>{
+ const s=await fixture('fighter');const profile=normalAircraftCameraProfile('fighter');
+ assert.equal(profile.elevation,5*Math.PI/180);assert.equal(profile.widthFraction,.34);assert.equal(profile.focusRatio,.01);
+ for(const type of ['trainer','privateJet','cargo'])assert.equal(normalAircraftCameraProfile(type),aircraftCameraProfile);
+ const center=new THREE.Vector3().copy(s.cameraFrameWorldCenter).add(s.airplane.position);
+ s.camera.position.copy(s.chaseCameraPosition);s.camera.lookAt(s.chaseLookTarget);s.camera.updateMatrixWorld();
+ assert.ok(Math.abs(center.project(s.camera).y)<.04,'Firehawk moves closer to screen center instead of the bottom edge');
+ s.airplane.position.y=0;s.updateCamera(6);
+ const runwayOffset=s.chaseCameraPosition.clone().sub(s.airplane.position).sub(s.cameraFrameWorldCenter);
+ assert.ok(Math.atan2(runwayOffset.y,Math.hypot(runwayOffset.x,runwayOffset.z))<11*Math.PI/180,'runway clearance must not restore the old high viewing angle');
+});
+
+
+test('automatic camera keeps the same rear aircraft-relative angle through climbs and dives without inheriting bank',async()=>{
+ for(const type of Object.keys(aircraftDefinitions)){
+  const s=await fixture(type);
+  for(const pitch of [-.65,-.3,0,.3,.65]){
+   s.airplane.rotation.set(pitch,.7,.4,'YXZ');s.roll=.4;s.updateCamera(1);
+   const center=s.cameraFrameWorldCenter.clone().add(s.airplane.position);
+   const rear=s.chaseCameraPosition.clone().sub(center).applyQuaternion(s.cameraChaseQuaternion.clone().invert());
+   assert.ok(Math.abs(rear.x)<1e-6&&rear.z>0,`${type}: camera must remain directly behind`);
+   assert.ok(Math.abs(Math.atan2(rear.y,rear.z)-normalAircraftCameraProfile(type).elevation)<1e-6,`${type}: climb must preserve the rear viewing angle`);
+   const cameraForward=new THREE.Vector3(0,0,-1).applyQuaternion(s.cameraChaseQuaternion);
+   const aircraftForward=new THREE.Vector3(0,0,-1).applyQuaternion(s.airplane.quaternion);
+   assert.ok(cameraForward.distanceTo(aircraftForward)<1e-6,`${type}: chase must follow the nose through climbs and dives`);
+   const cameraRight=new THREE.Vector3(1,0,0).applyQuaternion(s.cameraChaseQuaternion);
+   assert.ok(Math.abs(cameraRight.y)<1e-6,`${type}: aircraft banking must not tilt the chase frame`);
+  }
  }
 });

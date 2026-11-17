@@ -50,7 +50,7 @@ const urls: Record<AssetKey, string> = {
 const loader = new GLTFLoader();
 const cache = new Map<AssetKey, Promise<THREE.Group>>();
 const aircraftAssetVersion = 'bluejay-premium-v9';
-const fighterAssetVersion = 'firehawk-integrated-fin-tip-v20';
+const fighterAssetVersion = 'firehawk-half-size-stabilizer-v21';
 const nightowlAssetVersion = 'nightowl-airliner-v2';
 const bounds = new THREE.Box3();
 const size = new THREE.Vector3();
@@ -107,6 +107,11 @@ function normalizedClone(
   root.updateMatrixWorld(true);
   bounds.setFromObject(root);
   bounds.getCenter(center);
+  const authoredCenter: unknown = source.userData.aircraftNormalizationCenter;
+  if (uniform && Array.isArray(authoredCenter) && authoredCenter.length === 3 &&
+      authoredCenter.every(value => typeof value === 'number' && Number.isFinite(value))) {
+    center.fromArray(authoredCenter).multiply(root.scale);
+  }
   root.position.set(-center.x, centerVertically ? -center.y : -bounds.min.y, -center.z);
   markSharedAsset(root);
   return root;

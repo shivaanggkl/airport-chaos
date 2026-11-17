@@ -477,7 +477,16 @@ def fin():
         mesh('Painted FH fin code', letters, faces, MARK, False)
 
 
+fin_objects_before = set(bpy.data.objects)
 fin()
+# Halve the complete fin, including paint and tip panels, about its embedded
+# root. Keep the rest of the airframe and its attachment location unchanged.
+fin_root = Vector(game_to_blender((0, .24, 2.51)))
+for obj in set(bpy.data.objects) - fin_objects_before:
+    if obj.type == 'MESH':
+        for vertex in obj.data.vertices:
+            vertex.co = fin_root + (vertex.co - fin_root) * .5
+        obj.data.update()
 
 
 def canopy_surface():
@@ -775,6 +784,10 @@ socket.parent = root
 
 output = Path(__file__).resolve().parents[1] / 'public/assets/models/aircraft/fighter.glb'
 output.parent.mkdir(parents=True, exist_ok=True)
+# Retain the original airframe origin when the smaller fin changes its bounds.
+# Wheel contacts, muzzle and exhaust anchors use this authored reference.
+bpy.context.scene['aircraftNormalizationCenter'] = [0, .34, -.425]
 bpy.ops.export_scene.gltf(filepath=str(output), export_format='GLB',
-                          export_cameras=False, export_lights=False)
+                          export_cameras=False, export_lights=False,
+                          export_extras=True)
 print(f'Firehawk exported to {output}')

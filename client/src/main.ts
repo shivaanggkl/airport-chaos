@@ -1,4 +1,4 @@
-import { aircraftCameraProfile, cacheAircraftSafetyPoints, fitAircraftChase, requiredChaseDistance } from './chase-camera-framing';
+import { aircraftCameraProfile, normalAircraftCameraProfile, cacheAircraftSafetyPoints, fitAircraftChase, requiredChaseDistance } from './chase-camera-framing';
 import { TerritoryCaptureBar, territoryCaptureCelebrationMs } from './territory-capture-bar';
 import { dallasDisplayNames as dallasAirportNames } from '../../shared/dallas-display-names.mjs';
 import { setMissionInstructions } from './mission-instructions';
@@ -1213,7 +1213,7 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
     fallback.add(deltaWings);
     addBox(1.1, 0.025, 1.65, -1.08, 0.09, -0.65, accentMaterial, -0.34);
     addBox(1.1, 0.025, 1.65, 1.08, 0.09, -0.65, accentMaterial, 0.34);
-    addBox(0.14, 1.6, 1.1, 0, 0.78, definition.bodyLength * 0.38, accentMaterial, 0.35);
+    addBox(0.07, 0.8, 0.55, 0, 0.38, definition.bodyLength * 0.38, accentMaterial, 0.35);
     addEngine(0, -0.47, -0.52, 0.78, 0.27);
     addEngine(0, -0.18, 1.55, 2.7, 0.46);
   }
@@ -5145,8 +5145,8 @@ const cameraOrbitOffset = new THREE.Vector3();
 const cameraOrbitYawQuaternion = new THREE.Quaternion();
 const cameraChaseQuaternion = new THREE.Quaternion();
 const cameraChasePitchQuaternion = new THREE.Quaternion();
+const cameraPitchAxis = new THREE.Vector3(1, 0, 0);
 const cameraOrbitReferenceQuaternion = new THREE.Quaternion();
-const cameraPitchAxis = new THREE.Vector3(1,0,0);
 const cameraOrbitInverseYawQuaternion = new THREE.Quaternion();
 const cameraAircraftForward = new THREE.Vector3();
 const cameraWorldUp = new THREE.Vector3(0, 1, 0);
@@ -5163,7 +5163,8 @@ let cameraFramingWidth = 0;
 let cameraFramingHeight = 0;
 let cameraFramingAspect = 0;
 let cameraFramingAssetStatus = '';
-let smoothedChaseElevation = aircraftCameraProfile.elevation;
+let smoothedChaseElevation = normalAircraftCameraProfile(aircraftType).elevation;
+let smoothedChaseFocusRatio: number = normalAircraftCameraProfile(aircraftType).focusRatio;
 let cameraSafetyPoints: number[] = [];
 let smoothedCameraSafetyDistance = 0;
 const cameraSafetyRotation = new THREE.Quaternion();
@@ -11035,7 +11036,7 @@ function refreshCameraFraming(): void {
     cameraSafetyPoints = cacheAircraftSafetyPoints(cameraFramePoints);
   }
   const frame = fitAircraftChase(cameraFrameSize.x, cameraFrameSize.y, cameraFrameSize.z,
-    camera.aspect, cameraFramePoints);
+    camera.aspect, cameraFramePoints, normalAircraftCameraProfile(aircraftType));
   defaultChaseDistance = frame.distance;
   defaultChaseHeight = frame.height;
   cameraFocusAhead = frame.focusHeight;
@@ -11075,6 +11076,7 @@ function updateCamera(delta: number): void {
   }
 
   refreshCameraFraming();
+  const normalCameraProfile = normalAircraftCameraProfile(aircraftType);
   const cameraFollow = currentAircraft.cameraDamping;
   const targetChaseDistance = defaultChaseDistance * cameraDistanceMultiplier;
   smoothedChaseDistance = THREE.MathUtils.lerp(
@@ -11083,25 +11085,28 @@ function updateCamera(delta: number): void {
     1 - Math.exp(-Math.max(0, delta) * 6),
   );
   smoothedChaseElevation = THREE.MathUtils.lerp(smoothedChaseElevation,
-    aircraftCameraProfile.elevation, 1 - Math.exp(-Math.max(0, delta) * 6));
+    normalCameraProfile.elevation, 1 - Math.exp(-Math.max(0, delta) * 6));
+  smoothedChaseFocusRatio = THREE.MathUtils.lerp(smoothedChaseFocusRatio,
+    normalCameraProfile.focusRatio, 1 - Math.exp(-Math.max(0, delta) * 6));
   if (cameraOrbitRadiusTarget > 0) {
     cameraOrbitRadius = THREE.MathUtils.lerp(cameraOrbitRadius, cameraOrbitRadiusTarget, 1 - Math.exp(-Math.max(0, delta) * 8));
   }
   const recentering = !cameraOrbitDragging && cameraOrbitRecenterAt !== null && performance.now() >= cameraOrbitRecenterAt;
   cameraAircraftForward.set(0, 0, -1).applyQuaternion(airplane.quaternion);
-  const chasePitch = THREE.MathUtils.clamp(Math.atan2(cameraAircraftForward.y,Math.hypot(cameraAircraftForward.x,cameraAircraftForward.z))*.45,-.22,.22);
+  const chasePitch = Math.atan2(cameraAircraftForward.y, Math.hypot(cameraAircraftForward.x, cameraAircraftForward.z));
   cameraAircraftForward.y = 0;
   if (cameraAircraftForward.lengthSq() < 0.0001) cameraAircraftForward.set(0, 0, -1).applyQuaternion(cameraOrbitYawQuaternion);
   else cameraAircraftForward.normalize();
   const aircraftYaw = Math.atan2(-cameraAircraftForward.x, -cameraAircraftForward.z);
   cameraOrbitYawQuaternion.setFromAxisAngle(cameraWorldUp, aircraftYaw);
-  // Follow a restrained part of the climb/descent, without inheriting bank.
-  // This keeps the horizon level and the tail view connected to flight attitude.
-  cameraChasePitchQuaternion.setFromAxisAngle(cameraPitchAxis,chasePitch);
+  // Stay behind the aircraft's flight attitude, including climbs and dives.
+  // Exclude its bank so the horizon remains steady; relative-offset smoothing
+  // below eases the camera into this pose without trailing behind at speed.
+  cameraChasePitchQuaternion.setFromAxisAngle(cameraPitchAxis, chasePitch);
   cameraChaseQuaternion.copy(cameraOrbitYawQuaternion).multiply(cameraChasePitchQuaternion);
   cameraSafetyRotation.copy(cameraChaseQuaternion).invert().multiply(airplane.quaternion);
   const safetyMinimum = cameraOrbitBlend > 0 ? 0 : requiredChaseDistance(cameraSafetyPoints, cameraSafetyRotation,
-    camera.aspect, smoothedChaseElevation, THREE.MathUtils.clamp(roll * .08, -Math.PI / 30, Math.PI / 30));
+    camera.aspect, smoothedChaseElevation, THREE.MathUtils.clamp(roll * .08, -Math.PI / 30, Math.PI / 30), smoothedChaseFocusRatio);
   const safetyTarget = Math.max(0, safetyMinimum - smoothedChaseDistance);
   const safetyRate = safetyTarget > smoothedCameraSafetyDistance ? 20 : 4;
   smoothedCameraSafetyDistance += (safetyTarget - smoothedCameraSafetyDistance) * (1 - Math.exp(-Math.max(0, delta) * safetyRate));
@@ -11118,10 +11123,10 @@ function updateCamera(delta: number): void {
   chaseCameraPosition.add(cameraFrameWorldCenter);
   chaseCameraPosition.y = Math.max(
     chaseCameraPosition.y,
-    groundPlaneY(chaseCameraPosition.x, chaseCameraPosition.z) + 2.2,
+    groundPlaneY(chaseCameraPosition.x, chaseCameraPosition.z) + normalCameraProfile.groundClearance,
   );
   chaseLookTarget
-    .set(0, gameplayChaseDistance * .075, 0)
+    .set(0, gameplayChaseDistance * smoothedChaseFocusRatio, 0)
     .applyQuaternion(cameraChaseQuaternion)
     .add(airplane.position);
   chaseLookTarget.add(cameraFrameWorldCenter);
@@ -11229,7 +11234,7 @@ function updateCamera(delta: number): void {
     lookTarget.copy(airplane.position).add(smoothedCameraLookOffset);
     camera.position.y = Math.max(
       camera.position.y,
-      groundPlaneY(camera.position.x, camera.position.z) + 2.2,
+      groundPlaneY(camera.position.x, camera.position.z) + normalCameraProfile.groundClearance,
     );
     camera.lookAt(lookTarget);
     const rollTarget = THREE.MathUtils.clamp(roll * .08, -Math.PI / 30, Math.PI / 30) * (1 - cameraOrbitBlend);
