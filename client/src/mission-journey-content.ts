@@ -28,7 +28,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-01': 'Fly through 10 RINGS before time ends',
   'journey-dallas-02': 'Fly through 10 RINGS before time ends',
   'journey-dallas-03': 'Fly through 10 RINGS before time ends',
-  'journey-dallas-04': journeyDallas04.objective,
+  'journey-dallas-04': 'Fly through 10 RINGS before time ends',
   'journey-dallas-05': journeyDallas05.objective,
   'journey-dallas-06': journeyDallas06.objective,
   'journey-dallas-07': 'Take off from airport\nSHOOT down 1 GIANT before time ends',
@@ -58,7 +58,7 @@ export const missionJourneyDetails = journeyCatalog.filter(slot => slot.implemen
   const mission = missions.find(mission => mission.id === slot.id)!;
   return {
     id: mission.id,
-    title: mission.id === journeyDallas07.id ? 'BATTLE - 1 GIANT' : mission.id === journeyDallasSharpshooter01.id ? 'TARGETS' : mission.id === journeyDallas01.id || mission.id === journeyDallas02.id || mission.id === journeyDallas03.id ? '10 RINGS' : (mission.id === journeyDallas13.id || mission.id === journeyDallas14.id) ? 'BATTLE - 1 PLANE' : mission.id === journeyDallasCapture01.id ? 'TERRITORY' : mission.id === journeyDallasAirportHop01.id ? 'AIRPORT HOP' : slot.title,
+    title: mission.id === journeyDallas07.id ? 'BATTLE - 1 GIANT' : mission.id === journeyDallasSharpshooter01.id ? 'TARGETS' : mission.id === journeyDallas01.id || mission.id === journeyDallas02.id || mission.id === journeyDallas03.id || mission.id === journeyDallas04.id ? '10 RINGS' : (mission.id === journeyDallas13.id || mission.id === journeyDallas14.id) ? 'BATTLE - 1 PLANE' : mission.id === journeyDallasCapture01.id ? 'TERRITORY' : mission.id === journeyDallasAirportHop01.id ? 'AIRPORT HOP' : slot.title,
     description: descriptions[mission.id],
     rewardCredits: mission.firstClearCredits,
     timeLimit: formatTimeLimit('timeLimitMs' in mission ? mission.timeLimitMs : undefined),
