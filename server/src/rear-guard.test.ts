@@ -17,7 +17,7 @@ test('Rear Guard uses the compact transport corridor and a true 4:20 escape', ()
   assert.equal(journeyDallas08.timeLimitMs, 260_000);
   assert.equal(journeyDallas08.bossHealth, 2_000);
   assert.equal(journeyDallas08.escortCount, 2);
-  assert.equal(journeyDallas08.escortHealth, 1_000);
+  assert.equal(journeyDallas08.escortHealth, 300);
   assert.deepEqual(journeyDallas08.escortAircraft, ['trainer', 'trainer']);
   assert.deepEqual(journeyDallas08.escortLiveries, ['bluejay-skybolt', 'bluejay-aurora']);
   assert.deepEqual({ x: transportPose(0).x, z: transportPose(0).z }, transportCourse.start);

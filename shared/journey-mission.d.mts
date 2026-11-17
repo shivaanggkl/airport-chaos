@@ -51,7 +51,7 @@ export const journeyDallas07: Readonly<{
 export const journeyDallas08: Readonly<{
   id: 'journey-dallas-08'; cityId: 'dallas'; name: 'GIANT PLANE & TWO ESCORTS'; chapter: 'SKY ADVENTURES';
   firstClearCredits: 950; startAirportId: 'dfw'; timeLimitMs: 260000; bossHealth: 2000;
-  escortHealth: 1000; escortCount: 2; escortScale: 16; escortFireDelayMs: 5000;
+  escortHealth: 300; escortCount: 2; escortScale: 16; escortFireDelayMs: 5000;
   escortAircraft: readonly ['trainer', 'trainer'];
   escortLiveries: readonly ['bluejay-skybolt', 'bluejay-aurora'];
   escortBurstIntervalMs: 6000; escortShotSpacingMs: 250; escortShotDamage: 10; followMs: 15000;

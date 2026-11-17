@@ -169,7 +169,7 @@ const baseJourneyDallas08 = Object.freeze({
   id: 'journey-dallas-08', cityId: 'dallas', name: 'GIANT PLANE & TWO ESCORTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 950,
   startAirportId: 'dfw', timeLimitMs: 260_000, bossHealth: transportTuning.health,
-  escortHealth: 1_000, escortCount: 2, escortScale: remoteAircraftScale, escortFireDelayMs: 5_000,
+  escortHealth: 300, escortCount: 2, escortScale: remoteAircraftScale, escortFireDelayMs: 5_000,
   escortAircraft: Object.freeze(['trainer', 'trainer']),
   escortLiveries: Object.freeze(['bluejay-skybolt', 'bluejay-aurora']),
   escortBurstIntervalMs: 6_000, escortShotSpacingMs: 250, escortShotDamage: 10,
