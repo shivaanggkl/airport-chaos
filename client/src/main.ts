@@ -1,8 +1,6 @@
 import { TerritoryCaptureBar, territoryCaptureCelebrationMs } from './territory-capture-bar';
 import { dallasDisplayNames as dallasAirportNames } from '../../shared/dallas-display-names.mjs';
 import { setMissionInstructions } from './mission-instructions';
-import { mostWantedIntroText } from '../../shared/most-wanted-survival.mjs';
-import { aceInterceptIntroText } from '../../shared/ace-intercept.mjs';
 import { CollectibleTrailView } from './collectible-trail';
 import { CoinHuntIntro, coinHuntIntroTexts } from './coin-hunt-intro';
 import { dallasCoinTrail, coinCollected, queryCoinTrail, type CoinHuntState } from '../../shared/collectible-trail.mjs';
@@ -1432,11 +1430,11 @@ const journeyMissionDefinitions = [journeyDallasMostWantedSurvival01,journeyDall
   journeyDallas25, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas19,
 ] as const;
 function journeyTransportLabel(missionId?: string): string {
-  return missionId === journeyDallas07.id || missionId === journeyDallas08.id ? 'GIANT' : missionId === journeyDallas10.id ? 'GUNSHIP' : 'TRANSPORT';
+  return missionId === journeyDallas07.id || missionId === journeyDallas08.id || missionId === journeyDallas09.id || missionId === journeyDallas10.id ? 'GIANT' : 'TRANSPORT';
 }
 function journeyMissionHeading(id: string): string {
   const slot = journeyCatalog.find(slot => slot.id === id);
-  return id === journeyDallasTerritoryDefense01.id ? 'M16: TERRITORY' : id === journeyDallasTwinHunters01.id ? 'M15: BATTLE - 2 PLANES' : id === journeyDallas05.id ? 'M14: 10 RINGS' : id === journeyDallas08.id ? 'M13: BATTLE - 1 GIANT, 2 PLANES' : id === journeyDallasCoinHunt01.id ? 'M12: COLLECT COINS' : id === journeyDallas15.id ? 'M11: BATTLE - 1 PLANE' : id === journeyDallas04.id ? 'M10: 10 RINGS' : id === journeyDallas07.id ? 'M9: BATTLE - 1 GIANT' : id === journeyDallasSharpshooter01.id ? 'M8: TARGETS' : id === journeyDallasAirportHop01.id ? 'M7: AIRPORT HOP' : id === journeyDallasCapture01.id ? 'M5: TERRITORY' : id === journeyDallas03.id ? 'M4: 10 RINGS' : id === journeyDallas14.id ? 'M6: BATTLE - 1 PLANE' : id === journeyDallas13.id ? 'M3: BATTLE - 1 PLANE' : id === journeyDallas01.id ? 'M1: 10 RINGS' : id === journeyDallas02.id ? 'M2: 10 RINGS' : slot ? `M${slot.number}: ${slot.title}` : 'MISSION';
+  return id === journeyDallas19.id ? 'M30: MONSTER - Dr. BOSS' : id === journeyDallas23.id ? 'M29: MONSTER - Dr. BOSS' : id === journeyDallas12.id ? 'M28: BATTLE - 1 GIANT (2 wings, 1 engine), 2 PLANES' : id === journeyDallasMostWantedSurvival01.id ? 'M26: SURVIVAL' : id === journeyDallas18.id ? 'M25: BATTLE - 4 PLANES' : id === journeyDallas11.id ? 'M24: BATTLE - 1 GIANT (2 WINGS, 1 ENGINE)' : id === journeyDallas17.id ? 'M23: BATTLE - 3 PLANES' : id === journeyDallas10.id ? 'M22: BATTLE - 1 GIANT, 4 PLANES' : id === journeyDallasCaptureThree01.id ? 'M21: TERRITORY - 3 TERRITORIES' : id === journeyDallasAceIntercept01.id ? 'M20: BATTLE - 1 PLANE' : id === journeyDallas06.id ? 'M19: 10 RINGS' : id === journeyDallas09.id ? 'M18: BATTLE - 1 GIANT, 3 PLANES' : id === journeyDallas16.id ? 'M17: BATTLE - 2 PLANES' : id === journeyDallasTerritoryDefense01.id ? 'M16: TERRITORY' : id === journeyDallasTwinHunters01.id ? 'M15: BATTLE - 2 PLANES' : id === journeyDallas05.id ? 'M14: 10 RINGS' : id === journeyDallas08.id ? 'M13: BATTLE - 1 GIANT, 2 PLANES' : id === journeyDallasCoinHunt01.id ? 'M12: COLLECT COINS' : id === journeyDallas15.id ? 'M11: BATTLE - 1 PLANE' : id === journeyDallas04.id ? 'M10: 10 RINGS' : id === journeyDallas07.id ? 'M9: BATTLE - 1 GIANT' : id === journeyDallasSharpshooter01.id ? 'M8: TARGETS' : id === journeyDallasAirportHop01.id ? 'M7: AIRPORT HOP' : id === journeyDallasCapture01.id ? 'M5: TERRITORY' : id === journeyDallas03.id ? 'M4: 10 RINGS' : id === journeyDallas14.id ? 'M6: BATTLE - 1 PLANE' : id === journeyDallas13.id ? 'M3: BATTLE - 1 PLANE' : id === journeyDallas01.id ? 'M1: 10 RINGS' : id === journeyDallas02.id ? 'M2: 10 RINGS' : slot ? `M${slot.number}: ${slot.title}` : 'MISSION';
 }
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
 const journeyHudProgress = skyChallengeElement.querySelector<HTMLElement>('[data-journey-progress]');
@@ -3184,7 +3182,7 @@ function updateJourneyHud(): void {
   skyChallengeElement.classList.toggle('journey-targets-card', journeyAttempt?.missionId === journeyDallasSharpshooter01.id);
   skyChallengeElement.classList.toggle('journey-coins-card', journeyAttempt?.missionId === journeyDallasCoinHunt01.id);
   const separateTerritoryPanel = territoryDefense || journeyAttempt?.missionId === journeyDallasCapture01.id;
-  skyChallengeElement.classList.toggle('journey-territory-card', territoryDefense || journeyAttempt?.missionId === journeyDallasCapture01.id);
+  skyChallengeElement.classList.toggle('journey-territory-card', captureThree || territoryDefense || journeyAttempt?.missionId === journeyDallasCapture01.id);
   gameplayInfoCard.setTerritoryPanelHost(separateTerritoryPanel ? missionTerritoryCard : null);
   missionTerritoryCard.hidden = !separateTerritoryPanel || !journeyAttempt || !['APPROACH', 'RACING'].includes(journeyAttempt.status);
   gameplayInfoCard.setMode(separateTerritoryPanel ? 'mission-territories' : 'mission');
@@ -3193,7 +3191,7 @@ function updateJourneyHud(): void {
   const dfwMission = journeyAttempt?.missionId === journeyDallas01.id;
   const lakeMission = journeyAttempt?.missionId === journeyDallas02.id;
   const ascentMission = journeyAttempt?.missionId === journeyDallas03.id;
-  const ringMissionCard = dfwMission || lakeMission || ascentMission || journeyAttempt?.missionId === journeyDallas04.id || journeyAttempt?.missionId === journeyDallas05.id;
+  const ringMissionCard = dfwMission || lakeMission || ascentMission || journeyAttempt?.missionId === journeyDallas04.id || journeyAttempt?.missionId === journeyDallas05.id || journeyAttempt?.missionId === journeyDallas06.id;
   const leavingRingCard = !ringMissionCard && skyChallengeElement.classList.contains('journey-ring-card');
   skyChallengeElement.classList.toggle('journey-ring-card', ringMissionCard);
   if (leavingRingCard) {
@@ -3215,7 +3213,7 @@ function updateJourneyHud(): void {
   const gravityMission = journeyAttempt?.missionId === journeyDallas11.id;
   const finaleMission = journeyAttempt?.missionId === journeyDallas12.id;
   const firstContactMission = journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id || journeyAttempt?.missionId === journeyDallas13.id;
-  skyChallengeElement.classList.toggle('journey-battle-card', journeyAttempt?.missionId === journeyDallasTwinHunters01.id || journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallas07.id || journeyAttempt?.missionId === journeyDallas15.id || journeyAttempt?.missionId === journeyDallas08.id);
+  skyChallengeElement.classList.toggle('journey-battle-card', journeyAttempt?.missionId === journeyDallas19.id || journeyAttempt?.missionId === journeyDallas23.id || journeyAttempt?.missionId === journeyDallas12.id || survivalMission || journeyAttempt?.missionId === journeyDallas18.id || journeyAttempt?.missionId === journeyDallas11.id || journeyAttempt?.missionId === journeyDallas17.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallasAceIntercept01.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas16.id || journeyAttempt?.missionId === journeyDallasTwinHunters01.id || journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallas07.id || journeyAttempt?.missionId === journeyDallas15.id || journeyAttempt?.missionId === journeyDallas08.id);
   const surpriseMission = journeyAttempt?.missionId === journeyDallas14.id;
   const interceptMission = journeyAttempt?.missionId === journeyDallasAceIntercept01.id;
   const aceMission = journeyAttempt?.missionId === journeyDallas15.id;
@@ -3308,7 +3306,7 @@ function updateJourneyHud(): void {
   }
   if(captureThree){
     const stage=journeyAttempt.captureStage??0;
-    if(journeyHudObjective)journeyHudObjective.textContent=journeyDallasCaptureThree01.objective;
+    if(journeyHudObjective) setMissionInstructions(journeyHudObjective,missionJourneyDetails.find(mission=>mission.id===journeyDallasCaptureThree01.id)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
     if(journeyHudProgress){journeyHudProgress.hidden=false;journeyHudProgress.textContent=`TERRITORIES ${stage}/3`;}
     if(journeyHudTarget){journeyHudTarget.hidden=false;journeyHudTarget.textContent=journeyAttempt.captureMs>0?`CAPTURING ${Math.floor(journeyAttempt.captureMs/1000)}/15 SEC`:'ENTER THE MARKED TERRITORY';}
     if(journeyHudSegmentRow)journeyHudSegmentRow.hidden=false;
@@ -3365,10 +3363,10 @@ function updateJourneyHud(): void {
         : journeyAttempt.enemyHealths?.[index] ?? healthPointMaximum;
       const hp = healthPointMaximum === null ? null : Math.max(0, Math.min(healthPointMaximum, currentHealth ?? healthPointMaximum));
       const percent = hp === null ? escortHudHealth[index] : hp / healthPointMaximum! * 100;
-      const escortHp = escortMission?.id === journeyDallas08.id ? escortHudHitPoints[index] : null;
-      const healthLabel = escortMission?.id === journeyDallas08.id ? escortHp == null ? '—' : `${Math.round(escortHp)} HP`
+      const escortHp = escortMission?.id === journeyDallas08.id || escortMission?.id === journeyDallas09.id || escortMission?.id === journeyDallas10.id || escortMission?.id === journeyDallas12.id ? escortHudHitPoints[index] : null;
+      const healthLabel = escortMission?.id === journeyDallas08.id || escortMission?.id === journeyDallas09.id || escortMission?.id === journeyDallas10.id || escortMission?.id === journeyDallas12.id ? escortHp == null ? '—' : `${Math.round(escortHp)} HP`
         : hp === null ? percent === null ? '—' : `${Math.round(percent)}%`
-        : (journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas14.id || journeyAttempt.missionId === journeyDallas15.id || journeyAttempt.missionId === journeyDallasTwinHunters01.id) ? `${Math.round(hp)} HP` : `${Math.round(hp)} / ${healthPointMaximum} HP`;
+        : (journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas14.id || journeyAttempt.missionId === journeyDallas15.id || journeyAttempt.missionId === journeyDallasTwinHunters01.id || journeyAttempt.missionId === journeyDallas16.id || journeyAttempt.missionId === journeyDallasAceIntercept01.id || journeyAttempt.missionId === journeyDallas17.id || journeyAttempt.missionId === journeyDallas18.id) ? `${Math.round(hp)} HP` : `${Math.round(hp)} / ${healthPointMaximum} HP`;
       if (value.textContent !== healthLabel) value.textContent = healthLabel;
       row.style.setProperty('--escort-health', `${percent ?? 0}%`);
     }
@@ -3392,14 +3390,7 @@ function updateJourneyHud(): void {
     return;
   }
   if(elevatorMission){
-    if(journeyHudObjective && journeyAttempt.missionId!==journeyDallas07.id && journeyAttempt.missionId!==journeyDallas08.id)journeyHudObjective.textContent=journeyAttempt.missionId===journeyDallas12.id
-      ? 'Shoot Down Both ESCORT Planes And Destroy the GIANT PLANE’s Two WINGS And ENGINE Before Time Runs Out.'
-      : journeyAttempt.missionId===journeyDallas11.id ? 'Destroy the GIANT PLANE’s Two WINGS And Its ENGINE Before Time Runs Out.'
-      : journeyAttempt.missionId===journeyDallas10.id ? 'Shoot Down the GIANT PLANE And All Four ESCORT Planes Before Time Runs Out.'
-      : journeyAttempt.missionId===journeyDallas09.id ? 'Shoot Down the GIANT PLANE And All Three ESCORT Planes Before Time Runs Out.'
-      : journeyAttempt.missionId===journeyDallas08.id ? 'Shoot Down the GIANT PLANE And Both ESCORT Planes Before Time Runs Out.'
-      : 'Find And Shoot Down The GIANT PLANE Before Time Runs Out.';
-    if((journeyAttempt.missionId===journeyDallas07.id || journeyAttempt.missionId===journeyDallas08.id) && journeyHudObjective) setMissionInstructions(journeyHudObjective, missionJourneyDetails.find(mission=>mission.id===journeyAttempt?.missionId)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
+    if(journeyHudObjective) setMissionInstructions(journeyHudObjective, missionJourneyDetails.find(mission=>mission.id===journeyAttempt?.missionId)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
     if(journeyHudProgress)journeyHudProgress.textContent=(journeyAttempt.missionId===journeyDallas08.id||journeyAttempt.missionId===journeyDallas09.id||journeyAttempt.missionId===journeyDallas10.id)?`GIANT PLANE: ${(journeyAttempt.monsterHealth??1)===0?'DESTROYED':'ACTIVE'} · ESCORTS LEFT: ${journeyAttempt.fighterEscortsAlive??(journeyAttempt.missionId===journeyDallas10.id?4:journeyAttempt.missionId===journeyDallas09.id?3:2)}/${journeyAttempt.missionId===journeyDallas10.id?4:journeyAttempt.missionId===journeyDallas09.id?3:2}`:'';
     if (journeyHudTarget) {
       journeyHudTarget.hidden = !escortMission && journeyAttempt.missionId !== journeyDallas11.id;
@@ -3417,20 +3408,31 @@ function updateJourneyHud(): void {
         : (turretHealth??journeyDallas11.turretHealth)/journeyDallas11.turretHealth*100
       : (journeyAttempt.targetHealth??journeyDallas07.bossHealth)/journeyDallas07.bossHealth*100));
     monsterBossHud.querySelector('strong')!.textContent=journeyAttempt.missionId===journeyDallas11.id || journeyAttempt.missionId===journeyDallas12.id ? fortressExposed?'ENGINE':`${turretSide.toUpperCase()} WING`
-      : journeyTransportLabel(journeyAttempt.missionId);monsterBossHud.style.setProperty('--monster-health',`${percent}%`);monsterBossHud.querySelector('span')!.textContent=journeyAttempt.missionId===journeyDallas07.id || journeyAttempt.missionId===journeyDallas08.id
-      ? `${Math.round(Math.max(0,Math.min(journeyDallas07.bossHealth,journeyAttempt.targetHealth??journeyDallas07.bossHealth)))} HP` : `${Math.round(percent)}%`;
+      : journeyTransportLabel(journeyAttempt.missionId);
+    monsterBossHud.style.setProperty('--monster-health',`${percent}%`);
+    const componentMaximum = fortressExposed
+      ? journeyAttempt.missionId===journeyDallas12.id ? journeyDallas12.coreHealth : journeyDallas11.coreHealth
+      : journeyDallas11.turretHealth;
+    monsterBossHud.querySelector('span')!.textContent=journeyAttempt.missionId===journeyDallas11.id || journeyAttempt.missionId===journeyDallas12.id
+      ? `${Math.round(percent * componentMaximum / 100)} HP`
+      : `${Math.round(Math.max(0,Math.min(journeyDallas07.bossHealth,journeyAttempt.targetHealth??journeyDallas07.bossHealth)))} HP`;
     return;
   }
   if (breakoutMission) {
     const boss=journeyAttempt.missionId===journeyDallas23.id?journeyDallas23:journeyAttempt.missionId===journeyDallas22.id?journeyDallas22:journeyAttempt.missionId===journeyDallas21.id?journeyDallas21:journeyAttempt.missionId===journeyDallas25.id?journeyDallas25:journeyAttempt.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19;
     monsterBossHud.querySelector('strong')!.textContent=(journeyAttempt.missionId===journeyDallas19.id||journeyAttempt.missionId===journeyDallas25.id||journeyAttempt.missionId===journeyDallas21.id||journeyAttempt.missionId===journeyDallas22.id||journeyAttempt.missionId===journeyDallas23.id)?'MONSTER':boss.name;
-    if (journeyHudObjective) journeyHudObjective.textContent = journeyAttempt.missionId===journeyDallas25.id ? m19MissionObjective : (journeyAttempt.missionId===journeyDallas20.id||journeyAttempt.missionId===journeyDallas21.id||journeyAttempt.missionId===journeyDallas22.id||journeyAttempt.missionId===journeyDallas23.id||journeyAttempt.missionId===journeyDallas19.id)?'DEFEAT THE MONSTER':journeyAttempt.status==='APPROACH'?'TAKE OFF FROM DFW':'DESTROY THE MONSTER';
+    if (journeyHudObjective && (journeyAttempt.missionId===journeyDallas23.id || journeyAttempt.missionId===journeyDallas19.id)) setMissionInstructions(journeyHudObjective,missionJourneyDetails.find(mission=>mission.id===journeyAttempt?.missionId)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
+    else if (journeyHudObjective) journeyHudObjective.textContent = journeyAttempt.missionId===journeyDallas25.id ? m19MissionObjective : (journeyAttempt.missionId===journeyDallas20.id||journeyAttempt.missionId===journeyDallas21.id||journeyAttempt.missionId===journeyDallas22.id||journeyAttempt.missionId===journeyDallas23.id||journeyAttempt.missionId===journeyDallas19.id)?'DEFEAT THE MONSTER':journeyAttempt.status==='APPROACH'?'TAKE OFF FROM DFW':'DESTROY THE MONSTER';
     if (journeyHudProgress) journeyHudProgress.textContent = '';
     if (journeyHudTarget) journeyHudTarget.hidden = true;
     if(journeyHudTimer){journeyHudTimer.hidden=false;journeyHudTimer.textContent=`MONSTER: ${Math.ceil(journeyAttempt.targetHealth??boss.bossHealth)} / ${boss.bossHealth} HP`;}
     const percent = Math.max(0, Math.min(100, (journeyAttempt.targetHealth ?? boss.bossHealth) / boss.bossHealth * 100));
     monsterBossHud.style.setProperty('--monster-health', `${percent}%`);
-    monsterBossHud.querySelector('span')!.textContent = `${Math.round(percent)}%`;
+    monsterBossHud.querySelector('span')!.textContent = journeyAttempt.missionId===journeyDallas23.id || journeyAttempt.missionId===journeyDallas19.id ? `${Math.ceil(Math.max(0,Math.min(boss.bossHealth,journeyAttempt.targetHealth??boss.bossHealth)))} HP` : `${Math.round(percent)}%`;
+    if(journeyAttempt.missionId===journeyDallas23.id || journeyAttempt.missionId===journeyDallas19.id){
+      monsterBossHud.querySelector('strong')!.textContent='Dr. BOSS';
+      if(journeyHudTimer)journeyHudTimer.hidden=true;
+    }
     return;
   }
   if(journeyAttempt.missionId===journeyDallasTerritoryDefense01.id){
@@ -3456,7 +3458,7 @@ function updateJourneyHud(): void {
   }
   if(survivalMission){
     const status=journeyAttempt.survival;
-    if(journeyHudObjective)journeyHudObjective.textContent=journeyDallasMostWantedSurvival01.objective;
+    if(journeyHudObjective) setMissionInstructions(journeyHudObjective,`• ${missionJourneyDetails.find(mission=>mission.id===journeyDallasMostWantedSurvival01.id)!.description}`);
     if(journeyHudProgress){journeyHudProgress.hidden=false;journeyHudProgress.textContent=`HUNTERS ACTIVE ${status?.active??2}/2`;}
     if(journeyHudTarget){journeyHudTarget.hidden=false;journeyHudTarget.textContent='MOST WANTED';}
     if(journeyHudTimer){journeyHudTimer.hidden=status?.outsideRemainingMs==null;journeyHudTimer.textContent=`RETURN TO COMBAT AREA · ${Math.ceil((status?.outsideRemainingMs??0)/1000)} SEC`;}
@@ -3467,7 +3469,7 @@ function updateJourneyHud(): void {
   }
   if (interceptMission) {
     const escaping=journeyAttempt.aceInterceptPhase==='ESCAPE';
-    if(journeyHudObjective)journeyHudObjective.textContent=escaping?'Stop Firehawk before it escapes!':journeyDallasAceIntercept01.objective;
+    if(journeyHudObjective) setMissionInstructions(journeyHudObjective,missionJourneyDetails.find(mission=>mission.id===journeyDallasAceIntercept01.id)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
     for(const item of [journeyHudProgress,journeyHudTarget,journeyHudHint,journeyHudEnemy])if(item)item.hidden=true;
     if(journeyHudTimer){journeyHudTimer.hidden=!escaping;journeyHudTimer.textContent=`ESCAPE DISTANCE — ${formatObjectiveDistance((journeyAttempt.escapeRemaining??0)*WORLD_METERS_PER_UNIT)}`;}
     return;
@@ -3527,7 +3529,7 @@ function updateJourneyHud(): void {
     const killed=(journeyAttempt.crossfireKills??0),remaining=ids.length-ids.reduce((count,_id,index)=>count+Number(Boolean(killed&(1<<index))),0);
     if(journeyHudObjective){
       const description=missionJourneyDetails.find(mission=>mission.id===definition.id)!.description;
-      setMissionInstructions(journeyHudObjective,definition.id===journeyDallasTwinHunters01.id?description.split('\n').map(line=>`• ${line}`).join('\n'):description);
+      setMissionInstructions(journeyHudObjective,(definition.id===journeyDallasTwinHunters01.id || definition.id===journeyDallas16.id || definition.id===journeyDallas17.id || definition.id===journeyDallas18.id)?description.split('\n').map(line=>`• ${line}`).join('\n'):description);
     }
     const compactTwinHunters = definition.id === journeyDallasTwinHunters01.id;
     if(journeyHudProgress){
@@ -3540,7 +3542,7 @@ function updateJourneyHud(): void {
     }
     if(journeyHudTimer)journeyHudTimer.textContent=enemy?`DISTANCE: ${formatObjectiveDistance(airplane.position.distanceTo(enemy.plane.position)*WORLD_METERS_PER_UNIT)}`:'';
     if(journeyHudEnemy)journeyHudEnemy.style.setProperty('--enemy-health',`${Math.max(0,hp)/maximumHealth*100}%`);
-    if (definition.id === journeyDallas16.id) {
+    if (definition.id === journeyDallas16.id || definition.id === journeyDallas17.id || definition.id === journeyDallas18.id) {
       for (const item of [journeyHudProgress, journeyHudTarget, journeyHudTimer, journeyHudHint, journeyHudEnemy]) if (item) item.hidden = true;
     }
     if(enemy&&missionObjective?.id!==`${journeyAttempt.attemptId}:${enemy.playerId}`)syncAceObjective();
@@ -3562,7 +3564,7 @@ function updateJourneyHud(): void {
         }
       } else journeyHudProgress.textContent = lakeMission || ascentMission ? '' : `GATE ${Math.min(gateIndex + 1, gateCount)} / ${gateCount}`;
     }
-    if (journeyHudTarget && (lakeMission || ascentMission)) {
+    if (journeyHudTarget && (lakeMission || ascentMission || championshipMission)) {
       journeyHudTarget.hidden = true;
       journeyHudTarget.textContent = '';
     } else if (journeyHudTarget && !downtownMission) {
@@ -5490,27 +5492,31 @@ function beginFlightLaunchCinematic(): void {
   if (flightLaunchState !== 'pending' || trainingRequested || guidedTutorialActive) return;
   cinematicDirector.clearPresentation();
   flightLaunchState = 'active';
-  flightLaunchTitle.classList.toggle('is-m3-instructions', journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id || journeyAttempt?.missionId === journeyDallasTwinHunters01.id || journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallasAirportHop01.id || journeyAttempt?.missionId === journeyDallas15.id);
+  flightLaunchTitle.classList.toggle('is-m3-instructions', journeyAttempt?.missionId === journeyDallas19.id || journeyAttempt?.missionId === journeyDallas23.id || journeyAttempt?.missionId === journeyDallasMostWantedSurvival01.id || journeyAttempt?.missionId === journeyDallas18.id || journeyAttempt?.missionId === journeyDallas17.id || journeyAttempt?.missionId === journeyDallasCaptureThree01.id || journeyAttempt?.missionId === journeyDallasAceIntercept01.id || journeyAttempt?.missionId === journeyDallas16.id || journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id || journeyAttempt?.missionId === journeyDallasTwinHunters01.id || journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallasAirportHop01.id || journeyAttempt?.missionId === journeyDallas15.id);
   if (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath || missionCoinHuntIntro || missionSharpshooterIntro || missionAirportHopIntro || missionCaptureIntroPath || missionCombatIntroPath) {
     flightLaunchTitle.classList.add('is-golden-gates');
     flightLaunchTitle.classList.add('is-runway-gates');
-    flightLaunchTitle.innerHTML = missionCoinHuntIntro ? `<span>${coinHuntIntroTexts[0]}</span>` : missionSharpshooterIntro ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallasSharpshooter01.id)!.description}</span>` : missionAirportHopIntro ? missionJourneyDetails.find(mission => mission.id === journeyDallasAirportHop01.id)!.description.split('\n').map(line => `<span>• ${line}</span>`).join('') : missionCaptureIntroPath ? `<span>${journeyAttempt?.missionId === journeyDallasCapture01.id ? '• ' : ''}${missionCaptureIntroPath.text(0)}</span>` : missionCombatIntroPath
+    flightLaunchTitle.innerHTML = missionCoinHuntIntro ? `<span>${coinHuntIntroTexts[0]}</span>` : missionSharpshooterIntro ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallasSharpshooter01.id)!.description}</span>` : missionAirportHopIntro ? missionJourneyDetails.find(mission => mission.id === journeyDallasAirportHop01.id)!.description.split('\n').map(line => `<span>• ${line}</span>`).join('') : missionCaptureIntroPath ? `<span>${journeyAttempt?.missionId === journeyDallasCapture01.id || journeyAttempt?.missionId === journeyDallasCaptureThree01.id ? '• ' : ''}${missionCaptureIntroPath.text(0)}</span>` : missionCombatIntroPath
       ? missionCombatIntroPath.missionNumber === 19 ? journeyAttempt?.missionId===journeyDallas19.id?'<span>FINAL MONSTER BATTLE · DEFEAT THE MONSTER</span>':journeyAttempt?.missionId===journeyDallas25.id?'<span>DR. BOSS · DEFEAT THE MONSTER</span>':'<span>ASHEN WARLORD · DESTROY THE BOSS</span>'
-        : missionCombatIntroPath.missionNumber === 26 ? `<span>${mostWantedIntroText(0)}</span>`
-        : missionCombatIntroPath.missionNumber === 20 ? `<span>${aceInterceptIntroText(0)}</span>`
+        : missionCombatIntroPath.missionNumber === 26 ? `<span>• ${missionJourneyDetails.find(mission=>mission.id===journeyDallasMostWantedSurvival01.id)!.description}</span>`
+        : missionCombatIntroPath.missionNumber === 20 ? missionJourneyDetails.find(mission=>mission.id===journeyDallasAceIntercept01.id)!.description.split('\n').map(line=>`<span>• ${line}</span>`).join('')
         : missionCombatIntroPath.missionNumber === 15 ? missionJourneyDetails.find(mission=>mission.id===journeyDallasTwinHunters01.id)!.description.split('\n').map(line=>`<span>• ${line}</span>`).join('')
         : missionCombatIntroPath.missionNumber === 7 ? `${missionJourneyDetails.find(mission => mission.id === journeyDallas13.id)!.description.split('\n').map(line => `<span>• ${line}</span>`).join('')}`
         : missionCombatIntroPath.missionNumber === 8 ? missionJourneyDetails.find(mission => mission.id === journeyDallas14.id)!.description.split('\n').map(line => `<span>• ${line}</span>`).join('')
         : missionCombatIntroPath.missionNumber === 9 ? missionJourneyDetails.find(mission => mission.id === journeyDallas15.id)!.description.split('\n').map(line => `<span>• ${line}</span>`).join('')
-        : missionCombatIntroPath.missionNumber === 10 ? `<span>${missionJourneyDetails.find(mission => mission.id === journeyDallas16.id)!.description}</span>`
-          : missionCombatIntroPath.missionNumber === 11 ? `<span>${missionJourneyDetails.find(mission => mission.id === journeyDallas17.id)!.description}</span>`
-          : missionCombatIntroPath.missionNumber === 12 ? `<span>${missionJourneyDetails.find(mission => mission.id === journeyDallas18.id)!.description}</span>`
+        : missionCombatIntroPath.missionNumber === 10 ? missionJourneyDetails.find(mission => mission.id === journeyDallas16.id)!.description.split('\n').map(line => `<span>• ${line}</span>`).join('')
+          : missionCombatIntroPath.missionNumber === 11 ? missionJourneyDetails.find(mission => mission.id === journeyDallas17.id)!.description.split('\n').map(line => `<span>• ${line}</span>`).join('')
+          : missionCombatIntroPath.missionNumber === 12 ? missionJourneyDetails.find(mission => mission.id === journeyDallas18.id)!.description.split('\n').map(line => `<span>• ${line}</span>`).join('')
           : '<span>Find And Shoot Down NIGHTOWL Plane Before Time Runs Out.</span>'
-      : journeyAttempt?.missionId === journeyDallas01.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas01.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas02.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas02.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas03.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas03.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas04.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas04.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas05.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas05.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas06.id ? `<span>${journeyDallas06.objective}</span>` : '<span>Fly through 10 Golden Gates before time runs out.</span>';
+      : journeyAttempt?.missionId === journeyDallas01.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas01.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas02.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas02.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas03.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas03.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas04.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas04.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas05.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas05.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas06.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas06.id)!.description}</span>` : '<span>Fly through 10 Golden Gates before time runs out.</span>';
     flightLaunchTitle.classList.toggle('is-monster-arrival',Boolean(missionCombatIntroPath?.arrivalIntro||missionCombatIntroPath?.strikingIntro||missionCombatIntroPath?.huntingIntro));
     if(missionCombatIntroPath?.arrivalIntro)flightLaunchTitle.textContent=m19IntroText(0);
     if(missionCombatIntroPath?.strikingIntro)flightLaunchTitle.textContent=m20IntroText(0);
     if(missionCombatIntroPath?.huntingIntro)flightLaunchTitle.textContent=missionCombatIntroPath.finalIntro?m24IntroText(0):missionCombatIntroPath.pursuitIntro?m23IntroText(0):missionCombatIntroPath.showdownIntro?m22IntroText(0):m21IntroText(0);
+    if(missionCombatIntroPath?.pursuitIntro || missionCombatIntroPath?.finalIntro){
+      flightLaunchTitle.classList.remove('is-monster-arrival');
+      setMissionInstructions(flightLaunchTitle,missionJourneyDetails.find(mission=>mission.id===journeyAttempt?.missionId)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
+    }
     flightGameRoot.classList.add('golden-gates-intro');
   }
   m19StoryOffsetMs=missionImageStory?.durationMs??0;
@@ -5719,8 +5725,8 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
           }
           flightLaunchTitle.replaceChildren(list);
         }
-      } else if (flightLaunchTitle.firstElementChild?.textContent !== text) {
-        flightLaunchTitle.replaceChildren(Object.assign(document.createElement('span'), { textContent: text }));
+      } else {
+        setMissionInstructions(flightLaunchTitle, text.split('\n').map(line=>`• ${line}`).join('\n'));
       }
     }
     if((missionCombatIntroPath?.arrivalIntro||missionCombatIntroPath?.strikingIntro||missionCombatIntroPath?.huntingIntro)&&!skipped){
@@ -5733,15 +5739,17 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
       }
     }
     if(missionCombatIntroPath?.missionNumber===26){
-      const text=mostWantedIntroText(elapsed);if(flightLaunchTitle.firstElementChild?.textContent!==text)flightLaunchTitle.replaceChildren(Object.assign(document.createElement('span'),{textContent:text}));
+      setMissionInstructions(flightLaunchTitle,`• ${missionJourneyDetails.find(mission=>mission.id===journeyDallasMostWantedSurvival01.id)!.description}`);
     } else if (missionCombatIntroPath?.missionNumber === 20) {
-      const text=aceInterceptIntroText(elapsed);
-      if(flightLaunchTitle.firstElementChild?.textContent!==text)flightLaunchTitle.replaceChildren(Object.assign(document.createElement('span'),{textContent:text}));
+      setMissionInstructions(flightLaunchTitle,missionJourneyDetails.find(mission=>mission.id===journeyDallasAceIntercept01.id)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
     } else if (missionCombatIntroPath?.missionNumber === 15) {
       setMissionInstructions(flightLaunchTitle,missionJourneyDetails.find(mission=>mission.id===journeyDallasTwinHunters01.id)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
     } else if(missionCombatIntroPath?.missionNumber===19){
       if(!skipped||!(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro))monsterView?.setIntroTime(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro?elapsed/1000:elapsed<6000?elapsed/1000:null);
-      if(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro){
+      if(missionCombatIntroPath.pursuitIntro || missionCombatIntroPath.finalIntro){
+        setMissionInstructions(flightLaunchTitle,missionJourneyDetails.find(mission=>mission.id===journeyAttempt?.missionId)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
+        if(flightLaunchSkipStartedAt===undefined)flightLaunchTitle.classList.add('is-visible');
+      } else if(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro){
         const text=missionCombatIntroPath.huntingIntro?(missionCombatIntroPath.finalIntro?m24IntroText(elapsed/1000):missionCombatIntroPath.pursuitIntro?m23IntroText(elapsed/1000):missionCombatIntroPath.showdownIntro?m22IntroText(elapsed/1000):m21IntroText(elapsed/1000)):missionCombatIntroPath.strikingIntro?m20IntroText(elapsed/1000):m19IntroText(elapsed/1000);
         if(flightLaunchTitle.textContent!==text){
           flightLaunchTitle.textContent=text;
@@ -8151,7 +8159,7 @@ function pilotMenuData(): PilotMenuData {
   return {
     flightMission: journeyMode && journeyAttempt ? {
       name: journeyAttempt ? journeyMissionHeading(journeyAttempt.missionId) : 'MISSION',
-      objective: journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas14.id || journeyAttempt.missionId === journeyDallasCapture01.id || journeyAttempt.missionId === journeyDallasAirportHop01.id || journeyAttempt.missionId === journeyDallasSharpshooter01.id || journeyAttempt.missionId === journeyDallas07.id || journeyAttempt.missionId === journeyDallas15.id || journeyAttempt.missionId === journeyDallasCoinHunt01.id || journeyAttempt.missionId === journeyDallas08.id || journeyAttempt.missionId === journeyDallasTwinHunters01.id || journeyAttempt.missionId === journeyDallasTerritoryDefense01.id
+      objective: journeyAttempt.missionId === journeyDallas19.id || journeyAttempt.missionId === journeyDallas23.id || journeyAttempt.missionId === journeyDallas12.id || journeyAttempt.missionId === journeyDallasMostWantedSurvival01.id || journeyAttempt.missionId === journeyDallas18.id || journeyAttempt.missionId === journeyDallas11.id || journeyAttempt.missionId === journeyDallas17.id || journeyAttempt.missionId === journeyDallas10.id || journeyAttempt.missionId === journeyDallasCaptureThree01.id || journeyAttempt.missionId === journeyDallasAceIntercept01.id || journeyAttempt.missionId === journeyDallas06.id || journeyAttempt.missionId === journeyDallas09.id || journeyAttempt.missionId === journeyDallas16.id || journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas14.id || journeyAttempt.missionId === journeyDallasCapture01.id || journeyAttempt.missionId === journeyDallasAirportHop01.id || journeyAttempt.missionId === journeyDallasSharpshooter01.id || journeyAttempt.missionId === journeyDallas07.id || journeyAttempt.missionId === journeyDallas15.id || journeyAttempt.missionId === journeyDallasCoinHunt01.id || journeyAttempt.missionId === journeyDallas08.id || journeyAttempt.missionId === journeyDallasTwinHunters01.id || journeyAttempt.missionId === journeyDallasTerritoryDefense01.id
         ? missionJourneyDetails.find(mission => mission.id === journeyAttempt?.missionId)!.description.split('\n').map(line => `• ${line}`).join('\n')
         : journeyHudObjective?.textContent ?? '',
       progress: flightGateCount ? `${journeyAttempt.missionId === journeyDallas01.id ? 'RING' : 'GATE'} ${journeyAttempt.gateIndex} / ${flightGateCount}` : journeyHudProgress?.textContent ?? '',

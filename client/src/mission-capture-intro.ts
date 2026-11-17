@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-import { captureMissionInstructions, territoryDefenseInstructions } from './mission-journey-content';
+import { captureMissionInstructions, territoryDefenseInstructions, captureThreeInstructions } from './mission-journey-content';
 
 type CaptureTerritory = Readonly<{
   id?: string;
@@ -34,7 +34,7 @@ export class MissionCaptureIntroPath {
   territoryAt(elapsed:number):CaptureTerritory|undefined{return this.sequenceFrames[elapsed<6000?0:elapsed<8000?1:2]?.territory;}
 
   text(elapsed: number): string {
-    if(this.sequence)return elapsed<3000?'CAPTURE 3 TERRITORIES':elapsed<6000?'Three Dallas territories are waiting!':elapsed<9000?'Fly inside each marked territory.':'Capture all three before time runs out!';
+    if(this.sequence)return captureThreeInstructions.join('\n');
     if(this.defense)return territoryDefenseInstructions.join('\n');
     return captureMissionInstructions.join('\n');
   }

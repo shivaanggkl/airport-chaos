@@ -7566,4 +7566,4 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 #game-root .journey-status-layer .journey-battle-card .monster-boss-hud:not(.hidden) { display: grid; grid-template-columns: var(--mission-health-columns); gap: 6px; font: 800 10px/1.1 var(--font-display); }
 #game-root .journey-status-layer .journey-battle-card .monster-boss-hud > strong { min-width: 0; max-width: none; }
 
-#game-root .journey-status-layer .journey-battle-card [data-journey-heading] { white-space: normal; }
+#game-root .journey-status-layer :is(.journey-battle-card, .journey-capture-three) [data-journey-heading] { white-space: normal; }

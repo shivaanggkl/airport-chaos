@@ -456,7 +456,21 @@ export class MissionJourney {
     if (placeholder) {
       this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${stage.number}`;
       this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = stage.title;
-      this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = 'COMING SOON';
+      const objective = this.detail.querySelector<HTMLElement>('[data-mission-objective]')!;
+      const preview = missionJourneyDetails.find(card => card.id === stage.id);
+      objective.textContent = 'COMING SOON';
+      if (preview) {
+        const list = document.createElement('span');
+        list.className = 'mission-journey-instructions';
+        list.setAttribute('role', 'list');
+        for (const line of preview.description.split('\n')) {
+          const item = document.createElement('span');
+          item.setAttribute('role', 'listitem');
+          item.textContent = line;
+          list.append(item);
+        }
+        objective.replaceChildren(list);
+      }
       const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
       play.hidden = false; play.disabled = true; play.textContent = 'COMING SOON';
       this.detail.classList.remove('is-locked');
@@ -471,7 +485,7 @@ export class MissionJourney {
     this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card.title;
     const objective = this.detail.querySelector<HTMLElement>('[data-mission-objective]')!;
     objective.textContent = card.description;
-    if (card.id === 'journey-dallas-territory-defense-01' || card.id === 'journey-dallas-twin-hunters-01' || card.id === 'journey-dallas-08' || card.id === 'journey-dallas-coin-hunt-01' || card.id === 'journey-dallas-05' || card.id === 'journey-dallas-04' || card.id === 'journey-dallas-03' || card.id === 'journey-dallas-01' || card.id === 'journey-dallas-13' || card.id === 'journey-dallas-14' || card.id === 'journey-dallas-15' || card.id === 'journey-dallas-02' || card.id === 'journey-dallas-capture-01' || card.id === 'journey-dallas-airport-hop-01' || card.id === 'journey-dallas-sharpshooter-01' || card.id === 'journey-dallas-07') {
+    if (card.id === 'journey-dallas-19' || card.id === 'journey-dallas-23' || card.id === 'journey-dallas-12' || card.id === 'journey-dallas-18' || card.id === 'journey-dallas-11' || card.id === 'journey-dallas-17' || card.id === 'journey-dallas-10' || card.id === 'journey-dallas-capture-three-01' || card.id === 'journey-dallas-ace-intercept-01' || card.id === 'journey-dallas-06' || card.id === 'journey-dallas-09' || card.id === 'journey-dallas-16' || card.id === 'journey-dallas-territory-defense-01' || card.id === 'journey-dallas-twin-hunters-01' || card.id === 'journey-dallas-08' || card.id === 'journey-dallas-coin-hunt-01' || card.id === 'journey-dallas-05' || card.id === 'journey-dallas-04' || card.id === 'journey-dallas-03' || card.id === 'journey-dallas-01' || card.id === 'journey-dallas-13' || card.id === 'journey-dallas-14' || card.id === 'journey-dallas-15' || card.id === 'journey-dallas-02' || card.id === 'journey-dallas-capture-01' || card.id === 'journey-dallas-airport-hop-01' || card.id === 'journey-dallas-sharpshooter-01' || card.id === 'journey-dallas-07') {
       const list = document.createElement('span');
       list.className = 'mission-journey-instructions';
       list.setAttribute('role', 'list');

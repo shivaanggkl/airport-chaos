@@ -8,6 +8,8 @@ export const territoryDefenseInstructions = [
   'Hold TERRITORY for 1 minute after capturing',
 ] as const;
 
+export const captureThreeInstructions = ['Capture 3 TERRITORIES'] as const;
+
 export const captureMissionInstructions = [
   'Capture 1 TERRITORY before time ends',
 ] as const;
@@ -21,9 +23,9 @@ const missions = [journeyDallasMostWantedSurvival01,journeyDallasCaptureThree01,
 // authoritative Journey attempt handlers. Mission titles, rewards, and clocks
 // always come from the live definitions above.
 const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = {
-  'journey-dallas-most-wanted-survival-01':journeyDallasMostWantedSurvival01.objective,
-  'journey-dallas-capture-three-01': journeyDallasCaptureThree01.objective,
-  'journey-dallas-ace-intercept-01': journeyDallasAceIntercept01.objective,
+  'journey-dallas-most-wanted-survival-01':'Stay alive for 2 minutes to win',
+  'journey-dallas-capture-three-01': captureThreeInstructions.join('\n'),
+  'journey-dallas-ace-intercept-01': 'Take off from airport\nSHOOT down 1 PLANE before time ends',
   'journey-dallas-territory-defense-01': territoryDefenseInstructions.join('\n'),
   'journey-dallas-twin-hunters-01': 'Take off from airport\nSHOOT down 2 PLANES before time ends',
   'journey-dallas-coin-hunt-01': 'Collect as many COINS as possible before time ends',
@@ -35,37 +37,43 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-03': 'Fly through 10 RINGS before time ends',
   'journey-dallas-04': 'Fly through 10 RINGS before time ends',
   'journey-dallas-05': 'Fly through 10 RINGS before time ends',
-  'journey-dallas-06': journeyDallas06.objective,
+  'journey-dallas-06': 'Fly through 10 RINGS before time ends',
   'journey-dallas-07': 'Take off from airport\nSHOOT down 1 GIANT before time ends',
   'journey-dallas-08': 'Take off from airport\nSHOOT down 1 GIANT and 2 PLANES before time ends',
-  'journey-dallas-09': 'Shoot Down the GIANT PLANE And All Three ESCORT Planes Before Time Runs Out.',
-  'journey-dallas-10': 'Shoot Down the GIANT PLANE And All Four ESCORT Planes Before Time Runs Out.',
-  'journey-dallas-11': 'Destroy the GIANT PLANE’s Two WINGS And Its ENGINE Before Time Runs Out.',
-  'journey-dallas-12': 'Shoot Down Both ESCORT Planes And Destroy the GIANT PLANE’s Two WINGS And ENGINE Before Time Runs Out.',
+  'journey-dallas-09': 'Take off from airport\nSHOOT down 1 GIANT and 3 PLANES before time ends',
+  'journey-dallas-10': 'Take off from airport\nSHOOT down 1 GIANT and 4 PLANES before time ends',
+  'journey-dallas-11': 'Take off from airport\nDestroy 2 wings and 1 engine of GIANT before time ends',
+  'journey-dallas-12': 'Take off from airport\nDestroy 2 wings and 1 engine of GIANT\nDestroy 2 PLANES before time ends',
   'journey-dallas-13': 'Take off from airport\nSHOOT down 1 PLANE before time ends',
   'journey-dallas-14': 'Take off from airport\nSHOOT down 1 PLANE before time ends',
   'journey-dallas-15': 'Take off from airport\nSHOOT down 1 PLANE before time ends',
-  'journey-dallas-16': 'SHOOT down both enemy planes before TIME runs out',
-  'journey-dallas-17': 'Find And Shoot Down MAMMOTH, NIGHTOWL And BLUEJAY Planes Before Time Runs Out.',
-  'journey-dallas-18': 'Find And Shoot Down Both FIREHAWKS, NIGHTOWL And BLUEJAY Before Time Runs Out.',
+  'journey-dallas-16': 'Take off from airport\nSHOOT down 2 PLANES before time ends',
+  'journey-dallas-17': 'Take off from airport\nSHOOT down 3 PLANE before time ends',
+  'journey-dallas-18': 'Take off from airport\nSHOOT down 4 PLANES before time ends',
   'journey-dallas-25': 'Destroy The MONSTER Before Time Runs Out.',
-  'journey-dallas-19': 'DEFEAT THE MONSTER',
+  'journey-dallas-19': 'Dr. BOSS is more powerful now\nTake off from airport\nDestroy Dr. BOSS before he destroy city',
   'journey-dallas-20': 'DEFEAT THE MONSTER',
   'journey-dallas-21': 'DEFEAT THE MONSTER',
   'journey-dallas-22': 'DEFEAT THE MONSTER',
-  'journey-dallas-23': 'DEFEAT THE MONSTER',
+  'journey-dallas-23': 'Take off from airport\nDestroy Dr. BOSS before he destroy city',
 };
 
 const formatTimeLimit = (milliseconds: number | undefined): string => milliseconds === undefined
   ? 'NO LIMIT' : `${Math.floor(milliseconds / 60_000)}:${String(Math.floor(milliseconds / 1_000) % 60).padStart(2, '0')}`;
 
-export const missionJourneyDetails = journeyCatalog.filter(slot => slot.implementation === 'playable').map(slot => {
+export const missionJourneyDetails = [...journeyCatalog.filter(slot => slot.implementation === 'playable' || slot.id === journeyDallasMostWantedSurvival01.id).map(slot => {
   const mission = missions.find(mission => mission.id === slot.id)!;
   return {
     id: mission.id,
-    title: mission.id === journeyDallasTwinHunters01.id ? 'BATTLE - 2 PLANES' : mission.id === journeyDallas08.id ? 'BATTLE - 1 GIANT, 2 PLANES' : mission.id === journeyDallasCoinHunt01.id ? 'COLLECT COINS' : mission.id === journeyDallas07.id ? 'BATTLE - 1 GIANT' : mission.id === journeyDallasSharpshooter01.id ? 'TARGETS' : mission.id === journeyDallas01.id || mission.id === journeyDallas02.id || mission.id === journeyDallas03.id || mission.id === journeyDallas04.id || mission.id === journeyDallas05.id ? '10 RINGS' : (mission.id === journeyDallas13.id || mission.id === journeyDallas14.id || mission.id === journeyDallas15.id) ? 'BATTLE - 1 PLANE' : mission.id === journeyDallasCapture01.id || mission.id === journeyDallasTerritoryDefense01.id ? 'TERRITORY' : mission.id === journeyDallasAirportHop01.id ? 'AIRPORT HOP' : slot.title,
+    title: mission.id === journeyDallas19.id || mission.id === journeyDallas23.id ? 'MONSTER - Dr. BOSS' : mission.id === journeyDallas12.id ? 'BATTLE - 1 GIANT (2 wings, 1 engine), 2 PLANES' : mission.id === journeyDallasMostWantedSurvival01.id ? 'SURVIVAL' : mission.id === journeyDallas18.id ? 'BATTLE - 4 PLANES' : mission.id === journeyDallas11.id ? 'BATTLE - 1 GIANT (2 WINGS, 1 ENGINE)' : mission.id === journeyDallas17.id ? 'BATTLE - 3 PLANES' : mission.id === journeyDallas10.id ? 'BATTLE - 1 GIANT, 4 PLANES' : mission.id === journeyDallasCaptureThree01.id ? 'TERRITORY - 3 TERRITORIES' : mission.id === journeyDallasAceIntercept01.id ? 'BATTLE - 1 PLANE' : mission.id === journeyDallas09.id ? 'BATTLE - 1 GIANT, 3 PLANES' : mission.id === journeyDallasTwinHunters01.id || mission.id === journeyDallas16.id ? 'BATTLE - 2 PLANES' : mission.id === journeyDallas08.id ? 'BATTLE - 1 GIANT, 2 PLANES' : mission.id === journeyDallasCoinHunt01.id ? 'COLLECT COINS' : mission.id === journeyDallas07.id ? 'BATTLE - 1 GIANT' : mission.id === journeyDallasSharpshooter01.id ? 'TARGETS' : mission.id === journeyDallas01.id || mission.id === journeyDallas02.id || mission.id === journeyDallas03.id || mission.id === journeyDallas04.id || mission.id === journeyDallas05.id || mission.id === journeyDallas06.id ? '10 RINGS' : (mission.id === journeyDallas13.id || mission.id === journeyDallas14.id || mission.id === journeyDallas15.id) ? 'BATTLE - 1 PLANE' : mission.id === journeyDallasCapture01.id || mission.id === journeyDallasTerritoryDefense01.id ? 'TERRITORY' : mission.id === journeyDallasAirportHop01.id ? 'AIRPORT HOP' : slot.title,
     description: descriptions[mission.id],
     rewardCredits: mission.firstClearCredits,
     timeLimit: formatTimeLimit('timeLimitMs' in mission ? mission.timeLimitMs : undefined),
   };
-});
+}), {
+  id: 'placeholder-dallas-27',
+  title: 'TERRITORY - 6 minutes total',
+  description: 'Capture 3 TERRITORIES\nHold them together for 1 minute',
+  rewardCredits: 0,
+  timeLimit: '6:00',
+}];

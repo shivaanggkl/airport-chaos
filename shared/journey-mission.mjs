@@ -608,8 +608,8 @@ export const journeyCatalog = Object.freeze([
   [17, 'Iron Hunter'],
   [11, 'Armored Giant Plane'],
   [18, 'Final Showdown'],
-  [journeyDallasMostWantedSurvival01.id, 'Most Wanted Survival'],
-  [null, 'Triple Territory Defense'],
+  [journeyDallasMostWantedSurvival01.id, 'SURVIVAL'],
+  [null, 'TERRITORY - 6 minutes total'],
   [12, 'Armored Giant & Two Escorts'],
   [23, 'Monster Pursuit'],
   [19, 'Final Monster Battle'],
@@ -617,7 +617,7 @@ export const journeyCatalog = Object.freeze([
   id: identity === null ? `placeholder-dallas-${String(index + 1).padStart(2, '0')}` : typeof identity === 'string' ? identity : `journey-dallas-${String(identity).padStart(2, '0')}`,
   number: index + 1, title,
   chapter: index < 9 ? 1 : index < 18 ? 2 : index < 28 ? 3 : 4,
-  implementation: identity === null ? 'placeholder' : 'playable',
+  implementation: identity === null || identity === journeyDallasMostWantedSurvival01.id ? 'placeholder' : 'playable',
 })));
 export const journeyMissionOrder = Object.freeze(journeyCatalog.filter(slot => slot.implementation === 'playable').map(slot => slot.id));
 export function journeyMissionSlot(missionId) { return journeyCatalog.find(slot => slot.id === missionId)?.number ?? 0; }
