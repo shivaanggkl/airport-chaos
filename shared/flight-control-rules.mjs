@@ -2,8 +2,8 @@ const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const moveToward=(value,target,amount)=>value<target?Math.min(target,value+amount):Math.max(target,value-amount);
 const interpolate=(from,to,amount)=>from+(to-from)*amount;
 
-export const MOBILE_STICK_X_SMOOTH_SECONDS=.275;
-export const MOBILE_STICK_Y_SMOOTH_SECONDS=.2;
+export const MOBILE_STICK_X_SMOOTH_SECONDS=.33;
+export const MOBILE_STICK_Y_SMOOTH_SECONDS=.24;
 export const COORDINATED_TURN_STRONG_INPUT=.9;
 export const COORDINATED_BANK_STRONG_TARGET=48*Math.PI/180;
 export const COORDINATED_BANK_CAP=70*Math.PI/180;
