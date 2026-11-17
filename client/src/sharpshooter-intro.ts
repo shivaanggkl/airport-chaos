@@ -26,11 +26,31 @@ export class SharpshooterIntro {
   private showPlane=false;
   private lastImpact=-1;
   private radius=0;
-  constructor(private readonly scene:THREE.Scene,private readonly targets:THREE.Vector3[],private readonly targetRadius:number){
+  private readonly projected=new THREE.Vector3();
+  private readonly labels:HTMLElement[]=[];
+  private overlay:HTMLElement|undefined;
+  constructor(private readonly scene:THREE.Scene,private readonly targets:THREE.Vector3[],private readonly targetRadius:number,host?:HTMLElement){
     for(const target of targets)this.center.add(target);
     this.center.multiplyScalar(1/Math.max(1,targets.length));
     for(const target of targets)this.radius=Math.max(this.radius,target.distanceTo(this.center)+targetRadius*1.1);
     this.round.visible=false;scene.add(this.round);
+    if(host && typeof host.append==='function'){
+      this.overlay=document.createElement('div');
+      this.overlay.className='sharpshooter-placement-overview';
+      this.overlay.setAttribute('aria-label',`${targets.length} target positions. Shoot in any order.`);
+      const heading=document.createElement('div');heading.className='sharpshooter-overview-heading';
+      const title=document.createElement('strong');title.textContent='TARGETS';
+      const subtitle=document.createElement('span');subtitle.textContent=`${targets.length} TARGETS · SHOOT IN ANY ORDER`;
+      heading.append(title,subtitle);this.overlay.append(heading);
+      const descriptions=['STRAIGHT AHEAD','LEFT CLIMB','MOVING TARGET','LEFT FLANK','HIGH RIGHT','HIGHEST AHEAD'];
+      for(let index=0;index<targets.length;index++){
+        const label=document.createElement('div');label.className='sharpshooter-placement';
+        const number=document.createElement('b');number.textContent=String(index+1);
+        const caption=document.createElement('span');caption.textContent=descriptions[index]??`TARGET ${index+1}`;
+        label.append(number,caption);this.overlay.append(label);this.labels.push(label);
+      }
+      host.append(this.overlay);
+    }
   }
   sample(elapsed:number,handoff:number,camera:THREE.PerspectiveCamera,aircraft:THREE.Object3D,
     chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3,chaseFov:number,onImpact:(point:THREE.Vector3)=>void,viewportHeight=1080):void {
@@ -40,15 +60,16 @@ export class SharpshooterIntro {
     const t=Math.min(elapsed,11_000);
     const half=THREE.MathUtils.degToRad(chaseFov/2);
     const distance=this.radius/Math.sin(Math.min(half,Math.atan(Math.tan(half)*camera.aspect)))*1.3;
-    // A raised three-quarter sweep reveals the depth and height between the three locations.
+    // A raised three-quarter sweep reveals the depth and height between all target locations.
     this.direction.subVectors(aircraft.position,this.center).normalize();
-    const angle=-.55+.95*Math.min(t/3000,1),x=this.direction.x,z=this.direction.z;
+    const angle=-.35+.7*Math.min(t/11000,1),x=this.direction.x,z=this.direction.z;
     this.direction.set(x*Math.cos(angle)+z*Math.sin(angle),.42,z*Math.cos(angle)-x*Math.sin(angle)).normalize();
     camera.position.copy(this.center).addScaledVector(this.direction,distance);
     this.look.copy(this.center);
-    this.showPlane=t>=3600;
+    this.showPlane=this.targets.length>3?handoff>0:t>=3600;
+    if(this.targets.length>3){this.plane.copy(aircraft.position);this.rotation.copy(aircraft.quaternion);}
     this.round.visible=false;
-    if(t>=3000&&this.targets.length){
+    if(t>=3000&&this.targets.length&&this.targets.length<=3){
       const stage=Math.min(2,Math.floor((t-3000)/2500));
       const target=this.targets[Math.min(stage,this.targets.length-1)]!;
       const phase=THREE.MathUtils.clamp((t-3000-stage*2500)/2500,0,1);
@@ -84,6 +105,15 @@ export class SharpshooterIntro {
     if(this.showPlane){this.plane.lerp(aircraft.position,handoff);this.rotation.slerp(aircraft.quaternion,handoff);}
     camera.position.lerp(chasePosition,handoff);this.look.lerp(chaseTarget,handoff);
     camera.lookAt(this.look);camera.updateMatrixWorld();
+    if(this.overlay){
+      this.overlay.style.opacity=String(1-handoff);
+      for(let index=0;index<this.labels.length;index++){
+        this.projected.copy(this.targets[index]!).project(camera);
+        const label=this.labels[index]!;
+        label.style.left=`${(this.projected.x+1)*50}%`;
+        label.style.top=`${(1-this.projected.y)*50}%`;
+      }
+    }
     if(this.round.visible)fitProjectileRound(this.round,1000,camera,viewportHeight);
   }
   begin(aircraft:THREE.Object3D,getMuzzle:(point:THREE.Vector3)=>void,elapsed:number):void {
@@ -101,5 +131,5 @@ export class SharpshooterIntro {
   end(aircraft:THREE.Object3D):void {
     aircraft.position.copy(this.savedPosition);aircraft.quaternion.copy(this.savedRotation);aircraft.visible=this.savedVisible;aircraft.updateMatrixWorld(true);
   }
-  dispose():void {this.round.removeFromParent();} // Geometry and material belong to the common projectile renderer.
+  dispose():void {this.overlay?.remove();this.round.removeFromParent();} // Geometry and material belong to the common projectile renderer.
 }

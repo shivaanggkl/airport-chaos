@@ -15,7 +15,7 @@ import {journeyDallasSharpshooter01 as mission} from '../../shared/journey-missi
 import {sharpshooterTargetPose} from '../../shared/sharpshooter-target.mjs';
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function freePort(){return new Promise<number>(resolve=>{const s=createServer();s.listen(0,'127.0.0.1',()=>{const port=(s.address() as {port:number}).port;s.close(()=>resolve(port));});});}
-test('live authenticated M08: intro has no deadline; real rounds hit all three private targets, completion and cleanup', {timeout:45000},async()=>{
+test('live authenticated M08: intro has no deadline; real rounds hit all six private targets, completion and cleanup', {timeout:90000},async()=>{
  const directory=mkdtempSync(join(tmpdir(),'sharp-live-')),path=join(directory,'profiles.sqlite');
  const sessions=new PilotSessionStore(path),identity=sessions.issue(undefined,false);
  const profiles=new PlayerProfileStore(path);profiles.getOrCreate(identity.pilotId,'Pilot');
@@ -34,23 +34,30 @@ test('live authenticated M08: intro has no deadline; real rounds hit all three p
   socket.on('message',b=>packets.push(JSON.parse(String(b))));
   const welcome=await wait(p=>p.type==='welcome');assert.ok(welcome.airborneSpawn);
   const approach=await wait(p=>p.type==='journeyAttempt'&&p.attempt.status==='APPROACH');assert.equal(approach.attempt.deadlineAt,null);
-  const position=welcome.airborneSpawn.position;let heading=welcome.airborneSpawn.heading,pitch=0,sequence=0;
+  const position=welcome.airborneSpawn.position;let velocity={x:0,y:0,z:0};let heading=welcome.airborneSpawn.heading,pitch=0,sequence=0;
   const send=(message:any)=>socket!.send(JSON.stringify(message));
-  const state=()=>send({type:'state',position,rotation:{x:pitch,y:heading,z:0},aircraftType:'trainer',stateSequence:++sequence,velocity:{x:0,y:0,z:0}});
+  const state=()=>send({type:'state',position,rotation:{x:pitch,y:heading,z:0},aircraftType:'trainer',stateSequence:++sequence,velocity});
   heartbeat=setInterval(state,50);state();
   send({type:'journeyCountdownComplete',attemptId:attempt.attemptId});
   const racing=await wait(p=>p.type==='journeyAttempt'&&p.attempt.status==='RACING');assert.equal(racing.attempt.deadlineAt-racing.attempt.startedAt,180000);
-  assert.equal(racing.attempt.sharpshooter.targets.length,3);
-  for(const [count,stage]of [2,0,1].entries()){
+  assert.equal(racing.attempt.sharpshooter.targets.length,6);
+  for(const [count,stage]of [2,0,4,1,5,3].entries()){
    const current=await wait(p=>p.type==='journeyAttempt'&&p.attempt.sharpshooter?.destroyed===count&&p.attempt.status==='RACING');
    const t=current.attempt.sharpshooter.targets.find((t:any)=>t.stage===stage);
    // Turn through accepted states; no teleport or client hit/completion event.
-   const desired=t.heading,desiredPitch=Math.atan2(t.y-position.y,Math.hypot(t.x-position.x,t.z-position.z));
+   const desired=Math.atan2(-(t.x-position.x),-(t.z-position.z)),desiredPitch=Math.atan2(t.y-position.y,Math.hypot(t.x-position.x,t.z-position.z));
    while(Math.abs(desired-heading)>.015||Math.abs(desiredPitch-pitch)>.015){
     heading+=Math.max(-.015,Math.min(.015,desired-heading));
     pitch+=Math.max(-.015,Math.min(.015,desiredPitch-pitch));state();await sleep(30);
    }heading=desired;pitch=desiredPitch;state();
-   await sleep(100);
+   // The farther targets require normal flight into the unchanged 6 km weapon range.
+   while(Math.hypot(t.x-position.x,t.y-position.y,t.z-position.z)>4500){
+    const dx=t.x-position.x,dy=t.y-position.y,dz=t.z-position.z,length=Math.hypot(dx,dy,dz);
+    velocity={x:dx/length*500,y:dy/length*500,z:dz/length*500};
+    position.x+=velocity.x*.05;position.y+=velocity.y*.05;position.z+=velocity.z*.05;
+    state();await sleep(50);
+   }
+   velocity={x:0,y:0,z:0};state();await sleep(100);
    for(let round=0;round<18;round++){
     const pose=sharpshooterTargetPose(t,Date.now()-racing.attempt.startedAt,{x:0,y:0,z:0});
     heading=Math.atan2(-(pose.x-position.x),-(pose.z-position.z));

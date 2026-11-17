@@ -1,6 +1,6 @@
 import type { SharpshooterTarget } from '../../shared/sharpshooter-target.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { sharpshooterTargetPose } from '../../shared/sharpshooter-target.mjs';
+import { sharpshooterPlacements, sharpshooterTargetPose } from '../../shared/sharpshooter-target.mjs';
 import { journeyDallasSharpshooter01 as mission } from '../../shared/journey-mission.mjs';
 
 type Point = {x:number;y:number;z:number};
@@ -8,17 +8,17 @@ const current:Point={x:0,y:0,z:0},previous:Point={x:0,y:0,z:0},velocity:Point={x
 /** All arguments originate from the server-accepted pilot transform. */
 export function createSharpshooterTarget(stage:number, position:Point, heading:number, elapsedMs:number,
   clearanceAt:(x:number,z:number)=>number):SharpshooterTarget {
-  if (![position.x,position.y,position.z,heading,elapsedMs].every(Number.isFinite) || stage<0 || stage>2 || !Number.isInteger(stage))
+  if (![position.x,position.y,position.z,heading,elapsedMs].every(Number.isFinite) || stage<0 || stage>=mission.targetCount || !Number.isInteger(stage))
     throw new Error('Invalid sharpshooter stage');
-  // Separate locations and heights form a broad triangle rather than a row.
-  const angle=heading+(stage===1?Math.PI*35/180:stage===2?-Math.PI*40/180:0);
-  const distance=stage===0?2200:stage===1?3900:5000;
+  const placement=sharpshooterPlacements[stage]!;
+  const angle=heading+placement.angleDegrees*Math.PI/180;
+  const distance=placement.distance;
   const x=position.x-Math.sin(angle)*distance,z=position.z-Math.cos(angle)*distance;
   // Include the complete moving sweep and circular face, not only its center.
   let floor=-Infinity;
   for(const offset of [-370,0,370])for(const cross of [-220,0,220])
     floor=Math.max(floor,clearanceAt(x+Math.cos(angle)*offset-Math.sin(angle)*cross,z-Math.sin(angle)*offset-Math.cos(angle)*cross));
-  return {stage,x,y:Math.max(position.y+stage*500,floor+mission.targetRadius+150),z,heading:angle,activatedAt:elapsedMs};
+  return {stage,x,y:Math.max(position.y+placement.altitude,floor+mission.targetRadius+150),z,heading:angle,activatedAt:elapsedMs};
 }
 
 /** Existing swept solver rejects misses; the face-plane contact then matches

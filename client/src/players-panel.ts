@@ -91,6 +91,7 @@ export type CityTerritoryEntry = {
   captureProgress?: number;
   /** Optional mission presentation; never changes territory ownership. */
   statusLabel?: string;
+  captured?: boolean;
 };
 
 /** Displays server-owned territory state without changing the shared card size. */
@@ -135,6 +136,10 @@ export class CityTerritoriesPanel {
       slot.row.hidden = !territory;
       if (!territory) continue;
       if (slot.name.textContent !== territory.name) slot.name.textContent = territory.name;
+      const captured = online && territory.captured === true;
+      slot.row.classList.toggle('mission-owned', captured);
+      const mark = captured ? '✓' : '';
+      if (slot.dot.textContent !== mark) slot.dot.textContent = mark;
       if (slot.dot.dataset.color !== territory.color) {
         slot.dot.style.backgroundColor = territory.color;
         slot.dot.dataset.color = territory.color;

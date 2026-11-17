@@ -14,8 +14,8 @@ test('every current mission gets a concise useful HUD objective', () => {
     assert.doesNotMatch(objective, /\n/);
   }
   assert.equal(missionHudObjective(mission('first-flight')), 'Stay airborne for 60 seconds');
-  assert.equal(missionHudObjective(mission('first-landing')), 'Land at METRO CENTRAL AIRPORT');
-  assert.equal(missionHudObjective(mission('three-territory-offensive')), 'Own South Metro, Canal District, and Central District together');
+  assert.equal(missionHudObjective(mission('first-landing')), 'Land at LOVE FIELD AIRPORT');
+  assert.equal(missionHudObjective(mission('three-territory-offensive')), 'Own 3 territories and hold');
   assert.equal(missionHudObjective(mission('dallas-grand-tour')), 'Complete all 11 tour steps');
 });
 

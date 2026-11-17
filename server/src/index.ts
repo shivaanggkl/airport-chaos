@@ -3243,7 +3243,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
     (attempt.status==='APPROACH'||attempt.status==='RACING')) {
     const legacyTarget=(attempt.sharpshooter as {target?:ReturnType<typeof createSharpshooterTarget>}|null)?.target;
     attempt=journeyStore.prepareSharpshooter(attempt.pilotId,attempt.attemptId,
-      Array.from({length:3},(_,stage)=>legacyTarget?.stage===stage?legacyTarget:createSharpshooterTarget(stage,sharpPilot.position,sharpPilot.rotation.y,0,sharpshooterClearanceAt))
+      Array.from({length:journeyDallasSharpshooter01.targetCount},(_,stage)=>legacyTarget?.stage===stage?legacyTarget:createSharpshooterTarget(stage,sharpPilot.position,sharpPilot.rotation.y,0,sharpshooterClearanceAt))
         .filter(target=>target.stage>=(attempt.sharpshooter?.destroyed??0))) ?? attempt;
   }
   if (attempt.status === 'COMPLETED' || attempt.status === 'FAILED' || attempt.status === 'ABANDONED')

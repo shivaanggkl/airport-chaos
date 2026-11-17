@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import * as THREE from 'three';
 import { journeyDallasSharpshooter01 as mission, journeyCatalog, journeyDallas08 } from '../../shared/journey-mission.mjs';
-import { sharpshooterTargetPose } from '../../shared/sharpshooter-target.mjs';
+import { sharpshooterPlacements, sharpshooterTargetPose } from '../../shared/sharpshooter-target.mjs';
 import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { createSharpshooterTarget, sharpshooterHitFraction } from './sharpshooter-target.js';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
@@ -23,7 +23,7 @@ function fixture(){
  const profiles=new PlayerProfileStore(path);profiles.getOrCreate('pilot','Pilot');profiles.getOrCreate('other','Other');
  const store=new JourneyAttemptStore(path,true),db=new DatabaseSync(path),now=Date.now();
  const start=(aircraft='trainer')=>{const a=store.launch('pilot',aircraft,now,mission.id);
-   store.approach('pilot',a.attemptId,now+1);store.prepareSharpshooter('pilot',a.attemptId,[target(0),target(1),target(2)]);
+   store.approach('pilot',a.attemptId,now+1);store.prepareSharpshooter('pilot',a.attemptId,Array.from({length:mission.targetCount},(_,stage)=>target(stage)));
    return store.startSharpshooter('pilot',a.attemptId,now+15_000)!;};
  return {path,store,db,now,start,close(){db.close();rmSync(dir,{recursive:true,force:true});}};
 }
@@ -33,16 +33,16 @@ test('M08 activates only its unique slot; all aircraft spawn safely, no opponent
   const a=f.store.launch('pilot',aircraft,f.now,mission.id),approach=f.store.approach('pilot',a.attemptId,f.now+1)!;
   assert.equal(approach.deadlineAt,null);assert.equal(f.store.startSharpshooter('pilot',a.attemptId),undefined);
   const spawn=authorizedJourneyAirborneSpawn(approach,mission,()=>123)!;assert.equal(spawn.position.y,923);
-  f.store.prepareSharpshooter('pilot',a.attemptId,[target(0),target(1),target(2)]);
+  f.store.prepareSharpshooter('pilot',a.attemptId,Array.from({length:mission.targetCount},(_,stage)=>target(stage)));
   const race=f.store.startSharpshooter('pilot',a.attemptId,f.now+15_000)!;
   assert.equal(race.deadlineAt! - race.startedAt!,180_000);assert.equal(missionFocusForAttempt(race)!.showAmbientAIAircraft,false);
  }}finally{f.close();}
 });
 test('separated target locations and heights, safe clearance, moving sweep and real swept face hits',()=>{
- for(let stage=0;stage<3;stage++){
-  const t=target(stage,1000);assert.ok(Math.abs(Math.hypot(t.x,t.z)-([2200,3900,5000][stage]!))<1e-9);
-  assert.equal(t.heading,stage===1?Math.PI*35/180:stage===2?-Math.PI*40/180:0);
-  assert.equal(t.y,position.y+stage*500);
+ for(let stage=0;stage<mission.targetCount;stage++){
+  const t=target(stage,1000);assert.ok(Math.abs(Math.hypot(t.x,t.z)-([2200,3900,5000,5200,6500,8500][stage]!))<1e-9);
+  assert.equal(t.heading,[0,35,-40,65,-65,0][stage]!*Math.PI/180);
+  assert.equal(t.y,position.y+[0,500,1000,300,1400,1800][stage]!);
   const center=sharpshooterTargetPose(t,1000,{...position});
   const end={x:center.x*1.1,y:position.y+(center.y-position.y)*1.1,z:center.z*1.1};
   assert.notEqual(sharpshooterHitFraction(t,stage,position,end,1000,.05,position),null);
@@ -54,27 +54,45 @@ test('separated target locations and heights, safe clearance, moving sweep and r
  assert.ok(Math.abs(Math.hypot(sharpshooterTargetPose(t,7000,p).x-t.x,p.z-t.z)-150)<1e-8);
  assert.deepEqual(sharpshooterTargetPose(t,9000,p),sharpshooterTargetPose(t,1000,{...position}));
  assert.equal(mission.targetRadius,220);
+ assert.equal(sharpshooterPlacements.length,mission.targetCount);
+ assert.throws(()=>target(6));
+ assert.throws(()=>target(-1));
+ for(const stage of [3,4,5]) assert.deepEqual(sharpshooterTargetPose(target(stage),9000,{...position}),sharpshooterTargetPose(target(stage),0,{...position}));
  assert.equal(createSharpshooterTarget(0,position,0,0,()=>1000).y,1370);
  // A segment inside the old invisible sphere but never reaching the face is a miss.
  const first=target();assert.equal(sharpshooterHitFraction(first,0,{x:0,y:800,z:-1700},{x:0,y:800,z:-1750},0,.05,position),null);
 });
-test('three physical contacts in any order advance once, persist across reopen, and award exactly 800 once',()=>{
+test('six physical contacts in any order advance once, persist across reopen, and award exactly 800 once',()=>{
  const f=fixture();try{
-  const a=f.start();assert.equal(a.sharpshooter!.targets.length,3);let store=f.store;
-  for(const [count,stage]of [2,0,1].entries()){
+  const a=f.start();assert.equal(a.sharpshooter!.targets.length,6);let store=f.store;
+  for(const [count,stage]of [2,0,4,1,5,3].entries()){
    const current=store.get('pilot',a.attemptId)!,t=current.sharpshooter!.targets.find(t=>t.stage===stage)!;
    const end={x:t.x*1.1,y:t.y,z:t.z*1.1};
    assert.notEqual(sharpshooterHitFraction(t,stage,position,end,stage*1000,.05,position),null);
    assert.equal(store.hitSharpshooter('other',a.attemptId,stage,f.now+16_000+stage*1000),undefined);
    const advanced=store.hitSharpshooter('pilot',a.attemptId,stage,f.now+16_000+stage*1000)!;
    assert.equal(advanced.sharpshooter!.destroyed,count+1);
+   assert.equal(advanced.status,count===5?'COMPLETED':'RACING');
    assert.equal(store.hitSharpshooter('pilot',a.attemptId,stage,f.now+16_000+stage*1000),undefined);
    store=new JourneyAttemptStore(f.path,true);assert.equal(store.get('pilot',a.attemptId)!.sharpshooter!.destroyed,count+1);
   }
   const end=store.get('pilot',a.attemptId)!;assert.equal(end.status,'COMPLETED');assert.equal(end.firstClearCredits,800);assert.deepEqual(end.sharpshooter!.targets,[]);
-  const replay=f.start();for(let stage=0;stage<3;stage++)f.store.hitSharpshooter('pilot',replay.attemptId,stage,f.now+16_000+stage*1000);
+  const replay=f.start();for(let stage=0;stage<mission.targetCount;stage++)f.store.hitSharpshooter('pilot',replay.attemptId,stage,f.now+16_000+stage*1000);
   assert.equal(f.store.get('pilot',replay.attemptId)!.firstClearCredits,0);
   assert.equal(f.db.prepare('SELECT count(*) AS n FROM wallet_transactions WHERE idempotency_key=?').get(`journey:${mission.id}`)!.n,1);
+ }finally{f.close();}
+});
+test('saved three-target attempts finish without recreating targets or losing earned progress',()=>{
+ const f=fixture();try{
+  const a=f.start();
+  f.db.prepare('UPDATE journey_attempts SET sharpshooter_state=? WHERE attempt_id=?')
+   .run(JSON.stringify({destroyed:1,targets:[target(1),target(2)]}),a.attemptId);
+  const reopened=new JourneyAttemptStore(f.path,true);
+  assert.equal(reopened.hitSharpshooter('pilot',a.attemptId,2,f.now+16000)!.status,'RACING');
+  const completed=reopened.hitSharpshooter('pilot',a.attemptId,1,f.now+17000)!;
+  assert.equal(completed.status,'COMPLETED');assert.equal(completed.sharpshooter!.destroyed,3);
+  assert.equal(completed.firstClearCredits,800);
+  assert.equal(reopened.hitSharpshooter('pilot',a.attemptId,1,f.now+18000),undefined);
  }finally{f.close();}
 });
 test('pause, timeout, retry, abandon and verified continuation preserve only legitimate stage',()=>{
@@ -92,7 +110,7 @@ test('pause, timeout, retry, abandon and verified continuation preserve only leg
   const ad=ads.createAttempt('pilot','android',at+1201,`${id}:${at+1200}`);assert.ok(ad.ok);if(!ad.ok)throw Error('ad unavailable');
   assert.equal(ads.grantVerifiedReward({adUnit:adUnitId,customData:ad.attempt.attemptId,rewardAmount:'1',rewardItem:'reward',timestamp:at+1202,transactionId:'sharp-ad'},at+1202).rewarded,true);
   const continued=f.store.continueAfterAd('pilot',id,ad.attempt.attemptId,at+1203)!;
-  assert.equal(continued.sharpshooter!.destroyed,1);assert.equal(continued.sharpshooter!.targets.length,2);
+  assert.equal(continued.sharpshooter!.destroyed,1);assert.equal(continued.sharpshooter!.targets.length,5);
   assert.ok(continued.deadlineAt!-(at+1203)<=180_000);
   const retry=f.start();assert.equal(retry.sharpshooter!.destroyed,0);f.store.abandon('pilot',retry.attemptId);
   assert.equal(f.store.hitSharpshooter('pilot',retry.attemptId,0,at+1300),undefined);
@@ -102,7 +120,7 @@ test('one reusable target, both faces, deterministic motion, clean resource disp
  const scene=new THREE.Scene(),view=new SharpshooterTargetView(scene),pilot=new THREE.Vector3(0,800,0);
  const meshes=[...view.root.children] as THREE.Mesh[],geometries=new Set(meshes.map(m=>m.geometry)),materials=new Set(meshes.map(m=>m.material));
  let disposed=0;for(const g of geometries)g.addEventListener('dispose',()=>disposed++);
- for(let stage=0;stage<3;stage++){view.update(target(stage),2000,pilot);assert.equal(scene.children.length,1);assert.deepEqual(new Set((view.root.children as THREE.Mesh[]).map(m=>m.geometry)),geometries);}
+ for(let stage=0;stage<mission.targetCount;stage++){view.update(target(stage),2000,pilot);assert.equal(scene.children.length,1);assert.deepEqual(new Set((view.root.children as THREE.Mesh[]).map(m=>m.geometry)),geometries);}
  assert.equal(geometries.size,7);assert.equal(materials.size,7);assert.equal(meshes.length,12);
  const second=new SharpshooterTargetView(scene),third=new SharpshooterTargetView(scene);
  assert.deepEqual(new Set((second.root.children as THREE.Mesh[]).map(m=>m.geometry)),geometries);
@@ -110,14 +128,14 @@ test('one reusable target, both faces, deterministic motion, clean resource disp
  third.dispose();assert.equal(disposed,7);assert.equal(scene.children.length,0);
 });
 
-test('production intro frames all three targets with steady instructions and restores chase on finish or skip',async()=>{
+test('production intro frames all six targets with steady instructions and restores chase on finish or skip',async()=>{
  const {createContext,runInContext}=await import('node:vm'),ts=await import('typescript');
  const source=readFileSync('client/src/main.ts','utf8');
  const start=source.indexOf('function applyFlightLaunchCamera('),end=source.indexOf('  if (missionAirportHopIntro)',start);
  const branch=source.slice(start,end)+'return false;\n}';
  const classes=new Set<string>(),title:any={firstElementChild:{textContent:''},replaceChildren(e:any){this.firstElementChild=e;},classList:{toggle(){}}};
  let now=0,handoffs=0;
- const views=new Map([0,1,2].map(stage=>{const t=target(stage);return [t.x,t.y,t.z];}).map((p,i)=>[i,{root:{position:new THREE.Vector3(...p)}}]));
+ const views=new Map(Array.from({length:mission.targetCount},(_,stage)=>stage).map(stage=>{const t=target(stage);return [t.x,t.y,t.z];}).map((p,i)=>[i,{root:{position:new THREE.Vector3(...p)}}]));
  const context=createContext({THREE,SharpshooterIntro,scene:new THREE.Scene(),sharpshooterIntroPresentation:undefined,
   impactFlashes:[],impactFlashPool:[],spawnFlash(){},window:{innerHeight:1080},
   sharpshooterViews:views,journeyDallasSharpshooter01:mission,flightLaunchState:'active',missionCoinHuntIntro:false,missionSharpshooterIntro:true,missionOneIntroPath:null,
@@ -129,10 +147,10 @@ test('production intro frames all three targets with steady instructions and res
   completeFlightLaunchCinematic(){handoffs++;context.flightLaunchState='complete';classes.clear();},
   chasePosition:new THREE.Vector3(0,810,100),chaseTarget:new THREE.Vector3(0,800,-100)});
  runInContext(ts.transpileModule(branch,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
- for(const aspect of [16/9,9/16])for(const time of [0,500,2500]){
+ for(const aspect of [16/9,9/16])for(const time of [0,500,2500,7000,10500]){
   context.camera.aspect=aspect;context.camera.updateProjectionMatrix();
   now=time;runInContext('applyFlightLaunchCamera(chasePosition,chaseTarget,60)',context);
-  assert.equal(title.firstElementChild.textContent,'Aim, lock and shoot all 3 targets in any order before time runs out.');
+  assert.equal(title.firstElementChild.textContent,'• SHOOT down 6 TARGETS');
   assert.equal(classes.has('sharpshooter-intro'),true);
   context.camera.updateMatrixWorld();
   for(const view of views.values())for(const dx of [-229,229])for(const dy of [-229,229]){

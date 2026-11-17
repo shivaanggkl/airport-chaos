@@ -35,14 +35,30 @@ export class AirportHopIntro {
       svg.append(leg); this.legs.push(leg);
     }
     this.overlay.append(svg);
-    const actions = ['TAKE OFF', 'LAND · TAKE OFF AGAIN', 'LAND · FINISH'];
+    const actions = ['TAKE OFF', 'LAND', 'LAND + FINISH'];
+    const route = document.createElement('div');
+    route.className = 'airport-hop-route-summary';
+    const heading = document.createElement('strong');
+    heading.className = 'airport-hop-route-heading';
+    heading.textContent = 'MISSION ROUTE';
+    route.append(heading);
     for (const [index, id] of ['dfw', 'love', 'addison'].entries()) {
       const label = document.createElement('div'); label.className = 'airport-hop-stop';
       const number = document.createElement('b'); number.className = 'airport-hop-number'; number.textContent = String(index + 1);
-      const name = document.createElement('strong'); name.textContent = airports.find(item => item.id === id)!.name;
+      const name = document.createElement('strong'); name.textContent = airports.find(item => item.id === id)!.name.toUpperCase();
       const action = document.createElement('span'); action.textContent = actions[index];
       label.append(number, name, action); this.overlay.append(label); this.labels.push(label);
+      const step = document.createElement('div');
+      step.className = 'airport-hop-route-step';
+      step.append(number.cloneNode(true), name.cloneNode(true), action.cloneNode(true));
+      if (index > 0) {
+        const arrow = document.createElement('span');
+        arrow.className = 'airport-hop-route-arrow'; arrow.textContent = '→';
+        arrow.setAttribute('aria-hidden', 'true'); route.append(arrow);
+      }
+      route.append(step);
     }
+    this.overlay.append(route);
     host.append(this.overlay);
   }
 
