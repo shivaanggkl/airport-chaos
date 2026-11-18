@@ -13,17 +13,28 @@ export function newCaptureCompetition(opponents: CaptureOpponent[], now: number)
   return { territories: mission.territoryIds.map(id => ({id, captureMs:0, contested:false})), opponents, updatedAt:now };
 }
 
+/** A defeated challenger loses its attempt, never somebody else's ownership. */
+export function releaseCaptureActor(state: CaptureCompetition, actorId: string): void {
+  for (const territory of state.territories) {
+    if (territory.ownerId === actorId) {
+      territory.ownerId = undefined;
+      territory.capturingId = undefined; territory.captureMs = 0; territory.contested = false;
+    } else if (territory.capturingId === actorId) {
+      territory.capturingId = undefined; territory.captureMs = 0; territory.contested = false;
+    }
+  }
+}
+
 /** Eligibility and actor identity come exclusively from accepted server state. */
 export function advanceCaptureCompetition(state: CaptureCompetition, actors: readonly CaptureActor[], now: number): void {
   const elapsed = now - state.updatedAt;
   const delta = elapsed > 0 && elapsed <= 800 ? Math.min(400, elapsed) : 0;
   state.updatedAt = now;
+  // Absence (outside this territory or a transient missing update) is not a defeat.
+  for (const actor of actors) if (!actor.alive) releaseCaptureActor(state, actor.id);
   for (const territory of state.territories) {
-    if (territory.ownerId && !actors.some(actor => actor.id === territory.ownerId && actor.alive)) {
-      territory.ownerId = undefined; territory.capturingId = undefined; territory.captureMs = 0;
-    }
     const contenders = actors.filter(actor => actor.alive && actor.territoryId === territory.id && actor.id !== territory.ownerId);
-    territory.contested = contenders.length > 1;
+    territory.contested = contenders.length > 1 || Boolean(territory.ownerId && contenders.length);
     // Missing/stalled updates cannot award time or erase accepted progress.
     if (!delta) continue;
     if (contenders.length !== 1) {
@@ -39,7 +50,7 @@ export function advanceCaptureCompetition(state: CaptureCompetition, actors: rea
     const defending = actors.some(actor => actor.id === territory.ownerId && actor.alive && actor.territoryId === territory.id);
     territory.captureMs = Math.min(mission.captureDurationMs * (defending ? .95 : 1), territory.captureMs + delta);
     if (territory.captureMs >= mission.captureDurationMs) {
-      territory.ownerId = contender.id; territory.capturingId = undefined; territory.captureMs = 0;
+      territory.ownerId = contender.id; territory.capturingId = undefined; territory.captureMs = 0; territory.contested = false;
     }
   }
 }
