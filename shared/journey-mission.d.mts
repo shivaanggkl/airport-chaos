@@ -255,6 +255,7 @@ export const journeyDallasAceIntercept01: Readonly<{
 
 export const journeyDallasCaptureThree01: Readonly<{
   id: 'journey-dallas-capture-three-01'; cityId: 'dallas'; name: 'CAPTURE 3 TERRITORIES';
+  runwayStart: true; startAirportId: 'dfw';
   chapter: 'SKY COMMANDER'; difficulty: 'HARD'; timeLimitMs: 240000; firstClearCredits: 2250;
   objective: 'Capture all 3 marked territories before time runs out!'; captureDurationMs: 15000;
   territoryIds: readonly ['las-colinas','love-field','downtown'];

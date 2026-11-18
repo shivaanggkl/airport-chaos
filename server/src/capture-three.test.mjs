@@ -40,7 +40,12 @@ test('M21 uses only its new slot, authoritative geometry, prescribed spawn and M
  assert.equal(mission.timeLimitMs,240000);assert.equal(mission.firstClearCredits,2250);assert.equal(mission.captureDurationMs,15000);
  assert.deepEqual(mission.territoryIds,['las-colinas','love-field','downtown']);
  assert.deepEqual(mission.territoryIds.map(id=>territories.find(t=>t.id===id).center),[{x:-40500,z:-28050},{x:-15420,z:-23340},{x:-1800,z:-1350}]);
- assert.deepEqual(authorizedJourneyAirborneSpawn({missionId:mission.id,status:'APPROACH'},mission,()=>100),{position:{x:-58000,y:1000,z:-28050},heading:-Math.PI/2,speed:650});
+ assert.equal(mission.runwayStart,true);assert.equal(mission.startAirportId,'dfw');
+ assert.equal(authorizedJourneyAirborneSpawn({missionId:mission.id,status:'APPROACH'},mission,()=>100),undefined);
+ const start=source.indexOf('  const spawnAirportId ='),end=source.indexOf('  // All six Golden Gates',start);
+ const context=vm.createContext({...catalog,journeyAttempt:{missionId:mission.id,status:'APPROACH'},soloExploreMode:false});
+ vm.runInContext(source.slice(start,end)+'\nglobalThis.spawnAirport=spawnAirportId;',context);
+ assert.equal(context.spawnAirport,'dfw');
  assert.equal(journeyCaptureTerritoryId(mission.id,3),undefined);assert.equal(missionFocusForAttempt({missionId:mission.id,status:'RACING'}).showAmbientAIAircraft,false);
  const f=fixture(false);try{
   assert.equal(f.store.canAccessMission('pilot',mission.id),false);
@@ -82,9 +87,10 @@ test('production coordinator uses only accepted flight inside the current real b
  // The western interior starts capture even though it is far from the navigation center.
  pilot.position=pilot.lastAcceptedPosition={x:active.bounds.minX+100,z:active.center.z,y:1000};
  assert.equal(tick().captureMs,400);
- for(const invalidate of [()=>pilot.velocity.x=0,()=>ctx.landingFlightState.set('owner',{airborne:false}),()=>pilot.lifeState='destroyed',()=>pilot.journeyDefenseRejectedAt=clock+1000]){
+ for(const invalidate of [()=>pilot.velocity.x=0,()=>ctx.landingFlightState.set('owner',{airborne:false}),()=>pilot.lifeState='destroyed']){
   invalidate();assert.equal(tick().captureMs,0);pilot.velocity.x=650;pilot.lifeState='alive';pilot.journeyDefenseRejectedAt=0;ctx.landingFlightState.set('owner',{airborne:true});tick();
  }
+ const beforeRejected=f.store.get('pilot',a.attemptId).captureMs;pilot.journeyDefenseRejectedAt=clock+1000;assert.equal(tick().captureMs,beforeRejected,'unaccepted updates pause rather than erase accepted progress');pilot.journeyDefenseRejectedAt=0;
  ctx.pausedJourneyAttempts.add(a.attemptId);const before=f.store.get('pilot',a.attemptId).captureMs;tick();assert.equal(f.store.get('pilot',a.attemptId).captureMs,before);
  const tables=f.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%territor%' AND name NOT LIKE 'journey%'").all();
  for(const {name} of tables)assert.equal(f.db.prepare(`SELECT COUNT(*) AS n FROM "${name}"`).get().n,0,'mission cannot create multiplayer ownership');
