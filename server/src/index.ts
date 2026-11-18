@@ -1,4 +1,4 @@
-import { advanceCaptureCompetition, newCaptureCompetition, type CaptureCompetition, type CaptureOpponent } from './capture-competition.js';
+import { advanceCaptureCompetition, newCaptureCompetition, releaseCaptureActor, type CaptureCompetition, type CaptureOpponent } from './capture-competition.js';
 import { defeatSurvivalHunter, insideSurvivalArea, survivalOutcome, survivalReplacement, survivalSteering, type SurvivalHunter, type SurvivalState } from './most-wanted-survival.js';
 import { aceInterceptDistance, insideAceInterceptAirspace, updateAceIntercept, type AceInterceptState } from './ace-intercept.js';
 import { dallasCoinTrail } from '../../shared/collectible-trail.mjs';
@@ -6166,9 +6166,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     const enemy = state?.opponents[victim.bot.journeyCaptureSlot];
     if (enemy) {
       enemy.health=victim.health;
-      if (victim.health===0) for(const territory of state!.territories) if(territory.ownerId===victimId) {
-        territory.ownerId=undefined;territory.capturingId=undefined;territory.captureMs=0;territory.contested=false;
-      }
+      if (victim.health===0) releaseCaptureActor(state!,victimId);
       checkpointJourneyCapture(victim.bot.journeyTargetPlayerId,victim.bot.journeyAttemptId,now);
     }
   }

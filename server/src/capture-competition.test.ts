@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import vm from 'node:vm';
 import ts from 'typescript';
-import {newCaptureCompetition,advanceCaptureCompetition,captureCompetitionOwned,type CaptureOpponent} from './capture-competition.ts';
+import {newCaptureCompetition,advanceCaptureCompetition,captureCompetitionOwned,releaseCaptureActor,type CaptureOpponent} from './capture-competition.ts';
 import {JourneyAttemptStore} from './journey-attempts.ts';
 import {PlayerProfileStore} from './player-profiles.ts';
 import {journeyDallasCaptureThree01 as mission} from '../../shared/journey-mission.mjs';
@@ -199,4 +199,41 @@ test('production M21 capture covers all territory edges and corners at low and h
  now+=1600;player.lastStateAt=player.lastAcceptedTransformAt=now;player.lastAcceptedPosition.x=inside.bounds.minX-1;
  context.updateCompetitiveCapture('owner',player,attempt,now);
  assert.equal(state.territories[0]!.captureMs,0);
+});
+
+
+test('an interrupted challenge returns to its existing owner, whether the challenger leaves or is defeated',()=>{
+ for(const interruptedBy of ['departure','defeat'] as const){
+  const state=newCaptureCompetition([],0),id='las-colinas';
+  ticks(state,[actor('pilot',id)]);
+  ticks(state,[actor('pilot'),actor('challenger',id)],20);
+  const territory=state.territories[0]!;
+  assert.equal(territory.ownerId,'pilot');assert.equal(territory.contested,true);assert.equal(territory.captureMs,8000);
+  if(interruptedBy==='defeat')releaseCaptureActor(state,'challenger');
+  advanceCaptureCompetition(state,[actor('pilot',id),actor('challenger',undefined,interruptedBy!=='defeat')],state.updatedAt+400);
+  assert.equal(territory.ownerId,'pilot');assert.equal(territory.contested,false);
+  assert.equal(territory.capturingId,undefined);assert.equal(territory.captureMs,0);
+  assert.equal(captureCompetitionOwned(state),1);
+ }
+});
+test('an absent owner retains the territory through a contested tick and challenger departure',()=>{
+ const state=newCaptureCompetition([],0),id='love-field';
+ ticks(state,[actor('pilot',id)]);
+ advanceCaptureCompetition(state,[actor('challenger',id)],state.updatedAt+400);
+ const territory=state.territories[1]!;
+ assert.equal(territory.ownerId,'pilot');assert.equal(territory.contested,true);
+ advanceCaptureCompetition(state,[],state.updatedAt+400);
+ assert.equal(territory.ownerId,'pilot');assert.equal(territory.contested,false);
+ assert.equal(territory.captureMs,0);
+});
+test('ownership transfers only at full capture, with no intermediate unassigned state',()=>{
+ const state=newCaptureCompetition([],0),id='downtown';
+ ticks(state,[actor('pilot',id)]);
+ const territory=state.territories[2]!;
+ for(let tick=1;tick<=38;tick++){
+  advanceCaptureCompetition(state,[actor('pilot'),actor('challenger',id)],state.updatedAt+400);
+  assert.equal(territory.ownerId,tick<38?'pilot':'challenger');
+  assert.equal(territory.contested,tick<38);
+ }
+ assert.equal(territory.capturingId,undefined);assert.equal(territory.captureMs,0);
 });
