@@ -193,7 +193,8 @@ export class CombatMissionIntroPath {
     return THREE.MathUtils.lerp(48, chaseFov, THREE.MathUtils.smoothstep(elapsed, this.sweepMs-1500, this.sweepMs));
   }
   streamingPosition(elapsed: number): THREE.Vector3 {
-    if(this.missionNumber===15||this.missionNumber===20)return elapsed>=2000&&elapsed<8000?this.opponent.position:this.player.position;
+    if(this.missionNumber===20)return elapsed<3000||elapsed>=5000&&elapsed<8000?this.opponent.position:this.player.position;
+    if(this.missionNumber===15)return elapsed>=2000&&elapsed<8000?this.opponent.position:this.player.position;
     if(this.finalIntro)return elapsed<28000?this.opponent.position:this.player.position;
     if(this.huntingIntro)return elapsed<24000?this.opponent.position:this.player.position;
     if(this.strikingIntro)return elapsed<23000?this.opponent.position:this.player.position;

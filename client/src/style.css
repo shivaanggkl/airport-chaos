@@ -7598,3 +7598,6 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
   letter-spacing: .04em;
 }
 #game-root .journey-status-layer > .mission-objective-docked[hidden] { display: none; }
+
+/* The compact M21 instructions stay readable; only the territory list needs to shrink. */
+#game-root .journey-status-layer > .journey-capture-three:not(.is-collapsed) { flex-shrink: 0; }

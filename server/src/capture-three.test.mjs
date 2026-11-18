@@ -1,3 +1,4 @@
+import {newCaptureCompetition,advanceCaptureCompetition,captureCompetitionOwned} from './capture-competition.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
@@ -27,8 +28,12 @@ function runtime(names,context={}){
 function fixture(unlocked=true){
  const dir=mkdtempSync(join(tmpdir(),'capture-three-')),path=join(dir,'profiles.sqlite');
  const profiles=new PlayerProfileStore(path);profiles.getOrCreate('pilot','Pilot');profiles.getOrCreate('other','Other');
- const db=new DatabaseSync(path),store=new JourneyAttemptStore(path,unlocked);let clock=Date.now();
- return {dir,path,profiles,db,store,get now(){return clock;},tick(a,eligible=true,reset=false,ms=400){clock+=ms;return store.advanceTerritoryCapture('pilot',a.attemptId,eligible,clock,reset);},start(){const a=store.launch('pilot','trainer',clock,mission.id);store.approach('pilot',a.attemptId);return store.startTerritoryCapture('pilot',a.attemptId,clock);},close(){db.close();rmSync(dir,{recursive:true,force:true});}};
+ const db=new DatabaseSync(path),store=new JourneyAttemptStore(path,unlocked);let clock=Date.now(),competition;
+ return {dir,path,profiles,db,store,get now(){return clock;},tick(a,eligible=true,reset=false,ms=400){clock+=ms;
+ const territoryId=eligible&&!reset?mission.territoryIds[captureCompetitionOwned(competition)]:undefined;
+ advanceCaptureCompetition(competition,[{id:'pilot',alive:true,territoryId}],clock);
+ store.saveCaptureFlight('pilot',a.attemptId,{position:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},velocity:{x:100,y:0,z:0},health:100,updatedAt:clock,competition});
+ return store.advanceTerritoryCapture('pilot',a.attemptId,eligible,clock,reset,competition);},start(){competition=newCaptureCompetition([],clock);const a=store.launch('pilot','trainer',clock,mission.id);store.approach('pilot',a.attemptId);return store.startTerritoryCapture('pilot',a.attemptId,clock);},close(){db.close();rmSync(dir,{recursive:true,force:true});}};
 }
 test('M21 uses only its new slot, authoritative geometry, prescribed spawn and M20 prerequisite',()=>{
  assert.equal(catalog.journeyCatalog.length,30);assert.equal(catalog.journeyMissionSlot(mission.id),21);assert.equal(catalog.journeyMissionSlot(catalog.journeyDallasAceIntercept01.id),20);
@@ -43,7 +48,7 @@ test('M21 uses only its new slot, authoritative geometry, prescribed spawn and M
   assert.equal(f.store.canAccessMission('pilot',mission.id),true);
  }finally{f.close();}
 });
-test('shared capture engine requires 15 continuous seconds per ordered stage, resets only unfinished progress, and rewards once',()=>{
+test('shared capture engine requires 15 continuous seconds per territory, resets only unfinished progress, and rewards once',()=>{
  const f=fixture();try{
  const initial=f.profiles.getOrCreate('pilot','Pilot').credits;
  for(let replay=0;replay<2;replay++){
@@ -68,11 +73,12 @@ test('production coordinator uses only accepted flight inside the current real b
  const a=f.start(),active=territories.find(t=>t.id==='las-colinas'),future=territories.find(t=>t.id==='love-field');
  const pilot={pilotId:'pilot',cityId:'dallas',lifeState:'alive',health:100,hasRespawnTransform:true,portalTransit:false,
   position:{...future.center,y:1000},lastAcceptedPosition:{...future.center,y:1000},rotation:{x:0,y:0,z:0},velocity:{x:650,y:0,z:0},lastStateAt:f.now,lastAcceptedTransformAt:f.now};
- const players=new Map([['owner',pilot]]),ctx=runtime(['updateJourneyTerritoryCapture','checkpointJourneyCapture'],{players,journeyStore:f.store,playerJourneyAttempts:new Map([['owner',a.attemptId]]),pausedJourneyAttempts:new Set(),
+ const state=newCaptureCompetition([],f.now);
+ const players=new Map([['owner',pilot]]),ctx=runtime(['updateJourneyTerritoryCapture','updateCompetitiveCapture','checkpointJourneyCapture'],{advanceCaptureCompetition,captureCompetitions:new Map([[a.attemptId,state]]),ensureCaptureCompetition:()=>state,players,journeyStore:f.store,playerJourneyAttempts:new Map([['owner',a.attemptId]]),pausedJourneyAttempts:new Set(),
   hasOpenPlayerSocket:()=>true,landingFlightState:new Map([['owner',{airborne:true}]]),botTerrainHeight:()=>100,sendJourneyState(){}});
  let clock=f.now;
  const tick=()=>{clock+=400;pilot.lastStateAt=clock;pilot.lastAcceptedTransformAt=clock;ctx.updateJourneyTerritoryCapture(clock);return f.store.get('pilot',a.attemptId);};
- assert.equal(tick().captureMs,0,'future territory cannot progress first stage');
+ assert.equal(tick().captureMs,400,'any of the three territories can be captured first');
  // The western interior starts capture even though it is far from the navigation center.
  pilot.position=pilot.lastAcceptedPosition={x:active.bounds.minX+100,z:active.center.z,y:1000};
  assert.equal(tick().captureMs,400);
@@ -92,7 +98,7 @@ test('pause, durable reconnect, timeout, failure, fresh retry and verified conti
  const flight={position:{x:-15500,y:1000,z:-24000},rotation:{x:0,y:-1.5,z:0},velocity:{x:650,y:0,z:0},health:100,updatedAt:f.now};
  f.store.saveCaptureFlight('pilot',a.attemptId,flight);f.store.pause('pilot',a.attemptId,f.now);
  assert.equal(f.store.advanceTerritoryCapture('pilot',a.attemptId,true,f.now+400),undefined);
- const reopened=new JourneyAttemptStore(f.path,true),restored=reopened.get('pilot',a.attemptId);assert.equal(restored.captureStage,1);assert.equal(restored.captureMs,4000);assert.deepEqual(restored.captureFlight,flight);
+ const reopened=new JourneyAttemptStore(f.path,true),restored=reopened.get('pilot',a.attemptId);assert.equal(restored.captureStage,1);assert.equal(restored.captureMs,4000);assert.equal(restored.captureFlight.position.x,flight.position.x);assert.equal(restored.captureFlight.competition.territories[0].ownerId,'pilot');
  const resume=reopened.resume('pilot',a.attemptId,f.now+10000).attempt;assert.equal(resume.deadlineAt,before.deadlineAt+10000);
  assert.equal(reopened.advanceTerritoryCapture('other',a.attemptId,true,f.now+10400),undefined);
  const failed=reopened.fail('pilot',a.attemptId,'CRASHED',f.now+11000);assert.equal(failed.failureReason,'CRASHED');
@@ -110,7 +116,7 @@ test('12-second capture intro uses the three existing definitions, exact text an
  const player=new THREE.Group();player.position.set(-58000,1000,-28050);const initial=player.position.clone();
  const sequence=mission.territoryIds.map(id=>territories.find(t=>t.id===id));
  const intro=new MissionCaptureIntroPath(sequence[0],15000,()=>100,undefined,{player,territories:sequence});
- assert.equal(intro.durationMs,12000);assert.deepEqual([0,3000,6000,9000].map(t=>intro.text(t)),['CAPTURE 3 TERRITORIES','Three Dallas territories are waiting!','Fly inside each marked territory.','Capture all three before time runs out!']);
+ assert.equal(intro.durationMs,12000);assert.deepEqual([0,3000,6000,9000].map(t=>intro.text(t)),Array(4).fill('Capture 3 TERRITORIES'));
  assert.deepEqual([3000,6000,8000].map(t=>intro.territoryAt(t).id),mission.territoryIds);
  const position=new THREE.Vector3(),target=new THREE.Vector3(),chase=new THREE.Vector3(1,2,3),look=new THREE.Vector3(4,5,6);
  for(const time of [0,3000,6000,8000,12000]){intro.sample(time,position,target,chase,look);assert.deepEqual(player.position,initial);assert.equal(intro.showsCaptureRow(time),false);}
