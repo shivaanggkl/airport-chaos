@@ -37,7 +37,7 @@ function fixture(unlocked=true){
 }
 test('M21 uses only its new slot, authoritative geometry, prescribed spawn and M20 prerequisite',()=>{
  assert.equal(catalog.journeyCatalog.length,30);assert.equal(catalog.journeyMissionSlot(mission.id),21);assert.equal(catalog.journeyMissionSlot(catalog.journeyDallasAceIntercept01.id),20);
- assert.equal(mission.timeLimitMs,240000);assert.equal(mission.firstClearCredits,2250);assert.equal(mission.captureDurationMs,15000);
+ assert.equal(mission.timeLimitMs,360000);assert.equal(mission.firstClearCredits,2250);assert.equal(mission.captureDurationMs,15000);
  assert.deepEqual(mission.territoryIds,['las-colinas','love-field','downtown']);
  assert.deepEqual(mission.territoryIds.map(id=>territories.find(t=>t.id===id).center),[{x:-40500,z:-28050},{x:-15420,z:-23340},{x:-1800,z:-1350}]);
  assert.equal(mission.runwayStart,true);assert.equal(mission.startAirportId,'dfw');
@@ -57,7 +57,7 @@ test('shared capture engine requires 15 continuous seconds per territory, resets
  const f=fixture();try{
  const initial=f.profiles.getOrCreate('pilot','Pilot').credits;
  for(let replay=0;replay<2;replay++){
-  const a=f.start();assert.equal(a.captureStage,0);assert.equal(a.deadlineAt-a.startedAt,240000);
+  const a=f.start();assert.equal(a.captureStage,0);assert.equal(a.deadlineAt-a.startedAt,360000);
   for(let stage=0;stage<3;stage++){
    for(let i=0;i<10;i++)f.tick(a);
    assert.equal(f.store.get('pilot',a.attemptId).captureMs,4000);

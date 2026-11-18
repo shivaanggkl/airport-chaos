@@ -555,7 +555,7 @@ export const journeyDallasAceIntercept01 = Object.freeze({
 export const journeyDallasCaptureThree01 = Object.freeze({
   id: 'journey-dallas-capture-three-01', cityId: 'dallas', name: 'CAPTURE 3 TERRITORIES',
   runwayStart: true, startAirportId: 'dfw',
-  chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 240_000, firstClearCredits: 2_250,
+  chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 360_000, firstClearCredits: 2_250,
   objective: 'Capture all 3 marked territories before time runs out!', captureDurationMs: 15_000,
   territoryIds: Object.freeze(['las-colinas', 'love-field', 'downtown']),
   airborneSpawn: Object.freeze({x: -58_000, z: -28_050, altitude: 900, heading: -Math.PI / 2, speed: 650}),
