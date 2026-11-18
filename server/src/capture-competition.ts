@@ -24,8 +24,13 @@ export function advanceCaptureCompetition(state: CaptureCompetition, actors: rea
     }
     const contenders = actors.filter(actor => actor.alive && actor.territoryId === territory.id && actor.id !== territory.ownerId);
     territory.contested = contenders.length > 1;
-    if (contenders.length !== 1 || !delta) {
-      territory.capturingId = undefined; territory.captureMs = 0;
+    // Missing/stalled updates cannot award time or erase accepted progress.
+    if (!delta) continue;
+    if (contenders.length !== 1) {
+      // A contest pauses the current capturer. Reset only after a confirmed
+      // departure or defeat, rather than whenever another aircraft arrives.
+      const remainsInside = actors.some(actor => actor.id === territory.capturingId && actor.alive && actor.territoryId === territory.id);
+      if (!remainsInside) { territory.capturingId = undefined; territory.captureMs = 0; }
       continue;
     }
     const contender = contenders[0]!;

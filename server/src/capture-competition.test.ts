@@ -42,10 +42,12 @@ test('contests, stalls, pause/reconnect gaps and leaving the territory cannot cr
  const state=newCaptureCompetition([],0),id='love-field';
  ticks(state,[actor('pilot',id)],10);
  advanceCaptureCompetition(state,[actor('pilot',id)],state.updatedAt+10000);
- assert.equal(state.territories[1].captureMs,0);
+ assert.equal(state.territories[1].captureMs,4000,'update gap preserves progress without awarding missing time');
  ticks(state,[actor('pilot',id),actor('enemy',id)],50);
  assert.equal(state.territories[1].ownerId,undefined);
  assert.equal(state.territories[1].contested,true);
+ assert.equal(state.territories[1].captureMs,4000,'a contested territory pauses existing capture progress');
+ assert.equal(state.territories[1].capturingId,'pilot');
  ticks(state,[actor('pilot',id)],10);ticks(state,[actor('pilot')],1);
  assert.equal(state.territories[1].captureMs,0);
 });
@@ -143,4 +145,58 @@ test('AI navigates to capture and immediately attacks when the player invades it
  state.territories[0]!.ownerId='enemy';pilot.position={...territory.center,y:2000};
  navigation=context.hunterNavigationTarget('enemy',enemy,bot,2000);
  assert.equal(navigation.target[0],'pilot');assert.equal(calls.at(-1).objective,undefined);
+});
+
+test('M21 enables the existing mobile and desktop fire controls while M5 remains noncombat',async()=>{
+ const missions=await import('../../shared/journey-mission.mjs');
+ const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+ const clientAst=ts.createSourceFile('main.ts',main,ts.ScriptTarget.Latest,true);
+ const declaration=clientAst.statements.find(n=>ts.isVariableStatement(n)&&n.declarationList.declarations.some(d=>d.name.getText(clientAst)==='journeyCombatMissionIds'))!;
+ const toggle=main.split('\n').find(line=>line.includes("classList.toggle('noncombat-journey', !journeyCombatMissionIds.has"))!;
+ const values:boolean[]=[];
+ const context=vm.createContext({...missions,message:{attempt:{missionId:mission.id}},flightGameRoot:{classList:{toggle(_name:string,hidden:boolean){values.push(hidden);}}}});
+ vm.runInContext(ts.transpileModule(declaration.getText(clientAst),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+ vm.runInContext(toggle,context);assert.equal(values.pop(),false,'M21 must not hide the fire controls');
+ context.message.attempt.missionId=missions.journeyDallasCapture01.id;
+ vm.runInContext(toggle,context);assert.equal(values.pop(),true,'M5 retains its existing noncombat controls');
+});
+
+test('production M21 capture covers all territory edges and corners at low and high altitude',async()=>{
+ const {territoryCaptureFlightEligible}=await import('../../shared/city-territories.mjs');
+ const state=newCaptureCompetition([],1000);
+ const player={cityId:'dallas',pilotId:'pilot',lifeState:'alive',health:100,hasRespawnTransform:true,portalTransit:false,
+  lastStateAt:1400,lastAcceptedTransformAt:1400,lastAcceptedPosition:{x:0,y:1000,z:0},velocity:{x:100,y:0,z:0}};
+ const attempt={attemptId:'attempt',status:'RACING',pausedAt:null,deadlineAt:1e9,captureFlight:undefined};
+ const context=vm.createContext({journeyDallasCaptureThree01:mission,territoriesForCity,territoryCaptureFlightEligible,
+  pausedJourneyAttempts:new Set(),hasOpenPlayerSocket:()=>true,botTerrainHeight:()=>100,
+  landingFlightState:new Map([['owner',{airborne:true}]]),players:new Map(),
+  ensureCaptureCompetition:()=>state,advanceCaptureCompetition,checkpointJourneyCapture(){},
+  journeyStore:{advanceTerritoryCapture(){return undefined;}}});
+ vm.runInContext(declarations(['updateCompetitiveCapture']),context);
+ let now=1400;
+ for(const territory of territoriesForCity('dallas').filter(t=>mission.territoryIds.includes(t.id as any))){
+  const {minX,maxX,minZ,maxZ}=territory.bounds;
+  for(const [x,z] of [[minX+1,minZ+1],[minX+1,maxZ-1],[maxX-1,minZ+1],[maxX-1,maxZ-1],
+    [minX+1,territory.center.z],[maxX-1,territory.center.z],[territory.center.x,minZ+1],[territory.center.x,maxZ-1],
+    [territory.center.x,territory.center.z]]){
+   for(const altitude of [500,6000,20000]){
+    state.territories.forEach(t=>{t.captureMs=0;t.capturingId=undefined;});state.updatedAt=now-400;
+    player.lastStateAt=player.lastAcceptedTransformAt=now;player.lastAcceptedPosition={x:x!,y:altitude,z:z!};
+    context.updateCompetitiveCapture('owner',player,attempt,now);
+    assert.equal(state.territories.find(t=>t.id===territory.id)!.captureMs,400,`${territory.id}: (${x},${z}) at ${altitude}m should capture`);
+    now+=400;
+   }
+  }
+ }
+ // A brief stale packet interval neither advances nor destroys prior progress.
+ const inside=territoriesForCity('dallas').find(t=>t.id==='las-colinas')!;
+ player.lastAcceptedPosition={...inside.center,y:10000};player.lastStateAt=player.lastAcceptedTransformAt=now;
+ state.updatedAt=now-400;context.updateCompetitiveCapture('owner',player,attempt,now);
+ const before=state.territories[0]!.captureMs;
+ context.updateCompetitiveCapture('owner',player,attempt,now+1200);
+ assert.equal(state.territories[0]!.captureMs,before);
+ // An accepted departure from the marked territory still resets its unfinished capture.
+ now+=1600;player.lastStateAt=player.lastAcceptedTransformAt=now;player.lastAcceptedPosition.x=inside.bounds.minX-1;
+ context.updateCompetitiveCapture('owner',player,attempt,now);
+ assert.equal(state.territories[0]!.captureMs,0);
 });
