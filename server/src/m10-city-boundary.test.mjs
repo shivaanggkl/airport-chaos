@@ -28,6 +28,7 @@ function fixture(aircraftType, x, z, heading) {
 }
 
 const fighterMissions = [
+  [21,missions.journeyDallasCaptureThree01,{journeyCaptureSlot:0},['trainer','fighter','privateJet','cargo']],
   [3,missions.journeyDallas13,{journeyFirstContact:true},[missions.journeyDallas13.enemyAircraft]],
   [6,missions.journeyDallas14,{journeyFirstContact:true,journeySurpriseAttack:true},[missions.journeyDallas14.enemyAircraft]],
   [11,missions.journeyDallas15,{journeyAce:true,journeyPursuit:{}},[missions.journeyDallas15.enemyAircraft]],

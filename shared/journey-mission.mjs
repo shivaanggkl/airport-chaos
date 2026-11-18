@@ -560,7 +560,7 @@ export const journeyDallasCaptureThree01 = Object.freeze({
   airborneSpawn: Object.freeze({x: -58_000, z: -28_050, altitude: 900, heading: -Math.PI / 2, speed: 650}),
 });
 
-/** The single capture engine serves both the original M05 and ordered M21. */
+/** Shared capture timing and rewards for M05 and competitive M21. */
 export function journeyTerritoryCaptureMission(id) {
   return id === journeyDallasCapture01.id ? journeyDallasCapture01 : id === journeyDallasCaptureThree01.id ? journeyDallasCaptureThree01 : undefined;
 }

@@ -1,3 +1,4 @@
+import { captureCompetitionOwned, type CaptureCompetition } from './capture-competition.js';
 import { insideSurvivalArea, shiftSurvival, type SurvivalState } from './most-wanted-survival.js';
 import type { AceInterceptState } from './ace-intercept.js';
 import { dallasCoinTrail, emptyCoinMask, coinTrailVersion, collectTrail, type CoinHuntState } from '../../shared/collectible-trail.mjs';
@@ -31,7 +32,7 @@ export type JourneyAttempt = {
   finishTimeMs: number | null; firstClearCredits: number; failureReason: string | null;
   mostWanted?: SurvivalState;
   captureStage: number;
-  captureFlight?: {position:{x:number;y:number;z:number};rotation:{x:number;y:number;z:number};velocity:{x:number;y:number;z:number};health:number;updatedAt:number};
+  captureFlight?: {position:{x:number;y:number;z:number};rotation:{x:number;y:number;z:number};velocity:{x:number;y:number;z:number};health:number;updatedAt:number;competition?:CaptureCompetition};
   aceIntercept?: AceInterceptState;
   coinHunt: CoinHuntState | null;
   sharpshooter: { destroyed:number; targets:SharpshooterTarget[] } | null;
@@ -763,7 +764,7 @@ export class JourneyAttemptStore {
   }
 
   /** Server territory ticks supply eligibility, never client progress or completion events. */
-  advanceTerritoryCapture(pilotId: string, attemptId: string, eligible: boolean, now = Date.now(), resetProgress = false): JourneyAttempt | undefined {
+  advanceTerritoryCapture(pilotId: string, attemptId: string, eligible: boolean, now = Date.now(), resetProgress = false, competition?: CaptureCompetition): JourneyAttempt | undefined {
     return this.transaction(pilotId, wallet => {
       const current = this.get(pilotId, attemptId);
       const mission=journeyTerritoryCaptureMission(current?.missionId);
@@ -773,16 +774,18 @@ export class JourneyAttemptStore {
       const elapsed = now - current.holdUpdatedAt;
       // Never credit startup, reconnection or stalled-tick catch-up time.
       const tickMs = eligible && !resetProgress && elapsed <= 800 ? Math.min(400, elapsed) : 0;
-      const ordered=mission.id===journeyDallasCaptureThree01.id;
-      const territory = territoriesForCity(mission.cityId).find(item => item.id === journeyCaptureTerritoryId(mission.id,current.captureStage))!;
+      const competitive=mission.id===journeyDallasCaptureThree01.id;
+      if (competitive && !competition) return undefined;
+      const territory = territoriesForCity(mission.cityId).find(item => item.id === journeyCaptureTerritoryId(mission.id,0))!;
       if(!territory)return undefined;
       const captureMs = Math.min(mission.captureDurationMs, (resetProgress ? 0 : current.captureMs) +
-        Math.round(tickMs * (ordered?1:territory.captureWeight)));
-      const completed=captureMs>=mission.captureDurationMs;
-      const stage=ordered?current.captureStage+(completed?1:0):current.captureStage;
+        Math.round(tickMs * (competitive?1:territory.captureWeight)));
+      const completed=competitive ? captureCompetitionOwned(competition!) === journeyDallasCaptureThree01.territoryIds.length : captureMs>=mission.captureDurationMs;
+      const stage=competitive ? captureCompetitionOwned(competition!) : current.captureStage;
+      const displayedCapture = competitive ? competition!.territories.find(item => item.capturingId === 'pilot')?.captureMs ?? 0 : captureMs;
       this.database.prepare('UPDATE journey_attempts SET capture_ms=?,capture_stage=?,hold_updated_at=? WHERE pilot_id=? AND attempt_id=?')
-        .run(ordered&&completed?0:captureMs,stage,now,pilotId,attemptId);
-      if (completed && (!ordered || stage===journeyDallasCaptureThree01.territoryIds.length)) {
+        .run(displayedCapture,stage,now,pilotId,attemptId);
+      if (completed && (!competitive || stage===journeyDallasCaptureThree01.territoryIds.length)) {
         const elapsedMs = now - current.startedAt!;
         const first = this.database.prepare(`INSERT OR IGNORE INTO journey_completions
           (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`)
@@ -834,6 +837,8 @@ export class JourneyAttemptStore {
 
   saveCaptureFlight(pilotId: string,attemptId: string,flight: NonNullable<JourneyAttempt['captureFlight']>): void {
     if(![...Object.values(flight.position),...Object.values(flight.rotation),...Object.values(flight.velocity),flight.health,flight.updatedAt].every(Number.isFinite))return;
+    const existing = this.get(pilotId, attemptId)?.captureFlight;
+    if (!flight.competition && existing?.competition) flight = {...flight, competition:existing.competition};
     this.database.prepare(`UPDATE journey_attempts SET capture_flight_state=? WHERE pilot_id=? AND attempt_id=? AND mission_id=? AND status IN ('APPROACH','RACING') AND paused_at IS NULL`)
       .run(JSON.stringify(flight),pilotId,attemptId,journeyDallasCaptureThree01.id);
     this.activeSnapshots.delete(pilotId);

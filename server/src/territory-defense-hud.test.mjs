@@ -3,7 +3,7 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
-import {journeyDallasTerritoryDefense01 as mission, journeyDallasCapture01} from '../../shared/journey-mission.mjs';
+import {journeyDallasTerritoryDefense01 as mission, journeyDallasCapture01,journeyDallasCaptureThree01} from '../../shared/journey-mission.mjs';
 import {territoriesForCity} from '../../shared/city-territories.mjs';
 import {territoryDefenseInstructions} from '../../client/src/mission-journey-content.ts';
 
@@ -54,7 +54,7 @@ test('reviewed mission card has two objectives and a hold clock, with no duplica
 test('M16 switches the bottom capture bar to the authoritative hold clock after ownership',()=>{
  const captureHud=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='updateCaptureHud');
  const calls=[];
- const ctx=vm.createContext({journeyDallasCapture01,journeyDallasTerritoryDefense01:mission,
+ const ctx=vm.createContext({journeyDallasCapture01,journeyDallasCaptureThree01,journeyDallasTerritoryDefense01:mission,
   journeyAttempt:{missionId:mission.id,status:'RACING',captureMs:15000},journeyPaused:false,
   captureMissionTerritoryName:'LAS COLINAS',flightGameRoot:{classList:{toggle(name,live){calls.push(['live',live]);}}},
   missionCaptureBar:{show(...args){calls.push(['show',...args]);},showHold(...args){calls.push(['hold',...args]);},hide(){calls.push(['hide']);}}});
