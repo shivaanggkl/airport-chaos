@@ -50,6 +50,17 @@ export function stepCoordinatedBank(currentBank,turnInput,delta,envelope){
 export const mobileBankTarget=coordinatedBankTarget;
 export const stepMobileBank=stepCoordinatedBank;
 
+// Carry existing horizontal momentum through the same controlled heading
+// change as the airframe. Rotating only the nose can leave slow, turning
+// aircraft travelling tail-first; lateral slip damping cannot correct that.
+// This rotation preserves speed and leaves lift/gravity's vertical motion alone.
+export function turnFlightVelocity(velocity,headingChange){
+  const sin=Math.sin(headingChange),cos=Math.cos(headingChange);
+  const x=velocity.x,z=velocity.z;
+  velocity.x=x*cos+z*sin;
+  velocity.z=z*cos-x*sin;
+}
+
 export const cruiseThrottleStops=Object.freeze([0,.30/.82,.50/.82,.70/.82]);
 const throttleStops=[0,.08,...cruiseThrottleStops.slice(1),1];
 export function cruiseThrottleSelection(value){

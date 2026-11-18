@@ -1,3 +1,5 @@
+import * as cityAirspace from './journey-hunter-airspace.js';
+import { insideAceInterceptAirspace } from './ace-intercept.js';
 import {DALLAS_WORLD_SCALE} from '../../shared/dallas-world-scale.mjs';
 import {journeyDallas18} from '../../shared/journey-mission.mjs';
 import {journeyDallas17} from '../../shared/journey-mission.mjs';
@@ -24,7 +26,7 @@ const ast = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true
 function runtime(names, context) {
   const code = ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.includes(node.name?.text))
     .map(node => node.getText(ast)).join('\n');
-  const sandbox = vm.createContext({journeyDallas18,journeyDallas17,recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
+  const sandbox = vm.createContext({...cityAirspace,insideAceInterceptAirspace,journeyDallas18,journeyDallas17,recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
   vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, sandbox);
   return sandbox;
 }
@@ -203,7 +205,7 @@ test('M7 launch refuses an old backend before creating an attempt and explains t
   const launch = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'playJourneyMission');
   for (const supported of [false, true]) {
     const objective = { textContent: '' }, calls = [];
-    const context = vm.createContext({journeyDallas18,journeyDallas17,
+    const context = vm.createContext({...cityAirspace,insideAceInterceptAirspace,journeyDallas18,journeyDallas17,
       journeyLaunchPending: false, dallasUnlocked: () => true, cityJourneyMode: '', entryState: 'MISSION_JOURNEY',
       missionJourney: { selectedMissionNumber: 7, hide: () => {} },
       journeyMissionOrder: Array(6).fill('').concat(mission.id), pendingAircraftSelection: undefined,

@@ -434,7 +434,8 @@ export class ObjectiveGuidance {
       this.verticalCue = 0;
       this.nextLabelAt = 0;
     }
-    const host = objective?.dock ?? this.layer;
+    // Keep docked directions outside scrollable mission/territory cards.
+    const host = objective?.dock?.closest<HTMLElement>('.journey-status-layer') ?? objective?.dock ?? this.layer;
     if (this.arrow.parentElement !== host) host.append(this.arrow);
     this.arrow.classList.toggle('mission-objective-docked', Boolean(objective?.dock));
     this.objective = objective;

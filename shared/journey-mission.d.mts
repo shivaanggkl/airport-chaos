@@ -224,6 +224,7 @@ export const journeyDallasCoinHunt01: Readonly<{
 
 export const journeyDallasTwinHunters01: Readonly<{
   id: 'journey-dallas-twin-hunters-01'; cityId: 'dallas'; name: 'TWIN HUNTERS'; difficulty: 'MEDIUM';
+  runwayStart: true; startAirportId: 'dfw';
   objective: string; timeLimitMs: 242000; firstClearCredits: 1500; enemyHealth: 300; aggressionDistance: 6000;
   airborneSpawn: Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
   enemies: readonly Readonly<{aircraft:'trainer'|'privateJet';livery:string;name:string;level:'MEDIUM';fireDelayMs:number;x:number;z:number;altitude:number}>[];
@@ -242,7 +243,8 @@ export const journeyDallasTerritoryDefense01: Readonly<{
 
 export const journeyDallasAceIntercept01: Readonly<{
   id: 'journey-dallas-ace-intercept-01'; cityId: 'dallas'; name: 'ACE INTERCEPT'; chapter: 'SKY COMMANDER'; difficulty: 'HARD';
-  timeLimitMs: 240000; firstClearCredits: 2150; objective: 'Destroy the enemy Firehawk!';
+  runwayStart: true; startAirportId: 'dfw';
+  timeLimitMs: 260000; firstClearCredits: 2150; objective: 'Destroy the enemy Firehawk!';
   enemyAircraft: 'fighter'; enemyLivery: 'firehawk-stealth-gray'; enemyHealth: 350; escapeHealth: 175;
   fireDelayMs: 6000; aggressionDistance: 9000; dogfightRadius: 10000; cruiseSpeed: 650;
   escapeCruiseSpeed: 750; escapeMaxSpeed: 850; arrivalRadius: 650;

@@ -15,12 +15,12 @@ const flight = source.slice(source.indexOf('function updateFlight('), source.ind
 // unrelated weather, weapons, world queries and translation/collision work.
 const throttle = flight.slice(flight.indexOf('  const throttleUp'), flight.indexOf('  const landingAssistAirport'));
 const input = flight.slice(flight.indexOf('  const keyboardPitchInput'), flight.indexOf('  if (!onGround && activeWeatherZone'));
-const attitude = flight.slice(flight.indexOf('  const speedRatio'), flight.indexOf('  const forwardSpeed ='));
+const attitude = flight.slice(flight.indexOf('  const speedRatio'), flight.indexOf('  turnFlightVelocity('));
 const script = new vm.Script(ts.transpileModule(`function frame(){${throttle}${input}${attitude}}`.replaceAll('import.meta.env.DEV', 'false'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022 },
 }).outputText);
 
-assert.equal(missionJourneyDetails.length, 24);
+assert.equal(missionJourneyDetails.length, 30);
 test('W/S retain their selected throttle after release on the runway and airborne across all missions and aircraft',()=>{
  const code=ts.transpileModule(`function frame(){${throttle}}`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
  for(const mission of [...missionJourneyDetails,{id:'free-fly'},{id:'sky-duel'},{id:'air-assault'}])for(const aircraft of Object.values(aircraftDefinitions))for(const onGround of [false,true]){

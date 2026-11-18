@@ -64,18 +64,29 @@ export function ownsStoreAircraft(profile: GarageProfile, type: AircraftType): b
     : type === 'trainer' || profile.unlockedAircraft.includes(type);
 }
 
+/** Aircraft offers keep their current paint, except the red Firehawk offer shown in Featured. */
+export function storeEquipAppearanceId(item: StoreItem): string | undefined {
+  return item.kind === 'paint' ? item.id : item.aircraftType === 'fighter' ? 'firehawk-inferno' : undefined;
+}
+
+export function isStoreItemEquipped(item: StoreItem, profile: GarageProfile): boolean {
+  if (profile.selectedAircraft !== item.aircraftType) return false;
+  const appearance = storeEquipAppearanceId(item);
+  return !appearance || profile.cosmetics?.equipped?.[`livery:${item.aircraftType}`] === appearance;
+}
+
 export function storeItemState(item: StoreItem, profile: GarageProfile): 'FREE' | 'OWNED' | 'EQUIPPED' | 'INCLUDED' | 'LOCKED' | 'REQUIRES AIRCRAFT' {
   if (item.kind === 'aircraft') {
-    if (item.aircraftType === 'trainer') return profile.selectedAircraft === 'trainer' ? 'EQUIPPED' : 'FREE';
+    if (item.aircraftType === 'trainer') return isStoreItemEquipped(item, profile) ? 'EQUIPPED' : 'FREE';
     if (!ownsStoreAircraft(profile, item.aircraftType)) return 'LOCKED';
-    return profile.selectedAircraft === item.aircraftType ? 'EQUIPPED' : 'OWNED';
+    return isStoreItemEquipped(item, profile) ? 'EQUIPPED' : 'OWNED';
   }
   if (item.included) return ownsStoreAircraft(profile, item.aircraftType) ? 'INCLUDED' : 'REQUIRES AIRCRAFT';
   const owned = item.aircraftType === 'trainer' && defaultCosmeticIds.includes(item.id)
     || profile.cosmetics?.ownedIds.includes(item.id) === true;
   if (!ownsStoreAircraft(profile, item.aircraftType)) return 'LOCKED';
   if (!owned) return 'LOCKED';
-  return profile.cosmetics?.equipped[`livery:${item.aircraftType}`] === item.id ? 'EQUIPPED' : 'OWNED';
+  return isStoreItemEquipped(item, profile) ? 'EQUIPPED' : 'OWNED';
 }
 
 export function storeItemById(id: string): StoreItem | undefined { return storeItems.find(item => item.id === id); }

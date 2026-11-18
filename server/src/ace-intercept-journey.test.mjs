@@ -45,11 +45,17 @@ function launched(f,now=Date.now()){
 test('M20 replaces only slot 20 with the specified unscaled configuration and intro',()=>{
  assert.equal(missions.journeyCatalog.length,30);assert.equal(missions.journeyMissionSlot(mission.id),20);
  assert.equal(missions.journeyMissionSlot(missions.journeyDallas15.id),11);assert.equal(missions.journeyMissionSlot(missions.journeyDallas16.id),17);
- assert.equal(mission.timeLimitMs,240000);assert.equal(mission.firstClearCredits,2150);assert.equal(mission.enemyHealth,350);
+ assert.equal(mission.timeLimitMs,260000);assert.equal(mission.firstClearCredits,2150);assert.equal(mission.enemyHealth,350);
  assert.equal(mission.enemyLivery,'firehawk-stealth-gray');assert.equal(mission.difficulty,'HARD');
  assert.deepEqual(mission.escapeRoute,[{x:-6000,z:-12000},{x:10000,z:-2000},{x:25000,z:16000},{x:38000,z:43000}]);
- const spawn=authorizedJourneyAirborneSpawn({missionId:mission.id,status:'APPROACH'},mission,()=>150);
- assert.deepEqual(spawn,{position:{x:-20000,y:1250,z:-25000},heading:-.432,speed:650});
+ assert.equal(mission.runwayStart,true);assert.equal(mission.startAirportId,'dfw');
+ const attempt={missionId:mission.id,status:'APPROACH'};
+ assert.equal(authorizedJourneyAirborneSpawn(attempt,mission,()=>150),undefined);
+ const start=source.indexOf('  const spawnAirportId ='),end=source.indexOf('  // All six Golden Gates',start);
+ assert.ok(start>=0&&end>start);
+ const context=vm.createContext({...missions,journeyAttempt:attempt,soloExploreMode:false});
+ vm.runInContext(source.slice(start,end)+'\nglobalThis.selectedAirport=spawnAirportId;',context);
+ assert.equal(context.selectedAirport,'dfw');
  assert.ok(aircraftFlightEnvelope.trainer.maxSpeed>mission.escapeMaxSpeed);
  assert.deepEqual([0,2000,5000,8000].map(aceInterceptIntroText),['ACE INTERCEPT','A dangerous Firehawk has entered Dallas airspace!','Intercept and destroy the enemy!','Watch out — this pilot fights back!']);
  assert.ok(missionFocusForAttempt({missionId:mission.id,status:'RACING'}));

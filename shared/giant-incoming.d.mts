@@ -33,6 +33,7 @@ export function transportScaleForMission(missionId?: string): number;
 export function transportFootprintForMission(missionId?: string): number;
 export const transportRouteLength: number;
 export const transportFootprintRadius: number;
+export const transportTurnRadius: number;
 export const transportCourse: Readonly<{ start: {x:number;z:number}; whiteRock: {x:number;z:number}; end: {x:number;z:number}; exitX:number }>;
 export function transportRouteForMission(missionId?: string): typeof transportCourse & Readonly<{length:number}>;
 export function transportPose(elapsedMs: number, altitude?: number, durationMs?: number, missionId?: string): TransportPose;

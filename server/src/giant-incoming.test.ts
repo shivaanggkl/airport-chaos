@@ -7,6 +7,7 @@ import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, jou
 import { indexBuildingsForOcclusion, segmentBlockedByBuildings } from './monster-arrival.js';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
+import { cityRegistry } from '../../shared/city-registry.mjs';
 test('larger, slower transport crosses White Rock and fails only after its full city exit', () => {
     assert.equal(transportTuning.scale, 32);
     assert.ok(transportTuning.speed > 0);
@@ -224,16 +225,47 @@ test('M13-M18 share the doubled model, authoritative collision and gun offsets',
  for(const axis of ['x','y','z'] as const)assert(Math.abs(largeMuzzle[axis]-muzzle[axis]*2)<1e-6);
 });
 
-test('M13-M18 doubled footprints clear Dallas only at their existing deadlines',()=>{
+test('mission giants retain their scale and stay inside Dallas at their existing deadlines',()=>{
  for(const mission of [journeyDallas07,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas11,journeyDallas12]){
  const footprint=transportFootprintForMission(mission.id);
  assert.equal(footprint,transportFootprintRadius);
  const before=transportPose(mission.timeLimitMs-1,900,mission.timeLimitMs,mission.id);
  const end=transportPose(mission.timeLimitMs,900,mission.timeLimitMs,mission.id);
  assert.equal(before.scale,32);assert(before.x-footprint<transportCourse.exitX);
- assert(end.x-footprint>=transportCourse.exitX-1e-6);
+ assert(end.x+footprint<transportCourse.exitX);
  }
  assert.equal(journeyDallas07.timeLimitMs,260000);assert.equal(journeyDallas07.bossHealth,2000);
+});
+
+for(const mission of [journeyDallas07,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas11,journeyDallas12]){
+ test(`${mission.id}: arrival stays original, then the entire giant remains in Dallas through smooth return turns`,()=>{
+  const half=cityRegistry.dallas.worldSize/2,footprint=transportFootprintForMission(mission.id);
+  const first=transportPose(0,900,mission.timeLimitMs,mission.id),early=transportPose(1000,900,mission.timeLimitMs,mission.id);
+  const speed=Math.hypot(first.velocity.x,first.velocity.z);
+  assert.ok(Math.abs(early.x-first.x-first.velocity.x)<1e-6);
+  assert.ok(Math.abs(early.z-first.z-first.velocity.z)<1e-6);
+  let entered=false,turned=false,previous=first;
+  for(let ms=200;ms<=mission.timeLimitMs*4;ms+=200){
+   const pose=transportPose(ms,900,mission.timeLimitMs,mission.id);
+   const inside=Math.abs(pose.x)+footprint<=half&&Math.abs(pose.z)+footprint<=half;
+   if(inside)entered=true;
+   if(entered)assert.ok(inside,'the complete airframe must remain inside after entry');
+   assert.ok(Math.hypot(pose.x-previous.x,pose.z-previous.z)<=speed*.2+1e-6,'no snapping or teleporting');
+   const turn=Math.abs(Math.atan2(Math.sin(pose.yaw-previous.yaw),Math.cos(pose.yaw-previous.yaw)));
+   assert.ok(turn<.05,'return heading changes smoothly');
+   assert.ok(Math.abs(Math.hypot(pose.velocity.x,pose.velocity.z)-speed)<1e-6,'retain encounter speed');
+   if(Math.cos(pose.yaw-first.yaw)<-.9)turned=true;
+   previous=pose;
+  }
+  assert.ok(entered&&turned,'scenario must include entry and a full return turn');
+ });
+}
+
+test('return corridor buildings remain included in giant cruise clearance',()=>{
+ const pose=transportPose(journeyDallas10.timeLimitMs,0,journeyDallas10.timeLimitMs,journeyDallas10.id);
+ const top=4000;
+ const altitude=transportAltitude([{minX:pose.x-10,maxX:pose.x+10,minZ:pose.z-10,maxZ:pose.z+10,top}],()=>0,journeyDallas10.id);
+ assert.ok(altitude>top+250);
 });
 
 test('M13-M18 cruise altitude is exactly 50 percent above the previous safe height, applied once',()=>{

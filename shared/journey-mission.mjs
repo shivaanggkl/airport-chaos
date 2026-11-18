@@ -492,6 +492,7 @@ export const journeyDallasTerritoryDefense01 = Object.freeze({
 export const journeyDallasTwinHunters01 = Object.freeze({
   id: 'journey-dallas-twin-hunters-01', cityId: 'dallas', name: 'TWIN HUNTERS', difficulty: 'MEDIUM',
   objective: 'Shoot down both enemy aircraft before time runs out!',
+  runwayStart: true, startAirportId: 'dfw',
   timeLimitMs: 242_000, firstClearCredits: 1500, enemyHealth: 300, aggressionDistance: 6000,
   airborneSpawn: Object.freeze({x: -27000, z: -40000, altitude: 1100, heading: Math.PI, speed: 650}),
   enemies: Object.freeze([
@@ -538,7 +539,8 @@ export const journeyDallasCapture01 = Object.freeze({
 // M20 coordinates are authoritative Dallas world coordinates, already scaled.
 export const journeyDallasAceIntercept01 = Object.freeze({
   id: 'journey-dallas-ace-intercept-01', cityId: 'dallas', name: 'ACE INTERCEPT',
-  chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 240_000, firstClearCredits: 2_150,
+  runwayStart: true, startAirportId: 'dfw',
+  chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 260_000, firstClearCredits: 2_150,
   objective: 'Destroy the enemy Firehawk!', enemyAircraft: 'fighter', enemyLivery: 'firehawk-stealth-gray',
   enemyHealth: 350, escapeHealth: 175, fireDelayMs: 6_000, aggressionDistance: 9_000,
   dogfightRadius: 10_000, cruiseSpeed: 650, escapeCruiseSpeed: 750, escapeMaxSpeed: 850, arrivalRadius: 650,

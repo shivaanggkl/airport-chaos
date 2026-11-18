@@ -12,6 +12,7 @@ export function coordinatedBankTarget(turnInput:number):number;
 export function stepCoordinatedBank(currentBank:number,turnInput:number,delta:number,envelope:{rollRate:number;rollInputResponse:number;rollLevelRate?:number}):number;
 export function mobileBankTarget(turnInput:number):number;
 export function stepMobileBank(currentBank:number,turnInput:number,delta:number,envelope:{rollRate:number;rollInputResponse:number;rollLevelRate?:number}):number;
+export function turnFlightVelocity(velocity:{x:number;z:number},headingChange:number):void;
 export function throttleSpeedTarget(throttle:number,envelope:{stallSpeed:number;safeLandingSpeed:number;maxSpeed:number}):number;
 export function throttleDecelerationResponse(throttle:number,envelope:{airbrakeResponse?:number;inertia:number}):number;
 export function throttleTargetDeceleration(airspeed:number,throttle:number,envelope:{stallSpeed:number;safeLandingSpeed:number;maxSpeed:number;airbrakeResponse?:number;inertia:number}):number;

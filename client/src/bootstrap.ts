@@ -18,7 +18,7 @@ import { HubInfoDialog } from './hub-info-dialog';
 import { GameStore } from './game-store';
 import { publicStoreCatalog, type PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
 import { MissionJourney, missionJourneyStages } from './mission-journey';
-import { storeFeatured, storeItemState, type StoreItem, type StoreCategory } from './store-catalog';
+import { storeFeatured, storeItemState, storeEquipAppearanceId, isStoreItemEquipped, type StoreItem, type StoreCategory } from './store-catalog';
 import { PilotMenu, type PilotMenuAccountResult, type PilotMenuData, type PilotMenuSection, type PilotProfileSummary } from './pilot-menu';
 import { BrandLoadingScreen } from './startup-loading';
 import { loadAirportChaosLogo } from './brand';
@@ -1906,11 +1906,12 @@ async function equipStoreItem(item: StoreItem): Promise<{ ok: boolean; message: 
     return profile;
   };
   try {
-    if (item.kind === 'paint' && garageProfile.cosmetics?.equipped?.[`livery:${item.aircraftType}`] !== item.id)
-      await update({ equipCosmetic: item.id });
+    const appearance = storeEquipAppearanceId(item);
+    if (appearance && garageProfile.cosmetics?.equipped?.[`livery:${item.aircraftType}`] !== appearance)
+      await update({ equipCosmetic: appearance });
     if (garageProfile.selectedAircraft !== item.aircraftType)
       await update({ equipAircraft: item.aircraftType });
-    if (garageProfile.selectedAircraft !== item.aircraftType) throw new Error('AIRCRAFT CHANGE NOT CONFIRMED');
+    if (!isStoreItemEquipped(item, garageProfile)) throw new Error('AIRCRAFT CHANGE NOT CONFIRMED');
     audioManager.playEffect('select',{cooldown:.2});audioManager.playConfirm();
     garage.updateProfile(garageProfile);
     gameStore.update(garageProfile, hubAccount.state === 'account');

@@ -1,9 +1,15 @@
 import { Vector3, type Quaternion } from 'three';
 
-export const aircraftCameraProfile = { widthFraction: .35, elevation: 16 * Math.PI / 180, focusRatio: .075, groundClearance: 2.2 } as const;
-const firehawkCameraProfile = { widthFraction: .34, elevation: 5 * Math.PI / 180, focusRatio: .01, groundClearance: 1.1 } as const;
+export const aircraftCameraProfile = { widthFraction: .35, elevation: 5 * Math.PI / 180, focusRatio: .01, groundClearance: 1.1 } as const;
+const firehawkCameraProfile = { ...aircraftCameraProfile, widthFraction: .34, elevation: 9 * Math.PI / 180 } as const;
+const nightowlCameraProfile = { ...aircraftCameraProfile, widthFraction: .42 } as const;
+const bluejayCameraProfile = { ...aircraftCameraProfile, elevation: 14 * Math.PI / 180 } as const;
+const mammothCameraProfile = { ...aircraftCameraProfile, elevation: 8 * Math.PI / 180 } as const;
 export function normalAircraftCameraProfile(type: string) {
-  return type === 'fighter' ? firehawkCameraProfile : aircraftCameraProfile;
+  return type === 'fighter' ? firehawkCameraProfile
+    : type === 'privateJet' ? nightowlCameraProfile
+    : type === 'trainer' ? bluejayCameraProfile
+    : type === 'cargo' ? mammothCameraProfile : aircraftCameraProfile;
 }
 
 /** Fit cached visible geometry in straight, level flight only. */

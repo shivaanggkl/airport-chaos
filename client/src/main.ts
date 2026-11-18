@@ -78,7 +78,8 @@ import { cityCapabilities, cityDefinition, routesFromCity, routeDefinition, near
 import { MobileInputControls, mobileIdleBrakeRequested, pinchZoomFactor, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type MobileControlId, type MobileControlPlacement } from './mobile-input';
 import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialInstruction,tutorialLockPreviewInstruction,tutorialDetectedInstruction,tutorialLandingCoachStage,tutorialLandingCoachInstruction,tutorialTakeoffRecoveryInstruction,tutorialTurnProgress,type TutorialBindings,type TutorialLandingCoachStage,type TutorialLessonStep,type TutorialStepStatus}from'../../shared/tutorial-flight-rules.mjs';
 import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
-import { GameplayInfoCard } from './gameplay-info-card';
+import { bindGameplayInfoTap, GameplayInfoCard } from './gameplay-info-card';
+import { bindMissionPanelLayout } from './mission-panel-layout';
 import { SkyDuelUi } from './sky-duel-ui';
 import { TrainingSlides } from './training-slides';
 import { WorldMap, type WorldMapLayer } from './world-map';
@@ -96,7 +97,7 @@ import { reconcileCreditSnapshot, type CreditReceipt } from '../../shared/credit
 import { FLIGHT_UNITS_PER_METER, KNOTS_PER_METER_PER_SECOND, MPH_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftGroundOffset } from '../../shared/city-airports.mjs';
 import { competitiveModes } from '../../shared/competitive-modes.mjs';
-import { runwayPowerScale, runwayRotationSpeed, landingApproachSpeedTarget, airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, COORDINATED_BANK_CAP, COORDINATED_BANK_STRONG_TARGET, desktopTurnIntent, hasRunwayLiftoffLift, normalizedPitchCommand, smoothMobileSteering, stepBoostBlend, stepCoordinatedBank, throttleSpeedTarget, throttleDecelerationResponse, controlledEngineThrust, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
+import { runwayPowerScale, runwayRotationSpeed, landingApproachSpeedTarget, airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, COORDINATED_BANK_CAP, COORDINATED_BANK_STRONG_TARGET, desktopTurnIntent, hasRunwayLiftoffLift, normalizedPitchCommand, smoothMobileSteering, stepBoostBlend, stepCoordinatedBank, throttleSpeedTarget, throttleDecelerationResponse, controlledEngineThrust, throttleTargetDeceleration, turnFlightVelocity } from '../../shared/flight-control-rules.mjs';
 import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { challengeCreditReward } from '../../shared/reward-economy.mjs';
@@ -1197,7 +1198,7 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
       addEngine(side * definition.wingSpan * 0.31, -0.38, 0.65, 1.75, 0.31);
     }
     addBox(definition.tailSpan, 0.12, 0.68, 0, 1.15, definition.bodyLength * 0.41, accentMaterial);
-    addBox(0.14, 2.25, 1.05, 0, 1.08, definition.bodyLength * 0.4, accentMaterial);
+    addBox(0.07, 1.125, 0.525, 0, 0.5375, definition.bodyLength * 0.4, accentMaterial);
   } else if (type === 'cargo') {
     addBox(definition.wingSpan, 0.28, definition.wingDepth, 0, 0.35, -0.05, accentMaterial);
     addBox(definition.tailSpan, 0.2, 0.9, 0, 0.75, definition.bodyLength * 0.41, accentMaterial);
@@ -1407,13 +1408,11 @@ missionTerritoryCard.hidden = true;
 missionTerritoryCard.setAttribute('aria-label', 'City territories');
 const missionTerritoryToggle = document.createElement('button');
 missionTerritoryToggle.type = 'button';
-missionTerritoryToggle.className = 'mission-territory-toggle';
-missionTerritoryToggle.textContent = '−';
+missionTerritoryToggle.className = 'mission-territory-toggle journey-hud-toggle';
 missionTerritoryToggle.setAttribute('aria-label', 'Hide territory details');
 missionTerritoryToggle.setAttribute('aria-expanded', 'true');
-missionTerritoryToggle.addEventListener('click', () => {
+bindGameplayInfoTap(missionTerritoryToggle, () => {
   const collapsed = missionTerritoryCard.classList.toggle('is-collapsed');
-  missionTerritoryToggle.textContent = collapsed ? '+' : '−';
   missionTerritoryToggle.setAttribute('aria-expanded', String(!collapsed));
   missionTerritoryToggle.setAttribute('aria-label', collapsed ? 'Show territory details' : 'Hide territory details');
 });
@@ -1923,7 +1922,7 @@ let nextJourneyCombatHudUpdateAt = 0;
 function updateJourneyCombatHeader(): void {
   const mission = journeyCombatMissions.find(definition => definition.id === journeyAttempt?.missionId);
   const countdownVisible = missionStartCountdownStartedAt !== null && !journeyPaused && !flightDialogOpen();
-  const visible = Boolean(journeyMode && mission && mission !== journeyDallasTerritoryDefense01 && mission !== journeyDallas13 && mission !== journeyDallas14 && mission !== journeyDallas15 && !journeyCrossfireMission(mission.id) && mission !== journeyDallas17 && mission !== journeyDallas18 && (journeyAttempt?.status === 'APPROACH' || journeyAttempt?.status === 'RACING' || countdownVisible && journeyAttempt?.status === 'READY') &&
+  const visible = Boolean(journeyMode && mission && mission !== journeyDallasAceIntercept01 && mission !== journeyDallasTerritoryDefense01 && mission !== journeyDallas13 && mission !== journeyDallas14 && mission !== journeyDallas15 && !journeyCrossfireMission(mission.id) && mission !== journeyDallas17 && mission !== journeyDallas18 && (journeyAttempt?.status === 'APPROACH' || journeyAttempt?.status === 'RACING' || countdownVisible && journeyAttempt?.status === 'READY') &&
     !crashed && (!launchCinematicBlocksInput() || countdownVisible));
   journeyCombatHeader.element.hidden = !visible;
   flightGameRoot.classList.toggle('journey-combat-header-active', visible);
@@ -2842,6 +2841,11 @@ function createTerritoryWallGeometry(definition: CityTerritory): THREE.BufferGeo
 }
 
 function territoryDisplayName(definition: CityTerritory): string {
+  if (journeyAttempt?.missionId === journeyDallasCaptureThree01.id) {
+    if (definition.id === 'las-colinas') return captureMissionTerritoryName;
+    if (definition.id === 'love-field') return dallasAirportNames.love;
+    if (definition.id === 'downtown') return dallasAirportNames.downtown;
+  }
   return definition.id === focusedTerritoryTargetId() && journeyAttempt?.missionId!==journeyDallasCaptureThree01.id
     ? 'LAS COLINAS' : definition.displayName;
 }
@@ -3072,16 +3076,38 @@ function updateTerritoryPanel(allowDemonstration = true): void {
       contested: false, statusLabel, captured }], localPlayerId);
     return;
   }
+  if (journeyMode && journeyAttempt?.missionId === journeyDallasCaptureThree01.id) {
+    const attempt = journeyAttempt;
+    const stage = attempt.captureStage ?? 0;
+    const percent = Math.max(0, Math.min(100, Math.floor(attempt.captureMs * 100 / journeyDallasCaptureThree01.captureDurationMs)));
+    cityTerritoriesPanel.update(journeyDallasCaptureThree01.territoryIds.map((id, index) => {
+      const target = territoryDefinitions.find(item => item.id === id)!;
+      const captured = index < stage;
+      const current = index === stage;
+      const capturing = current && attempt.status === 'RACING' && !journeyPaused && connectionReady() && !crashed && !onGround &&
+        territoryContains(target, airplane.position) && airplane.position.y > getTerrainHeight(airplane.position.x, airplane.position.z);
+      return { name: territoryDisplayName(target), color: captured ? target.fixedColor : neutralTerritoryColor,
+        controllerId: captured ? localPlayerId ?? undefined : undefined, contested: false, captured,
+        statusLabel: captured ? 'OWNED' : !current ? 'LOCKED' : capturing ? `CAPTURING ${percent}%`
+          : percent > 0 ? `PAUSED AT ${percent}%` : 'NOT CAPTURED' };
+    }), localPlayerId);
+    return;
+  }
   cityTerritoriesPanel.update(cityTerritoryEntries(), localPlayerId);
 }
 
 function updateCaptureHud(): void {
   const captureMission = journeyAttempt?.missionId === journeyDallasCapture01.id ? journeyDallasCapture01
-    : journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id ? journeyDallasTerritoryDefense01 : undefined;
+    : journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id ? journeyDallasTerritoryDefense01
+    : journeyAttempt?.missionId === journeyDallasCaptureThree01.id ? journeyDallasCaptureThree01 : undefined;
   if (captureMission && journeyAttempt) {
-    const captured = captureMission.id === journeyDallasCapture01.id && journeyAttempt.status === 'COMPLETED';
+    const stage = journeyAttempt.captureStage ?? 0;
+    const target = 'territoryIds' in captureMission ? territoryDefinitions.find(item =>
+      item.id === captureMission.territoryIds[Math.min(stage, captureMission.territoryIds.length - 1)]) : undefined;
+    const name = target ? territoryDisplayName(target) : captureMissionTerritoryName;
+    const captured = captureMission.id !== journeyDallasTerritoryDefense01.id && journeyAttempt.status === 'COMPLETED';
     const capturing = journeyAttempt.status === 'RACING' && journeyAttempt.captureMs > 0 &&
-      (captureMission.id === journeyDallasCapture01.id || journeyAttempt.captureMs < captureMission.captureDurationMs);
+      (captureMission.id !== journeyDallasTerritoryDefense01.id || journeyAttempt.captureMs < captureMission.captureDurationMs);
     const holding = captureMission.id === journeyDallasTerritoryDefense01.id && journeyAttempt.status === 'RACING' &&
       journeyAttempt.captureMs >= captureMission.captureDurationMs;
     const live = !journeyPaused && (captured || capturing || holding);
@@ -3091,7 +3117,7 @@ function updateCaptureHud(): void {
         missionCaptureBar.showHold(captureMissionTerritoryName,
           formatJourneyResultTime(Math.max(0, Math.min(journeyDallasTerritoryDefense01.defenseDurationMs, journeyAttempt.defenseMs ?? 0))),
           formatJourneyResultTime(journeyDallasTerritoryDefense01.defenseDurationMs));
-      } else missionCaptureBar.show(captureMissionTerritoryName, journeyAttempt.captureMs * 100 / captureMission.captureDurationMs, captured);
+      } else missionCaptureBar.show(name, journeyAttempt.captureMs * 100 / captureMission.captureDurationMs, captured);
     } else missionCaptureBar.hide();
     return;
   }
@@ -3187,7 +3213,7 @@ function updateJourneyHud(): void {
   skyChallengeElement.classList.toggle('journey-airport-card', journeyAttempt?.missionId === journeyDallasAirportHop01.id);
   skyChallengeElement.classList.toggle('journey-targets-card', journeyAttempt?.missionId === journeyDallasSharpshooter01.id);
   skyChallengeElement.classList.toggle('journey-coins-card', journeyAttempt?.missionId === journeyDallasCoinHunt01.id);
-  const separateTerritoryPanel = territoryDefense || journeyAttempt?.missionId === journeyDallasCapture01.id;
+  const separateTerritoryPanel = captureThree || territoryDefense || journeyAttempt?.missionId === journeyDallasCapture01.id;
   skyChallengeElement.classList.toggle('journey-territory-card', captureThree || territoryDefense || journeyAttempt?.missionId === journeyDallasCapture01.id);
   gameplayInfoCard.setTerritoryPanelHost(separateTerritoryPanel ? missionTerritoryCard : null);
   missionTerritoryCard.hidden = !separateTerritoryPanel || !journeyAttempt || !['APPROACH', 'RACING'].includes(journeyAttempt.status);
@@ -3311,19 +3337,9 @@ function updateJourneyHud(): void {
     return;
   }
   if(captureThree){
-    const stage=journeyAttempt.captureStage??0;
     if(journeyHudObjective) setMissionInstructions(journeyHudObjective,missionJourneyDetails.find(mission=>mission.id===journeyDallasCaptureThree01.id)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
-    if(journeyHudProgress){journeyHudProgress.hidden=false;journeyHudProgress.textContent=`TERRITORIES ${stage}/3`;}
-    if(journeyHudTarget){journeyHudTarget.hidden=false;journeyHudTarget.textContent=journeyAttempt.captureMs>0?`CAPTURING ${Math.floor(journeyAttempt.captureMs/1000)}/15 SEC`:'ENTER THE MARKED TERRITORY';}
-    if(journeyHudSegmentRow)journeyHudSegmentRow.hidden=false;
-    const names=['LAS COLINAS',dallasAirportNames.love,'CENTRAL DISTRICT'];
-    journeyHudSegments.forEach((segment,index)=>{
-      segment.hidden=index>=3;
-      const text=index<3?`${index<stage?'✓ ':index===stage?'› ':''}${names[index]}`:'';
-      if(segment.textContent!==text)segment.textContent=text;
-      segment.classList.toggle('is-cleared',index<stage);segment.classList.toggle('is-current',index===stage);
-    });
-    for(const item of [journeyHudTimer,journeyHudHint,journeyHudEnemy])if(item)item.hidden=true;
+    for(const item of [journeyHudProgress,journeyHudTarget,journeyHudSegmentRow,journeyHudTimer,journeyHudHint,journeyHudEnemy])if(item)item.hidden=true;
+    updateTerritoryPanel();
     monsterBossHud.classList.add('hidden');escortHealthHud.classList.add('hidden');updateCaptureHud();return;
   }
   if (journeyAttempt.missionId === journeyDallasCapture01.id) {
@@ -3969,7 +3985,6 @@ function beginMissionClear(attempt: JourneyAttemptState): void {
     flightGameRoot.classList.add('territory-capture-celebrating');
     missionTerritoryCard.hidden = false;
     missionTerritoryCard.classList.remove('is-collapsed');
-    missionTerritoryToggle.textContent = '−';
     missionTerritoryToggle.setAttribute('aria-expanded', 'true');
     missionTerritoryToggle.setAttribute('aria-label', 'Hide territory details');
     updateTerritoryPanel(false);
@@ -4944,6 +4959,7 @@ const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#
   if(active){heldActions.add(action);runStarted=true;noteTutorialActionInput(action);if(action==='fire')pendingFirePress=true;}
   else heldActions.delete(action);
 },(value)=>{if(launchCinematicBlocksInput())return;reportTouchInput();runStarted=true;noteTutorialThrottleInput(value);if(trainingSlides.acceptsInput('landing'))screenplayLandingLastInputAt=performance.now();});
+bindMissionPanelLayout(missionStatusLayer, document.querySelector<HTMLElement>('#touch-controls [data-touch-control="stick"]')!);
 window.addEventListener('airport-chaos-menu-preferences-changed',()=>{
   const latest=loadPlayerProgress();
   persistedPlayer.muted=audioManager.isMuted();
@@ -10844,6 +10860,7 @@ function updateFlight(delta: number): void {
   forward.set(0, 0, -1).applyQuaternion(airplane.quaternion).normalize();
   liftDirection.set(0, 1, 0).applyQuaternion(airplane.quaternion).normalize();
 
+  turnFlightVelocity(velocity, heading - pitchStageHeading);
   const forwardSpeed = Math.max(0, velocity.dot(forward));
   const airspeed = velocity.length();
   const flightPathAngle = airspeed > 0.01 ? Math.asin(THREE.MathUtils.clamp(velocity.y / airspeed, -1, 1)) : 0;
@@ -13311,7 +13328,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       missionObjective = { ...missionObjective, fixedTop: false, peripheralCue: true };
     if (focusedTerritoryTargetId()) {
       const target = territoryDefinitions.find(item => item.id === focusedTerritoryTargetId())!;
-      missionObjective = {id: `${message.attempt.attemptId}:territory`, label:journeyAttempt?.missionId===journeyDallasCaptureThree01.id?target.displayName.toUpperCase():'LAS COLINAS',
+      missionObjective = {id: `${message.attempt.attemptId}:territory`, label:territoryDisplayName(target).toUpperCase(),
         position:new THREE.Vector3(target.center.x,getTerrainHeight(target.center.x,target.center.z)+800,target.center.z),radius:1000, peripheralCue:true};
     }
     updateSharpshooterTarget();
