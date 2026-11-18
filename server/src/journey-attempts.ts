@@ -1,3 +1,4 @@
+import { categoryMissionAccess, journeyPlayableMainIds } from '../../shared/journey-categories.mjs';
 import { captureCompetitionOwned, type CaptureCompetition } from './capture-competition.js';
 import { insideSurvivalArea, shiftSurvival, type SurvivalState } from './most-wanted-survival.js';
 import type { AceInterceptState } from './ace-intercept.js';
@@ -143,7 +144,11 @@ export class JourneyAttemptStore {
   private transaction<T>(pilotId: string, operation: (wallet: WalletTransaction) => T): T {
     this.activeSnapshots.delete(pilotId);
     this.transactionActive = true;
-    try { return this.wallet.transaction(operation); }
+    try { return this.wallet.transaction(wallet => {
+      const result = operation(wallet);
+      if (result && typeof result === 'object' && 'status' in result && result.status === 'COMPLETED') this.preserveJourneyBossAccess(pilotId);
+      return result;
+    }); }
     finally {
       this.transactionActive = false;
       // Both commit and rollback require a fresh durable snapshot on the next read.
@@ -272,6 +277,16 @@ export class JourneyAttemptStore {
         this.database.prepare(`INSERT OR IGNORE INTO journey_access_grants(pilot_id,mission_id) SELECT pilot_id,? FROM journey_completions WHERE mission_id=?`)
           .run(journeyDallas12.id,journeyDallas18.id);
         this.database.prepare('INSERT INTO journey_catalog_versions(version) VALUES(?)').run('dallas-most-wanted-survival-01');
+      }
+      if (!this.database.prepare('SELECT 1 FROM journey_catalog_versions WHERE version=?').get('dallas-category-journey-40-v1')) {
+        // Snapshot earned sequential access once. Future category clears must not
+        // unlock unrelated missions through the historical order.
+        const grant = this.database.prepare(`INSERT OR IGNORE INTO journey_access_grants(pilot_id,mission_id)
+          SELECT pilot_id,? FROM journey_completions WHERE mission_id=?`);
+        for (let index = 1; index < journeyMissionOrder.length; index++) grant.run(journeyMissionOrder[index]!, journeyMissionOrder[index - 1]!);
+        this.database.exec(`INSERT OR IGNORE INTO journey_access_grants(pilot_id,mission_id)
+          SELECT pilot_id,mission_id FROM journey_attempts`);
+        this.database.prepare('INSERT INTO journey_catalog_versions(version) VALUES(?)').run('dallas-category-journey-40-v1');
       }
       // Retire only unfinished encounters. Completion history and wallet receipts are untouched.
       for (const id of ['journey-dallas-25','journey-dallas-20','journey-dallas-21','journey-dallas-22','journey-dallas-24']) {
@@ -497,11 +512,22 @@ export class JourneyAttemptStore {
     return Boolean(this.database.prepare('SELECT 1 FROM journey_qa_unlocked_pilots WHERE pilot_id = ?').get(pilotId));
   }
 
+  private completedMissionIds(pilotId: string): Set<string> {
+    return new Set((this.database.prepare('SELECT mission_id FROM journey_completions WHERE pilot_id=?').all(pilotId) as { mission_id: string }[]).map(row => row.mission_id));
+  }
+
+  private preserveJourneyBossAccess(pilotId: string, completed = this.completedMissionIds(pilotId)): void {
+    if (journeyPlayableMainIds.every(id => completed.has(id))) this.database.prepare(
+      'INSERT OR IGNORE INTO journey_access_grants(pilot_id,mission_id) VALUES(?,?)').run(pilotId, journeyDallas23.id);
+  }
+
   canAccessMission(pilotId: string, missionId: string): boolean {
-    const slot = journeyMissionOrder.indexOf(missionId);
-    return slot >= 0 && (this.qaMissionAccess(pilotId) || slot === 0 || this.progress(pilotId, missionId).completed ||
-      Boolean(this.database.prepare('SELECT 1 FROM journey_access_grants WHERE pilot_id=? AND mission_id=?').get(pilotId, missionId)) ||
-      this.progress(pilotId, journeyMissionOrder[slot - 1]!).completed);
+    if (!journeyMissionOrder.includes(missionId)) return false;
+    if (this.qaMissionAccess(pilotId) || this.database.prepare('SELECT 1 FROM journey_access_grants WHERE pilot_id=? AND mission_id=?').get(pilotId, missionId)) return true;
+    const completed = this.completedMissionIds(pilotId);
+    const eligible = categoryMissionAccess(missionId, completed);
+    if (eligible && missionId === journeyDallas23.id) this.preserveJourneyBossAccess(pilotId, completed);
+    return eligible;
   }
 
   chapterOneComplete(pilotId: string): boolean {
@@ -589,14 +615,14 @@ export class JourneyAttemptStore {
       if (missionId === journeyDallas04.id || missionId === journeyDallas05.id) this.database.prepare('UPDATE journey_attempts SET definition_revision=? WHERE attempt_id=?').run(missionId === journeyDallas04.id ? journeyDallas04.courseRevision : journeyDallas05.courseRevision,attemptId);
       if (missionId === journeyDallas06.id) this.database.prepare('UPDATE journey_attempts SET definition_revision=? WHERE attempt_id=?').run(journeyDallas06.courseRevision,attemptId);
       if (missionId === journeyDallas01.id) this.database.prepare('UPDATE journey_attempts SET definition_revision=? WHERE attempt_id=?').run(journeyDallas01.courseRevision,attemptId);
-      if (missionId === journeyDallasMostWantedSurvival01.id || missionId === journeyDallasAceIntercept01.id || missionId === journeyDallasTerritoryDefense01.id || missionId === journeyDallasTwinHunters01.id || missionId === journeyDallas07.id || missionId === journeyDallas08.id || missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id || missionId === journeyDallas16.id || missionId === journeyDallas17.id || missionId === journeyDallas18.id || (missionId===journeyDallas19.id||missionId===journeyDallas25.id)||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id) this.database.prepare('UPDATE journey_attempts SET definition_revision = ? WHERE attempt_id = ?').run(missionId===journeyDallas19.id?3:(missionId===journeyDallas17.id||missionId===journeyDallas18.id||missionId===journeyDallas25.id||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id)?2:1,attemptId);
+      if (missionId === journeyDallasMostWantedSurvival01.id || missionId === journeyDallasAceIntercept01.id || missionId === journeyDallasTerritoryDefense01.id || missionId === journeyDallasTwinHunters01.id || missionId === journeyDallas07.id || missionId === journeyDallas08.id || missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id || missionId === journeyDallas16.id || missionId === journeyDallas17.id || missionId === journeyDallas18.id || (missionId===journeyDallas19.id||missionId===journeyDallas25.id)||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId === journeyDallas23.id) this.database.prepare('UPDATE journey_attempts SET definition_revision = ? WHERE attempt_id = ?').run(missionId===journeyDallas19.id?3:(missionId===journeyDallas17.id||missionId===journeyDallas18.id||missionId===journeyDallas25.id||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId === journeyDallas23.id)?2:1,attemptId);
       if (missionId === journeyDallas11.id || missionId === journeyDallas12.id) {
         const mission = missionId === journeyDallas12.id ? journeyDallas12 : journeyDallas11;
         this.database.prepare('UPDATE journey_attempts SET monster_health = ?, fortress_left_health = ?, fortress_right_health = ?, final_phase = ? WHERE attempt_id = ?')
           .run(mission.coreHealth, mission.turretHealth, mission.turretHealth, missionId === journeyDallas12.id ? 'ESCORTS' : null, attemptId);
       }
       if (missionId === journeyDallas23.id||missionId === journeyDallas22.id||missionId === journeyDallas21.id||missionId === journeyDallas20.id||(missionId===journeyDallas19.id||missionId===journeyDallas25.id) || missionId === journeyDallas07.id || missionId === journeyDallas08.id || missionId === journeyDallas09.id || missionId === journeyDallas10.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
-        .run(missionId===journeyDallas23.id?1000:missionId===journeyDallas22.id?1100:missionId===journeyDallas21.id?900:missionId===journeyDallas25.id?500:missionId === journeyDallas20.id?journeyDallas20.bossHealth:missionId===journeyDallas19.id ? journeyDallas19.bossHealth : missionId === journeyDallas10.id ? journeyDallas10.bossHealth : missionId === journeyDallas09.id ? journeyDallas09.bossHealth : missionId === journeyDallas08.id ? journeyDallas08.bossHealth : journeyDallas07.bossHealth, attemptId);
+        .run(missionId === journeyDallas23.id?1000:missionId===journeyDallas22.id?1100:missionId===journeyDallas21.id?900:missionId===journeyDallas25.id?500:missionId === journeyDallas20.id?journeyDallas20.bossHealth:missionId===journeyDallas19.id ? journeyDallas19.bossHealth : missionId === journeyDallas10.id ? journeyDallas10.bossHealth : missionId === journeyDallas09.id ? journeyDallas09.bossHealth : missionId === journeyDallas08.id ? journeyDallas08.bossHealth : journeyDallas07.bossHealth, attemptId);
       return this.get(pilotId, attemptId)!;
     });
   }
@@ -888,7 +914,7 @@ export class JourneyAttemptStore {
   /** Start the combat clock after preparation and the authorized countdown handoff. */
   startMonsterArrival(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
     const current = this.get(pilotId, attemptId);
-    const mission=current?.missionId===journeyDallas25.id?journeyDallas25:current?.missionId===journeyDallas23.id?journeyDallas23:current?.missionId===journeyDallas22.id?journeyDallas22:current?.missionId===journeyDallas21.id?journeyDallas21:current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19;
+    const mission=current?.missionId===journeyDallas25.id?journeyDallas25:current?.missionId === journeyDallas23.id?journeyDallas23:current?.missionId===journeyDallas22.id?journeyDallas22:current?.missionId===journeyDallas21.id?journeyDallas21:current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19;
     if (current?.missionId !== mission.id || current.status !== 'APPROACH' ||
       current.prepareUntil === null || now < current.prepareUntil) return undefined;
     const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', started_at = ?,
@@ -967,7 +993,7 @@ export class JourneyAttemptStore {
   /** Only the server projectile simulation invokes this after a swept body hit. */
   hitMonster(pilotId: string, attemptId: string, now = Date.now(), damage?: number): JourneyAttempt | undefined {
     const current=this.get(pilotId,attemptId);
-    return this.hitEncounter(pilotId, attemptId,current?.missionId===journeyDallas25.id?journeyDallas25:current?.missionId===journeyDallas23.id?journeyDallas23:current?.missionId===journeyDallas22.id?journeyDallas22:current?.missionId===journeyDallas21.id?journeyDallas21:current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19, now, damage);
+    return this.hitEncounter(pilotId, attemptId,current?.missionId===journeyDallas25.id?journeyDallas25:current?.missionId === journeyDallas23.id?journeyDallas23:current?.missionId===journeyDallas22.id?journeyDallas22:current?.missionId===journeyDallas21.id?journeyDallas21:current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19, now, damage);
   }
 
   private hitEncounter(pilotId: string, attemptId: string, mission: {id:string;firstClearCredits:number}, now:number, damage?: number): JourneyAttempt | undefined {

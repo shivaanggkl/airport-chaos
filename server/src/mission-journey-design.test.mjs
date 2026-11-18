@@ -1,86 +1,70 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { chapterNames, missionJourneyStages, missionJourneyStatuses } from '../../client/src/mission-journey-model.js';
+import { missionJourneyStages, missionJourneyStatuses, journeyMainCompleted } from '../../client/src/mission-journey-model.js';
 import { missionJourneyDetails } from '../../client/src/mission-journey-content.js';
-import * as journeyMissions from '../../shared/journey-mission.mjs';
+import { journeyCategories } from '../../shared/journey-categories.mjs';
+import * as missions from '../../shared/journey-mission.mjs';
 
 const view = readFileSync(new URL('../../client/src/mission-journey.ts', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../../client/src/mission-journey.css', import.meta.url), 'utf8');
-const shell = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
 const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
 
-test('30 slots use the four approved chapter boundaries and preserve curved layout', () => {
-  assert.equal(missionJourneyStages.length, 30);
-  assert.equal(chapterNames.length, 4);
-  assert.deepEqual(chapterNames, ['ROOKIE PILOT','RISING ACE','SKY COMMANDER','DR. BOSS RISING']);
-  assert.deepEqual([1,2,3,4].map(chapter => missionJourneyStages.filter(stage => stage.chapter === chapter).length), [9,9,10,2]);
-  assert.ok(missionJourneyStages.every((stage,index) => !index || stage.x > missionJourneyStages[index-1].x && stage.y < missionJourneyStages[index-1].y));
-  assert.match(view, /missionJourneyStages\[stage.number\]\?\.chapter !== stage.chapter/);
-});
-
-test('locked missions show details while only their Play action stays disabled', () => {
-  assert.doesNotMatch(view, /button\.disabled = this\.cityLocked \|\| status === 'locked'/);
-  assert.doesNotMatch(styles, /\.mission-journey-node\.is-locked[^\n]*pointer-events: none/);
-  assert.match(view, /this\.detail\.querySelector<HTMLElement>\('\[data-mission-objective\]'\)!\.textContent = card\.description/);
-  assert.match(view, /if \(playButton\.disabled \|\|[^\n]+\) return/);
-  assert.match(view, /play\.disabled = locked/);
-  assert.match(view, /play\.hidden = false/);
-  assert.match(view, /completed \? 'REPLAY MISSION/);
-  assert.match(bootstrap, /missionJourney\.selectedMissionNumber/);
-  assert.match(bootstrap, /\/api\/journey\/dallas\/\$\{mission\}\/launch/);
-});
-
-test('locked Dallas remains viewable while its missions cannot launch', () => {
-  const locked = missionJourneyStatuses(Array(24).fill(false), Array(24).fill(false), false);
-  assert.ok(locked.statuses.every(status => status === 'locked'));
-  assert.match(bootstrap, /cta: unlocked \?[^\n]+: 'LOCKED', locked: !unlocked, disabled: !unlocked && cityJourneyMode !== 'missions'/);
-  assert.match(bootstrap, /missionJourney\.setCityLocked\(!dallasUnlocked\(\)\)/);
-  assert.match(bootstrap, /if \(!dallasUnlocked\(\)\) return;\s+cityJourneyMode = 'missions'/);
-  assert.match(view, /const locked = this\.cityLocked \|\|/);
-});
-
-test('mission selection supports pointer, keyboard and compact landscape layout', () => {
-  assert.match(view, /button\.addEventListener\('click', \(\) => this\.select\(stage\.number, true, true\)\)/);
-  assert.match(view, /button\.addEventListener\('keydown', event => this\.handleNodeKeydown/);
-  assert.match(view, /ArrowRight|ArrowDown/);
-  assert.match(view, /target\.focus\(\)|next\.focus\(\)/);
-  assert.match(view, /this\.renderDetails\(\)/);
-  assert.match(view, /this\.suppressTap = this\.dragged/);
-  assert.match(view, /this\.revealMission\(next, true\)/);
-  assert.match(styles, /touch-action: pan-x/);
-  assert.match(styles, /overflow-x: auto/);
-  assert.match(styles, /@media \(max-height: 480px\) and \(orientation: landscape\)/);
-  assert.match(styles, /overflow: hidden/);
-  assert.match(shell, /:is\(\.home-hangar, \.city-selector, \.mission-journey\) \{ background: var\(--menu-background\)/);
-  assert.doesNotMatch(view, /mission-journey-pagination|data-chapter-next/);
-});
-
-test('all playable details preserve gameplay rewards, clocks and objectives by stable identity', () => {
-  assert.equal(missionJourneyDetails.length, 21);
-  assert.deepEqual(missionJourneyDetails.map(detail=>detail.id),journeyMissions.journeyMissionOrder);
-  for (const detail of missionJourneyDetails) {
-    const definition = Object.values(journeyMissions).find(definition => definition?.id === detail.id);
-    const slot = journeyMissions.journeyCatalog.find(slot => slot.id === detail.id);
-    assert.equal(detail.title, slot.title);
-    assert.equal(detail.rewardCredits, definition.firstClearCredits);
-    const limit = definition.timeLimitMs;
-    assert.equal(detail.timeLimit, `${Math.floor(limit / 60_000)}:${String(Math.floor(limit / 1000) % 60).padStart(2, '0')}`);
-    assert.ok(detail.description);
-    if (Number(detail.id.slice(-2)) <= 6) assert.equal(detail.description,definition.objective);
+test('six disconnected groups have six numbered nodes, a gentle rise, and no obsolete chapter UI', () => {
+  assert.equal(missionJourneyStages.length, 42);
+  for (const group of journeyCategories) {
+    assert.deepEqual(missionJourneyStages.filter(stage => stage.categoryId === group.id).map(stage => stage.categoryNumber), [1,2,3,4,5,6]);
   }
+  assert.match(view, /row.append\(route\)/);
+  assert.match(view, /48 - index \* 15/);
+  assert.doesNotMatch(view, /journey-chapter|journey-map|journey-segment/);
+  assert.match(styles, /gap: 56px/);
+  assert.match(styles, /flex: 0 0 266px/);
+  assert.match(styles, /\.mission-journey-category-route polyline[^\n]+stroke-width: 2px/);
 });
 
-test('all nine interspersed placeholders remain gray, selectable and unlaunchable even in local QA',()=>{
- const placeholders=missionJourneyStages.filter(s=>s.implementation==='placeholder');
- assert.deepEqual(placeholders.map(s=>s.number),[7,8,12,15,16,20,21,26,27]);
- for(const completed of [Array(30).fill(false),Array(30).fill(true)]){
-  const state=missionJourneyStatuses(completed,Array(30).fill(true),false);
-  assert(placeholders.every(s=>state.statuses[s.number-1]==='locked'));
- }
- assert.match(view,/play.hidden = false; play.disabled = true; play.textContent = 'COMING SOON'/);
- assert.match(styles,/\.mission-journey-node\.is-placeholder/);
- assert.match(view,/textContent = stage.title/);
- assert.match(view,/implementation === 'playable'/);
- assert.match(view,/segments\[part\]!.getPointAtLength/);
+test('server eligibility drives nodes, while placeholders stay locked even with QA progress', () => {
+  const none = Array(42).fill(false);
+  assert.ok(missionJourneyStatuses(none, none, false).statuses.every(status => status === 'locked'));
+  const heads = missionJourneyStages.map(stage => stage.kind === 'main' && stage.categoryNumber === 1);
+  const state = missionJourneyStatuses(none, heads, false);
+  assert.equal(state.currentMission, 1);
+  assert.equal(state.statuses.filter(status => status === 'current' || status === 'available').length, 6);
+  const all = missionJourneyStatuses(Array(42).fill(true), Array(42).fill(true), false);
+  assert.equal(all.currentMission, 0);
+  missionJourneyStages.forEach((stage, index) => assert.equal(all.statuses[index], stage.implementation === 'playable' ? 'completed' : 'locked'));
+  assert.equal(journeyMainCompleted(Object.fromEntries(missions.journeyMissionOrder.map(id => [id, {completed:true}]))), 23);
+  assert.match(view, /play.disabled = placeholder \|\| this.cityLocked/);
+  assert.match(view, /placeholder \? 'COMING SOON'/);
+  assert.match(bootstrap, /missionJourney.setCityLocked\(!dallasUnlocked\(\)\)/);
+  assert.match(bootstrap, /stage.id === missionJourney.selectedMissionId/);
+});
+
+test('live detail definitions keep every playable reward, clock and description; Territory 4 retains its description', () => {
+  for (const stage of missionJourneyStages.filter(stage => stage.implementation === 'playable')) {
+    const card = missionJourneyDetails.find(card => card.id === stage.id);
+    const definition = Object.values(missions).find(value => value?.id === stage.id);
+    assert.ok(card?.description, stage.id);
+    assert.equal(card.rewardCredits, definition.firstClearCredits);
+    const time = definition.timeLimitMs;
+    assert.equal(card.timeLimit, time === undefined ? 'NO LIMIT' : `${Math.floor(time/60000)}:${String(Math.floor(time/1000)%60).padStart(2,'0')}`);
+  }
+  assert.equal(missionJourneyDetails.find(card => card.id === 'placeholder-dallas-27').description, 'Capture 3 TERRITORIES\nHold them together for 1 minute');
+  assert.match(view, /placeholder \? '—'/);
+  assert.match(view, /card.description.split/);
+  assert.doesNotMatch(styles, /\.mission-journey-detail.is-placeholder/);
+});
+
+test('only the track scrolls, with touch, wheel, keyboard and Special Pursuits return navigation', () => {
+  assert.match(styles, /\.mission-journey \{[^\n]+position: fixed;[^\n]+overflow: hidden/);
+  assert.match(styles, /\.mission-journey-viewport \{[^\n]+overflow-x: auto; overflow-y: hidden;[^\n]+touch-action: pan-x/);
+  assert.match(styles, /\.mission-journey-detail \{[^\n]+position: absolute/);
+  assert.match(styles, /@media \(max-height: 480px\) and \(orientation: landscape\)/);
+  assert.match(view, /addEventListener\('wheel'/);
+  assert.match(view, /ArrowRight/);
+  assert.match(view, /Home/);
+  assert.match(view, /focus\(\{ preventScroll: true \}\)/);
+  assert.match(view, /this.mainScroll = this.viewport.scrollLeft/);
+  assert.match(view, /this.viewport.scrollLeft = open \? 0 : this.mainScroll/);
+  assert.match(view, /selected.categoryId !== 'plane-battles'/);
 });

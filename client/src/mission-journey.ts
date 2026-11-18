@@ -3,489 +3,314 @@ import './mission-journey.css';
 import './context-page-shell.css';
 import { hapticsManager } from './haptics-manager';
 import { createLockIcon } from './lock-icon';
-import { chapterNames, missionJourneyStages, missionJourneyStatuses } from './mission-journey-model';
+import { journeyDisplayGroups, journeySpecialPursuits, type JourneyCategory } from '../../shared/journey-categories.mjs';
+import { missionJourneyStages, missionJourneyStatuses, journeyMainCompleted } from './mission-journey-model';
 import { missionJourneyDetails } from './mission-journey-content';
 export { missionJourneyStages } from './mission-journey-model';
 export type { MissionJourneyStage } from './mission-journey-model';
-
+type Progress = Readonly<Record<string, {
+  eligible?: boolean;
+  completed?: boolean;
+  coinsCollected?: number;
+}>>;
+function categoryIcon(icon: string): string {
+  const art: Record<string, string> = {
+    ring: '<ellipse cx="32" cy="32" rx="18" ry="27" transform="rotate(40 32 32)" fill="none" stroke="#ffda47" stroke-width="8"/><ellipse cx="32" cy="32" rx="18" ry="27" transform="rotate(40 32 32)" fill="none" stroke="#fff7a3" stroke-width="2"/>',
+    cargo: '<path d="m6 18 25-10 27 11v31L32 60 6 49Z" fill="#e5a214" stroke="#fff5a1" stroke-width="2"/><path d="m6 18 26 11 26-10M32 29v31M19 13l26 11v13" fill="none" stroke="#74dbff" stroke-width="6"/>',
+    target: '<circle cx="32" cy="32" r="27" fill="#fff" stroke="#e22b33" stroke-width="5"/><circle cx="32" cy="32" r="16" fill="none" stroke="#e22b33" stroke-width="6"/><circle cx="32" cy="32" r="5" fill="#e22b33"/><path d="M0 32h64M32 0v64" stroke="#103451" stroke-width="2"/>',
+    plane: '<path d="m29 5 8 0 0 20 24 15-2 8-22-8v13l9 6H18l10-6V40L6 48l-2-8 25-15Z" fill="#dcefff" stroke="#3a9ec8" stroke-width="2" transform="rotate(38 32 32)"/>',
+    giant: '<path d="M28 3h8l5 23 22 12v7l-23-5-2 12 11 8H15l11-8-2-12L1 45v-7l22-12Z" fill="#f4e6ff" stroke="#9a6cbd" stroke-width="2" transform="rotate(72 32 32)"/>',
+    territory: '<path d="m3 43 18-9 23 4 17-7v24l-17 7-23-5-18 6Z" fill="#71cc6c" stroke="#fff5ad" stroke-width="2"/><path d="m21 34 0 23M44 38v24" stroke="#e8f7c5" stroke-width="2"/><path d="M32 2c-12 0-19 8-19 18 0 14 19 29 19 29s19-15 19-29C51 10 44 2 32 2Z" fill="#f36143"/><circle cx="32" cy="20" r="7" fill="#274b57"/>',
+    gift: '<path d="M7 25h50v35H7Z" fill="#f2232b" stroke="#ffe66c" stroke-width="3"/><path d="M2 17h60v13H2Z" fill="#ffd431"/><path d="M28 17h9v43h-9Z" fill="#ffdd43"/><path d="M32 18C3 17 13-9 32 13 51-9 61 17 32 18Z" fill="none" stroke="#ffdf3a" stroke-width="6"/>',
+    boss: '<path d="M8 64v-9c0-15 48-15 48 0v9" fill="#dfeaff"/><path d="M17 23c-4-23 38-23 32 0l-4 25-13 8-13-8Z" fill="#e8b09c"/><path d="m16 20 7-15 12 4 12-4 4 15" fill="#d7e2f6" stroke="#fff" stroke-width="2"/><path d="M16 24h15v12H16ZM35 24h15v12H35ZM31 28h4M25 44h16" fill="#20324e" stroke="#111d36" stroke-width="3"/>',
+  };
+  return `<svg viewBox="0 0 64 64" aria-hidden="true">${art[icon] ?? art.plane}</svg>`;
+}
 const bonusRibbonMarkup = '<span class="mission-journey-bonus" aria-hidden="true"><svg viewBox="0 0 140 48"><path d="M15 16 3 20 12 31 7 43 32 36H108L133 43 128 31 137 20 125 16Z" fill="#8c3bac" stroke="#ffdc78" stroke-width="2"/><path d="M14 9Q70-5 126 9L120 37Q70 24 20 37Z" fill="#68128c" stroke="#ffe58b" stroke-width="2"/><text x="70" y="27" text-anchor="middle" fill="#fff2a1">BONUS</text></svg></span>';
-
 export class MissionJourney {
   private readonly detail: HTMLElement;
-  private detailAnimation: Animation | null = null;
-  private readonly stageButtons: HTMLButtonElement[] = [];
-  private readonly routeSegments: SVGPathElement[] = [];
-  private progressMarker: HTMLElement | null = null;
-  private progressSegment: SVGPathElement | null = null;
-  private progressAnimationFrame = 0;
-  private progressStartTimer = 0;
-  private unlockTimer = 0;
-  private progressingFrom: number | null = null;
-  private currentMission = 0;
+  private readonly viewport: HTMLElement;
+  private readonly stageButtons = new Map<number, HTMLButtonElement>();
+  private readonly groups = new Map<string, HTMLElement>();
+  private readonly extrasLink: HTMLButtonElement;
+  private readonly back: HTMLButtonElement;
+  private progress: Progress = {};
   private selectedStage = 1;
-  private userSelectedStage = false;
-  private hasShown = false;
-  private lastShownMission = 0;
-  private dragPointerId: number | null = null;
-  private dragStartX = 0;
-  private dragStartScroll = 0;
-  private dragged = false;
-  private suppressTap = false;
-  private panelOpen = false;
-  private progress: Readonly<Record<string, { eligible?: boolean; completed?: boolean; coinsCollected?: number }>> = {};
+  private currentMission = 1;
   private signInRequired = false;
   private cityLocked = false;
-
-  constructor(private readonly element: HTMLElement, onPlayMission: () => void, private readonly onPanelOpen: () => void, _onPanelClose: () => void) {
+  private userSelected = false;
+  private specialOpen = false;
+  private mainSelection = 1;
+  private mainScroll = 0;
+  private drag: {
+    id: number;
+    x: number;
+    scroll: number;
+    moved: boolean;
+  } | null = null;
+  private suppressTap = false;
+  private celebrationTimer = 0;
+  constructor(private readonly element: HTMLElement, onPlayMission: () => void, _onPanelOpen: () => void, _onPanelClose: () => void) {
     element.classList.add('mission-journey');
-    element.style.setProperty('--journey-stage-gaps', String(missionJourneyStages.length - 1));
     element.setAttribute('aria-label', 'Dallas Mission Journey');
-    element.innerHTML = `
-      <div class="mission-journey-viewport" aria-label="Dallas missions, four chapters" tabindex="0">
-        <div class="mission-journey-map">
-          <svg class="mission-journey-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
-          <div class="mission-journey-chapters" aria-hidden="true"></div>
-          <div class="mission-journey-nodes" aria-label="Choose a mission"></div>
-        </div>
-      </div>
-      <div class="mission-journey-detail" aria-label="Selected mission details" aria-live="polite">
-        <div class="mission-journey-detail-copy"><span class="mission-journey-detail-heading"><span data-mission-index>MISSION 01</span><span data-mission-bonus hidden>${bonusRibbonMarkup}</span></span><strong data-mission-title></strong><p data-mission-objective></p></div>
-        <div class="mission-journey-detail-facts">
-          <div class="mission-journey-reward" data-mission-reward><img src="/media/hub/credits.avif" alt="" aria-hidden="true"><span data-mission-reward-label>REWARD</span><strong data-mission-reward-amount></strong></div>
-          <div class="mission-journey-time" data-mission-time><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg><span>TIME LIMIT</span><strong data-mission-time-value></strong></div>
-        </div>
-        <button type="button" class="context-action context-action--gold mission-journey-play" data-mission-play disabled>PLAY MISSION ▶</button>
-      </div>`;
+    element.innerHTML = `<div class="mission-journey-heading"><button type="button" data-journey-back class="mission-journey-special-back" hidden>‹ BACK TO JOURNEY</button><div class="mission-journey-summary"><strong>DALLAS JOURNEY</strong><span data-journey-progress>0 OF 36 COMPLETED</span></div></div><div class="mission-journey-viewport" tabindex="0" aria-label="Dallas mission categories, swipe or use arrow keys"><div class="mission-journey-track"></div></div>      <div class="mission-journey-detail" aria-label="Selected mission details" aria-live="polite">
+    <div class="mission-journey-detail-copy"><span class="mission-journey-detail-heading"><span data-mission-index>MISSION 01</span><span data-mission-bonus hidden>${bonusRibbonMarkup}</span></span><strong data-mission-title></strong><p data-mission-objective></p></div>
+    <div class="mission-journey-detail-facts">
+     <div class="mission-journey-reward" data-mission-reward><img src="/media/hub/credits.avif" alt="" aria-hidden="true"><span data-mission-reward-label>REWARD</span><strong data-mission-reward-amount></strong></div>
+     <div class="mission-journey-time" data-mission-time><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg><span>TIME LIMIT</span><strong data-mission-time-value></strong></div>
+    </div>
+    <button type="button" class="context-action context-action--gold mission-journey-play" data-mission-play disabled>PLAY MISSION ▶</button>
+   </div>`;
     this.detail = element.querySelector('.mission-journey-detail')!;
-    observeMissionCopyFit(this.detail.querySelector<HTMLElement>('.mission-journey-detail-copy')!,'[data-mission-title]','[data-mission-objective]');
-    const viewport = element.querySelector<HTMLElement>('.mission-journey-viewport')!;
-    viewport.addEventListener('pointerdown', event => {
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
-      this.dragPointerId = event.pointerId;
-      this.dragStartX = event.clientX;
-      this.dragStartScroll = viewport.scrollLeft;
-      this.dragged = false;
+    this.viewport = element.querySelector('.mission-journey-viewport')!;
+    this.back = element.querySelector('[data-journey-back]')!;
+    this.back.addEventListener('click', () => this.showSpecial(false));
+    observeMissionCopyFit(this.detail.querySelector<HTMLElement>('.mission-journey-detail-copy')!, '[data-mission-title]', '[data-mission-objective]');
+    const track = element.querySelector<HTMLElement>('.mission-journey-track')!;
+    for (const group of [...journeyDisplayGroups, journeySpecialPursuits])
+      this.renderGroup(track, group);
+    this.extrasLink = element.querySelector('[data-extra-pursuits]')!;
+    this.extrasLink.addEventListener('click', () => this.showSpecial(true));
+    this.viewport.addEventListener('wheel', event => {
+      if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY))
+        return;
+      const multiplier = event.deltaMode === 1 ? 18 : event.deltaMode === 2 ? this.viewport.clientWidth : 1;
+      const before = this.viewport.scrollLeft;
+      this.viewport.scrollLeft += event.deltaY * multiplier;
+      if (this.viewport.scrollLeft !== before)
+        event.preventDefault();
+    }, { passive: false });
+    this.viewport.addEventListener('pointerdown', event => {
+      if (event.pointerType !== 'mouse' || event.button !== 0)
+        return;
+      this.drag = { id: event.pointerId, x: event.clientX, scroll: this.viewport.scrollLeft, moved: false };
     });
-    viewport.addEventListener('pointermove', event => {
-      if (this.dragPointerId !== event.pointerId) return;
-      const distance = event.clientX - this.dragStartX;
-      if (Math.abs(distance) > 8 && !this.dragged) {
-        this.dragged = true;
-        if (event.pointerType === 'mouse') viewport.setPointerCapture(event.pointerId);
-      }
-      if (this.dragged && event.pointerType === 'mouse') {
-        viewport.scrollLeft = this.dragStartScroll - distance;
+    this.viewport.addEventListener('pointermove', event => {
+      const drag = this.drag;
+      if (!drag || drag.id !== event.pointerId)
+        return;
+      if (Math.abs(event.clientX - drag.x) > 8)
+        drag.moved = true;
+      if (drag.moved) {
+        this.viewport.setPointerCapture(event.pointerId);
+        this.viewport.scrollLeft = drag.scroll - (event.clientX - drag.x);
         event.preventDefault();
       }
     });
-    viewport.addEventListener('pointerup', event => {
-      if (this.dragPointerId !== event.pointerId) return;
-      this.suppressTap = this.dragged;
-      this.dragPointerId = null;
-      window.setTimeout(() => { this.suppressTap = false; }, 350);
-    });
-    viewport.addEventListener('pointercancel', () => { this.dragPointerId = null; this.dragged = false; });
-    viewport.addEventListener('click', event => {
-      if (!this.suppressTap) return;
+    this.viewport.addEventListener('pointerup', () => { this.suppressTap = Boolean(this.drag?.moved); this.drag = null; window.setTimeout(() => { this.suppressTap = false; }, 0); });
+    this.viewport.addEventListener('pointercancel', () => { this.drag = null; });
+    this.viewport.addEventListener('click', event => { if (this.suppressTap) {
       event.preventDefault();
       event.stopPropagation();
-      this.suppressTap = false;
-    }, true);
-    viewport.addEventListener('keydown', event => {
-      if (event.target !== viewport) return;
-      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-      event.preventDefault();
-      this.handleNodeKeydown(event, this.selectedStage);
-    });
-    const playButton = element.querySelector<HTMLButtonElement>('[data-mission-play]')!;
-    playButton.addEventListener('click', () => {
-      if (this.progressingFrom !== null) return;
-      if (playButton.disabled || missionJourneyStages[this.selectedStage - 1]?.implementation !== 'playable') return;
-      hapticsManager.emit('confirmation'); onPlayMission();
-    });
-    const chapters = element.querySelector<HTMLElement>('.mission-journey-chapters')!;
-    for (let chapter = 1; chapter <= chapterNames.length; chapter++) {
-      const heading = document.createElement('div');
-      heading.className = 'mission-journey-chapter-heading';
-      heading.dataset.chapter = String(chapter);
-      const stages = missionJourneyStages.filter(stage => stage.chapter === chapter);
-      const first = stages[0]!;
-      const last = stages[stages.length - 1]!;
-      heading.style.left = `${(first.x + last.x) / 2}%`;
-      heading.style.top = `max(0px, calc(${(first.y + last.y) / 2}% - var(--chapter-heading-offset)))`;
-      heading.innerHTML = `<strong>CHAPTER ${chapter}</strong><span>${chapterNames[chapter - 1]}</span>`;
-      chapters.append(heading);
-      if (chapter < chapterNames.length) {
-        const next = missionJourneyStages[last.number]!;
-        const divider = document.createElement('span');
-        divider.className = 'mission-journey-chapter-divider';
-        divider.style.left = `${(last.x + next.x) / 2}%`;
-        divider.style.top = `${(last.y + next.y) / 2}%`;
-        chapters.append(divider);
+    } }, true);
+    this.viewport.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && this.specialOpen) {
+        event.preventDefault();
+        this.showSpecial(false);
+        return;
       }
+      if (event.target === this.viewport)
+        this.handleNodeKeydown(event, this.selectedStage);
+    });
+    element.querySelector<HTMLButtonElement>('[data-mission-play]')!.addEventListener('click', () => {
+      const stage = missionJourneyStages[this.selectedStage - 1];
+      if (element.querySelector<HTMLButtonElement>('[data-mission-play]')!.disabled || stage?.implementation !== 'playable')
+        return;
+      hapticsManager.emit('confirmation');
+      onPlayMission();
+    });
+    this.renderProgress();
+  }
+  private renderGroup(track: HTMLElement, group: JourneyCategory): void {
+    const section = document.createElement('section');
+    section.className = 'mission-journey-category';
+    section.dataset.category = group.id;
+    section.style.setProperty('--category-color', group.color);
+    section.setAttribute('aria-label', group.label);
+    const stages = missionJourneyStages.filter(stage => stage.categoryId === group.id);
+    const row = document.createElement('div');
+    row.className = 'mission-journey-category-nodes';
+    row.setAttribute('role', 'group');
+    row.setAttribute('aria-label', group.label);
+    if (stages.length > 1) {
+      const route = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      route.setAttribute('viewBox', '0 0 266 66');
+      route.setAttribute('preserveAspectRatio', 'none');
+      route.setAttribute('aria-hidden', 'true');
+      route.classList.add('mission-journey-category-route');
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      line.setAttribute('points', stages.map((_, index) => `${18 + index * 230 / (stages.length - 1)},${48 - index * 15 / (stages.length - 1)}`).join(' '));
+      route.append(line);
+      row.append(route);
     }
-    const routes = element.querySelector<SVGSVGElement>('.mission-journey-route')!;
-    for (let number = 1; number < missionJourneyStages.length; number++) {
-      const from = missionJourneyStages[number - 1]!;
-      const to = missionJourneyStages[number]!;
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      const midX = (from.x + to.x) / 2;
-      const midY = (from.y + to.y) / 2 - 1.2;
-      path.setAttribute('d', `M ${from.x} ${from.y} Q ${midX} ${midY} ${to.x} ${to.y}`);
-      path.classList.add('mission-journey-segment');
-      path.dataset.from = String(number);
-      if (from.id === 'journey-dallas-coin-hunt-01' || to.id === 'journey-dallas-coin-hunt-01') path.classList.add('is-bonus');
-      if (from.chapter !== to.chapter) path.classList.add('is-transition');
-      routes.append(path); this.routeSegments.push(path);
-    }
-    const nodes = element.querySelector<HTMLElement>('.mission-journey-nodes')!;
-    for (const stage of missionJourneyStages) {
+    for (const [index, stage] of stages.entries()) {
       const button = document.createElement('button');
-      button.type = 'button'; button.className = 'mission-journey-node is-locked';
-      const bonus = stage.id === 'journey-dallas-coin-hunt-01';
-      button.classList.toggle('is-bonus', bonus);
+      button.type = 'button';
+      button.className = 'mission-journey-node is-locked';
       button.dataset.stage = String(stage.number);
-      button.style.left = `${stage.x}%`; button.style.top = `${stage.y}%`;
-      button.innerHTML = `${bonus ? bonusRibbonMarkup : ''}${!bonus && stage.implementation === 'playable' && missionJourneyStages[stage.number]?.chapter !== stage.chapter ? '<em class="mission-journey-crown" aria-hidden="true"><svg viewBox="0 0 40 30"><path d="M3 8 11 16 20 3 29 16 37 8 34 25 6 25Z" fill="currentColor"/><path d="M7 28h26" fill="none" stroke="currentColor" stroke-width="3"/></svg></em>' : ''}<span class="mission-journey-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4.5 12 5 5 10-10" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="mission-journey-number">${stage.number}</span>`;
+      button.dataset.missionId = stage.id;
+      button.style.left = `${(stages.length === 1 ? 133 : 18 + index * 230 / (stages.length - 1)) / 266 * 100}%`;
+      button.style.top = `${(stages.length === 1 ? 38 : 48 - index * 15 / (stages.length - 1)) / 66 * 100}%`;
+      button.innerHTML = `<span class="mission-journey-number">${stage.kind === 'bonus' ? categoryIcon('gift') : stage.categoryNumber}</span><span class="mission-journey-check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4.5 12 5 5 10-10" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
+      if (stage.kind === 'bonus')
+        button.classList.add('is-bonus');
       const lock = document.createElement('span');
       lock.className = 'mission-journey-lock';
       lock.setAttribute('aria-hidden', 'true');
       lock.append(createLockIcon());
       button.append(lock);
-      button.addEventListener('click', () => this.select(stage.number, true, true));
+      button.addEventListener('click', () => this.select(stage.number, true));
       button.addEventListener('keydown', event => this.handleNodeKeydown(event, stage.number));
-      nodes.append(button); this.stageButtons.push(button);
+      row.append(button);
+      this.stageButtons.set(stage.number, button);
     }
-    this.select(1, false);
-    this.setProgress({});
+    const label = document.createElement('div');
+    label.className = 'mission-journey-category-label';
+    label.innerHTML = `<span class="mission-journey-category-icon">${categoryIcon(group.icon)}</span><strong>${group.label}</strong>${group.id === 'plane-battles' ? '<button type="button" class="mission-journey-extra" data-extra-pursuits hidden>2 EXTRA</button>' : ''}`;
+    section.classList.toggle('is-bonus-group', stages[0]?.kind === 'bonus');
+    section.classList.toggle('is-boss-group', stages[0]?.kind === 'boss');
+    label.addEventListener('click', event => {
+      if ((event.target as HTMLElement).closest('button')) return;
+      const stage = stages.find(stage => this.progress[stage.id]?.eligible && !this.progress[stage.id]?.completed) ?? stages[0];
+      if (stage) this.select(stage.number, true);
+    });
+    section.append(row, label);
+    track.append(section);
+    this.groups.set(group.id, section);
   }
-
   get isOpen(): boolean { return !this.element.hidden; }
-  get isPanelOpen(): boolean { return this.panelOpen; }
+  get isPanelOpen(): boolean { return false; }
   get selectedMissionNumber(): number { return this.selectedStage; }
-
-  setSignInRequired(required: boolean): void {
-    this.signInRequired = required;
-    this.renderProgress();
-  }
-
-  setCityLocked(locked: boolean): void {
-    this.cityLocked = locked;
-    this.renderProgress();
-  }
-
-  setProgress(progress: Readonly<Record<string, { eligible?: boolean; completed?: boolean; coinsCollected?: number }>>): void {
-    this.progress = progress;
-    this.renderProgress();
-  }
-
-  private isStageEligible(number: number): boolean {
-    const stage = missionJourneyStages[number - 1];
-    return stage?.implementation === 'playable' && this.progress[stage.id]?.eligible === true;
-  }
-
-  private completedStages(): readonly boolean[] {
-    return missionJourneyStages.map(stage => stage.implementation === 'playable' && this.progress[stage.id]?.completed === true);
-  }
-
+  get selectedMissionId(): string | undefined { return missionJourneyStages[this.selectedStage - 1]?.id; }
+  setSignInRequired(required: boolean): void { this.signInRequired = required; this.renderProgress(); }
+  setCityLocked(locked: boolean): void { this.cityLocked = locked; this.renderProgress(); }
+  setProgress(progress: Progress): void { this.progress = progress; this.renderProgress(); }
+  private completedStages(): readonly boolean[] { return missionJourneyStages.map(stage => !this.cityLocked && this.progress[stage.id]?.completed === true); }
   private renderProgress(): void {
-    const completed = this.cityLocked ? missionJourneyStages.map(() => false) : this.completedStages();
-    const { currentMission, statuses } = missionJourneyStatuses(completed, completed.map((_, index) => !this.cityLocked && this.isStageEligible(index + 1)), !this.cityLocked && this.signInRequired);
-    this.currentMission = currentMission;
-    if (this.progressingFrom !== null) this.selectedStage = this.progressingFrom;
-    else if (!this.userSelectedStage) this.selectedStage = this.currentMission || (missionJourneyStages.every((stage, index) => stage.implementation === 'placeholder' || completed[index]) ? 30 : 1);
-    this.stageButtons.forEach((button, index) => {
-      const number = index + 1;
-      const status = this.progressingFrom !== null && number === this.currentMission ? 'locked' : statuses[index]!;
-      button.classList.toggle('is-locked', status === 'locked');
-      button.classList.toggle('is-placeholder', missionJourneyStages[index]!.implementation === 'placeholder');
-      button.classList.toggle('is-completed', status === 'completed');
-      button.classList.toggle('is-current', status === 'current');
-      button.classList.toggle('is-selected', number === this.selectedStage);
-      button.setAttribute('aria-pressed', String(number === this.selectedStage));
-      button.setAttribute('aria-label', `Mission ${number}${button.classList.contains('is-bonus') ? ', bonus mission' : ''}, ${status === 'completed' ? 'completed, select to replay' : status === 'current' ? 'current mission' : 'locked, view details'}`);
-    });
-    this.element.querySelectorAll<HTMLElement>('.mission-journey-chapter-heading').forEach(heading => {
-      heading.classList.toggle('is-selected', Number(heading.dataset.chapter) === missionJourneyStages[this.selectedStage - 1]?.chapter);
-    });
-    for (const segment of this.routeSegments) {
-      const from = Number(segment.dataset.from);
-      const previous = missionJourneyStages.slice(0, from).reverse().find(stage => stage.implementation === 'playable');
-      const next = missionJourneyStages.slice(from).find(stage => stage.implementation === 'playable');
-      segment.classList.toggle('is-lit', this.progressingFrom === null && Boolean(previous && next &&
-        completed[previous.number - 1] && (completed[next.number - 1] || this.currentMission === next.number)));
+    const completed = this.completedStages();
+    const state = missionJourneyStatuses(completed, missionJourneyStages.map(stage => !this.cityLocked && this.progress[stage.id]?.eligible === true), !this.cityLocked && this.signInRequired);
+    this.currentMission = state.currentMission;
+    if (!this.userSelected)
+      this.selectedStage = this.currentMission || 1;
+    const selected = missionJourneyStages[this.selectedStage - 1]!;
+    for (const stage of missionJourneyStages) {
+      const button = this.stageButtons.get(stage.number)!;
+      const status = state.statuses[stage.number - 1]!;
+      for (const name of ['locked', 'completed', 'current', 'available'] as const)
+        button.classList.toggle(`is-${name}`, status === name);
+      button.classList.toggle('is-placeholder', stage.implementation === 'placeholder');
+      button.classList.toggle('is-selected', stage.number === this.selectedStage);
+      button.setAttribute('aria-pressed', String(stage.number === this.selectedStage));
+      const label = [...journeyDisplayGroups, journeySpecialPursuits].find(group => group.id === stage.categoryId)!.label;
+      button.setAttribute('aria-label', `${label}, ${stage.kind === 'bonus' ? 'bonus' : `mission ${stage.categoryNumber}`}, ${stage.implementation === 'placeholder' ? 'Coming Soon' : status === 'completed' ? 'completed, select to replay' : status === 'locked' ? 'locked, view details' : status}`);
     }
+    for (const [id, group] of this.groups) {
+      group.hidden = this.specialOpen ? id !== 'special-pursuits' : id === 'special-pursuits';
+      group.classList.toggle('is-selected', selected.categoryId === id);
+    }
+    this.extrasLink.hidden = selected.categoryId !== 'plane-battles';
+    this.back.hidden = !this.specialOpen;
+    this.element.querySelector<HTMLElement>('[data-journey-progress]')!.textContent = `${journeyMainCompleted(this.progress)} OF 36 COMPLETED`;
     this.renderDetails();
   }
-
+  private showSpecial(open: boolean): void {
+    if (open) {
+      this.mainSelection = this.selectedStage;
+      this.mainScroll = this.viewport.scrollLeft;
+      this.specialOpen = true;
+      this.userSelected = true;
+      this.selectedStage = missionJourneyStages.find(stage => stage.kind === 'special')!.number;
+    }
+    else {
+      this.specialOpen = false;
+      this.selectedStage = this.mainSelection;
+    }
+    this.renderProgress();
+    this.viewport.scrollLeft = open ? 0 : this.mainScroll;
+    this.stageButtons.get(this.selectedStage)?.focus({ preventScroll: true });
+  }
   private handleNodeKeydown(event: KeyboardEvent, number: number): void {
+    const visible = missionJourneyStages.filter(stage => this.specialOpen ? stage.kind === 'special' : stage.kind !== 'special');
+    const index = visible.findIndex(stage => stage.number === number);
     const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
-    if (!direction && event.key !== 'Home' && event.key !== 'End') return;
+    if (!direction && event.key !== 'Home' && event.key !== 'End')
+      return;
     event.preventDefault();
-    const next = event.key === 'Home' ? this.stageButtons.find(button => !button.disabled)
-      : event.key === 'End' ? [...this.stageButtons].reverse().find(button => !button.disabled)
-        : direction > 0 ? this.stageButtons.slice(number).find(button => !button.disabled)
-          : this.stageButtons.slice(0, number - 1).reverse().find(button => !button.disabled);
-    if (!next) return;
-    next.focus();
-    this.select(Number(next.dataset.stage), true, true);
+    const next = event.key === 'Home' ? visible[0] : event.key === 'End' ? visible.at(-1) : visible[index + direction];
+    if (next) {
+      this.select(next.number, true);
+      this.stageButtons.get(next.number)?.focus({ preventScroll: true });
+    }
   }
-
   private revealMission(number: number, smooth: boolean): void {
-    const viewport = this.element.querySelector<HTMLElement>('.mission-journey-viewport')!;
-    const button = this.stageButtons[number - 1];
-    if (!button) return;
-    const left = button.offsetLeft - viewport.clientWidth / 2;
-    viewport.scrollTo({ left, behavior: smooth && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant' });
+    const button = this.stageButtons.get(number);
+    if (!button)
+      return;
+    const target = button.getBoundingClientRect(), view = this.viewport.getBoundingClientRect();
+    this.viewport.scrollTo({ left: this.viewport.scrollLeft + target.left - view.left - view.width * .5 + target.width * .5, behavior: smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant' });
   }
-
-  private revealTransition(from: number, to: number, ready: () => void): void {
-    const viewport = this.element.querySelector<HTMLElement>('.mission-journey-viewport')!;
-    const source = this.stageButtons[from - 1]!;
-    const destination = this.stageButtons[to - 1]!;
-    const padding = Math.min(24, viewport.clientWidth * .04);
-    const leftEdge = source.offsetLeft - source.offsetWidth / 2;
-    const rightEdge = destination.offsetLeft + destination.offsetWidth / 2;
-    if (leftEdge >= viewport.scrollLeft + padding && rightEdge <= viewport.scrollLeft + viewport.clientWidth - padding) {
-      ready();
+  private select(number: number, userSelected = false): void {
+    if (!missionJourneyStages[number - 1])
       return;
+    this.selectedStage = number;
+    if (userSelected) {
+      this.userSelected = true;
+      hapticsManager.emit('selection');
     }
-    const targetLeft = Math.max(0, Math.min(viewport.scrollWidth - viewport.clientWidth,
-      (source.offsetLeft + destination.offsetLeft) / 2 - viewport.clientWidth / 2));
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      viewport.scrollLeft = targetLeft;
-      ready();
-      return;
-    }
-    const startLeft = viewport.scrollLeft;
-    let startedAt: number | null = null;
-    const move = (now: number): void => {
-      if (this.progressingFrom !== from || !this.isOpen) return;
-      startedAt ??= now;
-      const progress = Math.min(1, (now - startedAt) / 500);
-      const eased = progress * progress * (3 - 2 * progress);
-      viewport.scrollLeft = startLeft + (targetLeft - startLeft) * eased;
-      if (progress < 1) this.progressAnimationFrame = window.requestAnimationFrame(move);
-      else { this.progressAnimationFrame = 0; ready(); }
-    };
-    this.progressAnimationFrame = window.requestAnimationFrame(move);
-  }
-
-  celebrateCompletion(number: number, collectCredits?: (source: DOMRect) => number): void {
-    if (!this.isOpen || !this.completedStages()[number - 1]) return;
-    this.cancelProgressAnimation();
-    const next = missionJourneyStages.find(stage => stage.number > number && stage.implementation === 'playable')?.number ?? 0;
-    if (this.currentMission !== next || !this.stageButtons[next - 1] || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      this.userSelectedStage = false;
-      this.select(number);
-      this.revealMission(number, false);
-      if (collectCredits) collectCredits(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect());
-      this.select(this.currentMission || number);
-      this.revealMission(this.currentMission || number, true);
-      return;
-    }
-
-    const segments = this.routeSegments.filter(path => Number(path.dataset.from) >= number && Number(path.dataset.from) < next);
-    const segment = segments[0];
-    if (!segment) {
-      this.select(number);
-      this.revealMission(number, false);
-      if (collectCredits) collectCredits(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect());
-      this.select(next);
-      this.revealMission(next, true);
-      return;
-    }
-    this.progressingFrom = number;
-    this.userSelectedStage = false;
-    this.element.classList.add('is-advancing');
     this.renderProgress();
-    this.revealTransition(number, next, () => {
-      if (this.progressingFrom !== number || !this.isOpen) return;
-      const map = this.element.querySelector<HTMLElement>('.mission-journey-map')!;
-      const marker = document.createElement('span');
-      marker.className = 'mission-journey-progress-marker';
-      marker.setAttribute('aria-hidden', 'true');
-      map.append(marker);
-      this.progressMarker = marker;
-      this.stageButtons[number - 1]?.classList.add('is-newly-completed');
-      const creditFlightMs = collectCredits?.(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect()) ?? 0;
-
-      const lengths = segments.map(path => path.getTotalLength());
-      const length = lengths.reduce((sum, value) => sum + value, 0);
-      this.progressSegment = segment;
-      segments.forEach((path, index) => {
-        path.classList.add('is-advancing');
-        path.style.strokeDasharray = String(lengths[index]!);
-        path.style.strokeDashoffset = String(lengths[index]!);
-      });
-      const startPoint = segment.getPointAtLength(0);
-      marker.style.left = `${startPoint.x}%`;
-      marker.style.top = `${startPoint.y}%`;
-      const duration = missionJourneyStages[number - 1]?.chapter !== missionJourneyStages[next - 1]?.chapter ? 1_900 : 1_250;
-      let startedAt: number | null = null;
-      const animate = (now: number): void => {
-        if (this.progressingFrom !== number || !this.isOpen) return;
-        startedAt ??= now;
-        const progress = Math.min(1, (now - startedAt) / duration);
-        const eased = progress * progress * (3 - 2 * progress);
-        let distance = length * eased;
-        let part = 0;
-        while (part < lengths.length - 1 && distance > lengths[part]!) distance -= lengths[part++]!;
-        const point = segments[part]!.getPointAtLength(distance);
-        marker.style.left = `${point.x}%`;
-        marker.style.top = `${point.y}%`;
-        segments.forEach((path, index) => { path.style.strokeDashoffset = String(index < part ? 0 : index === part ? lengths[index]! - distance : lengths[index]!); });
-        if (progress < 1) {
-          this.progressAnimationFrame = window.requestAnimationFrame(animate);
-          return;
-        }
-        this.progressAnimationFrame = 0;
-        const unlocked = this.stageButtons[next - 1]!;
-        marker.remove();
-        this.progressMarker = null;
-        unlocked.classList.add('is-unlocking');
-        this.unlockTimer = window.setTimeout(() => {
-          this.unlockTimer = 0;
-          this.cancelProgressAnimation();
-          this.userSelectedStage = false;
-          this.select(next);
-          unlocked.classList.add('is-newly-unlocked');
-          this.revealMission(next, true);
-          window.setTimeout(() => unlocked.classList.remove('is-newly-unlocked'), 850);
-        }, 360);
-      };
-      if (creditFlightMs > 0) {
-        this.progressStartTimer = window.setTimeout(() => {
-          this.progressStartTimer = 0;
-          if (this.progressingFrom === number && this.isOpen) this.progressAnimationFrame = window.requestAnimationFrame(animate);
-        }, creditFlightMs);
-      } else this.progressAnimationFrame = window.requestAnimationFrame(animate);
-    });
+    if (userSelected)
+      this.revealMission(number, true);
   }
-
-  private cancelProgressAnimation(): void {
-    if (this.progressStartTimer) window.clearTimeout(this.progressStartTimer);
-    this.progressStartTimer = 0;
-    if (this.progressAnimationFrame) window.cancelAnimationFrame(this.progressAnimationFrame);
-    this.progressAnimationFrame = 0;
-    if (this.unlockTimer) window.clearTimeout(this.unlockTimer);
-    this.unlockTimer = 0;
-    if (this.progressingFrom !== null) this.stageButtons[this.progressingFrom - 1]?.classList.remove('is-newly-completed');
-    if (this.progressingFrom !== null) this.stageButtons.forEach(button => button.classList.remove('is-unlocking'));
-    this.progressingFrom = null;
-    this.progressMarker?.remove();
-    this.progressMarker = null;
-    for (const path of this.routeSegments) {
-      path.classList.remove('is-advancing');
-      path.style.removeProperty('stroke-dasharray');
-      path.style.removeProperty('stroke-dashoffset');
-    }
-    this.progressSegment = null;
-    this.element.classList.remove('is-advancing');
-  }
-
-  show(_panelOpen = false): void {
-    this.cancelProgressAnimation();
-    this.element.hidden = false;
-    this.renderProgress();
-    if (this.hasShown && this.lastShownMission !== this.currentMission) {
-      this.userSelectedStage = false;
-      this.renderProgress();
-    }
-    if (!this.hasShown || this.lastShownMission !== this.currentMission) {
-      this.revealMission(this.currentMission || this.selectedStage, false);
-    }
-    this.hasShown = true;
-    this.lastShownMission = this.currentMission;
-    this.panelOpen = false;
-  }
-
+  show(_panelOpen = false): void { this.element.hidden = false; this.renderProgress(); this.revealMission(this.selectedStage, false); }
   hide(): void {
-    this.cancelProgressAnimation();
-    this.detailAnimation?.cancel();
-    this.detailAnimation = null;
     this.element.hidden = true;
+    if (this.celebrationTimer) window.clearTimeout(this.celebrationTimer);
+    this.celebrationTimer = 0;
+    for (const button of this.stageButtons.values()) button.classList.remove('is-newly-completed');
   }
-  closePanel(): void { this.panelOpen = false; }
-
-  private setPanelOpen(_open: boolean): void { this.panelOpen = false; }
-
-  private select(number: number, _animate = true, userSelected = false): void {
+  closePanel(): void { }
+  celebrateCompletion(number: number, collectCredits?: (source: DOMRect) => number): void {
     const stage = missionJourneyStages[number - 1];
-    if (!stage || userSelected && this.progressingFrom !== null) return;
-    const changed = number !== this.selectedStage;
-    const chapterChanged = stage.chapter !== missionJourneyStages[this.selectedStage - 1]?.chapter;
-    if (userSelected) { this.userSelectedStage = true; hapticsManager.emit('selection'); }
+    if (!stage || !this.progress[stage.id]?.completed || !this.isOpen)
+      return;
+    this.userSelected = true;
+    this.specialOpen = stage.kind === 'special';
     this.selectedStage = number;
     this.renderProgress();
-    if (userSelected && changed && this.isOpen && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      this.detailAnimation?.cancel();
-      const distance = window.innerHeight - this.detail.offsetTop + 12;
-      const animation = this.detail.animate([
-        { transform: `translateY(${distance}px)` },
-        { transform: 'translateY(0)' },
-      ], { duration: 360, easing: 'cubic-bezier(.2, .8, .2, 1)' });
-      this.detailAnimation = animation;
-      animation.onfinish = () => { if (this.detailAnimation === animation) this.detailAnimation = null; };
-    }
-    if (userSelected) {
-      const viewport = this.element.querySelector<HTMLElement>('.mission-journey-viewport')!;
-      const button = this.stageButtons[number - 1]!;
-      const edgePadding = 24;
-      if (chapterChanged || button.offsetLeft < viewport.scrollLeft + button.offsetWidth / 2 + edgePadding || button.offsetLeft > viewport.scrollLeft + viewport.clientWidth - button.offsetWidth / 2 - edgePadding) {
-        this.revealMission(number, true);
+    this.revealMission(number, false);
+    const creditFlightMs = collectCredits?.(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect()) ?? 0;
+    const button = this.stageButtons.get(number)!;
+    button.classList.add('is-newly-completed');
+    if (this.celebrationTimer)
+      window.clearTimeout(this.celebrationTimer);
+    this.celebrationTimer = window.setTimeout(() => {
+      button.classList.remove('is-newly-completed');
+      const next = missionJourneyStages.find(next => next.categoryId === stage.categoryId &&
+        next.categoryNumber > stage.categoryNumber && this.progress[next.id]?.eligible && next.implementation === 'playable');
+      if (next) {
+        this.select(next.number);
+        this.revealMission(next.number, true);
       }
-    }
+      this.celebrationTimer = 0;
+    }, Math.max(650, creditFlightMs));
   }
 
   private renderDetails(): void {
-    const stage = missionJourneyStages[this.selectedStage - 1];
-    this.detail.querySelector<HTMLElement>('[data-mission-bonus]')!.hidden = stage?.id !== 'journey-dallas-coin-hunt-01';
-    if (!stage) {
-      this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = 'MISSIONS LOCKED';
-      this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = '';
-      this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = 'Complete earlier missions to unlock.';
-      this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.hidden = true;
-      this.detail.querySelector<HTMLElement>('[data-mission-time]')!.hidden = true;
-      this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!.hidden = true;
-      return;
-    }
+    const stage = missionJourneyStages[this.selectedStage - 1]!;
+    const label = [...journeyDisplayGroups, journeySpecialPursuits].find(group => group.id === stage.categoryId)!.label;
+    const card = missionJourneyDetails.find(card => card.id === stage.id);
+    const completed = !this.cityLocked && this.progress[stage.id]?.completed === true;
+    const eligible = !this.cityLocked && this.progress[stage.id]?.eligible === true;
+    const signInRequired = !this.cityLocked && this.signInRequired && stage.kind === 'main' && stage.categoryNumber === 1;
     const placeholder = stage.implementation === 'placeholder';
-    this.detail.classList.toggle('is-placeholder', placeholder);
-    this.detail.querySelector<HTMLElement>('.mission-journey-detail-facts')!.hidden = placeholder;
-    if (placeholder) {
-      this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${stage.number}`;
-      this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = stage.title;
-      const objective = this.detail.querySelector<HTMLElement>('[data-mission-objective]')!;
-      const preview = missionJourneyDetails.find(card => card.id === stage.id);
-      objective.textContent = 'COMING SOON';
-      if (preview) {
-        const list = document.createElement('span');
-        list.className = 'mission-journey-instructions';
-        list.setAttribute('role', 'list');
-        for (const line of preview.description.split('\n')) {
-          const item = document.createElement('span');
-          item.setAttribute('role', 'listitem');
-          item.textContent = line;
-          list.append(item);
-        }
-        objective.replaceChildren(list);
-      }
-      const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
-      play.hidden = false; play.disabled = true; play.textContent = 'COMING SOON';
-      this.detail.classList.remove('is-locked');
-      return;
-    }
-    const card = missionJourneyDetails.find(card => card.id === stage.id)!;
-    const completed = !this.cityLocked && this.completedStages()[stage.number - 1] === true;
-    const eligible = this.isStageEligible(stage.number);
-    const signInRequired = this.signInRequired && stage.number === 1 && !completed;
-    const locked = this.cityLocked || (!completed && !eligible && !signInRequired);
-    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}`;
-    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card.title;
+    this.detail.classList.remove('is-placeholder');
+    this.detail.querySelector<HTMLElement>('[data-mission-bonus]')!.hidden = true;
+    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = stage.kind === 'bonus' ? label : `${label} – MISSION ${String(stage.categoryNumber).padStart(2, '0')}`;
+    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = placeholder ? 'COMING SOON' : card!.title;
     const objective = this.detail.querySelector<HTMLElement>('[data-mission-objective]')!;
-    objective.textContent = card.description;
-    if (card.id === 'journey-dallas-19' || card.id === 'journey-dallas-23' || card.id === 'journey-dallas-12' || card.id === 'journey-dallas-18' || card.id === 'journey-dallas-11' || card.id === 'journey-dallas-17' || card.id === 'journey-dallas-10' || card.id === 'journey-dallas-capture-three-01' || card.id === 'journey-dallas-ace-intercept-01' || card.id === 'journey-dallas-06' || card.id === 'journey-dallas-09' || card.id === 'journey-dallas-16' || card.id === 'journey-dallas-territory-defense-01' || card.id === 'journey-dallas-twin-hunters-01' || card.id === 'journey-dallas-08' || card.id === 'journey-dallas-coin-hunt-01' || card.id === 'journey-dallas-05' || card.id === 'journey-dallas-04' || card.id === 'journey-dallas-03' || card.id === 'journey-dallas-01' || card.id === 'journey-dallas-13' || card.id === 'journey-dallas-14' || card.id === 'journey-dallas-15' || card.id === 'journey-dallas-02' || card.id === 'journey-dallas-capture-01' || card.id === 'journey-dallas-airport-hop-01' || card.id === 'journey-dallas-sharpshooter-01' || card.id === 'journey-dallas-07') {
+    objective.replaceChildren();
+    if (card) {
       const list = document.createElement('span');
       list.className = 'mission-journey-instructions';
       list.setAttribute('role', 'list');
@@ -495,23 +320,24 @@ export class MissionJourney {
         item.textContent = line;
         list.append(item);
       }
-      objective.replaceChildren(list);
+      objective.append(list);
     }
+    this.detail.querySelector<HTMLElement>('.mission-journey-detail-facts')!.hidden = false;
     const reward = this.detail.querySelector<HTMLElement>('[data-mission-reward]')!;
     reward.hidden = false;
     this.detail.querySelector<HTMLElement>('[data-mission-time]')!.hidden = false;
     const coinHunt = stage.id === 'journey-dallas-coin-hunt-01';
     const collected = completed && coinHunt ? this.progress[stage.id]?.coinsCollected : undefined;
-    const rewardLabel = coinHunt ? completed ? collected === undefined ? 'REPLAY REWARD' : 'CREDITS COLLECTED' : 'UP TO' : completed ? 'REWARD CLAIMED' : 'REWARD';
-    const rewardAmount = coinHunt && completed ? collected ?? 0 : card.rewardCredits;
-    reward.setAttribute('aria-label', coinHunt && completed ? `${rewardAmount.toLocaleString()} Credits collected. Replay reward: 0 Credits` : `${card.rewardCredits.toLocaleString()} Credits${completed ? ', claimed' : ''}`);
+    const rewardLabel = placeholder ? 'REWARD' : coinHunt ? completed ? collected === undefined ? 'REPLAY REWARD' : 'CREDITS COLLECTED' : 'UP TO' : completed ? 'REWARD CLAIMED' : 'REWARD';
+    const rewardAmount = placeholder ? '—' : (coinHunt && completed ? collected ?? 0 : card!.rewardCredits).toLocaleString();
     this.detail.querySelector<HTMLElement>('[data-mission-reward-label]')!.textContent = rewardLabel;
-    this.detail.querySelector<HTMLElement>('[data-mission-reward-amount]')!.textContent = rewardAmount.toLocaleString();
-    this.detail.querySelector<HTMLElement>('[data-mission-time-value]')!.textContent = card.timeLimit;
+    this.detail.querySelector<HTMLElement>('[data-mission-reward-amount]')!.textContent = rewardAmount;
+    reward.setAttribute('aria-label', placeholder ? 'Reward not announced' : `${rewardAmount} Credits${completed ? ', claimed; replay reward: 0 Credits' : ''}`);
+    this.detail.querySelector<HTMLElement>('[data-mission-time-value]')!.textContent = placeholder ? '—' : card!.timeLimit;
     const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
-    play.disabled = locked;
+    play.disabled = placeholder || this.cityLocked || (!completed && !eligible && !signInRequired);
     play.hidden = false;
-    play.textContent = completed ? 'REPLAY MISSION ▶' : signInRequired ? 'SIGN IN TO PLAY ▶' : 'PLAY MISSION ▶';
-    this.detail.classList.toggle('is-locked', locked);
+    play.textContent = placeholder ? 'COMING SOON' : completed ? 'REPLAY MISSION ▶' : signInRequired ? 'SIGN IN TO PLAY ▶' : 'PLAY MISSION ▶';
+    this.detail.classList.toggle('is-locked', play.disabled && !placeholder);
   }
 }
