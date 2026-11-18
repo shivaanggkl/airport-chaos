@@ -1,3 +1,5 @@
+import * as cityAirspace from './journey-hunter-airspace.js';
+import { insideAceInterceptAirspace } from './ace-intercept.js';
 import {transportPose,transportRouteForMission,transportCourse,transportFootprintRadius,transportFootprintForMission,transportScaleForMission,transportRouteLength,transportTuning} from '../../shared/giant-incoming.mjs';
 import {createTransportEncounter,stepTransportEncounter,transportImpact,transportAircraftImpact,transportAltitude,transportFortressImpact,loadTransportBuildings} from './giant-incoming.js';
 import {rearGuardShouldRejoin,createRearGuardFireState,rearGuardTakeoff,rearGuardShooter,rearGuardShotResolved} from './rear-guard-fire.js';
@@ -51,7 +53,7 @@ const client=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'u
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),no=()=>{};
 function runtime(names,context) {
  const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');
- const ctx=vm.createContext({...missions,...protocol,aircraftFlightEnvelope,cityAirports,enemyAiLevels,territoriesForCity,territoryContains,aircraftPresentationMuzzleSockets,
+ const ctx=vm.createContext({...cityAirspace,insideAceInterceptAirspace,...missions,...protocol,aircraftFlightEnvelope,cityAirports,enemyAiLevels,territoriesForCity,territoryContains,aircraftPresentationMuzzleSockets,
   CrossfireFireCoordinator,DALLAS_WORLD_SCALE,maxHealthForAircraft,hunterObservedPosition,createOpponent,advanceHunterFlight,hunterBallisticSolution,hunterFlightIntercept,opponentReactionReady,planOpponentTactics,ambushApproach,ambushCruiseSpeed,ambushCanFire,recordOpponentHit,recordOpponentDamage,pursuitProgress,aceDamageAuthorized,journeyHunterSteeringTarget,...context});
  vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;
 }
@@ -124,7 +126,7 @@ function simulate(mission) {
  players.set('owner',pilot);landing.set('owner',{airborne:false});let input={x:0,y:-.8},throttleTarget=.5,enemyId;
  const velocity=new THREE.Vector3(),e=aircraftDefinitions.trainer;
  const fn=clientAst.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='updateFlight');
- const flight=vm.createContext({...controls,THREE,Math,Number,mobileIdleBrakeRequested,airplane,currentAircraft:e,aircraftType:'trainer',velocity,forward:new THREE.Vector3(),liftDirection:new THREE.Vector3(),sideSlip:new THREE.Vector3(),heldActions:new Set(),throttle:0,currentSpeed:0,verticalSpeed:0,heading:0,pitch:0,roll:0,onGround:true,landedFeedbackTime:0,cameraShakeTime:0,crashed:false,portalInTransit:false,guidedTutorialActive:false,activeWeatherZone:undefined,cityEvent:undefined,combatLockState:'NONE',speedBrakeStrength:0,boostActive:false,boostMeter:100,boostVisualStrength:0,smoothedTouchSteering:{x:0,y:0},yawControlStrength:0,bankControlStrength:0,pitchControlStrength:0,takeoffThrustBlend:0,takeoffRollMeters:0,resetRegionsOnNextTakeoff:false,flightDistanceSinceTakeoff:0,speedBonus:0,flightState:'TAXI',performance:{now:()=>elapsed*1000},groundPlaneY:(x,z)=>clientGround(x,z)+1.2,getLandingAssistAirport:()=>null,getAirportAtPosition:()=>airport,updateLocalWeather:no,updateAirborneProgress:no,hitsWorldObstacle:()=>false,beginCrashPresentation:()=>assert.fail('unexpected crash'),endRun:()=>assert.fail('unexpected flight end'),evaluateLanding:()=>assert.fail('unexpected landing'),setFlightState:state=>{flight.flightState=state;},beginFlightRecap:no,handleContractTakeoff:no,contextualHints:{trigger:no},mobileInput:{getThrottleTarget:()=>throttleTarget,getSteeringInput:()=>input,getPitchInverted:()=>false},moveToward:(x,y,d)=>x<y?Math.min(y,x+d):Math.max(y,x-d),smoothstep01:x=>x*x*(3-2*x)});
+ const flight=vm.createContext({...cityAirspace,insideAceInterceptAirspace,...controls,THREE,Math,Number,mobileIdleBrakeRequested,airplane,currentAircraft:e,aircraftType:'trainer',velocity,forward:new THREE.Vector3(),liftDirection:new THREE.Vector3(),sideSlip:new THREE.Vector3(),heldActions:new Set(),throttle:0,currentSpeed:0,verticalSpeed:0,heading:0,pitch:0,roll:0,onGround:true,landedFeedbackTime:0,cameraShakeTime:0,crashed:false,portalInTransit:false,guidedTutorialActive:false,activeWeatherZone:undefined,cityEvent:undefined,combatLockState:'NONE',speedBrakeStrength:0,boostActive:false,boostMeter:100,boostVisualStrength:0,smoothedTouchSteering:{x:0,y:0},yawControlStrength:0,bankControlStrength:0,pitchControlStrength:0,takeoffThrustBlend:0,takeoffRollMeters:0,resetRegionsOnNextTakeoff:false,flightDistanceSinceTakeoff:0,speedBonus:0,flightState:'TAXI',performance:{now:()=>elapsed*1000},groundPlaneY:(x,z)=>clientGround(x,z)+1.2,getLandingAssistAirport:()=>null,getAirportAtPosition:()=>airport,updateLocalWeather:no,updateAirborneProgress:no,hitsWorldObstacle:()=>false,beginCrashPresentation:()=>assert.fail('unexpected crash'),endRun:()=>assert.fail('unexpected flight end'),evaluateLanding:()=>assert.fail('unexpected landing'),setFlightState:state=>{flight.flightState=state;},beginFlightRecap:no,handleContractTakeoff:no,contextualHints:{trigger:no},mobileInput:{getThrottleTarget:()=>throttleTarget,getSteeringInput:()=>input,getPitchInverted:()=>false},moveToward:(x,y,d)=>x<y?Math.min(y,x+d):Math.max(y,x-d),smoothstep01:x=>x*x*(3-2*x)});
  vm.runInContext(ts.transpileModule(fn.getText(clientAst).replaceAll('import.meta.env.DEV','false'),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,flight);
  const a=f.store.launch('pilot','trainer',epoch,mission.id);f.store.approach('pilot',a.attemptId,epoch);
  const active=f.store.startGiantIncoming('pilot',a.attemptId,epoch);assert.equal(active.deadlineAt,epoch+mission.timeLimitMs);
@@ -232,7 +234,7 @@ test('M13 actual non-Boost Bluejay flight and moving-hull combat completes befor
  assert.equal(r.status,'COMPLETED');assert.equal(r.credits,850);assert.equal(r.pilotHits,80);assert(r.completion<missions.journeyDallas07.timeLimitMs/1000);assert(r.firstEngagement>=30&&r.firstEngagement<=75*missions.journeyDallas07.timeLimitMs/180000);assert(!r.crashed);assert(r.health>0);
 });
 
-test('M13 route, clearance and full-airframe exit agree with its authoritative 4:20 deadline',()=>{
+test('M9 giant retains its arrival and cruise clearance while returning inside Dallas before the deadline',()=>{
  const m=missions.journeyDallas07,route=transportRouteForMission(m.id),altitude=transportAltitude(buildings,ground,m.id);
  const collision=JSON.parse(readFileSync(new URL('../../shared/giant-transport-collision.json',import.meta.url),'utf8'));
  const bottom=collision.triangles.reduce((minimum,t)=>Math.min(minimum,t[1],t[4],t[7]),Infinity)*transportScaleForMission(m.id);
@@ -240,12 +242,14 @@ test('M13 route, clearance and full-airframe exit agree with its authoritative 4
  assert(route.length<transportRouteLength);assert(route.length>=route.exitX-route.start.x);
  for(let elapsed=0;elapsed<m.timeLimitMs;elapsed+=1000){
   const p=transportPose(elapsed,altitude,m.timeLimitMs,m.id),q=transportPose(elapsed+1000,altitude,m.timeLimitMs,m.id);
-  assert(Math.abs(Math.hypot(q.x-p.x,q.z-p.z)-route.length/(m.timeLimitMs/1000))<1e-6);
+  const speed=route.length/(m.timeLimitMs/1000);
+  assert(Math.abs(Math.hypot(p.velocity.x,p.velocity.z)-speed)<1e-6);
+  assert(Math.hypot(q.x-p.x,q.z-p.z)<=speed+1e-6,'curved travel stays within its physical speed');
   assert(p.x-transportFootprintForMission(m.id)<route.exitX,'no early escape');
   assert(p.y>ground(p.x,p.z)+transportFootprintForMission(m.id)*.14);
   for(const b of buildings)if(b.minX<=p.x+transportFootprintForMission(m.id)&&b.maxX>=p.x-transportFootprintForMission(m.id)&&b.minZ<=p.z+transportFootprintForMission(m.id)&&b.maxZ>=p.z-transportFootprintForMission(m.id))assert(p.y+bottom>b.top+1,'entire transport clears mapped buildings');
  }
- const end=transportPose(m.timeLimitMs,altitude,m.timeLimitMs,m.id);assert(end.x-transportFootprintForMission(m.id)>=route.exitX-1e-6);
+ const end=transportPose(m.timeLimitMs,altitude,m.timeLimitMs,m.id);assert(end.x+transportFootprintForMission(m.id)<route.exitX);
  assert.deepEqual(transportPose(m.timeLimitMs+1000,altitude,m.timeLimitMs,m.id),end);
  const a=cityAirports.dallas.find(a=>a.id==='dfw');assert(Math.hypot(route.start.x-a.x,route.start.z-a.z)<15000,'transport begins near DFW');
  assert(route.exitX-(a.x+20000)>75000,'a 75km east-exit route cannot begin within 20km of DFW');
@@ -273,21 +277,21 @@ for(const mission of [missions.journeyDallas07,missions.journeyDallas08])test(`$
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 
-test('M14 transport escape matches 4:20 and only M14 escorts use the practical combat area',()=>{
+test('transport returns inside Dallas at 4:20 and preserves escort regroup rules',()=>{
  const mission=missions.journeyDallas08,route=transportRouteForMission(mission.id);
  assert.equal(mission.timeLimitMs,260000);assert.equal(missionJourneyDetails.find(d=>d.id===mission.id).timeLimit,'4:20');
  const before=transportPose(mission.timeLimitMs-50,900,mission.timeLimitMs,mission.id),end=transportPose(mission.timeLimitMs,900,mission.timeLimitMs,mission.id);
- assert(before.x-transportFootprintRadius<route.exitX);assert(end.x-transportFootprintRadius>=route.exitX-1e-6);
- const transport={x:0,z:0},near={x:2000,z:0},far={x:10000,z:0};
+ assert(before.x+transportFootprintRadius<route.exitX);assert(end.x+transportFootprintRadius<route.exitX);
+ const transport={x:0,z:0},near={x:2000,z:0},far={x:protocol.COMBAT_RANGE*3,z:0};
  assert.equal(rearGuardShouldRejoin(mission.id,near,near,transport),false);assert.equal(rearGuardShouldRejoin(mission.id,far,near,transport),true);assert.equal(rearGuardShouldRejoin(mission.id,near,far,transport),true);
  for(const m of [missions.journeyDallas09,missions.journeyDallas10,missions.journeyDallas11,missions.journeyDallas12])assert.equal(rearGuardShouldRejoin(m.id,far,far,transport),false);
 });
 
-test('M15–M18 keep the legacy route, movement, heading and collision poses at every sampled phase',()=>{
+test('giants keep their original arrival route, movement, heading and collision poses before the return turn',()=>{
  for(const mission of [missions.journeyDallas09,missions.journeyDallas10,missions.journeyDallas11,missions.journeyDallas12]){
   assert.equal(transportRouteForMission(mission.id).length,transportRouteLength);
   assert.deepEqual(transportRouteForMission(mission.id).start,transportCourse.start);
-  for(const fraction of [0,.01,.25,.5,.75,.99,1,1.01]){
+  for(const fraction of [0,.01,.25,.5,.75]){
    const elapsed=mission.timeLimitMs*fraction;
    const {missionId: poseMissionId,...pose}=transportPose(elapsed,900,mission.timeLimitMs,mission.id);
    if(poseMissionId!==undefined)assert.equal(poseMissionId,mission.id);

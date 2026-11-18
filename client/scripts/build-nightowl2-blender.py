@@ -529,6 +529,20 @@ empty("NoseReference", (0, 0, -18.78))
 empty("CameraFrameCenter", (0, 0.25, 0))
 empty("TailReference", (0, 8.6, 17.55))
 
+# Scale only the vertical stabilizer and its paint about its embedded root.
+# Horizontal stabilizers, fuselage, wings and attachment points stay unchanged.
+fin_root = Vector(to_blender((0, .9, 14.875)))
+for obj in objects:
+    if obj.name == "Single swept vertical tail" or obj.name.startswith("Original mountain mark"):
+        for vertex in obj.data.vertices:
+            vertex.co = fin_root + (vertex.co - fin_root) * .5
+        obj.data.update()
+tail_reference = bpy.data.objects["TailReference"]
+tail_reference.location = fin_root + (tail_reference.location - fin_root) * .5
+# Preserve the original normalization origin so the smaller fin cannot shift
+# the airframe relative to wheel contacts, exhausts and the muzzle.
+bpy.context.scene["aircraftNormalizationCenter"] = [0, 2.325, 0]
+
 # Merge mesh objects by material, leaving semantic empties untouched. This
 # keeps the many small cabin details down to a handful of GLB draw calls.
 for paint in list(bpy.data.materials):
@@ -555,5 +569,6 @@ bpy.ops.export_scene.gltf(
     export_materials="EXPORT",
     export_cameras=False,
     export_lights=False,
+    export_extras=True,
 )
 print(f"NIGHTOWL2 exported: {OUTPUT} ({OUTPUT.stat().st_size} bytes)")

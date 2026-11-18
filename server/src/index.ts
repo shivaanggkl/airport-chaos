@@ -190,6 +190,7 @@ type BotRuntime = {
   lastCombatBroadcastAt?: number;
   expertControl?: boolean;
   journeyAttemptId?: string;
+  journeyDallasEntered?: boolean;
   journeyTargetPlayerId?: string;
   journeyProvoked?: boolean;
   journeyLeader?: boolean;
@@ -5981,8 +5982,8 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     }
     return true;
   }
-  if ((owner.bot?.journeyTargetPlayerId === victimId && !owner.bot.journeyRearGuardEscort && !(owner.bot.journeyAceIntercept?insideAceInterceptAirspace:insideJourneyHunterArena)(victim.position)) ||
-    (victim.bot?.journeyTargetPlayerId === ownerId && !victim.bot.journeyRearGuardEscort && !(victim.bot.journeyAceIntercept?insideAceInterceptAirspace:insideJourneyHunterArena)(owner.position))) return false;
+  if ((owner.bot?.journeyTargetPlayerId === victimId && !owner.bot.journeyRearGuardEscort && !(owner.bot.journeyAceIntercept||owner.bot.journeyDallasEntered?insideAceInterceptAirspace:insideJourneyHunterArena)(victim.position)) ||
+    (victim.bot?.journeyTargetPlayerId === ownerId && !victim.bot.journeyRearGuardEscort && !(victim.bot.journeyAceIntercept||victim.bot.journeyDallasEntered?insideAceInterceptAirspace:insideJourneyHunterArena)(owner.position))) return false;
   if (victim.bot?.journeyFirstContact || owner.bot?.journeyFirstContact) {
     const bot = victim.bot?.journeyFirstContact ? victim.bot : owner.bot!;
     const pilotId = bot.journeyTargetPlayerId;
@@ -7384,6 +7385,16 @@ function botMinimumTurnRadius(aircraftType: AircraftType, speed: number): number
 
 function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3, delta: number): void {
   const envelope = aircraftFlightEnvelope[player.aircraftType];
+  const cityConfined = player.cityId === 'dallas' && Boolean(bot.journeyAttemptId) && Boolean(
+    bot.journeyRearGuardEscort || bot.journeyCrossfire && bot.journeySurvivalSlot === undefined ||
+    bot.journeyFirstContact && !bot.journeyTerritoryDefense || bot.journeyAce && !bot.journeyLegendary);
+  if (cityConfined && !bot.journeyDallasEntered) {
+    const inside = keepDallasEscortInside(player.position);
+    if (inside.x === player.position.x && inside.z === player.position.z) bot.journeyDallasEntered = true;
+  }
+  const boundedDallasOpponent = cityConfined && bot.journeyDallasEntered === true ||
+    player.cityId === 'dallas' && bot.journeyCrossfire === true && bot.journeySurvivalSlot !== undefined;
+  if (boundedDallasOpponent) target = { ...target, ...dallasEscortSteeringTarget(player.position, hunterForward(player), target) };
   const dx = target.x - player.position.x;
   const dy = target.y - player.position.y;
   const dz = target.z - player.position.z;
@@ -7420,11 +7431,7 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
     const cruise = bot.journeyAceIntercept ? (bot.journeyAceIntercept.phase==='ESCAPE'?journeyDallasAceIntercept01.escapeCruiseSpeed:journeyDallasAceIntercept01.cruiseSpeed) : bot.journeyPursuit ? journeyDallas15.cruiseSpeed : ambushTarget ? ambushCruiseSpeed(ambushTarget.velocity) : bot.journeyFirstContact ? (bot.journeyTerritoryDefense ? journeyDallasTerritoryDefense01 : bot.journeyFinalShowdown ? journeyDallas18 : bot.journeyIronHunter ? journeyDallas17 : bot.journeySurpriseAttack ? journeyDallas14 : journeyDallas13).cruiseSpeed
       : envelope.maxSpeed * (bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : botCruiseFactor(bot.personality));
     bot.expertControl = bot.opponent?.profile.tactics.expert;
-    const boundedDallasOpponent = bot.journeyEscortMissionId === journeyDallas10.id || bot.journeyEscortMissionId === journeyDallas12.id ||
-      player.cityId === 'dallas' && bot.journeyCrossfire === true;
-    // Apply the same boundary during smooth flight, including M10's early-return path.
-    const waypoint = boundedDallasOpponent ? { ...target, ...dallasEscortSteeringTarget(player.position, hunterForward(player), target) } : target;
-    advanceHunterFlight(player, bot, waypoint, bot.journeyAceIntercept ? Math.min(journeyDallasAceIntercept01.escapeMaxSpeed,bot.opponent?.tactics?.plan.cruise ?? cruise) : bot.opponent?.tactics?.plan.cruise ?? cruise, delta,
+    advanceHunterFlight(player, bot, target, bot.journeyAceIntercept ? Math.min(journeyDallasAceIntercept01.escapeMaxSpeed,bot.opponent?.tactics?.plan.cruise ?? cruise) : bot.opponent?.tactics?.plan.cruise ?? cruise, delta,
       (x, z) => botSafeFloor(player.cityId, x, z, hunterClearance(bot)));
     if (boundedDallasOpponent) {
       const bounded = keepDallasEscortInside(player.position);
@@ -7484,7 +7491,7 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
   const forward = hunterForward(player);
   const nextX = player.position.x + forward.x * bot.speed * delta;
   const nextZ = player.position.z + forward.z * bot.speed * delta;
-  const nextPosition = bot.journeyAttemptId && !bot.journeyLeader && !bot.journeyRearGuardEscort ? keepJourneyHunterInside({ x: nextX, z: nextZ }) : { x: nextX, z: nextZ };
+  const nextPosition = !boundedDallasOpponent && bot.journeyAttemptId && !bot.journeyLeader && !bot.journeyRearGuardEscort ? keepJourneyHunterInside({ x: nextX, z: nextZ }) : { x: nextX, z: nextZ };
   if (bot.journeyRearGuardEscort && bot.journeyAttemptId) {
     const encounter = transportEncounters.get(bot.journeyAttemptId);
     if (encounter) {
@@ -7510,6 +7517,7 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
       }
     }
   }
+  if (boundedDallasOpponent) Object.assign(nextPosition, keepDallasEscortInside(nextPosition));
   const clearance = bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceClearance : bot.journeyBreakout ? journeyEscapeHunterClearance
     : isHunterCombatPhase(bot.phase) ? botCombatClearance : bot.phase === 'takeoff' || bot.phase === 'land' ? 2 : botCruiseClearance;
   const safeFloor = Math.max(
@@ -7653,7 +7661,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
       objective:threatened&&Math.hypot(pilot.position.x-player.position.x,pilot.position.y-player.position.y,pilot.position.z-player.position.z)<=hunterFireRange?undefined:objective,
       firingSolution:threatened&&!botFireSolution(player,pilot,false).reason,
       lockedByTarget:threatened&&pilot.lockedTargetId===botId,bullets,floorAt:(x,z)=>botSafeFloor(player.cityId,x,z,journeyAceClearance),
-      safeWaypoint:(from,to)=>safeBotWaypoint(player.cityId,from,to,journeyAceClearance),inside:insideJourneyHunterArena});
+      safeWaypoint:(from,to)=>safeBotWaypoint(player.cityId,from,to,journeyAceClearance),inside:bot.journeyDallasEntered?insideAceInterceptAirspace:insideJourneyHunterArena});
     bot.phase=plan.tactic==='defensiveBreak'?'extend':'approach';bot.combatTurnSign=plan.turnSign<0?-1:1;
     if(threatened)opponentReactionReady(bot.opponent!,bot.journeyTargetPlayerId,now);
     return {waypoint:plan.waypoint,target:threatened?[bot.journeyTargetPlayerId,pilot]:undefined};
@@ -7668,7 +7676,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     clearHunterCombat(player, bot);
     return undefined;
   }
-  if (bot.journeyAttemptId && missionPilot && !bot.journeyRearGuardEscort && !insideJourneyHunterArena(missionPilot.position)) {
+  if (bot.journeyAttemptId && missionPilot && !bot.journeyRearGuardEscort && !(bot.journeyDallasEntered?insideAceInterceptAirspace:insideJourneyHunterArena)(missionPilot.position)) {
     bot.journeyPilotOutside = true;
     clearHunterCombat(player, bot);
     return { waypoint: safeBotWaypoint(player.cityId, player.position,
@@ -7735,7 +7743,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
       : bot.journeyFirstContact ? (bot.journeyTerritoryDefense ? journeyDallasTerritoryDefense01 : bot.journeyFinalShowdown ? journeyDallas18 : bot.journeyIronHunter ? journeyDallas17 : journeyDallas13).cruiseSpeed : aircraftFlightEnvelope[player.aircraftType].maxSpeed * (bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : bot.opponent.profile.tactics.expert ? 1 : botCruiseFactor(bot.personality)),
     floorAt: (x,z) => botSafeFloor(player.cityId,x,z,hunterClearance(bot)),
     safeWaypoint: (from,to) => safeBotWaypoint(player.cityId,from,to,hunterClearance(bot)),
-    inside: bot.journeySurvivalSlot!==undefined ? insideSurvivalArea : bot.journeyAttemptId ? insideJourneyHunterArena : undefined,
+    inside: bot.journeySurvivalSlot!==undefined ? insideSurvivalArea : bot.journeyAttemptId ? bot.journeyDallasEntered?insideAceInterceptAirspace:insideJourneyHunterArena : undefined,
   });
   bot.combatTurnSign = plan.turnSign < 0 ? -1 : 1;
   bot.combatWaypoint = plan.waypoint;
@@ -7924,7 +7932,7 @@ function updateBots(now: number, expertOnly = false): void {
     const followingCombatWaypoint = Boolean(combatNavigation);
     const requestedTarget = combatNavigation?.waypoint ?? bot.route[Math.min(bot.routeIndex, bot.route.length - 1)];
     const target = requestedTarget && bot.journeyAttemptId && !bot.journeyLeader && !bot.journeyRearGuardEscort
-      ? bot.journeySurvivalSlot!==undefined ? survivalSteering(player.position,hunterForward(player),requestedTarget) : bot.journeyAceIntercept ? {...requestedTarget,...dallasEscortSteeringTarget(player.position,hunterForward(player),requestedTarget)} : { ...requestedTarget, ...journeyHunterSteeringTarget(player.position, hunterForward(player), requestedTarget, (bot.journeyCrossfire || bot.journeyIronHunter || bot.journeyFinalShowdown) ? Number(cityRegistry.dallas.worldSize) / 2 : undefined) }
+      ? bot.journeySurvivalSlot!==undefined ? survivalSteering(player.position,hunterForward(player),requestedTarget) : bot.journeyAceIntercept || bot.journeyDallasEntered ? {...requestedTarget,...dallasEscortSteeringTarget(player.position,hunterForward(player),requestedTarget)} : { ...requestedTarget, ...journeyHunterSteeringTarget(player.position, hunterForward(player), requestedTarget, (bot.journeyCrossfire || bot.journeyIronHunter || bot.journeyFinalShowdown) ? Number(cityRegistry.dallas.worldSize) / 2 : undefined) }
       : requestedTarget;
     if (!target) continue;
     const dx = target.x - player.position.x;
@@ -8843,7 +8851,7 @@ server.on('connection', (socket, request) => {
   }
   const spawnSlot = airAssaultMode || soloExploreMode ? 0 : restoringPausedJourney || restoringPausedTraining ? players.get(playerId)?.spawnSlot ?? 0 : reserveSpawnSlot(cityId);
   const spawnPosition = { x: 0, y: 1.2, z: 45 + spawnSlot * 15 };
-  const spawnAirportId = journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id ? journeyDallasTerritoryDefense01.startAirportId : journeyAttempt?.missionId === journeyDallasAirportHop01.id ? (journeyAttempt.airportHopStage >= 2 ? 'love' : 'dfw') : soloExploreMode ? 'dfw' : journeyAttempt?.missionId === journeyDallas24.id ? journeyDallas24.startAirportId
+  const spawnAirportId = journeyAttempt?.missionId === journeyDallasAceIntercept01.id ? journeyDallasAceIntercept01.startAirportId : journeyAttempt?.missionId === journeyDallasTwinHunters01.id ? journeyDallasTwinHunters01.startAirportId : journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id ? journeyDallasTerritoryDefense01.startAirportId : journeyAttempt?.missionId === journeyDallasAirportHop01.id ? (journeyAttempt.airportHopStage >= 2 ? 'love' : 'dfw') : soloExploreMode ? 'dfw' : journeyAttempt?.missionId === journeyDallas24.id ? journeyDallas24.startAirportId
     : journeyAttempt?.missionId === journeyDallas19.id ? journeyDallas19.startAirportId
     : journeyAttempt?.missionId === journeyDallas23.id ? journeyDallas23.startAirportId
     : journeyAttempt?.missionId === journeyDallas22.id ? journeyDallas22.startAirportId

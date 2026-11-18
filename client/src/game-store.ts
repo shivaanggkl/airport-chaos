@@ -12,7 +12,7 @@ import { aircraftFlightEnvelope, MPH_PER_METER_PER_SECOND } from '../../shared/a
 import { FIRE_RATE_PER_SECOND } from '../../shared/protocol.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import type { PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
-import { storeAircraft, storeFeatured, storeItemById, storeItemState, storePaints, storePurchaseTarget, type StoreCategory, type StoreItem } from './store-catalog';
+import { storeAircraft, storeFeatured, storeItemById, storeItemState, isStoreItemEquipped, storePaints, storePurchaseTarget, type StoreCategory, type StoreItem } from './store-catalog';
 
 type Currency = 'CREDITS' | 'SKY_TOKENS';
 type ActionResult = { ok: boolean; message: string };
@@ -287,8 +287,7 @@ export class GameStore {
         () => item.aircraftType === 'trainer' ? this.handlers.viewGarage(item) : this.showAircraftCard(item),
         'context-action context-action--gold store-card-action'));
     } else if (owned || item.included || (item.kind === 'aircraft' && item.aircraftType === 'trainer')) {
-      const equipped = this.profile?.selectedAircraft === item.aircraftType
-        && (item.kind === 'aircraft' || this.profile.cosmetics?.equipped?.[`livery:${item.aircraftType}`] === item.id);
+      const equipped = this.profile ? isStoreItemEquipped(item, this.profile) : false;
       const actionLabel = equipped ? 'EQUIPPED'
         : item.kind === 'paint' && this.profile?.selectedAircraft === item.aircraftType ? 'USE APPEARANCE' : 'EQUIP AIRCRAFT';
       const equip = this.button(actionLabel, () => void this.performEquip(item), equipped ? 'context-action store-card-action store-card-owned'

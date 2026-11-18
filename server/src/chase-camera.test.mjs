@@ -159,7 +159,7 @@ test('model load rebuilds geometry once; resize reuses the cache and preserves z
 
 
 test('one default profile applies to all aircraft and fallback framing',()=>{
- assert.equal(aircraftCameraProfile.widthFraction,.35);assert.equal(aircraftCameraProfile.elevation,16*Math.PI/180);
+ assert.equal(aircraftCameraProfile.widthFraction,.35);assert.equal(aircraftCameraProfile.elevation,5*Math.PI/180);
  for(const d of Object.values(aircraftDefinitions)){
   const frame=fitAircraftChase(d.wingSpan,d.bodyRadius*3,d.bodyLength+d.noseLength,16/9);
   assert.ok(Number.isFinite(frame.distance)&&frame.distance>0);
@@ -202,10 +202,16 @@ test('temporary safety distance is attitude-specific, smooth and returns to the 
 });
 
 
-test('Firehawk reference view is lower and centered higher, with comparable wingspan',async()=>{
+test('Firehawk has a slightly higher rear angle while other aircraft profiles stay unchanged',async()=>{
  const s=await fixture('fighter');const profile=normalAircraftCameraProfile('fighter');
- assert.equal(profile.elevation,5*Math.PI/180);assert.equal(profile.widthFraction,.34);assert.equal(profile.focusRatio,.01);
- for(const type of ['trainer','privateJet','cargo'])assert.equal(normalAircraftCameraProfile(type),aircraftCameraProfile);
+ assert.equal(profile.elevation,9*Math.PI/180);assert.equal(profile.widthFraction,.34);assert.equal(profile.focusRatio,.01);
+ for(const type of ['trainer','privateJet','cargo']){
+  const other=normalAircraftCameraProfile(type);
+  assert.equal(other.elevation,type==='trainer'?14*Math.PI/180:type==='cargo'?8*Math.PI/180:5*Math.PI/180);
+  assert.equal(other.focusRatio,profile.focusRatio);
+  assert.equal(other.groundClearance,profile.groundClearance);
+  assert.equal(other.widthFraction,type==='privateJet'?.42:.35);
+ }
  const center=new THREE.Vector3().copy(s.cameraFrameWorldCenter).add(s.airplane.position);
  s.camera.position.copy(s.chaseCameraPosition);s.camera.lookAt(s.chaseLookTarget);s.camera.updateMatrixWorld();
  assert.ok(Math.abs(center.project(s.camera).y)<.04,'Firehawk moves closer to screen center instead of the bottom edge');

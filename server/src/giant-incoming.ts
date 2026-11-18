@@ -1,17 +1,17 @@
 import {dallasMissionBuildings} from './dallas-building-occlusion.js';
 import {forEachBuilding,type BuildingSource} from './collision-buildings.js';
 import { readFileSync } from 'node:fs';
-import { transportPose, transportGunMounts, transportTuning, transportFootprintRadius, transportFootprintForMission, transportScaleForMission, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
+import { transportPose, transportGunMounts, transportTuning, transportTurnRadius, transportFootprintRadius, transportFootprintForMission, transportScaleForMission, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
 import { AIM_ENVELOPE, COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
 import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
 import { segmentBlockedByBuildings } from './monster-arrival.js';
 export function transportBuildingCoverage() {
-    const first=transportPose(0),last=transportPose(transportTuning.durationMs),reach=COMBAT_RANGE+transportFootprintForMission('journey-dallas-07')*1.5;
+    const first=transportPose(0),last=transportPose(transportTuning.durationMs),reach=COMBAT_RANGE+transportFootprintForMission('journey-dallas-07')*1.5+transportTurnRadius*2;
     return {minX:first.x-reach,maxX:last.x+reach,minZ:Math.min(first.z,last.z)-reach,maxZ:Math.max(first.z,last.z)+reach};
 }
 export function loadTransportBuildings() {return dallasMissionBuildings(2);}
 export function transportAltitude(buildings: BuildingSource, terrain: (x: number, z: number) => number, missionId?: string): number {
-    let ceiling = 0;
+    let ceiling = 0, arrivalCeiling = 0;
     const footprint = transportFootprintForMission(missionId);
     const first = transportPose(0), last = transportPose(transportTuning.durationMs);
     const dx = last.x-first.x, dz = last.z-first.z, lengthSquared = dx*dx+dz*dz;
@@ -21,16 +21,23 @@ export function transportAltitude(buildings: BuildingSource, terrain: (x: number
         const x=(building.minX+building.maxX)/2, z=(building.minZ+building.maxZ)/2;
         const t=Math.max(0,Math.min(1,((x-first.x)*dx+(z-first.z)*dz)/lengthSquared));
         const radius=Math.hypot(building.maxX-building.minX,building.maxZ-building.minZ)/2;
-        if(Math.hypot(x-first.x-t*dx,z-first.z-t*dz)<=footprint+radius)
+        const distance=Math.hypot(x-first.x-t*dx,z-first.z-t*dz);
+        if(distance<=footprint+radius)arrivalCeiling=Math.max(arrivalCeiling,building.top);
+        if(distance<=footprint+radius+transportTurnRadius*2)
             ceiling=Math.max(ceiling,building.top);
     });
     for(let ms=0;ms<=transportTuning.durationMs;ms+=100){
-        const p=transportPose(ms);
+        const arrival=transportPose(ms),p=transportPose(ms,0,transportTuning.durationMs,missionId ?? journeyDallas09.id);
         for(const x of [-footprint,0,footprint])
-            for(const z of [-footprint,0,footprint])
+            for(const z of [-footprint,0,footprint]) {
+                arrivalCeiling=Math.max(arrivalCeiling,terrain(arrival.x+x,arrival.z+z));
                 ceiling=Math.max(ceiling,terrain(p.x+x,p.z+z));
+            }
     }
-    return Math.max(900,ceiling+250+4.41283*transportScaleForMission(missionId)) * transportTuning.altitudeMultiplier;
+    const clearance=250+4.41283*transportScaleForMission(missionId);
+    // Keep the established arrival height whenever it already clears the
+    // expanded return corridor; don't multiply its safety allowance twice.
+    return Math.max(Math.max(900,arrivalCeiling+clearance)*transportTuning.altitudeMultiplier,ceiling+clearance);
 
 }
 const collisionData = (JSON.parse(readFileSync(new URL('../../shared/giant-transport-collision.json', import.meta.url), 'utf8')) as {

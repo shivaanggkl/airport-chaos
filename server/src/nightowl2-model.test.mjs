@@ -83,7 +83,7 @@ test('Bluejay, Nightowl and Firehawk keep distinct, consistent game-scale propor
 
 test('resized Nightowl wheels, exhausts and muzzle match authored model anchors', () => {
   const { model, min, max, scale } = renderedDimensions('privateJet', '../../client/public/assets/models/aircraft/private-jet.glb');
-  const center = min.map((value, axis) => (value + max[axis]) / 2);
+  const center = model.scenes[model.scene ?? 0].extras.aircraftNormalizationCenter;
   const at = name => model.nodes.find(node => node.name === name).translation.map((value, axis) => (value - center[axis]) * scale);
   const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 0.02, `${actual} misses ${expected}`);
   const exhaust = at('ExhaustSocket_Left');
@@ -97,4 +97,13 @@ test('resized Nightowl wheels, exhausts and muzzle match authored model anchors'
   const nose = at('NoseReference');
   close(aircraftMuzzleSockets.privateJet.position.y, nose[1]);
   close(aircraftMuzzleSockets.privateJet.position.z, nose[2] - 0.12);
+});
+
+test('Nightowl vertical stabilizer is half size without shifting its authored origin', () => {
+  const { model, max } = renderedDimensions('privateJet', '../../client/public/assets/models/aircraft/private-jet.glb');
+  assert.deepEqual(model.scenes[model.scene ?? 0].extras.aircraftNormalizationCenter, [0, 2.325, 0]);
+  assert.ok(Math.abs(max[1] - (.9 + (8.6 - .9) / 2)) < .0001);
+  const tail = model.nodes.find(node => node.name === 'TailReference').translation;
+  assert.ok(Math.abs(tail[1] - 4.75) < .0001);
+  assert.ok(Math.abs(tail[2] - 16.2125) < .0001);
 });

@@ -228,7 +228,7 @@ body.launch-cinematic-pending:has(#game-root.journey-flight) #tutorial-help {
   user-select: none;
 }
 
-:is(.native-shell, .touch-controls-enabled) #game-root > :not(#pilot-menu-overlay):not(.world-map-overlay):not(.journey-result):not(.mission-intro-skip),
+:is(.native-shell, .touch-controls-enabled) #game-root > :not(#pilot-menu-overlay):not(.world-map-overlay):not(.journey-result):not(.mission-intro-skip):not(.mission-status-layer),
 #game-root > canvas {
   touch-action: none;
 }
@@ -5348,23 +5348,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 }
 #game-root .mission-territory-card[hidden] { display: none; }
 #game-root .mission-territory-card.gameplay-info-card.has-mission-territories .gameplay-info-multiplayer { margin: 0; padding: 0; border: 0; }
-#game-root .mission-territory-card .gameplay-info-target-heading { min-height: 20px; padding-right: 26px; }
-#game-root .mission-territory-toggle {
-  position: absolute;
-  top: 3px;
-  right: 4px;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid rgb(130 181 207 / 55%);
-  border-radius: 4px;
-  background: transparent;
-  color: #d5ecf5;
-  font: inherit;
-  font-size: 17px;
-  cursor: pointer;
-}
-#game-root .mission-territory-card.is-collapsed #city-territories { display: none; }
+#game-root .mission-territory-card .gameplay-info-target-heading { min-height: 20px; padding-right: 35px; }
 
 /* In-flight instruments: keep the world open while matching the gold/cyan cockpit artwork. */
 #game-root .flight-game-hud {
@@ -5533,7 +5517,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 }
 #game-root .journey-hud-toggle:hover { filter: brightness(1.08); }
 #game-root .journey-hud-toggle:focus-visible { outline: 3px solid #6beeff; outline-offset: 2px; }
-#game-root .journey-status-layer .sky-challenge.journey-hud.is-collapsed {
+#game-root .journey-status-layer :is(.sky-challenge.journey-hud, .mission-territory-card).is-collapsed {
   width: 34px;
   max-width: 34px;
   height: 34px;
@@ -5543,8 +5527,8 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   background: transparent;
   box-shadow: none;
 }
-#game-root .journey-status-layer .sky-challenge.journey-hud.is-collapsed > :not(.journey-hud-toggle) { display: none !important; }
-#game-root .journey-status-layer .sky-challenge.journey-hud.is-collapsed .journey-hud-toggle {
+#game-root .journey-status-layer :is(.sky-challenge.journey-hud, .mission-territory-card).is-collapsed > :not(.journey-hud-toggle) { display: none !important; }
+#game-root .journey-status-layer :is(.sky-challenge.journey-hud, .mission-territory-card).is-collapsed .journey-hud-toggle {
   top: 0;
   right: auto;
   left: 0;
@@ -5555,7 +5539,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   background: rgb(9 26 48 / 88%);
   box-shadow: 0 3px 9px rgb(4 25 48 / 24%);
 }
-#game-root .journey-status-layer .sky-challenge.journey-hud.is-collapsed .journey-hud-toggle::before { transform: translateY(-3px) rotate(225deg); }
+#game-root .journey-status-layer :is(.sky-challenge.journey-hud, .mission-territory-card).is-collapsed .journey-hud-toggle::before { transform: translateY(-3px) rotate(225deg); }
 #game-root .active-mission-overlay {
   position: relative;
   gap: 5px;
@@ -7450,11 +7434,6 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 #game-root.launch-cinematic-active.territory-defense-intro > #mission-status-layer { opacity: 1 !important; --launch-hud-opacity: 1; }
 
 /* M21 reuses the existing compact Journey progress indicators. */
-.journey-capture-three .journey-hud-segments { grid-template-columns: 1fr; gap: 3px; }
-.journey-capture-three .journey-hud-segments i { height: auto; padding: 2px 4px; font: inherit; font-style: normal; font-size: .9em; opacity: .55; background: none; box-shadow: none; }
-.journey-capture-three .journey-hud-segments i.is-current { opacity: 1; color: #ffd766; border-color: #ffd766; }
-.journey-capture-three .journey-hud-segments i.is-cleared { opacity: .65; color: #8df3cc; background: none; box-shadow: none; }
-.journey-capture-three .journey-hud-segments i[hidden] { display: none; }
 
 /* M26 status stays inside the existing narrow Journey card. */
 .journey-most-wanted-survival [data-journey-target] { color: #ffd766; border-left: 3px solid #f04745; padding-left: 5px; }
@@ -7578,3 +7557,44 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 #game-root .journey-status-layer .journey-battle-card .monster-boss-hud > strong { min-width: 0; max-width: none; }
 
 #game-root .journey-status-layer :is(.journey-battle-card, .journey-capture-three) [data-journey-heading] { white-space: normal; }
+
+/* Share the available space without pushing direction cues into steering. */
+#game-root > .mission-status-layer.journey-status-layer {
+  display: flex;
+  flex-direction: column;
+  max-height: var(--mission-panels-max-height, 42dvh);
+  touch-action: pan-y;
+}
+#game-root .journey-status-layer > :is(.sky-challenge.journey-hud, .mission-territory-card) {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #dcb54d #09253c;
+}
+#game-root .journey-status-layer > :is(.sky-challenge.journey-hud, .mission-territory-card).is-collapsed {
+  flex-shrink: 0;
+  min-height: 34px;
+  overflow: hidden;
+}
+#game-root .journey-status-layer > .mission-objective-docked {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  color: #fff4c7;
+  border: 1px solid rgb(255 211 91 / 72%);
+  border-radius: 9px;
+  background: linear-gradient(145deg, rgb(6 44 88 / 20%), rgb(7 74 133 / 14%));
+  box-shadow: 0 2px 8px rgb(0 12 34 / 18%);
+  text-shadow: 0 1px 3px #09203d;
+  font: 900 12px/1.2 var(--font-display);
+  letter-spacing: .04em;
+}
+#game-root .journey-status-layer > .mission-objective-docked[hidden] { display: none; }

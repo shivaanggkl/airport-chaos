@@ -48,7 +48,7 @@ class FakeElement {
 }
 
 globalThis.document = { createElement: tag => new FakeElement(tag) };
-const { GameplayInfoCard } = await import('../../client/src/gameplay-info-card.ts');
+const { bindGameplayInfoTap, GameplayInfoCard } = await import('../../client/src/gameplay-info-card.ts');
 const { PlayersPanel, CityTerritoriesPanel } = await import('../../client/src/players-panel.ts');
 
 test('capture mission reuses the existing ownership list alongside mission details and restores other modes', () => {
@@ -220,4 +220,35 @@ test('M16 can detach the existing territory list into a separate box and restore
  card.setTerritoryPanelHost(null);card.setMode('mission-territories');
  assert.equal(host.children.length,0);assert.equal(root.children.filter(child=>child===panel).length,1);
  assert.equal(panel.children[1].textContent,'TARGET TERRITORY');assert.equal(card.territoriesRoot,list);
+});
+
+test('shared mission territory box collapses and expands with touch, mouse and keyboard',()=>{
+ const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+ const start=source.indexOf('bindGameplayInfoTap(missionTerritoryToggle,');
+ const end=source.indexOf('missionTerritoryCard.append(',start);
+ assert.ok(start>=0&&end>start);
+ const bind=new Function('bindGameplayInfoTap','missionTerritoryCard','missionTerritoryToggle',source.slice(start,end));
+ const host=new FakeElement('section'),toggle=new FakeElement('button');
+ bind(bindGameplayInfoTap,host,toggle);
+ toggle.dispatch('click',{detail:1});
+ assert.equal(host.classList.contains('is-collapsed'),true);
+ assert.equal(toggle.getAttribute('aria-expanded'),'false');
+ assert.equal(toggle.textContent,'','toggle uses the common chevron rather than a plus label');
+ toggle.dispatch('pointerdown',{pointerType:'touch',pointerId:2,isPrimary:false});
+ toggle.dispatch('pointerup',{pointerType:'touch',pointerId:2,isPrimary:false});
+ assert.equal(host.classList.contains('is-collapsed'),false);
+ toggle.dispatch('click',{detail:1});
+ assert.equal(host.classList.contains('is-collapsed'),false,'synthetic click must not toggle twice');
+ toggle.dispatch('click',{detail:0});
+ assert.equal(host.classList.contains('is-collapsed'),true,'keyboard activation still collapses');
+ toggle.dispatch('click',{detail:0});
+ assert.equal(toggle.getAttribute('aria-expanded'),'true');
+ assert.equal(toggle.textContent,'');
+ const css=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
+ assert.ok(source.includes("missionTerritoryToggle.className = 'mission-territory-toggle journey-hud-toggle'"));
+ const sharedSelector='#game-root .journey-status-layer :is(.sky-challenge.journey-hud, .mission-territory-card).is-collapsed';
+ assert.ok(css.includes(`${sharedSelector} {\n  width: 34px;`),'both boxes collapse to the same small control');
+ assert.ok(css.includes(`${sharedSelector} > :not(.journey-hud-toggle) { display: none !important; }`),
+  'collapse hides the whole territory panel, including its heading');
+ assert.ok(css.includes(`${sharedSelector} .journey-hud-toggle::before { transform: translateY(-3px) rotate(225deg); }`));
 });
