@@ -3419,7 +3419,7 @@ function updateJourneyHud(): void {
       if(journeyAttempt.missionId===journeyDallas11.id||journeyAttempt.missionId===journeyDallas12.id)
         journeyHudTarget.textContent=`WINGS: ${Number(journeyAttempt.fortressLeftHealth===0)+Number(journeyAttempt.fortressRightHealth===0)}/2 DESTROYED · ENGINE: ${(journeyAttempt.monsterHealth??1)===0?'DESTROYED':'ACTIVE'}${journeyAttempt.missionId===journeyDallas12.id?` · ESCORTS LEFT: ${journeyAttempt.fighterEscortsAlive??2}/2`:''}`;
     }
-    if (journeyAttempt.missionId === journeyDallas09.id) {
+    if (journeyAttempt.missionId === journeyDallas09.id || journeyAttempt.missionId === journeyDallas10.id) {
       if (journeyHudProgress) { journeyHudProgress.hidden = true; journeyHudProgress.textContent = ''; }
       if (journeyHudTarget) { journeyHudTarget.hidden = true; journeyHudTarget.textContent = ''; }
     }
