@@ -638,11 +638,12 @@ export const visualQaPresets = [
   { id: 'ADS_SKYBOARD_EXEC', label: 'ADS SKYBOARD EXEC', x: -9_100, z: 6_300, altitude: 780, heading: -2.14 },
 ] as const;
 export const regionBounds: ReadonlyArray<{ name: RegionName; minX: number; maxX: number; minZ: number; maxZ: number }> = [
+  // Region names are saved exploration identifiers; visible territory labels come from shared territory data.
   // These areas drive exploration credits and sightseeing contracts.  They
   // intentionally exclude DFW's spawn corridor; an airport takeoff is not a
   // discovery of an unrelated fictional biome.
-  { name: place.downtown, minX: -3_500, maxX: 1_800, minZ: -3_100, maxZ: 2_500 },
-  { name: place.lasColinas, minX: -17_000, maxX: -10_000, minZ: -12_000, maxZ: -5_000 },
+  { name: 'CENTRAL DISTRICT', minX: -3_500, maxX: 1_800, minZ: -3_100, maxZ: 2_500 },
+  { name: 'CANAL DISTRICT', minX: -17_000, maxX: -10_000, minZ: -12_000, maxZ: -5_000 },
   { name: 'WHITE ROCK LAKE', minX: 3_000, maxX: 8_500, minZ: -11_500, maxZ: -5_000 },
   { name: 'TRINITY CORRIDOR', minX: -6_000, maxX: 1_500, minZ: 0, maxZ: 4_500 },
   { name: place.executive, minX: -9_500, maxX: -4_000, minZ: 7_000, maxZ: 13_500 },

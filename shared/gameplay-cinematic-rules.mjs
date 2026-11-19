@@ -45,7 +45,10 @@ export function cinematicProgress(elapsedMs, durationMs) {
 }
 
 export function regionCinematicPresentation(cityId, regionName) {
-  return REGION_CINEMATIC_CONFIG[cityId]?.[regionName];
+  const regions = REGION_CINEMATIC_CONFIG[cityId];
+  const savedRegionName = cityId === 'dallas' && regionName === 'CANAL DISTRICT' ? 'Canal District'
+    : cityId === 'dallas' && regionName === 'CENTRAL DISTRICT' ? 'Central District' : regionName;
+  return regions?.[savedRegionName];
 }
 
 export function isPerfectLandingGrade(grade) {
