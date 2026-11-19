@@ -6,14 +6,14 @@ import { selectCombatTarget, rebaseCombatAim, combatLockReady, combatIntercept, 
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
 import { ballisticShotSpeed, COMBAT_RANGE, stepAim, AIM_ENVELOPE, interpolateAim } from '../../shared/protocol.mjs';
 const zero = { x: 0, y: 0, z: 0 };
-test('lock and ballistic reach share the six-kilometer boundary', () => {
-    assert.equal(COMBAT_RANGE, 6000);
-    for (const distance of [4501, 5999, 6000, 6001]) {
+test('lock and ballistic reach share the nine-kilometer boundary', () => {
+    assert.equal(COMBAT_RANGE, 9000);
+    for (const distance of [6000, 6001, 8999, 9000, 9001]) {
         const target = { x: 0, y: 0, z: -distance };
-        assert.equal(combatLockReady(target, { x: 0, y: 0 }), distance <= 6000);
-        assert.equal(Boolean(combatIntercept(zero, zero, target, zero)), distance <= 6000);
+        assert.equal(combatLockReady(target, { x: 0, y: 0 }), distance <= 9000);
+        assert.equal(Boolean(combatIntercept(zero, zero, target, zero)), distance <= 9000);
     }
-    assert.equal(COMBAT_DETECTION_RANGE, 12000);
+    assert.equal(COMBAT_DETECTION_RANGE, 18000);
 });
 test('delayed aim updates cannot restart interpolation through an expired previous sample', () => {
     assert.equal(combatAimBlend(0, 1146, 1195), 1);
