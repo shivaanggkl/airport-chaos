@@ -2709,14 +2709,18 @@ const neutralTerritoryColor: string = territoryOwnershipColors.neutral;
 function ownedTerritoriesForPlayer(playerId: string): Array<{ name: string; color: string }> {
   const owned: Array<{ name: string; color: string }> = [];
   for (const definition of territoryDefinitions) {
-    if (territoryState.get(definition.id)?.controllerId !== playerId) continue;
-    owned.push({ name: territoryDisplayName(definition), color: definition.fixedColor });
+    const state = displayedTerritoryState(definition.id);
+    if (state?.controllerId !== playerId) continue;
+    owned.push({ name: territoryDisplayName(definition), color: state.ownerColor ?? definition.fixedColor });
   }
   return owned;
 }
 function primaryTerritoryColorForPlayer(playerId: string): string | undefined {
   // One deterministic accent per human prevents multi-territory rainbow clutter.
-  for (const definition of territoryDefinitions) if (territoryState.get(definition.id)?.controllerId === playerId) return definition.fixedColor;
+  for (const definition of territoryDefinitions) {
+    const state = displayedTerritoryState(definition.id);
+    if (state?.controllerId === playerId) return state.ownerColor ?? definition.fixedColor;
+  }
   return undefined;
 }
 let weeklyLeaderboards: NetworkWeeklyLeaderboard[] = [];
@@ -2927,6 +2931,12 @@ function displayedTerritoryState(id: string): NetworkTerritoryState | undefined 
   return territoryState.get(id);
 }
 
+function refreshTerritoryOwnershipTags(): void {
+  for (const remote of remotePlayers.values()) {
+    if (remote.ownershipSignature !== ownedTerritoriesForPlayer(remote.playerId).map(({ color }) => color).join('|')) refreshPlayerIdentityTag(remote);
+  }
+}
+
 function refreshTerritoryBorders(): void {
   const active = serverProfile.missions[cityId]?.active;
   const mission = active && missionForCity(cityId, active.missionId);
@@ -2950,6 +2960,7 @@ function refreshTerritoryBorders(): void {
     entry.label.classList.toggle('journey-target', definition.id === focusedTerritoryTargetId());
     entry.label.classList.toggle('contested', appearance === 'contested');
   }
+  refreshTerritoryOwnershipTags();
 }
 function updateTerritoryBorderVisibility(now: number): void {
   const overview = Boolean(missionCaptureIntroPath && flightLaunchState === 'active' && flightLaunchSkipStartedAt === undefined &&
@@ -3036,9 +3047,6 @@ function applyTerritoryState(states: readonly NetworkTerritoryState[]): void {
     }
   }
   refreshTerritoryBorders();
-  for (const remote of remotePlayers.values()) {
-    if (remote.ownershipSignature !== ownedTerritoriesForPlayer(remote.playerId).map(({ color }) => color).join('|')) refreshPlayerIdentityTag(remote);
-  }
   playersPanel.update([...cityHumanRoster.values()], localPlayerId, ownedTerritoriesForPlayer);
   updateTerritoryPanel();
   updateCaptureHud();
