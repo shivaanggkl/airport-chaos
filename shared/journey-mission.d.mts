@@ -218,7 +218,10 @@ export const journeyDallasSharpshooter01: Readonly<{
 export const journeyDallasSharpshooter02: Readonly<Omit<typeof journeyDallasSharpshooter01,'id'|'name'|'objective'|'firstClearCredits'> & {
  id:'journey-dallas-sharpshooter-02';name:'MOVING TARGETS';objective:string;firstClearCredits:950;
 }>;
-export function journeySharpshooterMission(id:string|undefined): typeof journeyDallasSharpshooter01 | typeof journeyDallasSharpshooter02 | undefined;
+export const journeyDallasSharpshooter03: Readonly<Omit<typeof journeyDallasSharpshooter01,'id'|'name'|'objective'|'firstClearCredits'|'difficulty'|'timeLimitMs'> & {
+ id:'journey-dallas-sharpshooter-03';name:'DOUBLE TROUBLE';difficulty:'HARD';objective:string;timeLimitMs:360000;firstClearCredits:1100;
+}>;
+export function journeySharpshooterMission(id:string|undefined): typeof journeyDallasSharpshooter01 | typeof journeyDallasSharpshooter02 | typeof journeyDallasSharpshooter03 | undefined;
 
 export const journeyDallasCoinHunt01: Readonly<{
  id:'journey-dallas-coin-hunt-01'; cityId:'dallas'; name:'DALLAS COIN HUNT'; difficulty:'MEDIUM';

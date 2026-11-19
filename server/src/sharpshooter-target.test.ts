@@ -149,8 +149,8 @@ test('M8 overview escapes the cinematic fade and shows readable targets without 
   const depth=-position.clone().applyMatrix4(camera.matrixWorldInverse).z;
   const unitsPerPixel=2*depth*Math.tan(Math.PI/6)/589;
   assert.ok(view.root.scale.x*mission.targetRadius/unitsPerPixel>=17.99,'target radius is readable on iPhone');
-  assert.ok(view.root.position.equals(position),'authoritative placement stays unchanged');
-  view.endIntro();assert.ok(view.root.scale.equals(scale));assert.ok(view.root.quaternion.equals(rotation));
+  assert.ok(view.root.position.y>=position.y,'overview lifts the enlarged face above its gameplay anchor');
+  view.endIntro();assert.ok(view.root.position.equals(position));assert.ok(view.root.scale.equals(scale));assert.ok(view.root.quaternion.equals(rotation));
   view.dispose();
  }
  assert.ok(intro.cameraTarget.length()>0);intro.dispose();

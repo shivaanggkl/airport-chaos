@@ -35,8 +35,8 @@ test('server eligibility drives nodes, while placeholders stay locked even with 
   missionJourneyStages.forEach((stage, index) => assert.equal(all.statuses[index], stage.implementation === 'playable' ? 'completed' : 'locked'));
   const allCleared = Object.fromEntries(missions.journeyMissionOrder.map(id => [id, {completed:true}]));
   allCleared['journey-dallas-02'] = {completed:true}; // Historical Lake Racer clears no longer count.
-  assert.equal(journeyMainCompleted(allCleared), 22);
-  assert.deepEqual(journeyCompletionSummary(allCleared), {completed:27,total:35});
+  assert.equal(journeyMainCompleted(allCleared), 23);
+  assert.deepEqual(journeyCompletionSummary(allCleared), {completed:28,total:35});
   assert.match(view, /play.disabled = placeholder \|\| this.cityLocked/);
   assert.match(view, /placeholder \? 'COMING SOON'/);
   assert.match(bootstrap, /missionJourney.setCityLocked\(!dallasUnlocked\(\)\)/);
