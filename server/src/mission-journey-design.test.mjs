@@ -35,8 +35,8 @@ test('server eligibility drives nodes, while placeholders stay locked even with 
   missionJourneyStages.forEach((stage, index) => assert.equal(all.statuses[index], stage.implementation === 'playable' ? 'completed' : 'locked'));
   const allCleared = Object.fromEntries(missions.journeyMissionOrder.map(id => [id, {completed:true}]));
   allCleared['journey-dallas-02'] = {completed:true}; // Historical Lake Racer clears no longer count.
-  assert.equal(journeyMainCompleted(allCleared), 23);
-  assert.deepEqual(journeyCompletionSummary(allCleared), {completed:28,total:34});
+  assert.equal(journeyMainCompleted(allCleared), 24);
+  assert.deepEqual(journeyCompletionSummary(allCleared), {completed:29,total:34});
   assert.match(view, /play.disabled = placeholder \|\| this.cityLocked/);
   assert.match(view, /placeholder \? 'COMING SOON'/);
   assert.match(bootstrap, /missionJourney.setCityLocked\(!dallasUnlocked\(\)\)/);
@@ -52,7 +52,7 @@ test('live detail definitions keep every playable reward, clock and description;
     const time = definition.timeLimitMs;
     assert.equal(card.timeLimit, time === undefined ? 'NO LIMIT' : `${Math.floor(time/60000)}:${String(Math.floor(time/1000)%60).padStart(2,'0')}`);
   }
-  assert.equal(missionJourneyDetails.find(card => card.id === 'placeholder-dallas-27').description, 'Capture 3 TERRITORIES\nHold them together for 1 minute');
+  assert.equal(missionJourneyDetails.find(card => card.id === 'journey-dallas-territory-hold-01').description, 'Defeat the territory owners\nCapture all 3 TERRITORIES\nHold all 3 together for 30 seconds');
   assert.match(view, /placeholder \? '—'/);
   assert.match(view, /card.description.split/);
   assert.doesNotMatch(styles, /\.mission-journey-detail.is-placeholder/);

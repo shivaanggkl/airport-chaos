@@ -592,12 +592,28 @@ export const journeyDallasCaptureThree01 = Object.freeze({
   airborneSpawn: Object.freeze({x: -58_000, z: -28_050, altitude: 900, heading: -Math.PI / 2, speed: 650}),
 });
 
+export const journeyDallasTerritoryHold01 = Object.freeze({
+  ...journeyDallasCaptureThree01,
+  id: 'journey-dallas-territory-hold-01', name: 'TERRITORY TAKEOVER',
+  objective: 'Defeat the territory owners and capture all 3 territories. Hold all 3 together for 30 seconds.',
+  firstClearCredits: 2500, holdDurationMs: 30000, opponentRespawnMs: 10000,
+  owners: Object.freeze([
+    Object.freeze({territoryId:'las-colinas',aircraft:'trainer',name:'BLUEJAY GUARDIAN'}),
+    Object.freeze({territoryId:'love-field',aircraft:'privateJet',name:'NIGHTOWL GUARDIAN'}),
+    Object.freeze({territoryId:'downtown',aircraft:'cargo',name:'MAMMOTH GUARDIAN'}),
+  ]),
+});
+export function journeyCompetitiveCaptureMission(id) {
+  return id === journeyDallasCaptureThree01.id ? journeyDallasCaptureThree01
+    : id === journeyDallasTerritoryHold01.id ? journeyDallasTerritoryHold01 : undefined;
+}
+
 /** Shared capture timing and rewards for M05 and competitive M21. */
 export function journeyTerritoryCaptureMission(id) {
-  return id === journeyDallasCapture01.id ? journeyDallasCapture01 : id === journeyDallasCaptureThree01.id ? journeyDallasCaptureThree01 : undefined;
+  return id === journeyDallasCapture01.id ? journeyDallasCapture01 : journeyCompetitiveCaptureMission(id);
 }
 export function journeyCaptureTerritoryId(id, stage = 0) {
-  return id === journeyDallasCaptureThree01.id ? journeyDallasCaptureThree01.territoryIds[stage]
+  return journeyCompetitiveCaptureMission(id) ? journeyDallasCaptureThree01.territoryIds[stage]
     : id === journeyDallasCapture01.id ? journeyDallasCapture01.territoryId : undefined;
 }
 
@@ -653,6 +669,7 @@ export const journeyCatalog = Object.freeze([
   [journeyDallasSharpshooter03.id, 'Double Trouble'],
   [journeyDallasSharpshooter04.id, 'Precision Fire'],
   [journeyDallasSharpshooter05.id, 'Target Master'],
+  [journeyDallasTerritoryHold01.id, 'Territory Takeover'],
 ].map(([identity, title], index) => Object.freeze({
   id: identity === null ? `placeholder-dallas-${String(index + 1).padStart(2, '0')}` : typeof identity === 'string' ? identity : `journey-dallas-${String(identity).padStart(2, '0')}`,
   number: index + 1, title,

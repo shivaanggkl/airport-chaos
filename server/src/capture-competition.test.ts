@@ -8,7 +8,7 @@ import ts from 'typescript';
 import {newCaptureCompetition,advanceCaptureCompetition,captureCompetitionOwned,releaseCaptureActor,type CaptureOpponent} from './capture-competition.ts';
 import {JourneyAttemptStore} from './journey-attempts.ts';
 import {PlayerProfileStore} from './player-profiles.ts';
-import {journeyDallasCaptureThree01 as mission} from '../../shared/journey-mission.mjs';
+import {journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,journeyDallasCaptureThree01 as mission} from '../../shared/journey-mission.mjs';
 import {territoriesForCity} from '../../shared/city-territories.mjs';
 import {keepDallasEscortInside} from './journey-hunter-airspace.ts';
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
@@ -86,7 +86,7 @@ const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);
 const declarations=(names:string[])=>ts.transpileModule(ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name!.text)).map(n=>n.getText(ast)).join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 test('production setup creates exactly six private opponents: three EASY and three HARD, no respawn on refresh',()=>{
  const players=new Map([['owner',{position:{x:0,y:1000,z:0}}]]),states=new Map(),spawns:any[]=[];
- const context=vm.createContext({captureCompetitions:states,players,journeyDallasCaptureThree01:mission,territoriesForCity,keepDallasEscortInside,
+ const context=vm.createContext({journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,captureCompetitions:states,players,journeyDallasCaptureThree01:mission,territoriesForCity,keepDallasEscortInside,
   aircraftFlightEnvelope,maxHealthForAircraft,newCaptureCompetition,botSafeFloor:()=>1000,journeyAceClearance:300,
   createBot(_city:unknown,_defense:unknown,spawn:any){spawns.push(spawn);players.set(spawn.captureOpponent.id,{bot:{journeyAttemptId:spawn.attemptId,journeyTargetPlayerId:spawn.targetPlayerId}} as any);},
  });
@@ -108,7 +108,7 @@ test('real bot factory preserves each assigned aircraft, EASY/HARD profile, heal
  const {cityAirports}=await import('../../shared/city-airports.mjs');
  const {boundJourneyHunterPoint}=await import('./journey-hunter-airspace.ts');
  const players=new Map();
- const context=vm.createContext({...missions,players,createOpponent,nextBotSerial:1,botNames:['Hunter'],botPersonalities:['hunter'],
+ const context=vm.createContext({journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,...missions,players,createOpponent,nextBotSerial:1,botNames:['Hunter'],botPersonalities:['hunter'],
   botAirports:()=>cityAirports.dallas,airportRoute:()=>[],boundJourneyHunterPoint,botTerrainHeight:()=>100,botSafeFloor:()=>1200,
   safeBotWaypoint:(_city:unknown,_from:unknown,p:unknown)=>p,journeyAceClearance:300,aircraftFlightEnvelope,maxHealthForAircraft,DALLAS_WORLD_SCALE:3,
   sendToPlayer(){},broadcastToCity:()=>assert.fail('private opponent leaked'),botStateMessage:()=>({})});
@@ -123,6 +123,9 @@ test('real bot factory preserves each assigned aircraft, EASY/HARD profile, heal
   assert.equal(live.bot.journeyCaptureSlot,slot);assert.equal(live.bot.journeyDallasEntered,true);
   assert.equal(live.bot.opponent.definition.level,enemy.level);assert.equal(live.bot.journeyTargetPlayerId,'pilot');
   assert.deepEqual({...live.position},enemy.position);
+  enemy.runwayStart=true;enemy.role=slot<3?'owner':'attacker';enemy.name='RETURNING OPPONENT';enemy.velocity={x:0,y:0,z:0};
+  context.createBot('dallas',undefined,{attemptId:'attempt',targetPlayerId:'pilot',target:{},captureOpponent:enemy,captureSlot:slot});
+  const returned=players.get(id);assert.equal(returned.bot.phase,'taxi');assert.equal(returned.bot.speed,0);assert.equal(returned.displayName,enemy.name);assert.equal(returned.bot.routeIndex,0);
  }
 });
 
@@ -132,7 +135,7 @@ test('AI navigates to capture and immediately attacks when the player invades it
  const enemy={cityId:'dallas',aircraftType:'fighter',position:{x:territory.center.x,y:2000,z:territory.center.z},rotation:{x:0,y:0,z:0}};
  const saved:CaptureOpponent={id:'enemy',aircraft:'fighter',level:'HARD',position:enemy.position,rotation:enemy.rotation,velocity:{x:100,y:0,z:100},health:200,goal:0};
  const state=newCaptureCompetition([saved],0),calls:any[]=[];
- const context=vm.createContext({players:new Map([['pilot',pilot]]),captureCompetitions:new Map([['attempt',state]]),journeyDallasCaptureThree01:mission,
+ const context=vm.createContext({journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,players:new Map([['pilot',pilot]]),captureCompetitions:new Map([['attempt',state]]),journeyDallasCaptureThree01:mission,
   territoriesForCity,territoryContains:(t:any,p:any)=>p.x>=t.bounds.minX&&p.x<=t.bounds.maxX&&p.z>=t.bounds.minZ&&p.z<=t.bounds.maxZ,
   COMBAT_RANGE:3000,aircraftFlightEnvelope,journeyAceClearance:300,insideAceInterceptAirspace:()=>true,
   botSafeFloor:()=>1000,botFireSolution:()=>({reason:undefined}),safeBotWaypoint:(_city:unknown,_from:unknown,to:unknown)=>to,
@@ -145,21 +148,16 @@ test('AI navigates to capture and immediately attacks when the player invades it
  state.territories[0]!.ownerId='enemy';pilot.position={...territory.center,y:2000};
  navigation=context.hunterNavigationTarget('enemy',enemy,bot,2000);
  assert.equal(navigation.target[0],'pilot');assert.equal(calls.at(-1).objective,undefined);
+ saved.role='owner';saved.goal=2;pilot.position={x:50000,y:2000,z:50000};
+ navigation=context.hunterNavigationTarget('enemy',enemy,bot,3000);assert.equal(saved.goal,0);assert.equal(navigation.target,undefined);
+ saved.provokedUntil=5000;navigation=context.hunterNavigationTarget('enemy',enemy,bot,4000);assert.equal(navigation.target[0],'pilot');
+ saved.provokedUntil=0;saved.role='attacker';state.opponents[3]=saved;bot.journeyCaptureSlot=3;
+ navigation=context.hunterNavigationTarget('enemy',enemy,bot,6000);assert.equal(navigation.target[0],'pilot');
+ bot.phase='taxi';assert.equal(context.hunterNavigationTarget('enemy',enemy,bot,7000),undefined);
+ bot.phase='takeoff';assert.equal(context.hunterNavigationTarget('enemy',enemy,bot,8000),undefined);
 });
 
-test('M21 enables the existing mobile and desktop fire controls while M5 remains noncombat',async()=>{
- const missions=await import('../../shared/journey-mission.mjs');
- const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
- const clientAst=ts.createSourceFile('main.ts',main,ts.ScriptTarget.Latest,true);
- const declaration=clientAst.statements.find(n=>ts.isVariableStatement(n)&&n.declarationList.declarations.some(d=>d.name.getText(clientAst)==='journeyCombatMissionIds'))!;
- const toggle=main.split('\n').find(line=>line.includes("classList.toggle('noncombat-journey', !journeyCombatMissionIds.has"))!;
- const values:boolean[]=[];
- const context=vm.createContext({...missions,message:{attempt:{missionId:mission.id}},flightGameRoot:{classList:{toggle(_name:string,hidden:boolean){values.push(hidden);}}}});
- vm.runInContext(ts.transpileModule(declaration.getText(clientAst),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
- vm.runInContext(toggle,context);assert.equal(values.pop(),false,'M21 must not hide the fire controls');
- context.message.attempt.missionId=missions.journeyDallasCapture01.id;
- vm.runInContext(toggle,context);assert.equal(values.pop(),true,'M5 retains its existing noncombat controls');
-});
+test('M21 keeps the common fire button and aim renderer',()=>{const client=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');assert.match(client,/function updateLockCircle/);assert.match(client,/function fireWeaponOnce/);});
 
 test('production M21 capture covers all territory edges and corners at low and high altitude',async()=>{
  const {territoryCaptureFlightEligible}=await import('../../shared/city-territories.mjs');
@@ -167,7 +165,7 @@ test('production M21 capture covers all territory edges and corners at low and h
  const player={cityId:'dallas',pilotId:'pilot',lifeState:'alive',health:100,hasRespawnTransform:true,portalTransit:false,
   lastStateAt:1400,lastAcceptedTransformAt:1400,lastAcceptedPosition:{x:0,y:1000,z:0},velocity:{x:100,y:0,z:0}};
  const attempt={attemptId:'attempt',status:'RACING',pausedAt:null,deadlineAt:1e9,captureFlight:undefined};
- const context=vm.createContext({journeyDallasCaptureThree01:mission,territoriesForCity,territoryCaptureFlightEligible,
+ const context=vm.createContext({journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,journeyDallasCaptureThree01:mission,territoriesForCity,territoryCaptureFlightEligible,
   pausedJourneyAttempts:new Set(),hasOpenPlayerSocket:()=>true,botTerrainHeight:()=>100,
   landingFlightState:new Map([['owner',{airborne:true}]]),players:new Map(),
   ensureCaptureCompetition:()=>state,advanceCaptureCompetition,checkpointJourneyCapture(){},

@@ -117,10 +117,10 @@ test('actual category rendering, node selection and launch guards use live stabl
     assert.equal(f.play.disabled, false);
   }
   f.play.emit('click'); assert.equal(f.launches, 1);
-  f.button('placeholder-dallas-27').emit('click');
+  f.button('placeholder-dallas-territory-missions-5').emit('click');
   assert.equal(f.play.disabled, true);
   assert.equal(f.root.querySelector('[data-mission-title]').textContent, 'COMING SOON');
-  assert.match(f.root.querySelector('[data-mission-objective]').textContent, /Hold them together for 1 minute/);
+  assert.equal(f.root.querySelector('[data-mission-objective]').textContent, '');
   assert.equal(f.root.querySelector('[data-mission-time-value]').textContent, '—');
   f.play.emit('click'); assert.equal(f.launches, 1);
   f.journey.setCityLocked(true); f.button('journey-dallas-01').emit('click');
@@ -169,10 +169,10 @@ test('the shared header keeps the Dallas mission title when progress changes', (
   assert.equal(header.querySelector('[data-journey-progress]'), null);
 });
 
-test('all four bonus entries share details, progress and the authoritative coin-hunt launch', async () => {
+test('all five bonus entries share details, progress and the authoritative coin-hunt launch', async () => {
   const bonuses = missionJourneyStages.filter(stage => stage.kind === 'bonus' && stage.implementation === 'playable');
-  assert.equal(bonuses.length, 4);
-  assert.equal(new Set(bonuses.map(stage => stage.id)).size, 4);
+  assert.equal(bonuses.length, 5);
+  assert.equal(new Set(bonuses.map(stage => stage.id)).size, 5);
   assert.ok(bonuses.every(stage => stage.implementation === 'playable' && stage.missionId === 'journey-dallas-coin-hunt-01'));
   const f = fixture();
   f.journey.setProgress({'journey-dallas-coin-hunt-01':{eligible:true,completed:true,coinsCollected:25}});
@@ -223,7 +223,7 @@ test('Plane Battles and every bonus intro share the target-style bottom summary'
     assert.equal(title.textContent,'original intro');assert.ok(!title.classList.contains('is-mission-intro-summary'));
   }
   const bonuses=missionJourneyStages.filter(stage=>stage.kind==='bonus');
-  assert.equal(bonuses.length,4);
+  assert.equal(bonuses.length,5);
   let expected;
   for(const stage of bonuses){
     context.journeyAttempt={missionId:stage.id};context.renderMissionIntroSummary();

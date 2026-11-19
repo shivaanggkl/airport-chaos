@@ -387,11 +387,11 @@ test('every Journey result uses its category number rather than the old overall 
   ['journey-dallas-sharpshooter-01','journey-dallas-sharpshooter-02','journey-dallas-sharpshooter-03','journey-dallas-sharpshooter-04','journey-dallas-sharpshooter-05'],
   [id(14),'journey-dallas-twin-hunters-01',id(16),id(17),id(18)],
   [7,8,10,11,12].map(id),
-  ['journey-dallas-capture-01','journey-dallas-territory-defense-01','journey-dallas-capture-three-01'],
+  ['journey-dallas-capture-01','journey-dallas-territory-defense-01','journey-dallas-capture-three-01','journey-dallas-territory-hold-01'],
   [id(23),id(19)],[id(15),'journey-dallas-ace-intercept-01'],
  ];
  const expected=new Map(groups.flatMap(group=>group.map((mission,index)=>[mission,`M${index+1}`])));
- expected.set('journey-dallas-coin-hunt-01','M6');expected.set('journey-dallas-coin-hunt-02','BONUS');expected.set('journey-dallas-coin-hunt-03','BONUS');expected.set('journey-dallas-coin-hunt-04','BONUS');
+ expected.set('journey-dallas-coin-hunt-01','M6');expected.set('journey-dallas-coin-hunt-02','BONUS');expected.set('journey-dallas-coin-hunt-03','BONUS');expected.set('journey-dallas-coin-hunt-04','BONUS');expected.set('journey-dallas-coin-hunt-05','BONUS');
  const playable=[...journeyCategorySlots,...journeyPursuitSlots].filter(slot=>slot.implementation==='playable');
  assert.deepEqual([...expected.keys()].sort(),playable.map(slot=>slot.id).sort());
  for(const [missionId,label] of expected){
