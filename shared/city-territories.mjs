@@ -1,6 +1,5 @@
 // City-local geography belongs in data, while capture behavior stays generic
 // in the server. Coordinates use the same meter-based Dallas activity anchors.
-import { dallasDisplayNames } from './dallas-display-names.mjs';
 import { DALLAS_WORLD_SCALE, scaleDallasPoint, scaleDallasBounds } from './dallas-world-scale.mjs';
 export const TERRITORY_AREA_SCALE = 2;
 export const TERRITORY_LINEAR_SCALE = Math.sqrt(TERRITORY_AREA_SCALE);
@@ -13,14 +12,14 @@ const baseCityTerritories = {
   dallas: [
     // The corrected rectangles retain exactly 2x original area while following
     // the districts' long axes. Small 100-600m gaps replace ambiguous overlap.
-    { id: 'dfw', cityId: 'dallas', displayName: dallasDisplayNames.dfw, center: { x: -22800, z: -13600 }, bounds: { minX: -27850, maxX: -17850, minZ: -20240, maxZ: -6960 }, captureWeight: 1.2, fixedColor: '#a34dff', colorName: 'Vivid Purple' },
-    { id: 'downtown', cityId: 'dallas', displayName: dallasDisplayNames.downtown, center: { x: -600, z: -450 }, bounds: { minX: -3000, maxX: 2400, minZ: -6900, maxZ: 100 }, captureWeight: 1.15, fixedColor: '#2678ff', colorName: 'Electric Blue', botObstacleClearance: 460 },
-    { id: 'las-colinas', cityId: 'dallas', displayName: dallasDisplayNames.lasColinas, center: { x: -13500, z: -9350 }, bounds: { minX: -17700, maxX: -9700, minZ: -16960, maxZ: -1840 }, captureWeight: 1, fixedColor: '#00d6b3', colorName: 'Bright Teal' },
-    { id: 'love-field', cityId: 'dallas', displayName: dallasDisplayNames.love, center: { x: -5140, z: -7780 }, bounds: { minX: -9600, maxX: -3300, minZ: -7750 - LOVE_FIELD_DEPTH / 2, maxZ: -7750 + LOVE_FIELD_DEPTH / 2 }, captureWeight: 1, fixedColor: '#ffd02e', colorName: 'Gold' },
-    { id: 'white-rock', cityId: 'dallas', displayName: 'White Rock', center: { x: 5200, z: -8500 }, bounds: { minX: 2700, maxX: 2700 + 7100 * TERRITORY_LINEAR_SCALE, minZ: -9000 - 3200 * TERRITORY_LINEAR_SCALE, maxZ: -9000 + 3200 * TERRITORY_LINEAR_SCALE }, captureWeight: .95, fixedColor: '#16cfff', colorName: 'Cyan' },
-    { id: 'trinity-corridor', cityId: 'dallas', displayName: 'Trinity Corridor', center: { x: -2380, z: 720 }, bounds: { minX: -9700, maxX: 2300, minZ: 400, maxZ: 6900 }, captureWeight: 1.05, fixedColor: '#f04ba0', colorName: 'Magenta' },
-    { id: 'addison', cityId: 'dallas', displayName: dallasDisplayNames.addison, center: { x: -3700, z: -21100 }, bounds: { minX: -3400 - 3400 * TERRITORY_LINEAR_SCALE, maxX: -3400 + 3400 * TERRITORY_LINEAR_SCALE, minZ: -20950 - 3050 * TERRITORY_LINEAR_SCALE, maxZ: -20950 + 3050 * TERRITORY_LINEAR_SCALE }, captureWeight: 1, fixedColor: '#55df45', colorName: 'Bright Green' },
-    { id: 'dallas-executive', cityId: 'dallas', displayName: dallasDisplayNames.executive, center: { x: -6700, z: 10600 }, bounds: { minX: -6650 - 2950 * TERRITORY_LINEAR_SCALE, maxX: -6650 + 2950 * TERRITORY_LINEAR_SCALE, minZ: 7500, maxZ: 7500 + 6000 * TERRITORY_LINEAR_SCALE }, captureWeight: 1, fixedColor: '#ff8528', colorName: 'Strong Orange' },
+    { id: 'dfw', cityId: 'dallas', displayName: 'DFW TERRITORY', center: { x: -22800, z: -13600 }, bounds: { minX: -27850, maxX: -17850, minZ: -20240, maxZ: -6960 }, captureWeight: 1.2, fixedColor: '#a34dff', colorName: 'Vivid Purple' },
+    { id: 'downtown', cityId: 'dallas', displayName: 'DOWNTOWN DALLAS TERRITORY', center: { x: -600, z: -450 }, bounds: { minX: -3000, maxX: 2400, minZ: -6900, maxZ: 100 }, captureWeight: 1.15, fixedColor: '#2678ff', colorName: 'Electric Blue', botObstacleClearance: 460 },
+    { id: 'las-colinas', cityId: 'dallas', displayName: 'LAS COLINAS TERRITORY', center: { x: -13500, z: -9350 }, bounds: { minX: -17700, maxX: -9700, minZ: -16960, maxZ: -1840 }, captureWeight: 1, fixedColor: '#00d6b3', colorName: 'Bright Teal' },
+    { id: 'love-field', cityId: 'dallas', displayName: 'LOVE FIELD TERRITORY', center: { x: -5140, z: -7780 }, bounds: { minX: -9600, maxX: -3300, minZ: -7750 - LOVE_FIELD_DEPTH / 2, maxZ: -7750 + LOVE_FIELD_DEPTH / 2 }, captureWeight: 1, fixedColor: '#ffd02e', colorName: 'Gold' },
+    { id: 'white-rock', cityId: 'dallas', displayName: 'WHITE ROCK TERRITORY', center: { x: 5200, z: -8500 }, bounds: { minX: 2700, maxX: 2700 + 7100 * TERRITORY_LINEAR_SCALE, minZ: -9000 - 3200 * TERRITORY_LINEAR_SCALE, maxZ: -9000 + 3200 * TERRITORY_LINEAR_SCALE }, captureWeight: .95, fixedColor: '#16cfff', colorName: 'Cyan' },
+    { id: 'trinity-corridor', cityId: 'dallas', displayName: 'TRINITY CORRIDOR TERRITORY', center: { x: -2380, z: 720 }, bounds: { minX: -9700, maxX: 2300, minZ: 400, maxZ: 6900 }, captureWeight: 1.05, fixedColor: '#f04ba0', colorName: 'Magenta' },
+    { id: 'addison', cityId: 'dallas', displayName: 'ADDISON TERRITORY', center: { x: -3700, z: -21100 }, bounds: { minX: -3400 - 3400 * TERRITORY_LINEAR_SCALE, maxX: -3400 + 3400 * TERRITORY_LINEAR_SCALE, minZ: -20950 - 3050 * TERRITORY_LINEAR_SCALE, maxZ: -20950 + 3050 * TERRITORY_LINEAR_SCALE }, captureWeight: 1, fixedColor: '#55df45', colorName: 'Bright Green' },
+    { id: 'dallas-executive', cityId: 'dallas', displayName: 'DALLAS EXECUTIVE TERRITORY', center: { x: -6700, z: 10600 }, bounds: { minX: -6650 - 2950 * TERRITORY_LINEAR_SCALE, maxX: -6650 + 2950 * TERRITORY_LINEAR_SCALE, minZ: 7500, maxZ: 7500 + 6000 * TERRITORY_LINEAR_SCALE }, captureWeight: 1, fixedColor: '#ff8528', colorName: 'Strong Orange' },
   ],
   milwaukee: [],
 };

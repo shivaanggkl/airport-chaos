@@ -1,3 +1,4 @@
+import { territoriesForCity } from './city-territories.mjs';
 /* Shared client/server discovery locations. Keep gameplay validation and display on one manifest. */
 import { dallasDisplayNames as airportName } from './dallas-display-names.mjs';
 import { DALLAS_WORLD_SCALE, scaleDallasPoint } from './dallas-world-scale.mjs';
@@ -223,7 +224,7 @@ export const cityDiscoveries = Object.freeze({
     },
     {
       "id": "las-colinas",
-      "name": "CANAL DISTRICT",
+      "name": territoriesForCity('dallas').find(territory => territory.id === 'las-colinas').displayName,
       "type": "landmark",
       "x": -13500,
       "z": -9350,

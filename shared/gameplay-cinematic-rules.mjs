@@ -1,3 +1,5 @@
+import { territoriesForCity } from './city-territories.mjs';
+
 export const GAMEPLAY_CINEMATIC_PRIORITY = Object.freeze({
   TAKEOFF: 1,
   REGION_ENTRY: 2,
@@ -14,8 +16,8 @@ export const CINEMATIC_EVENT_DEBOUNCE_MS = 750;
 export const REGION_CINEMATIC_CONFIG = Object.freeze({
   dallas: Object.freeze({
     Metroplex: Object.freeze({ title: 'DOWNTOWN DALLAS', subtitle: 'URBAN FLIGHT ZONE' }),
-    'Central District': Object.freeze({ title: 'CENTRAL DISTRICT', subtitle: 'DALLAS AIRSPACE' }),
-    'Canal District': Object.freeze({ title: 'CANAL DISTRICT', subtitle: 'WATERFRONT FLIGHT ZONE' }),
+    'Central District': Object.freeze({ title: territoriesForCity('dallas').find(territory => territory.id === 'downtown').displayName, subtitle: 'DALLAS AIRSPACE' }),
+    'Canal District': Object.freeze({ title: territoriesForCity('dallas').find(territory => territory.id === 'las-colinas').displayName, subtitle: 'WATERFRONT FLIGHT ZONE' }),
     'North Metro': Object.freeze({ title: 'NORTH METRO', subtitle: 'DALLAS AIRSPACE' }),
     'South Metro': Object.freeze({ title: 'SOUTH METRO', subtitle: 'DALLAS AIRSPACE' }),
   }),
