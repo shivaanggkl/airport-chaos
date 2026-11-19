@@ -133,8 +133,10 @@ test('extra pursuits reuse the detail box; Back restores selection and scroll; k
   f.button('journey-dallas-twin-hunters-01').emit('click');
   const detail = f.root.querySelector('.mission-journey-detail');
   const viewport = f.root.querySelector('.mission-journey-viewport'); viewport.scrollLeft = 920;
-  const extra = f.root.querySelector('[data-extra-pursuits]'); assert.equal(extra.hidden, false);
-  extra.emit('click');
+  assert.equal(f.root.querySelector('[data-extra-pursuits]'), null);
+  const battles = f.root.querySelectorAll('.mission-journey-category').find(group => group.dataset.category === 'plane-battles');
+  assert.equal(battles.querySelector('.mission-journey-category-label').querySelector('strong').textContent, 'PLANE BATTLES');
+  f.journey.showSpecial(true);
   assert.equal(f.journey.selectedMissionId, 'journey-dallas-15');
   assert.equal(f.root.querySelectorAll('.mission-journey-category').filter(group => !group.hidden).length, 1);
   f.button('journey-dallas-15').emit('keydown', {key:'ArrowRight'});
@@ -167,10 +169,10 @@ test('the shared header keeps the Dallas mission title when progress changes', (
   assert.equal(header.querySelector('[data-journey-progress]'), null);
 });
 
-test('all three bonus entries share details, progress and the authoritative coin-hunt launch', async () => {
+test('all four bonus entries share details, progress and the authoritative coin-hunt launch', async () => {
   const bonuses = missionJourneyStages.filter(stage => stage.kind === 'bonus' && stage.implementation === 'playable');
-  assert.equal(bonuses.length, 3);
-  assert.equal(new Set(bonuses.map(stage => stage.id)).size, 3);
+  assert.equal(bonuses.length, 4);
+  assert.equal(new Set(bonuses.map(stage => stage.id)).size, 4);
   assert.ok(bonuses.every(stage => stage.implementation === 'playable' && stage.missionId === 'journey-dallas-coin-hunt-01'));
   const f = fixture();
   f.journey.setProgress({'journey-dallas-coin-hunt-01':{eligible:true,completed:true,coinsCollected:25}});
@@ -198,11 +200,11 @@ test('all three bonus entries share details, progress and the authoritative coin
   }
 });
 
-test('all five Plane Battles intros share the target-style bottom summary and exclude the bonus',()=>{
+test('Plane Battles and every bonus intro share the target-style bottom summary',()=>{
   const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
   const styles=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
   const ast=ts.createSourceFile('main.ts',source,ts.ScriptTarget.Latest,true);
-  const render=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='renderPlaneBattleIntroSummary');
+  const render=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='renderMissionIntroSummary');
   const title=new Element();
   const context=vm.createContext({journeyAttempt:null,journeyCategorySlot:id=>missionJourneyStages.find(stage=>stage.id===id),
     missionJourneyDetails,flightLaunchTitle:title,document:{createElement:tag=>new Element(tag)}});
@@ -210,16 +212,30 @@ test('all five Plane Battles intros share the target-style bottom summary and ex
   const battles=missionJourneyStages.filter(stage=>stage.categoryId==='plane-battles'&&stage.kind==='main');
   assert.equal(battles.length,5);
   for(const stage of battles){
-    context.journeyAttempt={missionId:stage.missionId};context.renderPlaneBattleIntroSummary();
+    context.journeyAttempt={missionId:stage.missionId};context.renderMissionIntroSummary();
     const detail=missionJourneyDetails.find(mission=>mission.id===stage.missionId);
-    assert.ok(title.classList.contains('is-plane-battle-summary'));
+    assert.ok(title.classList.contains('is-mission-intro-summary'));
     assert.equal(title.children[0].tag,'strong');assert.equal(title.children[0].textContent,detail.title);
     assert.deepEqual(title.children.slice(1).map(line=>line.textContent),detail.description.split('\n'));
   }
-  for(const missionId of ['journey-dallas-coin-hunt-01','journey-dallas-sharpshooter-01']){
-    title.textContent='original intro';context.journeyAttempt={missionId};context.renderPlaneBattleIntroSummary();
-    assert.equal(title.textContent,'original intro');assert.ok(!title.classList.contains('is-plane-battle-summary'));
+  for(const missionId of ['journey-dallas-sharpshooter-01']){
+    title.textContent='original intro';context.journeyAttempt={missionId};context.renderMissionIntroSummary();
+    assert.equal(title.textContent,'original intro');assert.ok(!title.classList.contains('is-mission-intro-summary'));
   }
-  assert.match(styles,/\.sharpshooter-overview-heading,\s*#game-root \.flight-launch-title\.is-plane-battle-summary\s*\{/);
-  assert.match(source,/missionNumber === 15 && !flightLaunchTitle.classList.contains\('is-plane-battle-summary'\)/);
+  const bonuses=missionJourneyStages.filter(stage=>stage.kind==='bonus');
+  assert.equal(bonuses.length,4);
+  let expected;
+  for(const stage of bonuses){
+    context.journeyAttempt={missionId:stage.id};context.renderMissionIntroSummary();
+    assert.ok(title.classList.contains('is-mission-intro-summary'));
+    const rendered=title.children.map(node=>[node.tag,node.textContent]);
+    assert.equal(rendered[0][1],'COLLECT COINS');
+    assert.equal(rendered[1][1],'Collect as many COINS as possible before time ends');
+    if(expected)assert.deepEqual(rendered,expected);else expected=rendered;
+    assert.equal(stage.missionId,'journey-dallas-coin-hunt-01');
+  }
+  const coinFrame=source.slice(source.indexOf('  if(missionCoinHuntIntro && journeyAttempt?.coinHunt){'),source.indexOf('  if (missionSharpshooterIntro) {',source.indexOf('  if(missionCoinHuntIntro && journeyAttempt?.coinHunt){')));
+  assert.doesNotMatch(coinFrame,/replaceChildren|textContent/,'bonus frames cannot replace the shared heading with legacy text');
+  assert.match(styles,/\.sharpshooter-overview-heading,\s*#game-root \.flight-launch-title\.is-mission-intro-summary\s*\{/);
+  assert.match(source,/missionNumber === 15 && !flightLaunchTitle.classList.contains\('is-mission-intro-summary'\)/);
 });

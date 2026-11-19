@@ -286,12 +286,14 @@ export class JourneyAttemptStore {
         for (let index = 1; index < journeyMissionOrder.length; index++) grant.run(journeyMissionOrder[index]!, journeyMissionOrder[index - 1]!);
         // Preserve access earned before First Contact was retired from the catalog.
         grant.run(journeyDallas03.id, journeyDallas13.id);
+        // Keep historical Golden Championship access earned from the retired three-escort mission.
+        grant.run(journeyDallas06.id, journeyDallas09.id);
         this.database.exec(`INSERT OR IGNORE INTO journey_access_grants(pilot_id,mission_id)
           SELECT pilot_id,mission_id FROM journey_attempts`);
         this.database.prepare('INSERT INTO journey_catalog_versions(version) VALUES(?)').run('dallas-category-journey-40-v1');
       }
       // Retire only unfinished encounters. Completion history and wallet receipts are untouched.
-      for (const id of ['journey-dallas-13','journey-dallas-25','journey-dallas-20','journey-dallas-21','journey-dallas-22','journey-dallas-24']) {
+      for (const id of ['journey-dallas-09','journey-dallas-13','journey-dallas-25','journey-dallas-20','journey-dallas-21','journey-dallas-22','journey-dallas-24']) {
         this.database.prepare(`UPDATE journey_attempts SET status='ABANDONED',finished_at=?,failure_reason='MISSION_RETIRED'
           WHERE mission_id=? AND status IN ('READY','APPROACH','RACING')`).run(Date.now(), id);
         this.database.prepare(`DELETE FROM journey_continuations WHERE attempt_id IN

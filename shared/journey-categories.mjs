@@ -6,7 +6,7 @@ export const journeyCategories = Object.freeze([
   category('golden-rings', 'GOLDEN RINGS', '#ffd239', 'ring', [...[1, 3, 4, 5, 6].map(id), 'journey-dallas-coin-hunt-01']),
   category('shooting-targets', 'SHOOTING TARGETS', '#60ef45', 'target', ['journey-dallas-sharpshooter-01', 'journey-dallas-sharpshooter-02', 'journey-dallas-sharpshooter-03', 'journey-dallas-sharpshooter-04', 'journey-dallas-sharpshooter-05', 'journey-dallas-coin-hunt-02']),
   category('plane-battles', 'PLANE BATTLES', '#ff683e', 'plane', [id(14), 'journey-dallas-twin-hunters-01', id(16), id(17), id(18), 'journey-dallas-coin-hunt-03']),
-  category('giant-battles', 'GIANT BATTLES', '#b76aff', 'giant', [7, 8, 9, 10, 11, 12].map(id)),
+  category('giant-battles', 'GIANT BATTLES', '#b76aff', 'giant', [...[7, 8, 10, 11, 12].map(id), 'journey-dallas-coin-hunt-04']),
   category('territory-missions', 'TERRITORY MISSIONS', '#35f2e4', 'territory', ['journey-dallas-capture-01', 'journey-dallas-territory-defense-01', 'journey-dallas-capture-three-01', 'placeholder-dallas-27', 'placeholder-dallas-territory-missions-5', 'placeholder-dallas-territory-missions-6']),
 ]);
 const extras = [
@@ -19,7 +19,7 @@ export const journeyDisplayGroups = Object.freeze([
 function slots(groups) {
   return groups.flatMap(group => group.missionIds.map((id, index) => {
     // All bonus entries launch the same authoritative coin-hunt round.
-    const missionId = id === 'journey-dallas-coin-hunt-02' || id === 'journey-dallas-coin-hunt-03' ? 'journey-dallas-coin-hunt-01' : id;
+    const missionId = id === 'journey-dallas-coin-hunt-02' || id === 'journey-dallas-coin-hunt-03' || id === 'journey-dallas-coin-hunt-04' ? 'journey-dallas-coin-hunt-01' : id;
     return Object.freeze({
       id, missionId, categoryId: group.id, categoryNumber: index + 1,
       kind: missionId === 'journey-dallas-coin-hunt-01' ? 'bonus' : group.id === 'dr-boss' ? 'boss' : group.id === 'special-pursuits' ? 'special' : 'main',

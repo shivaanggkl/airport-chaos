@@ -41,7 +41,6 @@ export class MissionJourney {
   private readonly scrollPosition: HTMLInputElement;
   private readonly stageButtons = new Map<number, HTMLButtonElement>();
   private readonly groups = new Map<string, HTMLElement>();
-  private readonly extrasLink: HTMLButtonElement;
   private readonly back: HTMLButtonElement;
   private progress: Progress = {};
   private selectedStage = 1;
@@ -90,8 +89,6 @@ export class MissionJourney {
     const resize = new ResizeObserver(() => this.updateScrollPosition());
     resize.observe(this.viewport);
     resize.observe(track);
-    this.extrasLink = element.querySelector('[data-extra-pursuits]')!;
-    this.extrasLink.addEventListener('click', () => this.showSpecial(true));
     this.viewport.addEventListener('wheel', event => {
       if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY))
         return;
@@ -191,7 +188,7 @@ export class MissionJourney {
     const label = document.createElement('div');
     label.className = 'mission-journey-category-label';
     const icon = group.id === 'giant-battles' ? 'giant' : group.id === 'territory-missions' ? 'flag' : group.icon;
-    label.innerHTML = `<span class="mission-journey-category-icon">${categoryIcon(icon, group.id)}</span><strong>${displayLabel}</strong>${group.id === 'plane-battles' ? '<button type="button" class="mission-journey-extra" data-extra-pursuits hidden>2 EXTRA</button>' : ''}`;
+    label.innerHTML = `<span class="mission-journey-category-icon">${categoryIcon(icon, group.id)}</span><strong>${displayLabel}</strong>`;
     section.classList.toggle('is-bonus-group', stages.every(stage => stage.kind === 'bonus'));
     section.classList.toggle('is-boss-group', stages[0]?.kind === 'boss');
     label.addEventListener('click', event => {
@@ -241,7 +238,6 @@ export class MissionJourney {
       group.hidden = this.specialOpen ? id !== 'special-pursuits' : id === 'special-pursuits';
       group.classList.toggle('is-selected', selected.categoryId === id);
     }
-    this.extrasLink.hidden = selected.categoryId !== 'plane-battles';
     this.back.hidden = !this.specialOpen;
     this.element.classList.toggle('is-special-view', this.specialOpen);
     this.renderDetails();
