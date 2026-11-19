@@ -560,6 +560,7 @@ export const journeyDallasAirportHop01 = Object.freeze({
 
 export const journeyDallasCapture01 = Object.freeze({
   id: 'journey-dallas-capture-01', cityId: 'dallas', name: 'CAPTURE 1 TERRITORY', difficulty: 'EASY',
+  runwayStart: true, startAirportId: 'dfw',
   objective: 'Fly into the marked territory and stay inside until it is captured!',
   territoryId: captureTerritory.id, captureDurationMs: 60_000,
   timeLimitMs: 180_000, firstClearCredits: 500,
