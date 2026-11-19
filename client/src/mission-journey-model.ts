@@ -1,4 +1,4 @@
-import { journeyCategories, journeyCategorySlots, journeyPursuitSlots, type JourneyCategorySlot } from '../../shared/journey-categories.mjs';
+import { journeyMainMissionIds, journeyCategorySlots, journeyPursuitSlots, type JourneyCategorySlot } from '../../shared/journey-categories.mjs';
 export type MissionJourneyStage = JourneyCategorySlot & Readonly<{
   number: number;
 }>;
@@ -14,7 +14,7 @@ export function missionJourneyStatuses(completed: readonly boolean[], eligible: 
 export function journeyMainCompleted(progress: Readonly<Record<string, {
   completed?: boolean;
 }>>): number {
-  return journeyCategories.reduce((count, group) => count + group.missionIds.filter(id => progress[id]?.completed).length, 0);
+  return journeyMainMissionIds.filter(id => progress[id]?.completed).length;
 }
 
 /** All current Dallas slots, including bonuses, bosses and the two extra pursuits. */

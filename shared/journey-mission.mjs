@@ -587,11 +587,13 @@ export const journeyDallasMostWantedSurvival01 = Object.freeze({
 export const journeyChapters = Object.freeze(['ROOKIE PILOT', 'RISING ACE', 'SKY COMMANDER', 'DR. BOSS RISING']);
 export const journeyCatalog = Object.freeze([
   [1, 'Rookie Rush'],
+  // Retired Lake Racer slot keeps other persisted identities and legacy numbers stable.
   [2, 'Lake Racer'],
   [13, 'First Contact'],
   [3, 'Golden Ascent'],
   [journeyDallasCapture01.id, 'Capture 1 Territory'],
   [14, 'Surprise Attack'],
+  // Retired Airport Hop slot keeps later historical numbers stable.
   [journeyDallasAirportHop01.id, 'Airport Hop'],
   [journeyDallasSharpshooter01.id, 'Sky Sharpshooter'],
   [7, 'Giant Plane'],
@@ -621,7 +623,7 @@ export const journeyCatalog = Object.freeze([
   number: index + 1, title,
   chapter: index < 9 ? 1 : index < 18 ? 2 : index < 28 ? 3 : 4,
   implementation: identity === null || identity === journeyDallasMostWantedSurvival01.id ? 'placeholder' : 'playable',
-})));
+})).filter(slot => slot.id !== journeyDallasAirportHop01.id && slot.id !== journeyDallas02.id));
 export const journeyMissionOrder = Object.freeze(journeyCatalog.filter(slot => slot.implementation === 'playable').map(slot => slot.id));
 export function journeyMissionSlot(missionId) { return journeyCatalog.find(slot => slot.id === missionId)?.number ?? 0; }
 export function isMonsterJourneyMission(id) { return id === 'journey-dallas-23' || id === 'journey-dallas-19'; }

@@ -1877,71 +1877,79 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
   .journey-result.is-failure .journey-result-actions button { min-height: 44px; font-size: 15px; }
   .journey-result.is-failure .journey-result-status-mark { font-size: 0; }
 }
-/* All successful Journey missions share this result presentation. Training,
-   ordinary flight recaps, and mission failures retain their own layouts. */
-.journey-result.is-success:not(.is-training):not(.is-flight-result) {
+/* Mission Cleared, Mission Failed and Flight Ended share one compact result card. */
+.journey-result.is-terminal:not(.is-training) {
   background: rgb(8 29 62 / 38%); backdrop-filter: blur(6px);
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-card.game-card-frame {
+.journey-result.is-terminal:not(.is-training) .journey-result-card.game-card-frame {
   width: min(500px, 100%); padding: 0 12px 12px; overflow: visible;
   border: 3px solid var(--ui-bright-gold); border-radius: var(--menu-panel-radius);
   color: var(--menu-card-ink); background: var(--menu-panel-surface);
   box-shadow: inset 0 0 0 2px #fff, 0 12px 32px rgb(4 25 56 / 42%);
   font-family: var(--font-body);
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-status-banner {
+.journey-result.is-terminal:not(.is-training) .journey-result-status-banner {
   height: 36px; margin: 0 -12px 8px; border-radius: 12px 12px 0 0;
   background: linear-gradient(#f3fbff, #d9edf9); border-color: var(--menu-panel-divider);
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-status-mark {
+.journey-result.is-terminal:not(.is-training) .journey-result-status-mark {
   width: 56px; height: 56px; transform: translateY(-18px); border: 3px solid var(--ui-bright-gold);
   font: 950 42px/1 var(--font-body);
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) [data-journey-result-heading] {
+.journey-result.is-terminal:not(.is-training) [data-journey-result-heading] {
   margin: 0 0 3px; color: var(--menu-panel-muted); font: 900 var(--menu-label-size)/1.1 var(--font-body); letter-spacing: 0;
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-card h2 {
+.journey-result.is-terminal:not(.is-training) .journey-result-card h2 {
   font: 950 var(--menu-item-title-size)/1.05 var(--font-body); letter-spacing: -.025em;
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-card > strong {
+.journey-result.is-terminal:not(.is-training) .journey-result-card > strong {
   margin: 3px 0 8px; color: var(--menu-panel-muted); font: 850 var(--menu-label-size)/1.1 var(--font-body);
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) [data-journey-result-detail] {
+.journey-result.is-terminal:not(.is-training) [data-journey-result-detail] {
   margin: 0 0 8px; color: var(--menu-card-ink); font-family: var(--font-body);
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) [data-journey-result-detail].has-metrics { gap: 8px; }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) .has-metrics > div {
+.journey-result.is-terminal:not(.is-training) [data-journey-result-detail].has-metrics { gap: 8px; }
+.journey-result.is-terminal:not(.is-training) .has-metrics > div {
   min-height: 52px; border: 2px solid var(--ui-bright-gold); border-radius: 12px; background: var(--menu-card-surface);
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) .has-metrics span {
+.journey-result.is-terminal:not(.is-training) .has-metrics span {
   color: var(--menu-panel-muted); font: 850 var(--menu-label-size)/1.1 var(--font-body);
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) .has-metrics strong {
+.journey-result.is-terminal:not(.is-training) .has-metrics strong {
   color: var(--menu-card-ink); font: 900 var(--menu-section-title-size)/1.1 var(--font-body);
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) [data-journey-result-reward] {
+.journey-result.is-terminal:not(.is-training) [data-journey-result-reward] {
   min-height: 44px; margin: 0; padding: 4px 10px; border-radius: 12px;
   color: var(--menu-card-ink); background: linear-gradient(rgb(255 255 255 / 58%), transparent 40%), var(--ui-bright-gold);
   font: 900 var(--menu-action-label-size)/1.1 var(--font-body);
 }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) [data-journey-result-reward] img { width: 36px; height: 36px; margin-right: 8px; }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-actions { margin-top: 8px; }
-.journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-actions [data-journey-primary] {
+.journey-result.is-terminal:not(.is-training) [data-journey-result-reward] img { width: 36px; height: 36px; margin-right: 8px; }
+.journey-result.is-terminal:not(.is-training) .journey-result-actions { margin-top: 8px; }
+.journey-result.is-terminal:not(.is-training) .journey-result-actions [data-journey-primary] {
   min-height: 44px; width: 100%; padding: 7px 10px; border-radius: 12px; color: var(--menu-gold-ink);
   background: linear-gradient(rgb(255 255 255 / 55%), transparent 30%), var(--ui-bright-gold);
   box-shadow: inset 0 2px #fffbd4, inset 0 -2px rgb(0 0 0 / 10%), 0 3px 5px rgb(7 34 61 / 35%);
   font: 900 var(--menu-action-label-size)/1.1 var(--font-body);
 }
+/* Flight recap keeps its existing stats and two actions within the shared card. */
+.journey-result.is-terminal.is-flight-result .journey-result-card [data-journey-result-detail] {
+  padding: 9px; border-radius: 12px; color: var(--menu-card-ink);
+  background: var(--menu-card-surface); font: 850 clamp(11px, 2.8cqi, 14px)/1.4 var(--font-body);
+}
+.journey-result.is-terminal.is-failure .journey-result-actions [data-journey-exit] {
+  min-height: 44px; padding: 7px 10px; border-radius: 12px;
+  font: 900 var(--menu-action-label-size)/1.1 var(--font-body);
+}
 @media (max-height: 390px) {
-  .journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-card.game-card-frame { padding-bottom: 10px; }
-  .journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-status-banner { height: 30px; margin-bottom: 6px; }
-  .journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-status-mark { width: 48px; height: 48px; font-size: 36px; }
-  .journey-result.is-success:not(.is-training):not(.is-flight-result) .has-metrics > div { min-height: 48px; }
-  .journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-actions [data-journey-primary] { min-height: 44px; }
+  .journey-result.is-terminal:not(.is-training) .journey-result-card.game-card-frame { padding-bottom: 10px; }
+  .journey-result.is-terminal:not(.is-training) .journey-result-status-banner { height: 30px; margin-bottom: 6px; }
+  .journey-result.is-terminal:not(.is-training) .journey-result-status-mark { width: 48px; height: 48px; font-size: 36px; }
+  .journey-result.is-terminal:not(.is-training) .has-metrics > div { min-height: 48px; }
+  .journey-result.is-terminal:not(.is-training) .journey-result-actions [data-journey-primary] { min-height: 44px; }
 }
 @media (max-height: 330px), (max-width: 500px) {
-  .journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-card.game-card-frame { overflow-y: auto; }
-  .journey-result.is-success:not(.is-training):not(.is-flight-result) .journey-result-status-mark { transform: none; }
+  .journey-result.is-terminal:not(.is-training) .journey-result-card.game-card-frame { overflow-y: auto; }
+  .journey-result.is-terminal:not(.is-training) .journey-result-status-mark { transform: none; }
 }
 
 .mission-clear { position: fixed; z-index: 58; inset: 0; pointer-events: none; text-align: center; background: linear-gradient(rgb(5 29 55 / 9%), transparent 45%); }
@@ -7222,7 +7230,7 @@ html.custom-control-layout #game-root #radar-panel {
 }
 .home-hangar .menu-card-carousel .home-hangar-sponsor img { max-height: 100%; }
 /* Solo exploration keeps navigation and flight controls, without combat or battle HUD. */
-#game-root.solo-explore-flight :is(#acquisition-circle, #target-feedback, #hit-marker, #social-panel, .territory-hud, .territory-world-labels, .territory-capture, .territory-defense-alert, .dynamic-event-hud, .daily-objective-hud, #mission-status-layer, #players-panel) { display: none !important; }
+#game-root.solo-explore-flight :is(#target-feedback, #hit-marker, #social-panel, .territory-hud, .territory-world-labels, .territory-capture, .territory-defense-alert, .dynamic-event-hud, .daily-objective-hud, #mission-status-layer, #players-panel) { display: none !important; }
 
 
 /* Full-art cards share exactly one frame, crop viewport and corner geometry. */

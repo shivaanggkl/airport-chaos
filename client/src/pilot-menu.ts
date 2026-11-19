@@ -1,3 +1,4 @@
+import { bonusRoundLabelMarkup } from './bonus-badge';
 import { setMissionInstructions } from './mission-instructions';
 import { observeMissionCopyFit } from './fit-mission-copy';
 import { openControlLayoutEditor } from './control-layout-editor';
@@ -92,7 +93,7 @@ export type PilotProfileSummary = {
 };
 
 export type PilotMenuData = {
-  flightMission?: { name: string; objective: string; progress: string; time: string; gatesCleared: number; gateCount: number; pauseRemaining?: string };
+  flightMission?: { bonus?: boolean; name: string; objective: string; progress: string; time: string; gatesCleared: number; gateCount: number; pauseRemaining?: string };
   resumeFlight?: () => void;
   restartFlight?: () => void;
   profileSummary?: PilotProfileSummary;
@@ -742,6 +743,11 @@ export class PilotMenu {
       const details = document.createElement('div'); details.className = 'pilot-flight-mission-details';
       const objective = textElement('p', '', 'pilot-flight-mission-objective');
       setMissionInstructions(objective, mission?.objective ?? 'Connecting to mission');
+      if (mission?.bonus) {
+        const label = document.createElement('div'); label.className = 'bonus-round-label';
+        label.innerHTML = bonusRoundLabelMarkup;
+        details.append(label);
+      }
       details.append(textElement('h2', mission?.name ?? 'CONNECTING TO MISSION'), objective);
       const progress = document.createElement('div'); progress.className = 'pilot-flight-mission-progress';
       progress.append(textElement('strong', mission?.progress ?? '', 'pilot-flight-progress-value'),

@@ -21,22 +21,53 @@ function clear(db: DatabaseSync, id: string, pilot = 'pilot'): void {
     .run(pilot, id, `receipt-${id}`, 1000, 1234);
 }
 
-test('40 display slots and two pursuits preserve every playable identity without displaying Survival', () => {
-  assert.equal(journeyCategorySlots.length, 40);
+test('33 display slots and two pursuits exclude the retired Airport & Cargo chapter', () => {
+  assert.equal(journeyCategorySlots.length, 33);
   assert.equal(journeyPursuitSlots.length, 2);
-  assert.equal(journeyMainMissionIds.length, 36);
-  assert.equal(journeyPlayableMainIds.length, 23);
-  assert.deepEqual(journeyCategories.map(group => group.missionIds.length), Array(6).fill(6));
+  assert.equal(journeyMainMissionIds.length, 28);
+  assert.equal(journeyPlayableMainIds.length, 21);
+  assert.deepEqual(journeyCategories.map(group => group.missionIds.length), [6,6,6,6,6]);
   const all = [...journeyCategorySlots, ...journeyPursuitSlots];
-  assert.equal(new Set(all.map(slot => slot.id)).size, 42);
+  assert.equal(new Set(all.map(slot => slot.id)).size, 35);
   assert.deepEqual([...new Set(all.filter(slot => slot.implementation === 'playable').map(slot => slot.missionId))].sort(), [...journeyMissionOrder].sort());
   assert.ok(!all.some(slot => slot.id.includes('survival')));
-  assert.equal(journeyCategorySlots[24]!.id, 'journey-dallas-coin-hunt-01');
-  assert.equal(journeyCategorySlots[37]!.id, 'journey-dallas-coin-hunt-02');
-  assert.equal(journeyCategorySlots[37]!.missionId, 'journey-dallas-coin-hunt-01');
-  assert.equal(journeyCategorySlots[37]!.implementation, 'playable');
+  assert.equal(journeyCategorySlots[5]!.id, 'journey-dallas-coin-hunt-01');
+  assert.equal(journeyCategorySlots[30]!.id, 'journey-dallas-coin-hunt-02');
+  assert.equal(journeyCategorySlots[30]!.missionId, 'journey-dallas-coin-hunt-01');
+  assert.equal(journeyCategorySlots[30]!.implementation, 'playable');
   assert.deepEqual(journeyCategorySlots.slice(-2).map(slot => slot.id), ['journey-dallas-23', 'journey-dallas-19']);
 });
+
+test('Shooting Targets mission six is a bonus slot and remains unavailable until implemented', () => {
+  const bonus = journeyCategorySlots.find(slot => slot.categoryId === 'shooting-targets' && slot.categoryNumber === 6)!;
+  assert.equal(bonus.kind, 'bonus');
+  assert.equal(bonus.implementation, 'placeholder');
+  assert.equal(categoryMissionAccess(bonus.id, new Set(journeyMainMissionIds)), false);
+});
+
+test('retired missions cannot launch even with historical clears or QA access', () => fixture((store, db, path) => {
+  const removed = ['journey-dallas-02', 'journey-dallas-airport-hop-01', ...Array.from({length:5}, (_, i) => `placeholder-dallas-airport-cargo-${i + 2}`)];
+  for (const id of removed) clear(db, id);
+  db.prepare('INSERT INTO journey_access_grants(pilot_id,mission_id) VALUES(?,?)').run('pilot', removed[0]!);
+  const qaStore = new JourneyAttemptStore(path, true);
+  for (const id of removed) {
+    assert.equal(categoryMissionAccess(id, new Set(removed)), false);
+    assert.equal(store.canAccessMission('pilot', id), false);
+    assert.equal(qaStore.canAccessMission('pilot', id), false);
+    assert.throws(() => store.launch('pilot', 'trainer', 2000, id));
+  }
+  assert.ok(!journeyCategories.some(group => group.id === 'airport-cargo'));
+}));
+
+test('Golden Rings ends with the existing bonus as mission six and progresses from Rookie Rush to Golden Ascent', () => fixture((store, db) => {
+  const group = journeyCategories.find(group => group.id === 'golden-rings')!;
+  assert.deepEqual(group.missionIds, ['journey-dallas-01','journey-dallas-03','journey-dallas-04','journey-dallas-05','journey-dallas-06','journey-dallas-coin-hunt-01']);
+  assert.deepEqual(journeyCategorySlots.filter(slot => slot.categoryId === group.id).map(slot => slot.categoryNumber), [1,2,3,4,5,6]);
+  assert.equal(store.canAccessMission('pilot', 'journey-dallas-03'), false);
+  clear(db, 'journey-dallas-01');
+  assert.equal(store.canAccessMission('pilot', 'journey-dallas-03'), true);
+  assert.equal(store.launch('pilot','trainer',2000,'journey-dallas-03').missionId,'journey-dallas-03');
+}));
 
 test('each category progresses independently on the server, including across restarts', () => fixture((store, db, path) => {
   for (const group of journeyCategories) {
@@ -52,7 +83,7 @@ test('each category progresses independently on the server, including across res
   for (const group of journeyCategories) {
     for (const id of group.missionIds) {
       const slot = journeyCategorySlots.find(slot => slot.id === id)!;
-      if (slot.implementation !== 'playable') continue;
+      if (slot.implementation !== 'playable' || slot.kind === 'bonus') continue;
       assert.equal(reopened.canAccessMission('pilot', id), true, id);
       assert.equal(reopened.launch('pilot', 'trainer', 2000, id).missionId, id);
       if (!reopened.progress('pilot', id).completed) clear(db, id);
@@ -67,10 +98,11 @@ test('bonuses count unique main clears; pursuits and bosses have their explicit 
   completed.add('journey-dallas-coin-hunt-01');
   assert.equal(access('journey-dallas-23'), false);
   completed.delete('journey-dallas-coin-hunt-01');
-  for (const id of journeyPlayableMainIds.slice(0, 5)) completed.add(id);
+  const rings = journeyCategories.find(group => group.id === 'golden-rings')!.missionIds.slice(0, 5);
+  for (const id of rings.slice(0, 4)) completed.add(id);
   assert.equal(access('journey-dallas-coin-hunt-01'), false);
   assert.equal(access('journey-dallas-coin-hunt-02'), false);
-  completed.add(journeyPlayableMainIds[5]!);
+  completed.add(rings[4]!);
   assert.equal(access('journey-dallas-coin-hunt-01'), true);
   assert.equal(access('journey-dallas-coin-hunt-02'), true);
   assert.equal(categoryMissionAccess('journey-dallas-15', new Set()), false);

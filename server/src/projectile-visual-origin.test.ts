@@ -28,7 +28,7 @@ function fixture(airAssaultMode = false) {
   const target = new THREE.Group(); target.position.set(0, 0, -1500);
   const context = {
     THREE, projectileForwardStep, projectileMaterialForOpponent, colorServerProjectile() {}, airAssaultMode, aircraftType: 'trainer', cameraShakeTime: 0,
-    localPlayerId: 'self', soloExploreMode: false, airplane: { rotation: { z: .6 }, quaternion: new THREE.Quaternion() }, velocity: new THREE.Vector3(0, 0, -300),
+    localPlayerId: 'self', maxClientProjectiles: 256, soloExploreMode: false, airplane: { rotation: { z: .6 }, quaternion: new THREE.Quaternion() }, velocity: new THREE.Vector3(0, 0, -300),
     projectileOrigin: new THREE.Vector3(), projectileDirection: new THREE.Vector3(), projectileForward: new THREE.Vector3(0,0,-1),
     projectileZeroVelocity: new THREE.Vector3(), retiredPredictedShots: new Set(), journeyAttempt: undefined,
     localShotAircraftTypes: new Map<string,string>(), predictedProjectiles: new Map<string,typeof predicted>(),
@@ -46,6 +46,24 @@ function fixture(airAssaultMode = false) {
   };
   return {context, predicted};
 }
+
+test('Free Fly and combat initialize the same local bullet presentation', () => {
+  for (const soloExploreMode of [false, true]) {
+    const {context, predicted} = fixture();
+    context.soloExploreMode = soloExploreMode;
+    runInNewContext(`${code('spawnMuzzleFeedback')}; spawnMuzzleFeedback(origin,direction,'shot');`, context);
+    const exit = predicted.mesh.userData.aimExit;
+    assert.equal(exit.active, true);
+    assert.equal(exit.turning, false);
+    assert.equal(exit.passedAt, undefined);
+    assert.ok(exit.attitude.equals(context.airplane.quaternion));
+    assert.equal(predicted.mesh.visible, true);
+  }
+  const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
+  const hiddenSoloHud = css.match(/#game-root\.solo-explore-flight :is\(([^)]+)\)/)?.[1];
+  assert.ok(hiddenSoloHud);
+  assert.ok(!hiddenSoloHud.includes('#acquisition-circle'));
+});
 
 test('Air Assault shows the firing ray immediately while a locked hit awaits confirmation', () => {
   const {context:c,predicted:p} = fixture(true);
@@ -434,12 +452,16 @@ test('unlocked local rounds fade after the aim pass and reset when recycled', ()
     ...context, camera, createProjectileCore, projectileMaterial, roundDiameter, fitRound, window: { innerHeight: 1080 }, soloExploreMode: true,
     maxClientProjectiles: 256, aimQaRay: null, pendingTracerLifetime: 0.65,
     clientProjectiles: new Map(), predicted,
+    projectileAimExitPoint: new THREE.Vector3(), projectileAimExitInverse: new THREE.Quaternion(),
+    transportReticleOrigin: new THREE.Vector3(), combatAimForward: new THREE.Vector3(0, 0, -1),
+    lockBoresightPoint: new THREE.Vector3(0, 0, -120), projectileAimAttitudeTolerance: 0.000001,
+    projectileSharpTurnBank: 0.45, projectileHasLateralDrift: () => false, chaseCameraHasLateralLag: () => false,
   };
   runInNewContext([
     setup,
     ...['createProjectileMesh', 'spawnMuzzleFeedback', 'updateProjectiles', 'updateProjectileAimExit',
       'presentLocalProjectile', 'releaseProjectile'].map(name => code(name)),
-    'predicted.mesh = createProjectileMesh();',
+    'predicted.mesh = createProjectileMesh(); airplane.rotation.z = 0;',
     "spawnMuzzleFeedback(origin, direction, 'shot');",
   ].join('\n'), runtime);
   const core = predicted.mesh.children[0] as THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>;
