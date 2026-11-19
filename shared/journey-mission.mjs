@@ -1,5 +1,5 @@
 import { dallasDisplayNames as airportName } from './dallas-display-names.mjs';
-import { sharpshooterPlacements, doubleTroublePlacements } from './sharpshooter-target.mjs';
+import { sharpshooterPlacements, doubleTroublePlacements, precisionFirePlacements } from './sharpshooter-target.mjs';
 import { territoriesForCity } from './city-territories.mjs';
 import { transportTuning, transportLockParts } from './giant-incoming.mjs';
 import { remoteAircraftScale } from './remote-aircraft-visual-rules.mjs';
@@ -531,10 +531,18 @@ export const journeyDallasSharpshooter03 = Object.freeze({
   objective: 'SHOOT down 8 TARGETS\n6 moving + 2 stationary',
   targetCount: doubleTroublePlacements.length, timeLimitMs: 360_000, firstClearCredits: 1_100,
 });
+export const journeyDallasSharpshooter04 = Object.freeze({
+  ...journeyDallasSharpshooter01,
+  id: 'journey-dallas-sharpshooter-04', name: 'PRECISION FIRE', difficulty: 'HARD',
+  objective: 'SHOOT down 10 TARGETS\n8 moving + 2 stationary',
+  targetCount: precisionFirePlacements.length, timeLimitMs: 195_000, firstClearCredits: 1_250,
+  airborneSpawn: Object.freeze({x:-60000,z:-6000,altitude:1000,heading:-0.55,speed:180}),
+});
 export function journeySharpshooterMission(id) {
   return id === journeyDallasSharpshooter01.id ? journeyDallasSharpshooter01
     : id === journeyDallasSharpshooter02.id ? journeyDallasSharpshooter02
-    : id === journeyDallasSharpshooter03.id ? journeyDallasSharpshooter03 : undefined;
+    : id === journeyDallasSharpshooter03.id ? journeyDallasSharpshooter03
+    : id === journeyDallasSharpshooter04.id ? journeyDallasSharpshooter04 : undefined;
 }
 export const journeyDallasAirportHop01 = Object.freeze({
   id: 'journey-dallas-airport-hop-01', cityId: 'dallas', name: 'AIRPORT HOP', difficulty: 'MEDIUM',
@@ -636,6 +644,7 @@ export const journeyCatalog = Object.freeze([
   [19, 'Final Monster Battle'],
   [journeyDallasSharpshooter02.id, 'Moving Targets'],
   [journeyDallasSharpshooter03.id, 'Double Trouble'],
+  [journeyDallasSharpshooter04.id, 'Precision Fire'],
 ].map(([identity, title], index) => Object.freeze({
   id: identity === null ? `placeholder-dallas-${String(index + 1).padStart(2, '0')}` : typeof identity === 'string' ? identity : `journey-dallas-${String(identity).padStart(2, '0')}`,
   number: index + 1, title,

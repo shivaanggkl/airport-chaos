@@ -25,7 +25,7 @@ test('33 display slots and two pursuits exclude the retired Airport & Cargo chap
   assert.equal(journeyCategorySlots.length, 33);
   assert.equal(journeyPursuitSlots.length, 2);
   assert.equal(journeyMainMissionIds.length, 28);
-  assert.equal(journeyPlayableMainIds.length, 23);
+  assert.equal(journeyPlayableMainIds.length, 24);
   assert.deepEqual(journeyCategories.map(group => group.missionIds.length), [6,6,6,6,6]);
   const all = [...journeyCategorySlots, ...journeyPursuitSlots];
   assert.equal(new Set(all.map(slot => slot.id)).size, 35);
