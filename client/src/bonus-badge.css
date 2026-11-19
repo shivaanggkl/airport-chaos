@@ -1,0 +1,8 @@
+.bonus-badge { display: inline-flex; flex: none; width: 4.5em; }
+.bonus-badge svg { display: block; width: 100%; overflow: visible; }
+.bonus-badge text { font: 900 23px var(--font-display); }
+.bonus-round-label { display: flex; align-items: center; gap: .6em; color: var(--ui-bright-gold); font: 900 clamp(14px, 1.8vw, 21px)/1.1 var(--font-display); }
+.journey-hud-header > [data-journey-bonus-badge] { display: inline-flex; flex: none; font-size: 10px; }
+.journey-hud-header .bonus-badge { width: 3.5em; }
+.journey-hud-header > [data-journey-bonus-badge][hidden], .journey-bonus-title[hidden] { display: none; }
+.journey-bonus-title { color: #fff; font: 900 14px/1.15 var(--font-display); }

@@ -1,3 +1,4 @@
+import { bonusRibbonMarkup } from './bonus-badge';
 import { observeMissionCopyFit } from './fit-mission-copy';
 import './mission-journey.css';
 import './context-page-shell.css';
@@ -18,7 +19,6 @@ function categoryIcon(icon: string, key = icon): string {
   const prefix = `journey-icon-${key}`;
   const art: Record<string, string> = {
     ring: '<g transform="rotate(36 32 32)"><ellipse cx="32" cy="33" rx="18" ry="25" fill="none" stroke="#8c4609" stroke-width="12"/><ellipse cx="32" cy="31" rx="18" ry="25" fill="none" stroke="url(#gold)" stroke-width="10"/><ellipse cx="32" cy="31" rx="14" ry="21" fill="none" stroke="#fff3a4" stroke-width="1.5"/><path d="M16 19c3-10 11-15 18-12" fill="none" stroke="#fffce4" stroke-width="3" stroke-linecap="round"/></g>',
-    cargo: '<path d="m5 17 26-11 28 11v32L32 61 5 49Z" fill="url(#gold)" stroke="#92500f" stroke-width="2"/><path d="m5 17 27 12 27-12-28-11Z" fill="#ffe296"/><path d="M32 29v32l27-12V17Z" fill="#ba791c"/><path d="m18 11 28 12v15l-8 3V26L12 14M13 22v30l8 3V25" fill="url(#blue)" stroke="#99eafa" stroke-width="1"/><path d="m7 18 25 11 25-11M32 30v28" fill="none" stroke="#fff3bb" stroke-width="1.5"/><path d="m43 44 10-4v7l-10 4Z" fill="url(#steel)"/><path d="m9 17 22-8 10 4" fill="none" stroke="#fffbea" stroke-width="2"/>',
     target: '<circle cx="32" cy="32" r="28" fill="url(#steel)" stroke="#0b2944" stroke-width="2"/><circle cx="32" cy="32" r="24" fill="url(#red)"/><circle cx="32" cy="32" r="18" fill="url(#steel)"/><circle cx="32" cy="32" r="12" fill="url(#red)"/><circle cx="32" cy="32" r="5" fill="#fff3c8"/><path d="M2 32h14m32 0h14M32 2v14m0 32v14" stroke="#092b46" stroke-width="4"/><path d="M2 31h14m32 0h14M31 2v14m0 32v14" stroke="#b4eeff" stroke-width="1"/><path d="M13 19c5-8 13-12 22-11" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="2" stroke-linecap="round"/>',
     giant: '<g transform="rotate(-25 32 32)"><path d="M29 3q3-3 6 0l3 22 24 12v8l-24-6-1 12 11 7v4H16v-4l11-7-1-12L2 45v-8l24-12Z" fill="url(#steel)" stroke="#477392" stroke-width="2"/><path d="m30 7-1 43 3 8 3-8-1-43" fill="url(#blue)"/><path d="m5 37 21-10m12 0 21 10" fill="none" stroke="#fffdf0" stroke-width="2"/><path d="M15 36v10m8-13v11m18-11v11m8-8v10" stroke="#e3ab35" stroke-width="6" stroke-linecap="round"/><path d="M15 41v5m8-7v5m18-5v5m8-3v5" stroke="#173146" stroke-width="3" stroke-linecap="round"/></g>',
     flag: '<path d="M11 61V6" stroke="#87520d" stroke-width="6" stroke-linecap="round"/><path d="M10 59V7" stroke="url(#gold)" stroke-width="4" stroke-linecap="round"/><circle cx="10" cy="5" r="4" fill="url(#gold)"/><path d="M13 10c15-11 25 9 46-1v31c-21 11-31-10-46 1Z" fill="url(#blue)" stroke="#f1c24c" stroke-width="2"/><path d="M34 12v31c8 3 16 3 25-3V9c-10 5-17 6-25 3Z" fill="#082f60" opacity=".6"/><path d="m30 18 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z" fill="url(#gold)"/><path d="M15 11c13-7 19 5 33 2" fill="none" stroke="#c6f2ff" stroke-opacity=".65" stroke-width="2"/>',
@@ -33,7 +33,7 @@ function categoryIcon(icon: string, key = icon): string {
     <linearGradient id="${prefix}-red" x1="0" y1="0" x2=".6" y2="1"><stop stop-color="#ffb196"/><stop offset=".3" stop-color="#f64443"/><stop offset=".7" stop-color="#c6162e"/><stop offset="1" stop-color="#750b20"/></linearGradient>
   </defs>${body}</svg>`;
 }
-const bonusRibbonMarkup = '<span class="mission-journey-bonus" aria-hidden="true"><svg viewBox="0 0 140 48"><path d="M15 16 3 20 12 31 7 43 32 36H108L133 43 128 31 137 20 125 16Z" fill="#8c3bac" stroke="#ffdc78" stroke-width="2"/><path d="M14 9Q70-5 126 9L120 37Q70 24 20 37Z" fill="#68128c" stroke="#ffe58b" stroke-width="2"/><text x="70" y="27" text-anchor="middle" fill="#fff2a1">BONUS</text></svg></span>';
+
 export class MissionJourney {
   readonly headerContent: HTMLElement;
   private readonly detail: HTMLElement;
@@ -192,7 +192,7 @@ export class MissionJourney {
     label.className = 'mission-journey-category-label';
     const icon = group.id === 'giant-battles' ? 'giant' : group.id === 'territory-missions' ? 'flag' : group.icon;
     label.innerHTML = `<span class="mission-journey-category-icon">${categoryIcon(icon, group.id)}</span><strong>${displayLabel}</strong>${group.id === 'plane-battles' ? '<button type="button" class="mission-journey-extra" data-extra-pursuits hidden>2 EXTRA</button>' : ''}`;
-    section.classList.toggle('is-bonus-group', stages[0]?.kind === 'bonus');
+    section.classList.toggle('is-bonus-group', stages.every(stage => stage.kind === 'bonus'));
     section.classList.toggle('is-boss-group', stages[0]?.kind === 'boss');
     label.addEventListener('click', event => {
       if ((event.target as HTMLElement).closest('button')) return;
@@ -235,7 +235,7 @@ export class MissionJourney {
       button.classList.toggle('is-selected', stage.number === this.selectedStage);
       button.setAttribute('aria-pressed', String(stage.number === this.selectedStage));
       const label = stage.kind === 'bonus' ? 'BONUS' : [...journeyDisplayGroups, journeySpecialPursuits].find(group => group.id === stage.categoryId)!.label;
-      button.setAttribute('aria-label', `${label}, ${stage.kind === 'bonus' ? 'bonus' : `mission ${stage.categoryNumber}`}, ${stage.implementation === 'placeholder' ? 'Coming Soon' : status === 'completed' ? 'completed, select to replay' : status === 'locked' ? 'locked, view details' : status}`);
+      button.setAttribute('aria-label', `${label}, ${stage.kind === 'bonus' ? `mission ${stage.categoryNumber}, bonus` : `mission ${stage.categoryNumber}`}, ${stage.implementation === 'placeholder' ? 'Coming Soon' : status === 'completed' ? 'completed, select to replay' : status === 'locked' ? 'locked, view details' : status}`);
     }
     for (const [id, group] of this.groups) {
       group.hidden = this.specialOpen ? id !== 'special-pursuits' : id === 'special-pursuits';
@@ -337,8 +337,8 @@ export class MissionJourney {
     const signInRequired = !this.cityLocked && this.signInRequired && stage.kind === 'main' && stage.categoryNumber === 1;
     const placeholder = stage.implementation === 'placeholder';
     this.detail.classList.remove('is-placeholder');
-    this.detail.querySelector<HTMLElement>('[data-mission-bonus]')!.hidden = true;
-    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = stage.kind === 'bonus' ? 'BONUS' : `MISSION ${String(stage.categoryNumber).padStart(2, '0')}`;
+    this.detail.querySelector<HTMLElement>('[data-mission-bonus]')!.hidden = stage.kind !== 'bonus';
+    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = stage.kind === 'bonus' ? 'BONUS ROUND' : `MISSION ${String(stage.categoryNumber).padStart(2, '0')}`;
     this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = placeholder ? 'COMING SOON' : card!.title;
     const objective = this.detail.querySelector<HTMLElement>('[data-mission-objective]')!;
     objective.replaceChildren();

@@ -21,7 +21,7 @@ test('live authenticated M08: intro has no deadline; real rounds hit all six pri
  const profiles=new PlayerProfileStore(path);profiles.getOrCreate(identity.pilotId,'Pilot');
  const db=new DatabaseSync(path);db.prepare("INSERT OR REPLACE INTO pilot_tutorial_state(pilot_id,version,status,updated_at,completed_at,required) VALUES(?, 'tutorial_v1','completed',?,?,0)").run(identity.pilotId,Date.now(),Date.now());db.close();
  const store=new JourneyAttemptStore(path,true),attempt=store.launch(identity.pilotId,'trainer',Date.now(),mission.id);
- const accessDb=new DatabaseSync(path);accessDb.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(identity.pilotId,'journey-dallas-airport-hop-01','previous-clear',Date.now(),1000);accessDb.close();
+ const accessDb=new DatabaseSync(path);accessDb.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(identity.pilotId,'journey-dallas-01','previous-clear',Date.now(),1000);accessDb.close();
  const port=await freePort(),server=spawn(process.execPath,['--import','tsx','server/src/index.ts'],{env:{...process.env,PORT:String(port),AIRPORT_CHAOS_PROFILE_DB:path,NODE_ENV:'test'},stdio:['ignore','pipe','pipe']});
  let logs='',socket:WebSocket|undefined,heartbeat:ReturnType<typeof setInterval>|undefined;
  server.stdout.on('data',b=>logs+=b);server.stderr.on('data',b=>logs+=b);

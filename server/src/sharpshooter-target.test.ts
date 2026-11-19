@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import * as THREE from 'three';
-import { journeyDallasSharpshooter01 as mission, journeyCatalog, journeyDallas08 } from '../../shared/journey-mission.mjs';
+import { journeySharpshooterMission, journeyDallasSharpshooter01 as mission, journeyCatalog, journeyDallas08 } from '../../shared/journey-mission.mjs';
 import { sharpshooterPlacements, sharpshooterTargetPose } from '../../shared/sharpshooter-target.mjs';
 import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { createSharpshooterTarget, sharpshooterHitFraction } from './sharpshooter-target.js';
@@ -28,7 +28,7 @@ function fixture(){
  return {path,store,db,now,start,close(){db.close();rmSync(dir,{recursive:true,force:true});}};
 }
 test('M08 activates only its unique slot; all aircraft spawn safely, no opponents, timer after handoff',()=>{
- assert.equal(journeyCatalog.length,30);assert.equal(journeyCatalog[7]!.id,mission.id);assert.notEqual(mission.id,journeyDallas08.id);
+ assert.ok(journeyCatalog.some(slot=>slot.id===mission.id));assert.notEqual(mission.id,journeyDallas08.id);
  const f=fixture();try{for(const aircraft of ['trainer','cargo','jet','fighter']){
   const a=f.store.launch('pilot',aircraft,f.now,mission.id),approach=f.store.approach('pilot',a.attemptId,f.now+1)!;
   assert.equal(approach.deadlineAt,null);assert.equal(f.store.startSharpshooter('pilot',a.attemptId),undefined);
@@ -164,7 +164,7 @@ test('production intro frames all six targets with steady instructions and resto
  const classes=new Set<string>(),title:any={firstElementChild:{textContent:''},replaceChildren(e:any){this.firstElementChild=e;},classList:{toggle(){}}};
  let now=0,handoffs=0;
  const views=new Map(Array.from({length:mission.targetCount},(_,stage)=>stage).map(stage=>{const t=target(stage);return [t.x,t.y,t.z];}).map((p,i)=>[i,{root:{position:new THREE.Vector3(...p)}}]));
- const context=createContext({THREE,SharpshooterIntro,scene:new THREE.Scene(),sharpshooterIntroPresentation:undefined,
+ const context=createContext({journeySharpshooterMission,THREE,SharpshooterIntro,scene:new THREE.Scene(),sharpshooterIntroPresentation:undefined,journeyAttempt:{missionId:mission.id},
   impactFlashes:[],impactFlashPool:[],spawnFlash(){},window:{innerHeight:1080},
   sharpshooterViews:views,journeyDallasSharpshooter01:mission,flightLaunchState:'active',missionCoinHuntIntro:false,missionSharpshooterIntro:true,missionOneIntroPath:null,
   missionTwoIntroPath:null,missionThreeIntroPath:null,missionFourIntroPath:null,missionFiveIntroPath:null,missionSixIntroPath:null,
@@ -196,8 +196,6 @@ test('production intro frames all six targets with steady instructions and resto
  runInContext('applyFlightLaunchCamera(chasePosition,chaseTarget,60)',context);assert.equal(handoffs,1);
  context.flightLaunchState='active';context.flightLaunchSkipStartedAt=1000;now=1500;
  runInContext('applyFlightLaunchCamera(chasePosition,chaseTarget,60)',context);assert.equal(handoffs,2);
- const combatSet=source.slice(source.indexOf('const journeyCombatMissionIds'),source.indexOf('\n',source.indexOf('const journeyCombatMissionIds')));
- assert.match(combatSet,/journeyDallasSharpshooter01.id/);
  assert.match(source,/missionSharpshooterIntro=true;beginFlightLaunchCinematic\(\)/);
  assert.match(source,/updateSharpshooterTarget\(\)/);
 });
@@ -209,7 +207,7 @@ test('bullseye search starts lock validation without a prior server selection an
  const source=readFileSync('client/src/main.ts','utf8');
  const start=source.indexOf('function sharpshooterAimCandidate()'),end=source.indexOf('function updateCombatTarget(',start);
  const root=new THREE.Group();root.position.set(0,800,-5999);
- const context=createContext({journeyAttempt:{missionId:mission.id,status:'RACING',attemptId:'practice',sharpshooter:{targets:[{stage:0}]}},
+ const context=createContext({journeySharpshooterMission,journeyAttempt:{missionId:mission.id,status:'RACING',attemptId:'practice',sharpshooter:{targets:[{stage:0}]}},
   journeyDallasSharpshooter01:mission,sharpshooterViews:new Map([[0,{root}]]),combatOffset:new THREE.Vector3(),
   combatInverseQuaternion:new THREE.Quaternion(),airplane:{position:new THREE.Vector3(0,800,0),quaternion:new THREE.Quaternion()},
   COMBAT_RANGE,AIM_ENVELOPE,AIM_SWITCH_MARGIN,aimTargetScore,lockedTargetId:null});
@@ -263,7 +261,7 @@ test('M08 completion preserves the final round and waits for impact and target d
  const result={attemptId:'final-hit',missionId:mission.id,status:'COMPLETED',startedAt:1000,sharpshooter:{destroyed:3,targets:[]}};
  const events:string[]=[],root=new THREE.Group();root.userData={attemptId:result.attemptId,pendingHit:true};
  const views=new Map([[2,{root,dispose(){events.push('target removed');}}]]);
- const context=createContext({journeyAttempt:result,pendingSharpshooterCompletion:result,journeyDallasSharpshooter01:mission,
+ const context=createContext({journeySharpshooterMission,journeyAttempt:result,pendingSharpshooterCompletion:result,journeyDallasSharpshooter01:mission,
   sharpshooterViews:views,journeyServerTimeOffset:0,Date,airplane:{position:new THREE.Vector3()},
   sharpshooterPosition:new THREE.Vector3(),sharpshooterSelectedStage:2,serverAimTargetId:null,missionObjective:null,
   beginMissionClear(){events.push('success');}});
@@ -279,7 +277,7 @@ test('M08 completion preserves the final round and waits for impact and target d
  const cleanup=ts.transpileModule(source.slice(cleanupStart,cleanupEnd),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
  for(const [missionId,status,clears]of [[mission.id,'COMPLETED',0],[mission.id,'FAILED',1],['another','COMPLETED',1]]as const){
   let count=0;
-  runInContext(cleanup,createContext({journeyDallasSharpshooter01:mission,message:{attempt:{...result,missionId,status}},
+  runInContext(cleanup,createContext({journeySharpshooterMission,journeyDallasSharpshooter01:mission,message:{attempt:{...result,missionId,status}},
    previousAttempt:{...result,status:'RACING'},clearProjectileVisuals(){count++;},clearCombatTarget(){}}));
   assert.equal(count,clears);
  }

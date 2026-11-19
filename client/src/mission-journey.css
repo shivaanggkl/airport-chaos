@@ -1,4 +1,4 @@
-.mission-journey { --journey-detail-height: clamp(146px, 31dvh, 190px); --journey-detail-gap: 12px; position: fixed; z-index: 5; inset: 0; overflow: hidden; isolation: isolate; color: #fff; background: var(--menu-background); -webkit-user-select: none; user-select: none; }
+.mission-journey { --journey-node-size: clamp(56px, 5.2vw, 74px); --journey-detail-height: clamp(146px, 31dvh, 190px); --journey-detail-gap: 12px; position: fixed; z-index: 5; inset: 0; overflow: hidden; isolation: isolate; color: #fff; background: var(--menu-background); -webkit-user-select: none; user-select: none; }
 .mission-journey[hidden], .mission-journey [hidden] { display: none !important; }
 .mission-journey button { font-family: var(--font-display); cursor: pointer; }
 .mission-journey button:focus-visible { outline: 3px solid var(--ui-bright-gold); outline-offset: 3px; }
@@ -19,7 +19,7 @@
 .mission-journey-category-nodes { position: relative; height: 108px; }
 .mission-journey-category-route { position: absolute; top: calc(var(--journey-node-center) - 48px); left: 0; width: 100%; height: 66px; pointer-events: none; overflow: visible; }
 .mission-journey-category-route polyline { fill: none; stroke: #65ebff; stroke-width: 2px; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 3px #18cfff); }
-.mission-journey-node { position: absolute; z-index: 2; display: grid; place-items: center; box-sizing: border-box; width: clamp(56px, 5.2vw, 74px); height: clamp(56px, 5.2vw, 74px); padding: 0; border: 2px solid #67efff; border-radius: 50%; color: #fff; background: radial-gradient(circle at 35% 20%, #35d8f2, #087abb 52%, #073372); box-shadow: inset 0 2px #b0f8ff, 0 0 9px #1edcff; font: 900 clamp(23px, 2.3vw, 32px)/1 var(--font-body); text-shadow: 0 2px 2px #123862; transform: translate(-50%, -50%); touch-action: pan-x; }
+.mission-journey-node { position: absolute; z-index: 2; display: grid; place-items: center; box-sizing: border-box; width: var(--journey-node-size); height: var(--journey-node-size); padding: 0; border: 2px solid #67efff; border-radius: 50%; color: #fff; background: radial-gradient(circle at 35% 20%, #35d8f2, #087abb 52%, #073372); box-shadow: inset 0 2px #b0f8ff, 0 0 9px #1edcff; font: 900 clamp(23px, 2.3vw, 32px)/1 var(--font-body); text-shadow: 0 2px 2px #123862; transform: translate(-50%, -50%); touch-action: pan-x; }
 .mission-journey-node::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; }
 .mission-journey-node:hover { filter: brightness(1.12); }
 .mission-journey-node.is-current { border-color: var(--ui-bright-gold); }
@@ -32,9 +32,11 @@
 .mission-journey-node.is-newly-completed { animation: mission-completed-flash 650ms ease-in-out; }
 @keyframes mission-completed-flash { 50% { filter: brightness(1.65) drop-shadow(0 0 12px #77ffc2); } }
 .mission-journey-category.is-bonus-group { flex-basis: 130px; width: 130px; }
-.is-bonus-group .mission-journey-node { width: 72.5px; height: 72.5px; border: 0; border-radius: 10px; background: transparent; box-shadow: none; }
-.is-bonus-group .mission-journey-number svg, .mission-journey-credit-coin { display: block; object-fit: contain; width: 72.5px; height: 72.5px; filter: drop-shadow(0 0 8px var(--ui-bright-gold)); }
-.is-bonus-group .mission-journey-node.is-locked { filter: grayscale(.8); }
+.mission-journey-node.is-bonus { border: 0; border-radius: 50%; background: transparent; box-shadow: none; }
+.is-bonus-group .mission-journey-number svg, .mission-journey-credit-coin { display: block; object-fit: contain; width: var(--journey-node-size); height: var(--journey-node-size); filter: drop-shadow(0 0 8px var(--ui-bright-gold)); }
+/* Compensate for the coin asset's transparent margin without enlarging its button. */
+.mission-journey-credit-coin { transform: scale(1.18); }
+.mission-journey-node.is-bonus.is-locked { filter: grayscale(.8); }
 .is-bonus-group .mission-journey-category-icon { display: none; }
 .mission-journey-category.is-boss-group { --journey-boss-step: 80px; flex-basis: 190px; width: 190px; }
 .mission-journey-scroll-position { position: absolute; top: min(calc(var(--hub-header-total, 104px) + 236px), calc(100dvh - max(24px, var(--safe-area-bottom)) - var(--journey-detail-height) - 28px)); left: 50%; width: min(32vw, 400px); height: 14px; margin: 0; padding: 0; border: 0; transform: translateX(-50%); appearance: none; -webkit-appearance: none; background: transparent; cursor: ew-resize; }
@@ -44,8 +46,6 @@
 .mission-journey-scroll-position::-moz-range-thumb { width: var(--journey-scroll-thumb, 28%); height: 3px; border: 0; border-radius: 3px; background: var(--ui-bright-gold); box-shadow: 0 0 3px rgb(var(--ui-bright-gold-rgb) / 0.533); }
 .mission-journey-scroll-position:focus-visible { outline: 2px solid var(--ui-bright-gold); outline-offset: 6px; }
 .mission-journey-scroll-position:disabled { opacity: .45; cursor: default; }
-.mission-journey-bonus svg { display: block; width: 100%; overflow: visible; }
-.mission-journey-bonus text { font: 900 23px var(--font-display); }
 @media (max-height: 600px) and (orientation: landscape) {
   .mission-journey-heading { top: calc(var(--hub-header-total, 78px) + 6px); }
   .mission-journey-special-back { min-height: 26px; font-size: 10px; }
@@ -57,10 +57,10 @@
   .mission-journey-extra { min-height: 18px; padding: 1px 4px; font-size: 9px; }
   .mission-journey-category-nodes { height: 82px; }
   .mission-journey-category.is-boss-group { --journey-boss-step: 60px; }
-  .mission-journey-node { width: 52px; height: 52px; font-size: 27px; }
+  .mission-journey { --journey-node-size: 52px; }
+  .mission-journey-node { font-size: 27px; }
   .mission-journey-node.is-selected { outline-width: 2px; outline-offset: 2px; }
   .mission-journey-lock { --lock-icon-size: 13px; width: 20px; height: 20px; bottom: -7px; }
-  .is-bonus-group .mission-journey-node, .is-bonus-group .mission-journey-number svg, .mission-journey-credit-coin { width: 55px; height: 55px; }
   .mission-journey-scroll-position { top: auto; bottom: calc(max(24px, var(--safe-area-bottom)) + var(--journey-detail-height) + 12px); }
 }
 @media (max-height: 480px) and (orientation: landscape) {
@@ -78,7 +78,7 @@
 
 .mission-journey-detail { box-sizing: border-box; position: absolute; right: max(18px, var(--safe-area-right)); bottom: max(24px, var(--safe-area-bottom)); left: max(18px, var(--safe-area-left)); display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 330px) minmax(190px, 255px); align-items: center; gap: 18px; width: min(1120px, calc(100% - max(18px, var(--safe-area-left)) - max(18px, var(--safe-area-right)))); height: var(--journey-detail-height); margin-inline: auto; padding: 16px 22px 16px clamp(22px, 4.5vw, 58px); border: 3px solid var(--menu-card-accent); border-radius: var(--menu-panel-radius); color: var(--menu-card-ink); background: var(--menu-panel-surface); box-shadow: var(--menu-panel-shadow); }
 .mission-journey-detail-copy { display: grid; align-content: center; min-width: 0; min-height: 0; height: 100%; gap: 5px; }
-.mission-journey-detail-copy > span { color: var(--ui-gold); font: 900 clamp(16px, 1.8vw, 23px)/1 var(--font-display); letter-spacing: .04em; }
+.mission-journey-detail-copy > span { color: var(--ui-gold); font: 900 clamp(20px, 2.4vw, 30px)/1 var(--font-display); letter-spacing: .04em; }
 .mission-journey-detail-copy strong { display: block; color: var(--menu-card-ink); font: 900 clamp(23px, 2.7vw, 34px)/1.04 var(--font-display); text-shadow: none; overflow-wrap: anywhere; }
 .mission-journey-detail-copy p { display: block; overflow: visible; overflow-wrap: anywhere; margin: 7px 0 0; color: var(--menu-card-ink); font: 600 clamp(16px, 1.7vw, 20px)/1.25 var(--font-body); }
 .mission-journey-detail-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; height: 82%; border-inline: 1px solid var(--menu-panel-divider); }
@@ -93,7 +93,7 @@
   .mission-journey { --journey-detail-height: clamp(120px, 34dvh, 146px); --journey-detail-gap: 7px; }
   .mission-journey-detail { bottom: max(8px, var(--safe-area-bottom)); grid-template-columns: minmax(0, 1fr) minmax(185px, 220px) minmax(118px, 160px); gap: 9px; padding: 9px 11px 9px 18px; border-radius: var(--menu-panel-radius); border-width: 3px; }
   .mission-journey-detail-copy { gap: 2px; }
-  .mission-journey-detail-copy > span { font-size: clamp(11px, 1.6vw, 15px); }
+  .mission-journey-detail-copy > span { font-size: clamp(16px, 2.2vw, 21px); }
   .mission-journey-detail-copy strong { font-size: clamp(18px, 2.5vw, 25px); }
   .mission-journey-detail-copy p { margin-top: 3px; font-size: clamp(13px, 1.6vw, 15px); }
   .mission-journey-detail-facts { gap: 0; }

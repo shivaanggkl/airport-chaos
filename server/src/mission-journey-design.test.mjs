@@ -10,8 +10,8 @@ const view = readFileSync(new URL('../../client/src/mission-journey.ts', import.
 const styles = readFileSync(new URL('../../client/src/mission-journey.css', import.meta.url), 'utf8');
 const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
 
-test('six disconnected groups have six numbered nodes, a gentle rise, and no obsolete chapter UI', () => {
-  assert.equal(missionJourneyStages.length, 42);
+test('five disconnected groups have their category mission counts, a gentle rise, and no obsolete chapter UI', () => {
+  assert.equal(missionJourneyStages.length, 35);
   for (const group of journeyCategories) {
     assert.deepEqual(missionJourneyStages.filter(stage => stage.categoryId === group.id).map(stage => stage.categoryNumber), [1,2,3,4,5,6]);
   }
@@ -24,18 +24,19 @@ test('six disconnected groups have six numbered nodes, a gentle rise, and no obs
 });
 
 test('server eligibility drives nodes, while placeholders stay locked even with QA progress', () => {
-  const none = Array(42).fill(false);
+  const none = Array(35).fill(false);
   assert.ok(missionJourneyStatuses(none, none, false).statuses.every(status => status === 'locked'));
   const heads = missionJourneyStages.map(stage => stage.kind === 'main' && stage.categoryNumber === 1);
   const state = missionJourneyStatuses(none, heads, false);
   assert.equal(state.currentMission, 1);
-  assert.equal(state.statuses.filter(status => status === 'current' || status === 'available').length, 6);
-  const all = missionJourneyStatuses(Array(42).fill(true), Array(42).fill(true), false);
+  assert.equal(state.statuses.filter(status => status === 'current' || status === 'available').length, 5);
+  const all = missionJourneyStatuses(Array(35).fill(true), Array(35).fill(true), false);
   assert.equal(all.currentMission, 0);
   missionJourneyStages.forEach((stage, index) => assert.equal(all.statuses[index], stage.implementation === 'playable' ? 'completed' : 'locked'));
   const allCleared = Object.fromEntries(missions.journeyMissionOrder.map(id => [id, {completed:true}]));
-  assert.equal(journeyMainCompleted(allCleared), 23);
-  assert.deepEqual(journeyCompletionSummary(allCleared), {completed:28,total:42});
+  allCleared['journey-dallas-02'] = {completed:true}; // Historical Lake Racer clears no longer count.
+  assert.equal(journeyMainCompleted(allCleared), 22);
+  assert.deepEqual(journeyCompletionSummary(allCleared), {completed:27,total:35});
   assert.match(view, /play.disabled = placeholder \|\| this.cityLocked/);
   assert.match(view, /placeholder \? 'COMING SOON'/);
   assert.match(bootstrap, /missionJourney.setCityLocked\(!dallasUnlocked\(\)\)/);
