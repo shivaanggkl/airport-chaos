@@ -5562,15 +5562,17 @@ async function prepareMonsterMissionIntro(attemptId:string):Promise<void>{
   beginFlightLaunchCinematic();
 }
 
-function renderMissionIntroSummary(): void {
+function renderMissionIntroSummary(description?: string): void {
   const slot = journeyAttempt && journeyCategorySlot(journeyAttempt.missionId);
-  const detail = slot && (slot.kind === 'bonus' || slot.categoryId === 'plane-battles' && slot.kind === 'main')
+  const detail = slot && (slot.kind === 'bonus' || (slot.categoryId === 'plane-battles' || slot.categoryId === 'territory-missions') && slot.kind === 'main')
     ? missionJourneyDetails.find(mission => mission.id === slot.missionId) : undefined;
   flightLaunchTitle.classList.toggle('is-mission-intro-summary', Boolean(detail));
   if (!detail) return;
+  const instructions = description ?? detail.description;
+  if (flightLaunchTitle.querySelector('strong') && flightLaunchTitle.textContent === detail.title + instructions.replaceAll('\n', '')) return;
   const heading = document.createElement('strong');
   heading.textContent = detail.title;
-  const lines = detail.description.split('\n').map(text => {
+  const lines = instructions.split('\n').map(text => {
     const line = document.createElement('span');
     line.textContent = text;
     return line;
@@ -5801,7 +5803,9 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     if (missionCaptureIntroPath && !skipped) {
       updateTerritoryPanel();
       const text = missionCaptureIntroPath.text(elapsed);
-      if (missionCaptureIntroPath.defense) {
+      if (flightLaunchTitle.classList.contains('is-mission-intro-summary')) {
+        renderMissionIntroSummary(missionCaptureIntroPath.sequence ? text : undefined);
+      } else if (missionCaptureIntroPath.defense) {
         setMissionInstructions(flightLaunchTitle, territoryDefenseInstructions.map(line=>`• ${line}`).join('\n'));
       } else if (!missionCaptureIntroPath.sequence) {
         if (!flightLaunchTitle.querySelector('.capture-intro-instructions')) {

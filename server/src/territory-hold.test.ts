@@ -98,17 +98,20 @@ test('production M4 setup creates exactly three named territory owners and three
  state.opponents[0].health=0;ctx.ensureCaptureCompetition('owner',a);assert.equal(spawns.length,6,'dead owners cannot respawn through setup');
 });
 
-test('production respawn returns the same opponent identity to a runway in takeoff state',()=>{
- const airports=[{id:'love',x:100,z:200,heading:Math.PI/2,runwayLength:1000}];let spawned:any;
- const e=enemy(0);e.health=0;e.role='owner';e.respawnRemainingMs=0;
- const players=new Map([[e.id,{lifeState:'destroyed'}]]);
+test('every M4 opponent respawns at DFW even when Love Field is nearer',()=>{
+ const airports=[{id:'love',x:0,z:0,heading:0,runwayLength:500},{id:'dfw',x:10000,z:20000,heading:0,runwayLength:1000}];
+ const players=new Map<string,any>();let spawned:any;
  const ctx=vm.createContext({players,botAirports:()=>airports,botRunwayHeight:()=>120,maxHealthForAircraft:()=>100,
   removeBot:(id:string)=>players.delete(id),createBot:(_city:any,_defense:any,data:any)=>spawned=data});
  vm.runInContext(compile(fn('reviveTerritoryHoldOpponent')),ctx);
- ctx.reviveTerritoryHoldOpponent('pilot',{}, {attemptId:'a'},e,0);
- assert.equal(spawned.captureOpponent.id,'enemy-0');assert.equal(e.runwayStart,true);assert.equal(e.health,100);assert.equal(e.position.y,121.2);
- assert.ok(Math.abs(e.position.x-400)<1e-6&&Math.abs(e.position.z-200)<1e-6);assert.deepEqual({...e.velocity},{x:0,y:0,z:0});
- assert.equal(e.respawnRemainingMs,undefined);assert.equal(e.role,'owner');
+ for(let slot=0;slot<6;slot++){
+  const e=enemy(slot);e.health=0;e.role=slot<3?'owner':'attacker';e.respawnRemainingMs=0;
+  players.set(e.id,{lifeState:'destroyed'});
+  ctx.reviveTerritoryHoldOpponent('pilot',{}, {attemptId:'a'},e,slot);
+  assert.equal(spawned.captureOpponent.id,e.id);assert.equal(e.runwayStart,true);assert.equal(e.health,100);assert.equal(e.position.y,121.2);
+  assert.deepEqual({...e.position},{x:10000,y:121.2,z:20300});assert.deepEqual({...e.velocity},{x:0,y:0,z:0});
+  assert.equal(e.respawnRemainingMs,undefined);assert.equal(e.role,slot<3?'owner':'attacker');
+ }
 });
 
 export {source,fn,compile,enemy};
