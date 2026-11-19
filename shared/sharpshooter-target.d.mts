@@ -7,3 +7,5 @@ export const movingTargetPlacements: readonly Readonly<{label:string;x:number;z:
 export const doubleTroublePlacements: readonly Readonly<{label:string;x:number;z:number;moving:boolean}>[];
 
 export const precisionFirePlacements: readonly Readonly<{label:string;x:number;z:number;altitude:number;moving:boolean}>[];
+
+export const targetMasterPlacements: readonly Readonly<{label:string;x:number;z:number;altitude:number;moving:boolean}>[];

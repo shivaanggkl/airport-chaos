@@ -1,7 +1,7 @@
 import type { SharpshooterTarget } from '../../shared/sharpshooter-target.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { sharpshooterPlacements, movingTargetPlacements, doubleTroublePlacements, precisionFirePlacements, sharpshooterTargetPose } from '../../shared/sharpshooter-target.mjs';
-import { journeyDallasSharpshooter01 as mission, journeyDallasSharpshooter02, journeyDallasSharpshooter03, journeyDallasSharpshooter04, journeySharpshooterMission } from '../../shared/journey-mission.mjs';
+import { sharpshooterPlacements, movingTargetPlacements, doubleTroublePlacements, precisionFirePlacements, targetMasterPlacements, sharpshooterTargetPose } from '../../shared/sharpshooter-target.mjs';
+import { journeyDallasSharpshooter01 as mission, journeyDallasSharpshooter02, journeyDallasSharpshooter03, journeyDallasSharpshooter04, journeyDallasSharpshooter05, journeySharpshooterMission } from '../../shared/journey-mission.mjs';
 
 type Point = {x:number;y:number;z:number};
 const current:Point={x:0,y:0,z:0},previous:Point={x:0,y:0,z:0},velocity:Point={x:0,y:0,z:0};
@@ -13,7 +13,8 @@ export function createSharpshooterTarget(stage:number, position:Point, heading:n
   if (![position.x,position.y,position.z,heading,elapsedMs].every(Number.isFinite) || stage<0 || stage>=definition.targetCount || !Number.isInteger(stage))
     throw new Error('Invalid sharpshooter stage');
   const placement=sharpshooterPlacements[stage];
-  const fixed=missionId===journeyDallasSharpshooter04.id?precisionFirePlacements[stage]
+  const fixed=missionId===journeyDallasSharpshooter05.id?targetMasterPlacements[stage]
+    :missionId===journeyDallasSharpshooter04.id?precisionFirePlacements[stage]
     :missionId===journeyDallasSharpshooter03.id?doubleTroublePlacements[stage]
     :missionId===journeyDallasSharpshooter02.id?movingTargetPlacements[stage]:undefined;
   if(!fixed&&!placement)throw new Error('Missing target placement');
@@ -25,7 +26,7 @@ export function createSharpshooterTarget(stage:number, position:Point, heading:n
   const sweep=fixed?.moving?450+mission.targetRadius:370;
   for(const offset of [-sweep,0,sweep])for(const cross of [-220,0,220])
     floor=Math.max(floor,clearanceAt(x+Math.cos(angle)*offset-Math.sin(angle)*cross,z-Math.sin(angle)*offset-Math.cos(angle)*cross));
-  return {stage,x,y:Math.max(missionId===journeyDallasSharpshooter04.id?precisionFirePlacements[stage]!.altitude:fixed?1000:position.y+placement!.altitude,floor+mission.targetRadius+150),z,heading:angle,activatedAt:elapsedMs,...(fixed?{motionAmplitude:fixed.moving?450:0,motionPeriodMs:10000}:{})};
+  return {stage,x,y:Math.max(missionId===journeyDallasSharpshooter05.id?targetMasterPlacements[stage]!.altitude:missionId===journeyDallasSharpshooter04.id?precisionFirePlacements[stage]!.altitude:fixed?1000:position.y+placement!.altitude,floor+mission.targetRadius+150),z,heading:angle,activatedAt:elapsedMs,...(fixed?{motionAmplitude:fixed.moving?450:0,motionPeriodMs:10000}:{})};
 }
 
 /** Existing swept solver rejects misses; the face-plane contact then matches

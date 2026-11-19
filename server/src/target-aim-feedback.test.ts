@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import * as THREE from 'three';
 import {AIM_ENVELOPE,AIM_SWITCH_MARGIN,COMBAT_RANGE,LOCK_ANGLE,aimTargetScore,insideDynamicLock,localFiringDirection} from '../../shared/protocol.mjs';
-import {journeyDallasSharpshooter01,journeyDallasSharpshooter02,journeyDallasSharpshooter03,journeyDallasSharpshooter04,journeySharpshooterMission} from '../../shared/journey-mission.mjs';
+import {journeyDallasSharpshooter01,journeyDallasSharpshooter02,journeyDallasSharpshooter03,journeyDallasSharpshooter04,journeyDallasSharpshooter05,journeySharpshooterMission} from '../../shared/journey-mission.mjs';
 const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
 const ast=ts.createSourceFile('main.ts',source,ts.ScriptTarget.Latest,true);
 const compile=(text:string)=>ts.transpileModule(text,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
@@ -20,7 +20,7 @@ function fixture(missionId:string){
   showTargetRangeFeedback:(...args:unknown[])=>calls.push(args),serverAimTargetId:targetId};
  return {context,root,targetId,calls};
 }
-for(const mission of [journeyDallasSharpshooter01,journeyDallasSharpshooter02,journeyDallasSharpshooter03,journeyDallasSharpshooter04]){
+for(const mission of [journeyDallasSharpshooter01,journeyDallasSharpshooter02,journeyDallasSharpshooter03,journeyDallasSharpshooter04,journeyDallasSharpshooter05]){
  test(`${mission.name}: GET CLOSER uses the same range window and reticle checks as aircraft`,()=>{
   const {context,root,calls}=fixture(mission.id);
   assert.equal(vm.runInNewContext(code('showSharpshooterRangeFeedback')+'showSharpshooterRangeFeedback()',context),true);

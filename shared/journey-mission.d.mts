@@ -224,7 +224,10 @@ export const journeyDallasSharpshooter03: Readonly<Omit<typeof journeyDallasShar
 export const journeyDallasSharpshooter04: Readonly<Omit<typeof journeyDallasSharpshooter01,'id'|'name'|'objective'|'firstClearCredits'|'difficulty'|'timeLimitMs'> & {
  id:'journey-dallas-sharpshooter-04';name:'PRECISION FIRE';difficulty:'HARD';objective:string;timeLimitMs:195000;firstClearCredits:1250;
 }>;
-export function journeySharpshooterMission(id:string|undefined): typeof journeyDallasSharpshooter01 | typeof journeyDallasSharpshooter02 | typeof journeyDallasSharpshooter03 | typeof journeyDallasSharpshooter04 | undefined;
+export const journeyDallasSharpshooter05: Readonly<Omit<typeof journeyDallasSharpshooter01,'id'|'name'|'objective'|'firstClearCredits'|'difficulty'|'timeLimitMs'> & {
+ id:'journey-dallas-sharpshooter-05';name:'TARGET MASTER';difficulty:'VERY HARD';objective:string;timeLimitMs:540000;firstClearCredits:1500;
+}>;
+export function journeySharpshooterMission(id:string|undefined): typeof journeyDallasSharpshooter01 | typeof journeyDallasSharpshooter02 | typeof journeyDallasSharpshooter03 | typeof journeyDallasSharpshooter04 | typeof journeyDallasSharpshooter05 | undefined;
 
 export const journeyDallasCoinHunt01: Readonly<{
  id:'journey-dallas-coin-hunt-01'; cityId:'dallas'; name:'DALLAS COIN HUNT'; difficulty:'MEDIUM';

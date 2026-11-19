@@ -47,6 +47,22 @@ export const precisionFirePlacements = Object.freeze([
   {label:'IRVING',x:-9000,z:-4500,altitude:1150,moving:true},
 ].map(point => Object.freeze(scaleDallasPoint(point))));
 
+// Mission 5: twelve moving targets at the reference's Dallas-area locations.
+export const targetMasterPlacements = Object.freeze([
+  {label:'GRAPEVINE',x:-19000,z:-21000,altitude:1000,moving:true},
+  {label:'ADDISON',x:0,z:-18000,altitude:1750,moving:true},
+  {label:'PLANO',x:12000,z:-24000,altitude:2500,moving:true},
+  {label:'WHITE ROCK LAKE',x:8500,z:-6500,altitude:1350,moving:true},
+  {label:'LAS COLINAS',x:-13500,z:-10000,altitude:2100,moving:true},
+  {label:'EAST OF LOVE FIELD',x:0,z:-7000,altitude:1150,moving:true},
+  {label:'EAST OF DOWNTOWN',x:4500,z:0,altitude:2850,moving:true},
+  {label:'EAST DALLAS',x:15000,z:2000,altitude:1550,moving:true},
+  {label:'GRAND PRAIRIE',x:-18000,z:2000,altitude:2300,moving:true},
+  {label:'DUNCANVILLE',x:-6500,z:13000,altitude:1250,moving:true},
+  {label:'MESQUITE',x:6500,z:8500,altitude:1950,moving:true},
+  {label:'BALCH SPRINGS',x:14500,z:15000,altitude:2650,moving:true},
+].map(point => Object.freeze(scaleDallasPoint(point))));
+
 // A target's anchor never changes after activation. Motion uses mission elapsed
 // time, so pausing/reconnecting preserves the same phase without frame packets.
 export function sharpshooterTargetPose(target, elapsedMs, out) {
