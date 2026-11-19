@@ -6,7 +6,7 @@ import ts from 'typescript';
 import * as THREE from 'three';
 import {territoriesForCity} from '../../shared/city-territories.mjs';
 import {journeyDallasTerritoryHold01 as mission} from '../../shared/journey-mission.mjs';
-import {REGION_CINEMATIC_CONFIG} from '../../shared/gameplay-cinematic-rules.mjs';
+import {REGION_CINEMATIC_CONFIG,regionCinematicPresentation} from '../../shared/gameplay-cinematic-rules.mjs';
 import {cityMissionCatalog} from '../../shared/city-missions.mjs';
 import {captureMissionTerritoryName} from '../../client/src/mission-journey-content.ts';
 import {MissionCaptureIntroPath} from '../../client/src/mission-capture-intro.ts';
@@ -38,4 +38,13 @@ test('legacy region identities and mission identities retain canonical visible t
  for(const mission of cityMissionCatalog.dallas)assert.doesNotMatch(mission.displayName+' '+mission.description,/CANAL DISTRICT|CENTRAL DISTRICT|Central District/);
  const canal=cityMissionCatalog.dallas.find(m=>m.id==='canal-capture');
  assert.ok(canal,'saved mission identity is unchanged');
+});
+
+test('visible region names change without changing saved exploration identifiers',()=>{
+ const source=readFileSync('client/src/dallas-world.ts','utf8'),ast=ts.createSourceFile('world.ts',source,ts.ScriptTarget.Latest,true);let initializer:ts.Expression|undefined;
+ const visit=(node:ts.Node)=>{if(ts.isVariableDeclaration(node)&&node.name.getText(ast)==='regionBounds')initializer=node.initializer;ts.forEachChild(node,visit);};visit(ast);
+ const regions=vm.runInNewContext(ts.transpileModule('('+initializer!.getText(ast)+')',{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,{place:{executive:'DALLAS EXECUTIVE AIRPORT'}});
+ assert.equal(regions[0].name,'CENTRAL DISTRICT');assert.equal(regions[1].name,'CANAL DISTRICT');
+ assert.equal(regionCinematicPresentation('dallas',regions[0].name)?.title,expected.get('downtown'));
+ assert.equal(regionCinematicPresentation('dallas',regions[1].name)?.title,expected.get('las-colinas'));
 });
