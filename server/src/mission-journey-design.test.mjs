@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { missionJourneyStages, missionJourneyStatuses, journeyMainCompleted } from '../../client/src/mission-journey-model.js';
+import { missionJourneyStages, missionJourneyStatuses, journeyMainCompleted, journeyCompletionSummary } from '../../client/src/mission-journey-model.js';
 import { missionJourneyDetails } from '../../client/src/mission-journey-content.js';
 import { journeyCategories } from '../../shared/journey-categories.mjs';
 import * as missions from '../../shared/journey-mission.mjs';
@@ -18,8 +18,8 @@ test('six disconnected groups have six numbered nodes, a gentle rise, and no obs
   assert.match(view, /row.append\(route\)/);
   assert.match(view, /48 - index \* 15/);
   assert.doesNotMatch(view, /journey-chapter|journey-map|journey-segment/);
-  assert.match(styles, /gap: 56px/);
-  assert.match(styles, /flex: 0 0 266px/);
+  assert.match(styles, /gap: 32px/);
+  assert.match(styles, /flex: 0 0 var\(--journey-group-width\)/);
   assert.match(styles, /\.mission-journey-category-route polyline[^\n]+stroke-width: 2px/);
 });
 
@@ -33,7 +33,9 @@ test('server eligibility drives nodes, while placeholders stay locked even with 
   const all = missionJourneyStatuses(Array(42).fill(true), Array(42).fill(true), false);
   assert.equal(all.currentMission, 0);
   missionJourneyStages.forEach((stage, index) => assert.equal(all.statuses[index], stage.implementation === 'playable' ? 'completed' : 'locked'));
-  assert.equal(journeyMainCompleted(Object.fromEntries(missions.journeyMissionOrder.map(id => [id, {completed:true}]))), 23);
+  const allCleared = Object.fromEntries(missions.journeyMissionOrder.map(id => [id, {completed:true}]));
+  assert.equal(journeyMainCompleted(allCleared), 23);
+  assert.deepEqual(journeyCompletionSummary(allCleared), {completed:28,total:42});
   assert.match(view, /play.disabled = placeholder \|\| this.cityLocked/);
   assert.match(view, /placeholder \? 'COMING SOON'/);
   assert.match(bootstrap, /missionJourney.setCityLocked\(!dallasUnlocked\(\)\)/);
@@ -42,8 +44,8 @@ test('server eligibility drives nodes, while placeholders stay locked even with 
 
 test('live detail definitions keep every playable reward, clock and description; Territory 4 retains its description', () => {
   for (const stage of missionJourneyStages.filter(stage => stage.implementation === 'playable')) {
-    const card = missionJourneyDetails.find(card => card.id === stage.id);
-    const definition = Object.values(missions).find(value => value?.id === stage.id);
+    const card = missionJourneyDetails.find(card => card.id === stage.missionId);
+    const definition = Object.values(missions).find(value => value?.id === stage.missionId);
     assert.ok(card?.description, stage.id);
     assert.equal(card.rewardCredits, definition.firstClearCredits);
     const time = definition.timeLimitMs;

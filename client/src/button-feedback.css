@@ -1,0 +1,16 @@
+/* Edge lighting adds depth without replacing a button's colors or layout.
+   Specific button effects keep precedence over this shared default. */
+:where(button, [role='button'], input[type='button'], input[type='submit']):not(:disabled):not([aria-disabled='true']) {
+  filter: drop-shadow(0 2px 1px rgb(4 20 45 / 28%)) drop-shadow(0 -1px 0 rgb(255 255 255 / 24%));
+  transition: filter 80ms ease-out;
+}
+
+:where(button, [role='button'], input[type='button'], input[type='submit']):not(:disabled):not([aria-disabled='true']):active {
+  filter: drop-shadow(0 0 0 transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(button, [role='button'], input[type='button'], input[type='submit']):not(:disabled):not([aria-disabled='true']) {
+    transition-duration: 0s;
+  }
+}

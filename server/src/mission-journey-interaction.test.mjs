@@ -4,7 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { journeyDisplayGroups, journeySpecialPursuits } from '../../shared/journey-categories.mjs';
-import { missionJourneyStages, missionJourneyStatuses, journeyMainCompleted } from '../../client/src/mission-journey-model.js';
+import { missionJourneyStages, missionJourneyStatuses, journeyCompletionSummary } from '../../client/src/mission-journey-model.js';
 import { missionJourneyDetails } from '../../client/src/mission-journey-content.js';
 
 // Minimal DOM adapter: execute the real component and its handlers without browser automation.
@@ -65,8 +65,8 @@ const code = ts.transpileModule(runtime, {compilerOptions:{target:ts.ScriptTarge
 function fixture() {
   const document = {createElement:tag => new Element(tag), createElementNS:(_, tag) => new Element(tag)};
   const root = new Element(); let launches = 0; let panelOpens = 0;
-  const context = vm.createContext({document, window:{setTimeout,clearTimeout}, matchMedia:() => ({matches:true}),
-    journeyDisplayGroups, journeySpecialPursuits, missionJourneyStages, missionJourneyStatuses, journeyMainCompleted, missionJourneyDetails,
+  const context = vm.createContext({document, ResizeObserver:class { observe() {} }, window:{setTimeout,clearTimeout}, matchMedia:() => ({matches:true}),
+    journeyDisplayGroups, journeySpecialPursuits, missionJourneyStages, missionJourneyStatuses, journeyCompletionSummary, missionJourneyDetails,
     observeMissionCopyFit() {}, hapticsManager:{emit() {}}, createLockIcon:() => new Element('svg')});
   vm.runInContext(`${code}\nglobalThis.Component = MissionJourney;`, context);
   const journey = new context.Component(root, () => launches++, () => panelOpens++, () => {});
@@ -80,11 +80,24 @@ test('actual category rendering, node selection and launch guards use live stabl
   f.journey.show(); assert.equal(f.panelOpens, 0, 'show does not add an obsolete detail-panel history entry');
   assert.equal(f.root.querySelectorAll('.mission-journey-node').length, 42);
   assert.equal(f.root.querySelectorAll('.mission-journey-category').filter(group => !group.hidden).length, 9);
+  const groups = f.root.querySelectorAll('.mission-journey-category');
+  for (const id of ['bonus-1', 'bonus-2']) {
+    const group = groups.find(group => group.dataset.category === id);
+    assert.equal(group.querySelector('.mission-journey-category-label').querySelector('strong').textContent, 'BONUS');
+    assert.equal(group.querySelector('.mission-journey-credit-coin').getAttribute('src'), '/media/missions/credit-coin.webp');
+  }
+  const bosses = groups.find(group => group.dataset.category === 'dr-boss');
+  assert.equal(bosses.querySelector('.mission-journey-category-route'), null);
+  const bossButtons = bosses.querySelectorAll('.mission-journey-node');
+  assert.deepEqual(bossButtons.map(button => button.querySelector('.mission-journey-number').textContent), ['1', '2']);
+  assert.equal(bossButtons[0].style.top, bossButtons[1].style.top);
+
   for (const stage of missionJourneyStages.filter(stage => stage.implementation === 'playable')) {
-    f.journey.setProgress({[stage.id]:{eligible:true}});
+    f.journey.setProgress({[stage.missionId]:{eligible:true}});
     f.button(stage.id).emit('click');
-    const card = missionJourneyDetails.find(card => card.id === stage.id);
+    const card = missionJourneyDetails.find(card => card.id === stage.missionId);
     assert.equal(f.journey.selectedMissionId, stage.id);
+    assert.equal(f.root.querySelector('[data-mission-index]').textContent, stage.kind === 'bonus' ? 'BONUS' : `MISSION ${String(stage.categoryNumber).padStart(2, '0')}`);
     assert.equal(f.root.querySelector('[data-mission-title]').textContent, card.title);
     assert.equal(f.root.querySelector('[data-mission-time-value]').textContent, card.timeLimit);
     assert.equal(f.root.querySelector('[data-mission-reward-amount]').textContent, card.rewardCredits.toLocaleString());
@@ -118,7 +131,56 @@ test('extra pursuits reuse the detail box; Back restores selection and scroll; k
   assert.equal(f.journey.selectedMissionId, 'journey-dallas-twin-hunters-01');
   assert.equal(viewport.scrollLeft, 920);
   assert.equal(f.root.querySelector('.mission-journey-detail'), detail);
+  const category = f.root.querySelector('.mission-journey-category');
+  assert.equal(category.children[0].className, 'mission-journey-category-label');
   viewport.emit('keydown', {key:'End'}); assert.equal(f.journey.selectedMissionId, 'journey-dallas-19');
+  viewport.scrollWidth = 3000;
+  const scroll = f.root.querySelector('.mission-journey-scroll-position');
+  scroll.value = '500'; scroll.emit('input');
+  assert.equal(viewport.scrollLeft, (3000 - viewport.clientWidth) / 2);
+  viewport.emit('scroll'); assert.equal(scroll.value, '500');
   const before = viewport.scrollLeft; viewport.emit('wheel', {deltaY:100,deltaX:0,deltaMode:0}); assert.equal(viewport.scrollLeft, before + 100);
-  assert.equal(f.root.querySelector('[data-journey-progress]').textContent, '0 OF 36 COMPLETED');
+  assert.equal(f.root.querySelector('[data-journey-progress]'), null);
+  assert.equal(f.journey.headerContent.textContent, 'DALLAS·MISSION');
+});
+
+test('the shared header keeps the Dallas mission title when progress changes', () => {
+  const f = fixture();
+  const header = new Element('header'); header.append(f.journey.headerContent);
+  assert.equal(header.querySelector('[data-journey-progress]'), null);
+  assert.equal(f.journey.headerContent.textContent, 'DALLAS·MISSION');
+  f.journey.setProgress({'journey-dallas-01':{completed:true}, 'journey-dallas-coin-hunt-01':{completed:true}});
+  assert.equal(f.journey.headerContent.textContent, 'DALLAS·MISSION');
+  assert.equal(header.querySelector('[data-journey-progress]'), null);
+});
+
+test('both bonus entries share details, progress and the authoritative coin-hunt launch', async () => {
+  const bonuses = missionJourneyStages.filter(stage => stage.kind === 'bonus');
+  assert.equal(bonuses.length, 2);
+  assert.equal(new Set(bonuses.map(stage => stage.id)).size, 2);
+  assert.ok(bonuses.every(stage => stage.implementation === 'playable' && stage.missionId === 'journey-dallas-coin-hunt-01'));
+  const f = fixture();
+  f.journey.setProgress({'journey-dallas-coin-hunt-01':{eligible:true,completed:true,coinsCollected:25}});
+  for (const stage of bonuses) {
+    f.button(stage.id).emit('click');
+    assert.equal(f.play.disabled, false);
+    assert.equal(f.root.querySelector('[data-mission-title]').textContent, 'COLLECT COINS');
+  }
+  assert.deepEqual(journeyCompletionSummary({'journey-dallas-coin-hunt-01':{completed:true}}),{completed:1,total:42});
+  const source = readFileSync(new URL('../../client/src/bootstrap.ts',import.meta.url),'utf8');
+  const ast = ts.createSourceFile('bootstrap.ts',source,ts.ScriptTarget.Latest,true);
+  const launch = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'playJourneyMission').getText(ast);
+  const compiled = ts.transpileModule(launch,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+  for (const stage of bonuses) {
+    const requests=[];
+    const context=vm.createContext({journeyLaunchPending:false,dallasUnlocked:()=>true,missionJourneyStages,
+      missionJourney:{selectedMissionId:stage.id},pendingAircraftSelection:undefined,journeyAttemptMission:'mission-01',
+      apiUrl:path=>path,apiFetch:async path=>{requests.push(path);return {ok:true,json:async()=>({attempt:{attemptId:'same-bonus'}})};},
+      cities:[{id:'dallas',status:'available'}],citySelector:{hidden:false},enterCity:async()=>{},
+      journeyMissionSlot:id=>{assert.equal(id,'journey-dallas-coin-hunt-01');return {};},missionTimePreset:()=> 'Day',
+    });
+    vm.runInContext(compiled,context);await context.playJourneyMission();
+    assert.deepEqual(requests,['/api/journey/dallas/mission-coin-hunt-01/launch']);
+    assert.equal(context.journeyAttemptMission,'mission-coin-hunt-01');
+  }
 });

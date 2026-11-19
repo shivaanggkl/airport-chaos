@@ -16,3 +16,11 @@ export function journeyMainCompleted(progress: Readonly<Record<string, {
 }>>): number {
   return journeyCategories.reduce((count, group) => count + group.missionIds.filter(id => progress[id]?.completed).length, 0);
 }
+
+/** All current Dallas slots, including bonuses, bosses and the two extra pursuits. */
+export function journeyCompletionSummary(progress: Readonly<Record<string, { completed?: boolean }>>): Readonly<{completed: number; total: number}> {
+  return {
+    completed: new Set(missionJourneyStages.filter(stage => stage.implementation === 'playable' && progress[stage.missionId]?.completed === true).map(stage => stage.missionId)).size,
+    total: missionJourneyStages.length,
+  };
+}

@@ -372,23 +372,34 @@ for(const finalOrdinal of [0,1])for(const overlapping of [false,true])test(`M10 
  assert.deepEqual(candidates[finalOrdinal].impactPosition.toArray(),[12345,2456,-34567]);
 });
 
-test('all playable Journey success headings include their displayed mission number, including remapped internal IDs',async()=>{
+test('every Journey result uses its category number rather than the old overall mission order',async()=>{
  const styles=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
  const headingRule=styles.match(/\.journey-result\.is-terminal:not\(\.is-training\):not\(\.is-flight-result\)[^{]*\{([^}]+)\}/);
  assert(headingRule);assert.match(headingRule[1],/display:\s*block/);
- const {missionJourneyDetails}=await import('../../client/src/mission-journey-content.js');
- const {journeyMissionSlot}=await import('../../shared/journey-mission.mjs');
- const start=source.indexOf('  const resultSlot = journeyMissionSlot(attempt.missionId);');
+ const {journeyCategorySlot,journeyCategorySlots,journeyPursuitSlots}=await import('../../shared/journey-categories.mjs');
+ const start=source.indexOf('  const resultSlot = journeyCategorySlot(attempt.missionId);');
+ assert.ok(start>=0);
  const end=source.indexOf(';',source.indexOf("[data-journey-result-heading]",start))+1;
  const statement=ts.transpileModule(source.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
- assert.equal(missionJourneyDetails.length,25);
- missionJourneyDetails.forEach((mission,index)=>{
+ const id=n=>`journey-dallas-${String(n).padStart(2,'0')}`;
+ const groups=[
+  [1,2,3,4,5,6].map(id),
+  ['journey-dallas-airport-hop-01'],['journey-dallas-sharpshooter-01'],
+  [id(13),id(14),'journey-dallas-twin-hunters-01',id(16),id(17),id(18)],
+  [7,8,9,10,11,12].map(id),
+  ['journey-dallas-capture-01','journey-dallas-territory-defense-01','journey-dallas-capture-three-01'],
+  [id(23),id(19)],[id(15),'journey-dallas-ace-intercept-01'],
+ ];
+ const expected=new Map(groups.flatMap(group=>group.map((mission,index)=>[mission,`M${index+1}`])));
+ expected.set('journey-dallas-coin-hunt-01','BONUS');expected.set('journey-dallas-coin-hunt-02','BONUS');
+ const playable=[...journeyCategorySlots,...journeyPursuitSlots].filter(slot=>slot.implementation==='playable');
+ assert.deepEqual([...expected.keys()].sort(),playable.map(slot=>slot.id).sort());
+ for(const [missionId,label] of expected){
   const heading={textContent:''};
-  const ctx=vm.createContext({journeyCrossfireMission,journeyDallasTwinHunters01,attempt:{missionId:mission.id},success:true,breakoutMission:index>=18,journeyMissionSlot,journeyResultElement:{querySelector:()=>heading}});
+  const ctx=vm.createContext({attempt:{missionId},journeyCategorySlot,journeyResultElement:{querySelector:()=>heading}});
   vm.runInContext(`{${statement}}`,ctx);
-  assert.equal(heading.textContent,`M${journeyMissionSlot(mission.id)}`,mission.id);
-  ctx.success=false;vm.runInContext(`{${statement}}`,ctx);assert.equal(heading.textContent,`M${journeyMissionSlot(mission.id)}`,`${mission.id} failure`);
- });
+  assert.equal(heading.textContent,label,missionId);
+ }
 });
 
 for(const mission of [journeyDallas17,journeyDallas18])test(`${mission.name}: state packets preserve the recorded fatal shot through completion instead of resetting the replay`,()=>{

@@ -7,6 +7,7 @@ export type JourneyCategory = Readonly<{
 }>;
 export type JourneyCategorySlot = Readonly<{
   id: string;
+  missionId: string;
   categoryId: string;
   categoryNumber: number;
   kind: 'main' | 'bonus' | 'boss' | 'special';
@@ -20,4 +21,5 @@ export const journeyCategorySlots: readonly JourneyCategorySlot[];
 export const journeyPursuitSlots: readonly JourneyCategorySlot[];
 export const journeyMainMissionIds: readonly string[];
 export const journeyPlayableMainIds: readonly string[];
+export function journeyCategorySlot(missionId: string): JourneyCategorySlot | undefined;
 export function categoryMissionAccess(missionId: string, completed: ReadonlySet<string>): boolean;

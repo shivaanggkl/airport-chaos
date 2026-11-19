@@ -12,7 +12,7 @@ export const journeyCategories = Object.freeze([
 ]);
 const extras = [
   { id: 'bonus-1', label: 'BONUS 1', color: '#ffd239', icon: 'gift', missionIds: ['journey-dallas-coin-hunt-01'] },
-  { id: 'bonus-2', label: 'BONUS 2', color: '#ffd239', icon: 'gift', missionIds: ['placeholder-dallas-bonus-2'] },
+  { id: 'bonus-2', label: 'BONUS 2', color: '#ffd239', icon: 'gift', missionIds: ['journey-dallas-coin-hunt-02'] },
   { id: 'dr-boss', label: 'DR. BOSS', color: '#e05dff', icon: 'boss', missionIds: [id(23), id(19)] },
 ];
 export const journeySpecialPursuits = Object.freeze({ id: 'special-pursuits', label: 'SPECIAL PURSUITS', color: '#ff683e', icon: 'plane', missionIds: Object.freeze([id(15), 'journey-dallas-ace-intercept-01']) });
@@ -20,22 +20,28 @@ export const journeyDisplayGroups = Object.freeze([
   ...journeyCategories.slice(0, 4), extras[0], ...journeyCategories.slice(4), extras[1], extras[2],
 ].map(group => Object.freeze(group)));
 function slots(groups) {
-  return groups.flatMap(group => group.missionIds.map((missionId, index) => Object.freeze({
-    id: missionId, categoryId: group.id, categoryNumber: index + 1,
-    kind: group.id.startsWith('bonus-') ? 'bonus' : group.id === 'dr-boss' ? 'boss' : group.id === 'special-pursuits' ? 'special' : 'main',
-    title: legacy.get(missionId)?.title ?? 'COMING SOON',
-    implementation: legacy.get(missionId)?.implementation === 'playable' ? 'playable' : 'placeholder',
-  })));
+  return groups.flatMap(group => group.missionIds.map((id, index) => {
+    // Both bonus entries launch the same authoritative coin-hunt round.
+    const missionId = id === 'journey-dallas-coin-hunt-02' ? 'journey-dallas-coin-hunt-01' : id;
+    return Object.freeze({
+      id, missionId, categoryId: group.id, categoryNumber: index + 1,
+      kind: group.id.startsWith('bonus-') ? 'bonus' : group.id === 'dr-boss' ? 'boss' : group.id === 'special-pursuits' ? 'special' : 'main',
+      title: legacy.get(missionId)?.title ?? 'COMING SOON',
+      implementation: legacy.get(missionId)?.implementation === 'playable' ? 'playable' : 'placeholder',
+    });
+  }));
 }
 export const journeyCategorySlots = Object.freeze(slots(journeyDisplayGroups));
 export const journeyPursuitSlots = Object.freeze(slots([journeySpecialPursuits]));
 export const journeyMainMissionIds = Object.freeze(journeyCategorySlots.filter(slot => slot.kind === 'main').map(slot => slot.id));
 export const journeyPlayableMainIds = Object.freeze(journeyCategorySlots.filter(slot => slot.kind === 'main' && slot.implementation === 'playable').map(slot => slot.id));
 const slotById = new Map([...journeyCategorySlots, ...journeyPursuitSlots].map(slot => [slot.id, slot]));
+export function journeyCategorySlot(missionId) { return slotById.get(missionId); }
 export function categoryMissionAccess(missionId, completed) {
   const slot = slotById.get(missionId);
   if (!slot || slot.implementation !== 'playable')
     return false;
+  if (slot.missionId !== slot.id) return categoryMissionAccess(slot.missionId, completed);
   if (completed.has(missionId))
     return true;
   if (slot.kind === 'main') {

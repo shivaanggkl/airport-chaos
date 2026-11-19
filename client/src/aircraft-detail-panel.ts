@@ -1,12 +1,29 @@
+import './context-page-shell.css';
 import './aircraft-detail-panel.css';
 import { aircraftDefinitions, aircraftSpeedCapsMph, type AircraftType } from './aircraft';
 import { FIRE_RATE_PER_SECOND } from '../../shared/protocol.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 
-export function createAircraftDetailPanel(onClose?: () => void): HTMLElement {
+export function createAircraftDetailPanel(onClose?: () => void, onOpenStore?: () => void): HTMLElement {
   const panel = document.createElement('section');
   panel.className = 'store-detail-panel';
   panel.innerHTML = '<div class="store-detail-preview"><span class="store-detail-rotate-hint">⟳  DRAG TO ROTATE</span></div><div class="store-detail-specs"><h2 class="store-detail-title"></h2><div class="store-detail-stats"></div></div>';
+  if (onOpenStore) {
+    const stats = panel.querySelector<HTMLElement>('.store-detail-stats')!;
+    const row = document.createElement('div');
+    row.className = 'store-detail-stats-row';
+    stats.replaceWith(row);
+    const store = document.createElement('button');
+    store.type = 'button';
+    store.className = 'context-action context-action--gold store-detail-store';
+    store.setAttribute('aria-label', 'Open aircraft store');
+    store.textContent = 'STORE';
+    store.addEventListener('click', onOpenStore);
+    const storeCell = document.createElement('div');
+    storeCell.className = 'store-detail-store-cell';
+    storeCell.append(store);
+    row.append(stats, storeCell);
+  }
   if (onClose) {
     const close = document.createElement('button');
     close.type = 'button'; close.className = 'store-detail-close';

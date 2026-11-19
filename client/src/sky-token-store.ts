@@ -8,6 +8,13 @@ import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 
 export type SkyTokenOffer = { id: SkyTokenPackId; tokens: number; price: string };
 
+const skyTokenPackIcons: Readonly<Record<SkyTokenPackId, string>> = {
+  SKY_TOKENS_100: '/media/hub/sky-tokens.avif',
+  SKY_TOKENS_500: '/media/hub/sky-token-pack-500.jpg',
+  SKY_TOKENS_1200: '/media/hub/sky-token-pack-1200.jpg',
+  SKY_TOKENS_2400: '/media/hub/sky-token-pack-2400.jpg',
+};
+
 function exactTopUp(missing: number, amounts: readonly number[]): number[] {
   if (!Number.isSafeInteger(missing) || missing <= 0 || missing % 100 !== 0) return [];
   const best: Array<number[] | undefined> = Array(missing / 100 + 1).fill(undefined);
@@ -77,7 +84,7 @@ export class SkyTokenStore {
     for (const offer of orderedOffers) {
       if (!skyTokenPacks[offer.id] || offer.tokens !== skyTokenPacks[offer.id].tokens) continue;
       const card = document.createElement('article'); card.className = 'game-card-frame sky-token-pack';
-      const icon = document.createElement('img'); icon.src = '/media/hub/sky-tokens.avif'; icon.alt = ''; icon.loading = 'lazy'; icon.setAttribute('aria-hidden', 'true');
+      const icon = document.createElement('img'); icon.src = skyTokenPackIcons[offer.id]; icon.alt = ''; icon.loading = 'lazy'; icon.setAttribute('aria-hidden', 'true');
       const quantity = document.createElement('strong'); quantity.textContent = `${offer.tokens.toLocaleString()} SKY TOKENS`;
       const divider = document.createElement('hr');
       const price = document.createElement('span'); price.className = 'sky-token-price'; price.textContent = offer.price;

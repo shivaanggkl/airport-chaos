@@ -217,6 +217,17 @@ function rewardImage(src: string, className: string): HTMLImageElement {
   return image;
 }
 
+function rewardSection(title: string, description: string, icon: string): HTMLElement {
+  const card = section(title);
+  card.classList.add('game-card-frame');
+  const copy = document.createElement('div'); copy.className = 'pilot-rewards-heading-copy';
+  copy.append(card.querySelector('h2')!, textElement('p', description));
+  const heading = document.createElement('header'); heading.className = 'pilot-rewards-card-heading';
+  heading.append(rewardImage(icon, 'pilot-rewards-card-icon'), copy);
+  card.append(heading);
+  return card;
+}
+
 function actionButton(action: PilotMenuAction): HTMLButtonElement {
   const button = textElement('button', action.label) as HTMLButtonElement;
   button.type = 'button';
@@ -289,8 +300,6 @@ export class PilotMenu {
   private profileFeedback?: PilotMenuAccountResult;
   private profileStatsTab: 'single' | 'multiplayer' = 'single';
   private advertisingOpen = false;
-  private inviteOpen = false;
-  private inviteNotice = '';
   private rewardsTimer?: number;
   private rewardCountdownTimer?: number;
   private rewardsReturnFocus?: HTMLElement;
@@ -365,11 +374,13 @@ export class PilotMenu {
   }
 
   private customizeControls(data: PilotMenuData): HTMLButtonElement {
-    return actionButton({label:'CUSTOMIZE',run:()=>openControlLayoutEditor(data.preferences.mobileLayout,layout=>{
+    const button = actionButton({label:'CUSTOMIZE',run:()=>openControlLayoutEditor(data.preferences.mobileLayout,layout=>{
       for(const control of Object.keys(layout) as MobileControlId[]) data.preferences.setMobileControl(control,layout[control]);
       data.preferences.mobileLayout=layout;
       this.render(data,true);
     })});
+    button.classList.add('context-action', 'context-action--blue');
+    return button;
   }
 
   private legalSupportSections(): HTMLElement[] {
@@ -382,6 +393,9 @@ export class PilotMenu {
       externalLink('Support', legalPolicyHref(legalConfig.policyRoutes.support)),
     );
     legal.append(textElement('p', 'Policies and help for Airport Chaos.', 'pilot-menu-muted'), links);
+    const moreSupport = document.createElement('details'); moreSupport.className = 'pilot-settings-support-details';
+    const moreSupportLabel = textElement('summary', 'MORE SUPPORT'); moreSupport.append(moreSupportLabel);
+    const supportContent = this.options.appShell ? moreSupport : legal;
     const privacyManager = rewardedAdPrivacy;
     if (privacyManager) {
       const privacy = actionButton({ label: 'Video Ad Privacy Options', run: () => {
@@ -393,7 +407,7 @@ export class PilotMenu {
       const status = textElement('p', '', 'pilot-menu-muted'); status.setAttribute('role', 'status');
       privacy.hidden = true;
       void privacyManager.current().then(value => { privacy.hidden = !value.required; }).catch(() => undefined);
-      legal.append(privacy, status, externalLink('Report a video ad', 'mailto:support@vadensoftware.com?subject=Rewarded%20video%20ad%20concern'),
+      supportContent.append(privacy, status, externalLink('Report a video ad', 'mailto:support@vadensoftware.com?subject=Rewarded%20video%20ad%20concern'),
         textElement('p', 'Describe the ad and concern. Do not include account secrets or personal information. This does not automatically identify the video.', 'pilot-menu-muted'));
     }
 
@@ -407,6 +421,7 @@ export class PilotMenu {
       this.advertisingOpen = !this.advertisingOpen;
       sponsorInfo.hidden = !this.advertisingOpen;
     } }), sponsorInfo);
+    if (this.options.appShell) { moreSupport.append(advertising); legal.append(moreSupport); return [legal]; }
     return [legal, advertising];
   }
 
@@ -876,7 +891,7 @@ export class PilotMenu {
         const statisticsHeading = document.createElement('div'); statisticsHeading.className = 'pilot-profile-section-heading';
         const tabs = document.createElement('div'); tabs.className = 'pilot-profile-tabs'; tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Player statistics');
         for (const [tab, label] of [['single', 'SINGLE PLAYER'], ['multiplayer', 'MULTIPLAYER']] as const) {
-          const button = textElement('button', label, 'pilot-profile-mode'); button.type = 'button';
+          const button = textElement('button', label, 'pilot-profile-mode context-action--blue'); button.type = 'button';
           button.id = `pilot-profile-${tab}-tab`; button.dataset.profileTab = tab;
           button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', String(this.profileStatsTab === tab));
           button.setAttribute('aria-controls', 'pilot-profile-stat-content');
@@ -1108,22 +1123,18 @@ export class PilotMenu {
     }
 
     if (this.activeSection === 'REWARDS' && data.rewards) {
-      const rewards = section('DAILY REWARD');
-      rewards.classList.add('pilot-rewards', 'game-card-frame');
-      rewards.querySelector('h2')?.prepend(rewardImage('/media/hub/rewards.png', 'pilot-rewards-heading-art'));
-      rewards.append(textElement('p', 'Claim 25 free Credits every 20 hours.', 'pilot-rewards-friendly'));
+      const rewards = rewardSection('DAILY REWARD', 'Claim free Credits every 20 hours.', '/media/hub/rewards.png');
+      rewards.classList.add('pilot-rewards');
       const state = data.rewards.state;
       const remaining = Math.max(0, state.nextEligibleAt - state.serverNow - Math.max(0, Date.now() - state.serverNow));
       const available = state.claimable || remaining === 0;
       const claimArea = document.createElement('div'); claimArea.className = 'pilot-reward-claim';
-      claimArea.append(rewardImage('/media/hub/rewards.png', 'pilot-reward-claim-art'));
+      claimArea.append(rewardImage('/media/hub/credits.avif', 'pilot-reward-claim-art'));
       const claimDetails = document.createElement('div'); claimDetails.className = 'pilot-reward-claim-details';
-      const claimAmount = textElement('strong', `${state.nextAmount.toLocaleString()} CREDITS`);
-      claimAmount.prepend(rewardImage('/media/hub/credits.avif', 'pilot-reward-inline-credit'));
-      claimDetails.append(
-        textElement('span', 'FREE DAILY CLAIM'),
-        claimAmount,
-      );
+      const claimAmount = document.createElement('strong'); claimAmount.className = 'pilot-reward-amount';
+      claimAmount.append(textElement('span', state.nextAmount.toLocaleString(), 'pilot-reward-amount-value'),
+        document.createTextNode(' '), textElement('span', 'CREDITS', 'pilot-reward-amount-unit'));
+      claimDetails.append(claimAmount);
       claimArea.append(claimDetails);
       const countdown = (milliseconds: number): string => {
         const seconds = Math.ceil(milliseconds / 1000);
@@ -1133,8 +1144,9 @@ export class PilotMenu {
       };
       const notice = data.rewards.notice?.startsWith('+') ? undefined : data.rewards.notice;
       const status = textElement('p', available ? notice ?? 'READY NOW' : countdown(remaining), 'pilot-reward-status');
+      status.classList.toggle('is-countdown', !available);
       const claim = actionButton({ label: `CLAIM ${state.nextAmount.toLocaleString()}`, disabled: !available || !data.rewards.canClaim, run: () => undefined });
-      claim.classList.add('context-action', 'context-action--gold');
+      claim.classList.add('context-action', 'context-action--gold', 'pilot-reward-claim-button');
       claim.addEventListener('click', () => {
         if (claim.disabled) return;
         recordProductIntent('daily_reward_claim_clicked');
@@ -1151,13 +1163,13 @@ export class PilotMenu {
         });
       });
       claimDetails.append(status);
-      claimArea.append(claim);
-      rewards.append(claimArea);
+      rewards.append(claimArea, claim);
       if (!available) {
         const deadline = Date.now() + remaining;
         this.rewardCountdownTimer = window.setInterval(() => {
           const left = Math.max(0, deadline - Date.now());
           status.textContent = left > 0 ? countdown(left) : 'READY NOW';
+          status.classList.toggle('is-countdown', left > 0);
           if (left === 0) {
             window.clearInterval(this.rewardCountdownTimer);
             this.rewardCountdownTimer = undefined;
@@ -1171,7 +1183,7 @@ export class PilotMenu {
       const watchData = data.rewards.watchAndEarn;
       let watchRemaining = Number.POSITIVE_INFINITY;
       if (watchData) {
-        const watch = section('WATCH & EARN');
+        const watch = rewardSection('WATCH & EARN', 'Watch videos and earn extra Credits.', '/media/hub/watch-and-earn.jpg');
         watch.classList.add('pilot-watch-earn');
         const state = watchData.state;
         watchRemaining = state.windowEndsAt === undefined ? Number.POSITIVE_INFINITY
@@ -1181,10 +1193,9 @@ export class PilotMenu {
         const capped = hasCycle && state.remaining <= 0;
         const pending = watchData.phase === 'verifying' || ['AD_STARTED', 'PENDING_VERIFICATION'].includes(state.activeAttempt?.status ?? '');
         const awaitingPrevious = state.activeAttempt?.status === 'CREATED' && watchData.phase === 'idle';
-        const adTotal = state.rewardCreditsByStep.reduce((total, amount) => total + amount, 0);
-        watch.append(textElement('p', 'Optional videos unlock for 1 hour after you claim your Daily Reward.', 'pilot-menu-muted'));
         const steps = document.createElement('div');
         steps.className = 'pilot-ad-steps';
+        steps.style.setProperty('--reward-card-count', String(state.rewardCreditsByStep.length));
         state.rewardCreditsByStep.forEach((amount, index) => {
           const step = document.createElement('div');
           step.className = 'pilot-ad-step';
@@ -1192,7 +1203,7 @@ export class PilotMenu {
           step.classList.toggle('is-next', hasCycle && index === completed);
           const ready = state.supported && hasCycle && !capped && index === completed;
           const buttonLabel = index < completed ? 'CLAIMED'
-            : !ready ? '🔒 LOCKED'
+            : !ready ? 'LOCKED'
               : watchData.phase === 'loading' ? 'LOADING…'
                 : pending ? 'VERIFYING…'
                   : awaitingPrevious ? 'PENDING…'
@@ -1202,8 +1213,11 @@ export class PilotMenu {
             disabled: !ready || watchData.phase !== 'idle' || Boolean(state.activeAttempt),
             run: () => { void watchData.watch(watchButton.getBoundingClientRect()); },
           });
+          watchButton.classList.add('context-action', 'context-action--gold');
           watchButton.setAttribute('aria-label', ready ? `Watch ad ${index + 1} for ${amount} Credits` : `Ad ${index + 1} ${buttonLabel}`);
-          step.append(textElement('span', `AD ${index + 1}`), rewardImage('/media/hub/credits.avif', 'pilot-ad-step-art'), textElement('strong', `${amount} CREDITS`), watchButton);
+          const amountCopy = document.createElement('strong'); amountCopy.className = 'pilot-ad-step-amount';
+          amountCopy.append(textElement('span', amount.toLocaleString()), textElement('span', 'CREDITS', 'pilot-ad-step-unit'));
+          step.append(rewardImage('/media/hub/credits.avif', 'pilot-ad-step-art'), amountCopy, watchButton);
           steps.append(step);
         });
         watch.append(steps);
@@ -1211,73 +1225,9 @@ export class PilotMenu {
           : !hasCycle ? data.rewards.state.claimable ? 'Claim your Daily Reward to unlock videos.' : 'Reward time has ended.'
             : capped ? 'All available video rewards claimed.' : `Ad ${completed + 1} of ${state.maxRewards} is ready`;
         if (!hasCycle || !state.supported || capped) watch.append(textElement('p', availability, 'pilot-watch-availability'));
-        watch.append(textElement('p', `All four verified videos: ${adTotal.toLocaleString()} Credits.`, 'pilot-watch-total'));
         if (watchData.notice) watch.append(textElement('p', watchData.notice, 'pilot-watch-status'));
         else if (awaitingPrevious) watch.append(textElement('p', 'A previous video attempt is pending. It will become available again after the server clears or expires it.', 'pilot-watch-status'));
-        rewards.append(watch);
-      }
-      const inviteData = data.rewards.invite;
-      if (inviteData) {
-        const invite = section('INVITE PILOTS');
-        invite.classList.add('pilot-invite', 'game-card-frame');
-        invite.querySelector('h2')?.before(rewardImage('/media/hub/friends.avif', 'pilot-invite-art'));
-        const values = document.createElement('div'); values.className = 'pilot-invite-values';
-        if (inviteData.inviterRewardsRemaining > 0) {
-          const inviterValue = textElement('span', 'YOU GET ');
-          inviterValue.append(rewardImage('/media/hub/credits.avif', 'pilot-reward-inline-credit'), textElement('strong', '750'), document.createTextNode(' CREDITS'));
-          values.append(inviterValue);
-        } else values.append(textElement('span', 'YOUR REWARD LIMIT IS REACHED'));
-        const friendValue = textElement('span', 'FRIEND GETS ');
-        friendValue.append(rewardImage('/media/hub/credits.avif', 'pilot-reward-inline-credit'), textElement('strong', '500'), document.createTextNode(' CREDITS'));
-        values.append(friendValue);
-        invite.append(values, textElement('p', 'After they create an account and fly for 60 seconds.', 'pilot-menu-muted'));
-        const openInvite = actionButton({ label: this.inviteOpen ? 'HIDE INVITE' : 'INVITE FRIEND', run: () => {
-          this.inviteOpen = !this.inviteOpen;
-          if (this.inviteOpen) recordProductIntent('referral_screen_viewed');
-          this.inviteNotice = '';
-          if (this.lastData) this.render(this.lastData);
-        } });
-        openInvite.classList.add('context-action');
-        openInvite.setAttribute('aria-expanded', String(this.inviteOpen));
-        invite.append(openInvite);
-        if (this.inviteOpen) {
-          const panel = document.createElement('div'); panel.className = 'pilot-invite-panel';
-          panel.append(textElement('strong', 'INVITE A PILOT'));
-          const counts = textElement('p', `Joined ${inviteData.joinedCount} · Qualified ${inviteData.qualifiedCount} · Earned ${inviteData.earnedCredits.toLocaleString()} Credits`, 'pilot-menu-muted');
-          panel.append(counts);
-          if (inviteData.inviterRewardsRemaining === 0) {
-            const remaining = Math.max(0, (inviteData.nextInviterRewardAt ?? 0) - Date.now());
-            const hours = Math.ceil(remaining / 3_600_000);
-            panel.append(textElement('p', `Inviter reward limit reached. Your friends can still earn 500 Credits. Your next inviter reward is available in ${Math.floor(hours / 24)}d ${hours % 24}h.`, 'pilot-invite-cap'));
-          } else {
-            panel.append(textElement('p', `${inviteData.inviterRewardsRemaining} of 10 inviter rewards available this period.`, 'pilot-invite-cap'));
-          }
-          const link = textElement('input', '') as HTMLInputElement;
-          link.value = inviteData.url; link.readOnly = true; link.setAttribute('aria-label', 'Invite link');
-          link.addEventListener('focus', () => link.select());
-          const actions = document.createElement('div'); actions.className = 'pilot-invite-actions';
-          const notice = textElement('p', this.inviteNotice, 'pilot-invite-notice');
-          const share = actionButton({ label: 'SHARE INVITE', run: () => {
-            share.disabled = true;
-            recordProductIntent('referral_share_started');
-            void inviteData.share().then(result => { this.inviteNotice = result.message; notice.textContent = result.message; })
-              .catch(() => { this.inviteNotice = 'Unable to share invite. Please try again.'; notice.textContent = this.inviteNotice; })
-              .finally(() => { share.disabled = false; });
-          } });
-          const copy = actionButton({ label: 'COPY LINK', run: () => {
-            copy.disabled = true;
-            recordProductIntent('referral_link_copied');
-            void inviteData.copy().then(result => { this.inviteNotice = result.message; notice.textContent = result.message; })
-              .catch(() => { this.inviteNotice = 'Unable to copy link. Please try again.'; notice.textContent = this.inviteNotice; })
-              .finally(() => { copy.disabled = false; });
-          } });
-          share.classList.add('context-action');
-          copy.classList.add('context-action');
-          actions.append(share, copy);
-          panel.append(link, actions, notice);
-          invite.append(panel);
-        }
-        rewardsLayout.append(invite);
+        rewardsLayout.append(watch);
       }
       content.append(rewardsLayout);
       if (Number.isFinite(watchRemaining) && watchRemaining > 0) {
@@ -1555,7 +1505,7 @@ export class PilotMenu {
         help.append(actionButton({ label: 'OPEN VISUAL GUIDE', run: data.guide.open }));
         help.append(actionButton({ label: 'REPLAY TUTORIAL FLIGHT', run: data.guide.replay }));
       }
-      if (!flightMenu) {
+      if (!flightMenu && !this.options.appShell) {
         if(data.preferences.touchLayout){const touchHelp=textElement('p','', 'pilot-menu-controls');touchHelp.textContent='TOUCH: Left stick turns and changes altitude. The right lever holds IDLE, SLOW, CRUISE or FAST. Hold the separate BOOST button; release to return to your selected speed. Fire and the aim circle remain independent.';help.append(touchHelp);}
         else help.append(textElement('p','Open Controls for the full keyboard and mouse reference.','pilot-menu-controls'));
       }

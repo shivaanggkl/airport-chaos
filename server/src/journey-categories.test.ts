@@ -29,10 +29,12 @@ test('40 display slots and two pursuits preserve every playable identity without
   assert.deepEqual(journeyCategories.map(group => group.missionIds.length), Array(6).fill(6));
   const all = [...journeyCategorySlots, ...journeyPursuitSlots];
   assert.equal(new Set(all.map(slot => slot.id)).size, 42);
-  assert.deepEqual(all.filter(slot => slot.implementation === 'playable').map(slot => slot.id).sort(), [...journeyMissionOrder].sort());
+  assert.deepEqual([...new Set(all.filter(slot => slot.implementation === 'playable').map(slot => slot.missionId))].sort(), [...journeyMissionOrder].sort());
   assert.ok(!all.some(slot => slot.id.includes('survival')));
   assert.equal(journeyCategorySlots[24]!.id, 'journey-dallas-coin-hunt-01');
-  assert.equal(journeyCategorySlots[37]!.id, 'placeholder-dallas-bonus-2');
+  assert.equal(journeyCategorySlots[37]!.id, 'journey-dallas-coin-hunt-02');
+  assert.equal(journeyCategorySlots[37]!.missionId, 'journey-dallas-coin-hunt-01');
+  assert.equal(journeyCategorySlots[37]!.implementation, 'playable');
   assert.deepEqual(journeyCategorySlots.slice(-2).map(slot => slot.id), ['journey-dallas-23', 'journey-dallas-19']);
 });
 
@@ -67,8 +69,10 @@ test('bonuses count unique main clears; pursuits and bosses have their explicit 
   completed.delete('journey-dallas-coin-hunt-01');
   for (const id of journeyPlayableMainIds.slice(0, 5)) completed.add(id);
   assert.equal(access('journey-dallas-coin-hunt-01'), false);
+  assert.equal(access('journey-dallas-coin-hunt-02'), false);
   completed.add(journeyPlayableMainIds[5]!);
   assert.equal(access('journey-dallas-coin-hunt-01'), true);
+  assert.equal(access('journey-dallas-coin-hunt-02'), true);
   assert.equal(categoryMissionAccess('journey-dallas-15', new Set()), false);
   assert.equal(categoryMissionAccess('journey-dallas-15', new Set(['journey-dallas-twin-hunters-01'])), true);
   assert.equal(categoryMissionAccess('journey-dallas-ace-intercept-01', new Set(['journey-dallas-15'])), true);
@@ -78,7 +82,7 @@ test('bonuses count unique main clears; pursuits and bosses have their explicit 
   assert.equal(access('journey-dallas-19'), false);
   completed.add('journey-dallas-23');
   assert.equal(access('journey-dallas-19'), true);
-  assert.equal(access('placeholder-dallas-bonus-2'), false);
+  assert.equal(access('journey-dallas-coin-hunt-02'), true);
 });
 
 test('one additive migration preserves old sequential access, attempts, checkpoints, rewards and balances', () => fixture((store, db, path) => {

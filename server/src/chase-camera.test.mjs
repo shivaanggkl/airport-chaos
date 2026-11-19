@@ -207,7 +207,7 @@ test('Firehawk has a slightly higher rear angle while other aircraft profiles st
  assert.equal(profile.elevation,9*Math.PI/180);assert.equal(profile.widthFraction,.34);assert.equal(profile.focusRatio,.01);
  for(const type of ['trainer','privateJet','cargo']){
   const other=normalAircraftCameraProfile(type);
-  assert.equal(other.elevation,type==='trainer'?14*Math.PI/180:type==='cargo'?8*Math.PI/180:5*Math.PI/180);
+  assert.equal(other.elevation,type==='trainer'?14*Math.PI/180:8*Math.PI/180);
   assert.equal(other.focusRatio,profile.focusRatio);
   assert.equal(other.groundClearance,profile.groundClearance);
   assert.equal(other.widthFraction,type==='privateJet'?.42:.35);

@@ -1,63 +1,80 @@
 .mission-journey { --journey-detail-height: clamp(146px, 31dvh, 190px); --journey-detail-gap: 12px; position: fixed; z-index: 5; inset: 0; overflow: hidden; isolation: isolate; color: #fff; background: var(--menu-background); -webkit-user-select: none; user-select: none; }
 .mission-journey[hidden], .mission-journey [hidden] { display: none !important; }
 .mission-journey button { font-family: var(--font-display); cursor: pointer; }
-.mission-journey button:focus-visible { outline: 3px solid #fff3aa; outline-offset: 3px; }
+.mission-journey button:focus-visible { outline: 3px solid var(--ui-bright-gold); outline-offset: 3px; }
 .mission-journey-heading { position: absolute; top: calc(var(--hub-header-total, 104px) + 12px); right: max(18px, var(--safe-area-right)); left: max(18px, var(--safe-area-left)); display: flex; justify-content: center; align-items: center; }
-.mission-journey-summary { display: grid; place-items: center; gap: 2px; min-width: 220px; padding: 6px 20px; border: 2px solid #54eaff; border-radius: 16px; background: linear-gradient(#1266ba, #06377e 60%, #0c63bb); box-shadow: inset 0 1px #b8f5ff, 0 0 15px #24cfff; text-shadow: 0 2px 3px #06245d; }
-.mission-journey-summary strong { font: 900 19px/1.05 var(--font-display); }
-.mission-journey-summary span { color: #ffdf50; font: 900 14px/1.05 var(--font-display); }
-.mission-journey-special-back { position: absolute; left: 0; min-height: 44px; padding: 7px 12px; border: 1px solid #53ddff; border-radius: 9px; background: #07345e; color: #fff; font-size: 12px; }
-.mission-journey-viewport { position: absolute; top: calc(var(--hub-header-total, 104px) + 70px); right: max(0px, var(--safe-area-right)); bottom: calc(max(24px, var(--safe-area-bottom)) + var(--journey-detail-height) + var(--journey-detail-gap)); left: max(0px, var(--safe-area-left)); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; touch-action: pan-x; cursor: grab; overscroll-behavior-x: contain; }
+.mission-journey-category-label strong { color: #fff7e5; text-shadow: 0 1px 1px #02091c, 0 -1px #ffffff33; -webkit-font-smoothing: antialiased; }
+.mission-journey-special-back { position: absolute; left: 0; min-height: 36px; padding: 6px 10px; border: 1px solid #53ddff; border-radius: 9px; background: #07345e; color: #fff; font-size: 11px; }
+.mission-journey-viewport { position: absolute; top: calc(var(--hub-header-total, 104px) + 12px); right: max(0px, var(--safe-area-right)); bottom: calc(max(24px, var(--safe-area-bottom)) + var(--journey-detail-height) + 48px); left: max(0px, var(--safe-area-left)); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; touch-action: pan-x; cursor: grab; overscroll-behavior-x: contain; }
 .mission-journey-viewport::-webkit-scrollbar { display: none; }
 .mission-journey-viewport:active { cursor: grabbing; }
 .mission-journey-viewport:focus-visible { outline: 2px solid #70ddff; outline-offset: -2px; }
-.mission-journey-track { display: flex; align-items: center; gap: 56px; width: max-content; min-width: 100%; height: 100%; box-sizing: border-box; padding: 12px 32px 20px; }
-.mission-journey-category { flex: 0 0 266px; width: 266px; }
-.mission-journey-category-nodes { position: relative; height: 66px; margin-bottom: 10px; }
-.mission-journey-category-route { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.mission-journey-category-route polyline { fill: none; stroke: #a8aebb; stroke-width: 2px; vector-effect: non-scaling-stroke; opacity: .75; }
-.mission-journey-category-label { display: flex; align-items: center; position: relative; box-sizing: border-box; min-height: 76px; gap: 12px; padding: 8px 12px; border: 3px solid var(--category-color); border-radius: 21px; background: linear-gradient(135deg, color-mix(in srgb, var(--category-color) 32%, #072b55), #07172f 65%, color-mix(in srgb, var(--category-color) 24%, #07172f)); box-shadow: inset 0 2px 2px #ffffffa0, inset 0 -3px 5px #0008, 0 0 7px var(--category-color), 0 0 19px color-mix(in srgb, var(--category-color) 55%, transparent); text-shadow: 0 2px 3px #071224; }
-.mission-journey-category-label strong { flex: 1; font: 900 22px/1.05 var(--font-display); }
-.mission-journey-category-icon { flex: 0 0 58px; width: 58px; height: 58px; filter: drop-shadow(0 2px 2px #0008); }
-.mission-journey-category-icon svg { display: block; width: 100%; height: 100%; }
-.mission-journey-extra { position: relative; flex: 0 0 auto; box-sizing: border-box; min-height: 26px; border: 1px solid #ffd46d; border-radius: 8px; padding: 3px 8px; background: #092947; color: #ffe385; font-size: 11px; }
-.mission-journey-node { position: absolute; z-index: 1; display: grid; place-items: center; box-sizing: border-box; width: 36px; height: 36px; padding: 0; border: 2px solid #fff8d8; border-radius: 50%; color: #fff; background: radial-gradient(circle at 35% 22%, #fff9, var(--category-color) 44%, #112847); box-shadow: inset 0 2px #fff9, 0 0 10px var(--category-color); font: 900 24px/1 var(--font-display); text-shadow: 0 2px 2px #123862; transform: translate(-50%, -50%); touch-action: pan-x; }
+.mission-journey-track { --journey-group-width: clamp(330px, 33vw, 462px); --journey-node-center: calc(clamp(56px, 5.2vw, 74px) / 2 + 20px); display: flex; align-items: flex-start; gap: 32px; width: max-content; min-width: 100%; height: 100%; box-sizing: border-box; padding: 18px 24px 0; }
+.mission-journey-category { flex: 0 0 var(--journey-group-width); width: var(--journey-group-width); }
+.mission-journey-category-label { display: flex; align-items: center; justify-content: center; position: relative; box-sizing: border-box; width: max-content; max-width: 100%; min-height: 32px; margin: 0 auto 20px; gap: 10px; padding: 3px 20px; border: 2px solid var(--ui-bright-gold); border-radius: 24px; color: #fff7e5; border-color: transparent; background: linear-gradient(180deg, #ffffff22, transparent 44%, #01091933 45%, transparent 85%) padding-box, linear-gradient(115deg, #193d58, #091d36 60%, #142e46) padding-box, linear-gradient(var(--ui-bright-gold), var(--ui-bright-gold) 48%, var(--ui-bright-gold)) border-box; box-shadow: inset 0 1px 1px rgb(var(--ui-bright-gold-rgb) / 0.467), inset 0 -2px 3px #030b1daa, 0 2px 3px #030c2299, 0 0 7px rgb(var(--ui-bright-gold-rgb) / 0.267); text-shadow: 0 2px 2px #17140b; }
+.mission-journey-category-label strong { font: 900 clamp(15px, 1.55vw, 21px)/1 var(--font-body); white-space: nowrap; }
+.mission-journey-category-icon { flex: 0 0 24px; width: 24px; height: 24px; filter: drop-shadow(0 1px 1px #000b) drop-shadow(0 0 2px rgb(var(--ui-bright-gold-rgb) / 0.200)); }
+.mission-journey-category-icon :is(svg, img) { display: block; width: 100%; height: 100%; object-fit: contain; }
+.mission-journey-extra { flex: 0 0 auto; min-height: 22px; padding: 2px 5px; border: 1px solid var(--ui-bright-gold); border-radius: 8px; background: #092947; color: var(--ui-bright-gold); font-size: 10px; }
+.mission-journey-category-nodes { position: relative; height: 108px; }
+.mission-journey-category-route { position: absolute; top: calc(var(--journey-node-center) - 48px); left: 0; width: 100%; height: 66px; pointer-events: none; overflow: visible; }
+.mission-journey-category-route polyline { fill: none; stroke: #65ebff; stroke-width: 2px; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 3px #18cfff); }
+.mission-journey-node { position: absolute; z-index: 2; display: grid; place-items: center; box-sizing: border-box; width: clamp(56px, 5.2vw, 74px); height: clamp(56px, 5.2vw, 74px); padding: 0; border: 2px solid #67efff; border-radius: 50%; color: #fff; background: radial-gradient(circle at 35% 20%, #35d8f2, #087abb 52%, #073372); box-shadow: inset 0 2px #b0f8ff, 0 0 9px #1edcff; font: 900 clamp(23px, 2.3vw, 32px)/1 var(--font-body); text-shadow: 0 2px 2px #123862; transform: translate(-50%, -50%); touch-action: pan-x; }
 .mission-journey-node::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; }
 .mission-journey-node:hover { filter: brightness(1.12); }
-.mission-journey-node.is-selected { outline: 2px solid #ffe087; outline-offset: 3px; }
-.mission-journey-node.is-locked, .mission-journey-node.is-placeholder { border-color: #c9ced3; color: #f5f5f5; background: radial-gradient(circle at 35% 20%, #9b9da1, #4a4e55 65%, #292c32); box-shadow: inset 0 2px #e0e1e3, 0 2px 4px #071630; }
-.mission-journey-lock { --lock-icon-size: 11px; position: absolute; bottom: -9px; display: grid; place-items: center; color: #fff; filter: drop-shadow(0 1px 1px #000); }
+.mission-journey-node.is-current { border-color: var(--ui-bright-gold); }
+.mission-journey-node.is-selected { border-color: var(--ui-bright-gold); outline: 3px solid var(--ui-bright-gold); outline-offset: 3px; box-shadow: inset 0 2px #c7faff, 0 0 8px 4px var(--ui-bright-gold), 0 0 18px var(--ui-bright-gold); }
+.mission-journey-node.is-locked, .mission-journey-node.is-placeholder { border-color: #d3dbe4; color: #fff; background: radial-gradient(circle at 35% 20%, #959eaa, #505c6c 60%, #293443); box-shadow: inset 0 2px #edf2f5, 0 0 7px #d5e5f26b; }
+.mission-journey-lock { --lock-icon-size: 16px; position: absolute; bottom: -9px; display: grid; place-items: center; box-sizing: border-box; width: 25px; height: 25px; border: 1px solid #9ba6b1; border-radius: 50%; color: #fff; background: linear-gradient(#788693, #46505d); box-shadow: 0 1px 3px #061126; }
 .mission-journey-node:not(.is-locked) .mission-journey-lock, .mission-journey-node:not(.is-completed) .mission-journey-check { display: none; }
-.mission-journey-check { position: absolute; right: -5px; bottom: -5px; display: grid; place-items: center; width: 17px; height: 17px; border: 1px solid #d6ffe9; border-radius: 50%; color: #fff; background: linear-gradient(#12bb68, #06894a); box-shadow: 0 0 5px #39d68a; }
-.mission-journey-check svg { width: 90%; height: 90%; }
+.mission-journey-node.is-completed .mission-journey-check { position: absolute; right: -7px; bottom: -7px; display: grid; place-items: center; width: 43%; aspect-ratio: 1; border: 2px solid #bcff9e; border-radius: 50%; color: #fff; background: linear-gradient(#21c734, #078c1f); box-shadow: 0 0 6px #64f442; }
+.mission-journey-check svg { width: 80%; height: 80%; }
 .mission-journey-node.is-newly-completed { animation: mission-completed-flash 650ms ease-in-out; }
 @keyframes mission-completed-flash { 50% { filter: brightness(1.65) drop-shadow(0 0 12px #77ffc2); } }
-.mission-journey-category.is-bonus-group { flex-basis: 96px; width: 96px; }
-.is-bonus-group .mission-journey-node { width: 58px; height: 58px; border: 0; border-radius: 10px; background: transparent; box-shadow: none; }
-.is-bonus-group .mission-journey-number svg { width: 58px; height: 58px; filter: drop-shadow(0 0 8px #ffbd23); }
+.mission-journey-category.is-bonus-group { flex-basis: 130px; width: 130px; }
+.is-bonus-group .mission-journey-node { width: 72.5px; height: 72.5px; border: 0; border-radius: 10px; background: transparent; box-shadow: none; }
+.is-bonus-group .mission-journey-number svg, .mission-journey-credit-coin { display: block; object-fit: contain; width: 72.5px; height: 72.5px; filter: drop-shadow(0 0 8px var(--ui-bright-gold)); }
 .is-bonus-group .mission-journey-node.is-locked { filter: grayscale(.8); }
-.is-bonus-group .mission-journey-category-label { justify-content: center; min-height: 30px; padding: 4px; border-width: 2px; border-radius: 12px; background: linear-gradient(#fff09a, #ffd62d 55%, #e59700); color: #161b2e; text-shadow: none; }
-.is-bonus-group .mission-journey-category-label strong { font-size: 16px; white-space: nowrap; }
 .is-bonus-group .mission-journey-category-icon { display: none; }
-.mission-journey-category.is-boss-group { flex-basis: 190px; width: 190px; }
-/* Preserve the existing Bonus ribbon in the detail markup. */
+.mission-journey-category.is-boss-group { --journey-boss-step: 80px; flex-basis: 190px; width: 190px; }
+.mission-journey-scroll-position { position: absolute; top: min(calc(var(--hub-header-total, 104px) + 236px), calc(100dvh - max(24px, var(--safe-area-bottom)) - var(--journey-detail-height) - 28px)); left: 50%; width: min(32vw, 400px); height: 14px; margin: 0; padding: 0; border: 0; transform: translateX(-50%); appearance: none; -webkit-appearance: none; background: transparent; cursor: ew-resize; }
+.mission-journey-scroll-position::-webkit-slider-runnable-track { box-sizing: border-box; height: 3px; border: 0; border-radius: 3px; background: #bbd8ec55; }
+.mission-journey-scroll-position::-webkit-slider-thumb { width: var(--journey-scroll-thumb, 28%); height: 3px; border: 0; border-radius: 3px; appearance: none; -webkit-appearance: none; background: var(--ui-bright-gold); box-shadow: 0 0 3px rgb(var(--ui-bright-gold-rgb) / 0.533); }
+.mission-journey-scroll-position::-moz-range-track { box-sizing: border-box; height: 3px; border: 0; border-radius: 3px; background: #bbd8ec55; }
+.mission-journey-scroll-position::-moz-range-thumb { width: var(--journey-scroll-thumb, 28%); height: 3px; border: 0; border-radius: 3px; background: var(--ui-bright-gold); box-shadow: 0 0 3px rgb(var(--ui-bright-gold-rgb) / 0.533); }
+.mission-journey-scroll-position:focus-visible { outline: 2px solid var(--ui-bright-gold); outline-offset: 6px; }
+.mission-journey-scroll-position:disabled { opacity: .45; cursor: default; }
 .mission-journey-bonus svg { display: block; width: 100%; overflow: visible; }
 .mission-journey-bonus text { font: 900 23px var(--font-display); }
-@media (max-height: 480px) and (orientation: landscape) {
-  .mission-journey-heading { top: calc(var(--hub-header-total, 78px) + 5px); }
-  .mission-journey-summary { min-width: 180px; padding: 4px 14px; border-radius: 11px; }
-  .mission-journey-summary strong { font-size: 14px; }
-  .mission-journey-summary span { font-size: 11px; }
-  .mission-journey-viewport { top: calc(var(--hub-header-total, 78px) + 43px); bottom: calc(max(8px, var(--safe-area-bottom)) + var(--journey-detail-height) + var(--journey-detail-gap)); }
-  .mission-journey-track { padding-block: 0; }
-  .mission-journey-category-nodes { height: 50px; margin-bottom: 6px; }
-  .mission-journey-category-label { min-height: 40px; padding: 4px 10px; border-radius: 15px; gap: 10px; }
-  .mission-journey-category-label strong { font-size: 18px; }
-  .mission-journey-category-icon { flex-basis: 24px; width: 24px; height: 24px; }
-  .mission-journey-special-back { font-size: 10px; }
-  .mission-journey-extra { font-size: 10px; }
-  .is-bonus-group .mission-journey-node, .is-bonus-group .mission-journey-number svg { width: 54px; height: 54px; }
+@media (max-height: 600px) and (orientation: landscape) {
+  .mission-journey-heading { top: calc(var(--hub-header-total, 78px) + 6px); }
+  .mission-journey-special-back { min-height: 26px; font-size: 10px; }
+  .mission-journey-viewport { top: calc(var(--hub-header-total, 78px) + 8px); bottom: calc(max(24px, var(--safe-area-bottom)) + var(--journey-detail-height) + 32px); }
+  .mission-journey-track { align-items: center; padding-block: 0; --journey-node-center: 44px; }
+  .mission-journey-category-label { min-height: 24px; margin-bottom: 8px; padding: 2px 10px; gap: 7px; }
+  .mission-journey-category-label strong { font-size: 14px; }
+  .mission-journey-category-icon { flex-basis: 16px; width: 16px; height: 16px; }
+  .mission-journey-extra { min-height: 18px; padding: 1px 4px; font-size: 9px; }
+  .mission-journey-category-nodes { height: 82px; }
+  .mission-journey-category.is-boss-group { --journey-boss-step: 60px; }
+  .mission-journey-node { width: 52px; height: 52px; font-size: 27px; }
+  .mission-journey-node.is-selected { outline-width: 2px; outline-offset: 2px; }
+  .mission-journey-lock { --lock-icon-size: 13px; width: 20px; height: 20px; bottom: -7px; }
+  .is-bonus-group .mission-journey-node, .is-bonus-group .mission-journey-number svg, .mission-journey-credit-coin { width: 55px; height: 55px; }
+  .mission-journey-scroll-position { top: auto; bottom: calc(max(24px, var(--safe-area-bottom)) + var(--journey-detail-height) + 12px); }
 }
+@media (max-height: 480px) and (orientation: landscape) {
+  .mission-journey-viewport { bottom: calc(max(8px, var(--safe-area-bottom)) + var(--journey-detail-height) + 26px); }
+  .mission-journey-scroll-position { bottom: calc(max(8px, var(--safe-area-bottom)) + var(--journey-detail-height) + 12px); }
+}
+@media (max-height: 380px) and (orientation: landscape) {
+  .mission-journey-viewport { top: calc(var(--hub-header-total, 78px) + 8px); bottom: calc(max(8px, var(--safe-area-bottom)) + var(--journey-detail-height) + 24px); }
+  .mission-journey-category-label { min-height: 22px; }
+  .mission-journey-category-label strong { font-size: 12px; }
+  .mission-journey-category-icon { flex-basis: 14px; width: 14px; height: 14px; }
+}
+
+.mission-journey.is-special-view .mission-journey-viewport { top: calc(var(--hub-header-total, 104px) + 44px); }
 
 .mission-journey-detail { box-sizing: border-box; position: absolute; right: max(18px, var(--safe-area-right)); bottom: max(24px, var(--safe-area-bottom)); left: max(18px, var(--safe-area-left)); display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 330px) minmax(190px, 255px); align-items: center; gap: 18px; width: min(1120px, calc(100% - max(18px, var(--safe-area-left)) - max(18px, var(--safe-area-right)))); height: var(--journey-detail-height); margin-inline: auto; padding: 16px 22px 16px clamp(22px, 4.5vw, 58px); border: 3px solid var(--menu-card-accent); border-radius: var(--menu-panel-radius); color: var(--menu-card-ink); background: var(--menu-panel-surface); box-shadow: var(--menu-panel-shadow); }
 .mission-journey-detail-copy { display: grid; align-content: center; min-width: 0; min-height: 0; height: 100%; gap: 5px; }
