@@ -21,32 +21,36 @@ function clear(db: DatabaseSync, id: string, pilot = 'pilot'): void {
     .run(pilot, id, `receipt-${id}`, 1000, 1234);
 }
 
-test('33 display slots and two pursuits exclude the retired Airport & Cargo chapter', () => {
-  assert.equal(journeyCategorySlots.length, 33);
+test('32 display slots and two pursuits exclude the retired Airport & Cargo chapter', () => {
+  assert.equal(journeyCategorySlots.length, 32);
   assert.equal(journeyPursuitSlots.length, 2);
-  assert.equal(journeyMainMissionIds.length, 28);
-  assert.equal(journeyPlayableMainIds.length, 25);
+  assert.equal(journeyMainMissionIds.length, 27);
+  assert.equal(journeyPlayableMainIds.length, 24);
   assert.deepEqual(journeyCategories.map(group => group.missionIds.length), [6,6,6,6,6]);
   const all = [...journeyCategorySlots, ...journeyPursuitSlots];
-  assert.equal(new Set(all.map(slot => slot.id)).size, 35);
+  assert.equal(new Set(all.map(slot => slot.id)).size, 34);
   assert.deepEqual([...new Set(all.filter(slot => slot.implementation === 'playable').map(slot => slot.missionId))].sort(), [...journeyMissionOrder].sort());
   assert.ok(!all.some(slot => slot.id.includes('survival')));
   assert.equal(journeyCategorySlots[5]!.id, 'journey-dallas-coin-hunt-01');
-  assert.equal(journeyCategorySlots[30]!.id, 'journey-dallas-coin-hunt-02');
-  assert.equal(journeyCategorySlots[30]!.missionId, 'journey-dallas-coin-hunt-01');
-  assert.equal(journeyCategorySlots[30]!.implementation, 'playable');
+  assert.equal(journeyCategorySlots[11]!.id, 'journey-dallas-coin-hunt-02');
+  assert.equal(journeyCategorySlots[11]!.missionId, 'journey-dallas-coin-hunt-01');
+  assert.equal(journeyCategorySlots[11]!.implementation, 'playable');
   assert.deepEqual(journeyCategorySlots.slice(-2).map(slot => slot.id), ['journey-dallas-23', 'journey-dallas-19']);
 });
 
-test('Shooting Targets mission six is a bonus slot and remains unavailable until implemented', () => {
+test('Shooting Targets ends with the same playable bonus round as Golden Rings', () => {
   const bonus = journeyCategorySlots.find(slot => slot.categoryId === 'shooting-targets' && slot.categoryNumber === 6)!;
   assert.equal(bonus.kind, 'bonus');
-  assert.equal(bonus.implementation, 'placeholder');
-  assert.equal(categoryMissionAccess(bonus.id, new Set(journeyMainMissionIds)), false);
+  assert.equal(bonus.implementation, 'playable');
+  assert.equal(bonus.id, 'journey-dallas-coin-hunt-02');
+  assert.equal(bonus.missionId, 'journey-dallas-coin-hunt-01');
+  assert.equal(categoryMissionAccess(bonus.id, new Set(journeyMainMissionIds)), true);
+  assert.ok(!journeyCategorySlots.some(slot=>slot.categoryId==='bonus-2'));
+
 });
 
 test('retired missions cannot launch even with historical clears or QA access', () => fixture((store, db, path) => {
-  const removed = ['journey-dallas-02', 'journey-dallas-airport-hop-01', ...Array.from({length:5}, (_, i) => `placeholder-dallas-airport-cargo-${i + 2}`)];
+  const removed = ['journey-dallas-13', 'journey-dallas-02', 'journey-dallas-airport-hop-01', ...Array.from({length:5}, (_, i) => `placeholder-dallas-airport-cargo-${i + 2}`)];
   for (const id of removed) clear(db, id);
   db.prepare('INSERT INTO journey_access_grants(pilot_id,mission_id) VALUES(?,?)').run('pilot', removed[0]!);
   const qaStore = new JourneyAttemptStore(path, true);
@@ -77,7 +81,7 @@ test('each category progresses independently on the server, including across res
   clear(db, 'journey-dallas-13'); // Old sequential successor was Golden Rings 3.
   assert.equal(store.canAccessMission('pilot', 'journey-dallas-14'), true);
   assert.equal(store.canAccessMission('pilot', 'journey-dallas-03'), false);
-  assert.equal(store.canAccessMission('other', 'journey-dallas-14'), false);
+  assert.equal(store.canAccessMission('other', 'journey-dallas-14'), true, 'Surprise Attack is now the chapter entry');
   const reopened = new JourneyAttemptStore(path);
   assert.equal(reopened.canAccessMission('pilot', 'journey-dallas-03'), false);
   for (const group of journeyCategories) {
@@ -174,4 +178,35 @@ test('final required clear durably earns Boss access and replay never duplicates
   // A future prerequisite change cannot revoke the durable grant.
   db.prepare('DELETE FROM journey_completions WHERE pilot_id=?').run('pilot');
   assert.equal(new JourneyAttemptStore(path).canAccessMission('pilot', 'journey-dallas-23'), true);
+}));
+
+
+test('Plane Battles retires First Contact, numbers the five remaining missions and ends in the shared bonus',()=>fixture((store,db)=>{
+ const group=journeyCategories.find(group=>group.id==='plane-battles');
+ const ids=['journey-dallas-14','journey-dallas-twin-hunters-01','journey-dallas-16','journey-dallas-17','journey-dallas-18','journey-dallas-coin-hunt-03'];
+ assert.deepEqual(group.missionIds,ids);
+ const slots=journeyCategorySlots.filter(slot=>slot.categoryId===group.id);
+ assert.deepEqual(slots.map(slot=>slot.categoryNumber),[1,2,3,4,5,6]);
+ assert.equal(slots[5].kind,'bonus');assert.equal(slots[5].missionId,'journey-dallas-coin-hunt-01');
+ assert.equal(store.canAccessMission('pilot',ids[0]),true);
+ for(const id of ids.slice(0,5)){
+  assert.equal(store.canAccessMission('pilot',id),true);
+  assert.equal(store.launch('pilot','trainer',2000,id).missionId,id);
+  clear(db,id);
+ }
+ assert.ok(!journeyCategorySlots.some(slot=>slot.id==='journey-dallas-13'));
+}));
+
+
+test('retiring First Contact abandons unfinished attempts without changing completed history or credits',()=>fixture((store,db,path)=>{
+ const a=store.launch('pilot','trainer',1000,'journey-dallas-14');
+ db.prepare('UPDATE journey_attempts SET mission_id=? WHERE attempt_id=?').run('journey-dallas-13',a.attemptId);
+ clear(db,'journey-dallas-13');
+ const before=db.prepare('SELECT credits FROM player_profiles WHERE pilot_id=?').get('pilot');
+ const reopened=new JourneyAttemptStore(path);
+ const retired=reopened.get('pilot',a.attemptId);
+ assert.equal(retired.status,'ABANDONED');assert.equal(retired.failureReason,'MISSION_RETIRED');
+ assert.equal(reopened.activeSnapshot('pilot',a.attemptId),undefined);
+ assert.equal(reopened.progress('pilot','journey-dallas-13').completed,true);
+ assert.deepEqual(db.prepare('SELECT credits FROM player_profiles WHERE pilot_id=?').get('pilot'),before);
 }));

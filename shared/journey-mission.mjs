@@ -658,7 +658,7 @@ export const journeyCatalog = Object.freeze([
   number: index + 1, title,
   chapter: index < 9 ? 1 : index < 18 ? 2 : index < 28 ? 3 : 4,
   implementation: identity === null || identity === journeyDallasMostWantedSurvival01.id ? 'placeholder' : 'playable',
-})).filter(slot => slot.id !== journeyDallasAirportHop01.id && slot.id !== journeyDallas02.id));
+})).filter(slot => slot.id !== journeyDallasAirportHop01.id && slot.id !== journeyDallas02.id && slot.id !== journeyDallas13.id));
 export const journeyMissionOrder = Object.freeze(journeyCatalog.filter(slot => slot.implementation === 'playable').map(slot => slot.id));
 export function journeyMissionSlot(missionId) { return journeyCatalog.find(slot => slot.id === missionId)?.number ?? 0; }
 export function isMonsterJourneyMission(id) { return id === 'journey-dallas-23' || id === 'journey-dallas-19'; }

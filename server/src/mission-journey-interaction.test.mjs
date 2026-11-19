@@ -78,8 +78,8 @@ function fixture() {
 test('actual category rendering, node selection and launch guards use live stable identities', () => {
   const f = fixture();
   f.journey.show(); assert.equal(f.panelOpens, 0, 'show does not add an obsolete detail-panel history entry');
-  assert.equal(f.root.querySelectorAll('.mission-journey-node').length, 35);
-  assert.equal(f.root.querySelectorAll('.mission-journey-category').filter(group => !group.hidden).length, 7);
+  assert.equal(f.root.querySelectorAll('.mission-journey-node').length, 34);
+  assert.equal(f.root.querySelectorAll('.mission-journey-category').filter(group => !group.hidden).length, 6);
   const groups = f.root.querySelectorAll('.mission-journey-category');
   const rings = groups.find(group => group.dataset.category === 'golden-rings');
   const ringNodes = rings.querySelectorAll('.mission-journey-node');
@@ -91,16 +91,13 @@ test('actual category rendering, node selection and launch guards use live stabl
   assert.ok(targetBonus.classList.contains('is-bonus'));
   assert.equal(targetBonus.querySelector('.mission-journey-credit-coin').getAttribute('src'), '/media/missions/credit-coin.webp');
   targetBonus.emit('click');
-  assert.equal(f.play.disabled, true);
   assert.equal(f.root.querySelector('[data-mission-index]').textContent, 'BONUS ROUND');
+  assert.equal(f.root.querySelector('[data-mission-title]').textContent, 'COLLECT COINS');
+  assert.equal(targetBonus.dataset.missionId, 'journey-dallas-coin-hunt-02');
 
   assert.equal(ringNodes[5].querySelector('.mission-journey-credit-coin').getAttribute('src'), '/media/missions/credit-coin.webp');
 
-  for (const id of ['bonus-2']) {
-    const group = groups.find(group => group.dataset.category === id);
-    assert.equal(group.querySelector('.mission-journey-category-label').querySelector('strong').textContent, 'BONUS');
-    assert.equal(group.querySelector('.mission-journey-credit-coin').getAttribute('src'), '/media/missions/credit-coin.webp');
-  }
+  assert.ok(!groups.some(group=>group.dataset.category==='bonus-2'));
   const bosses = groups.find(group => group.dataset.category === 'dr-boss');
   assert.equal(bosses.querySelector('.mission-journey-category-route'), null);
   const bossButtons = bosses.querySelectorAll('.mission-journey-node');
@@ -170,10 +167,10 @@ test('the shared header keeps the Dallas mission title when progress changes', (
   assert.equal(header.querySelector('[data-journey-progress]'), null);
 });
 
-test('both bonus entries share details, progress and the authoritative coin-hunt launch', async () => {
+test('all three bonus entries share details, progress and the authoritative coin-hunt launch', async () => {
   const bonuses = missionJourneyStages.filter(stage => stage.kind === 'bonus' && stage.implementation === 'playable');
-  assert.equal(bonuses.length, 2);
-  assert.equal(new Set(bonuses.map(stage => stage.id)).size, 2);
+  assert.equal(bonuses.length, 3);
+  assert.equal(new Set(bonuses.map(stage => stage.id)).size, 3);
   assert.ok(bonuses.every(stage => stage.implementation === 'playable' && stage.missionId === 'journey-dallas-coin-hunt-01'));
   const f = fixture();
   f.journey.setProgress({'journey-dallas-coin-hunt-01':{eligible:true,completed:true,coinsCollected:25}});
@@ -182,7 +179,7 @@ test('both bonus entries share details, progress and the authoritative coin-hunt
     assert.equal(f.play.disabled, false);
     assert.equal(f.root.querySelector('[data-mission-title]').textContent, 'COLLECT COINS');
   }
-  assert.deepEqual(journeyCompletionSummary({'journey-dallas-coin-hunt-01':{completed:true}}),{completed:1,total:35});
+  assert.deepEqual(journeyCompletionSummary({'journey-dallas-coin-hunt-01':{completed:true}}),{completed:1,total:34});
   const source = readFileSync(new URL('../../client/src/bootstrap.ts',import.meta.url),'utf8');
   const ast = ts.createSourceFile('bootstrap.ts',source,ts.ScriptTarget.Latest,true);
   const launch = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'playJourneyMission').getText(ast);
