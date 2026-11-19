@@ -7,6 +7,7 @@ export class SharpshooterTargetView {
   private static shared:SharpshooterTargetView|undefined;
   private static users=0;
   readonly root=new THREE.Group();
+  private readonly introPosition=new THREE.Vector3();
   private readonly introScale=new THREE.Vector3();
   private readonly introRotation=new THREE.Quaternion();
   private readonly introDepth=new THREE.Vector3();
@@ -47,15 +48,19 @@ export class SharpshooterTargetView {
   }
   /** Render-only emphasis for the placement overview; restored in the same frame. */
   beginIntro(camera:THREE.PerspectiveCamera,viewportHeight:number,emphasis:number):void{
+    this.introPosition.copy(this.root.position);
     this.introScale.copy(this.root.scale);this.introRotation.copy(this.root.quaternion);
     if(emphasis<=0)return;
     const depth=Math.max(0,-this.introDepth.copy(this.root.position).applyMatrix4(camera.matrixWorldInverse).z);
     const unitsPerPixel=2*depth*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))/Math.max(1,viewportHeight);
     const scale=Math.max(1,18*unitsPerPixel/journeyDallasSharpshooter01.targetRadius);
     this.root.scale.multiplyScalar(THREE.MathUtils.lerp(1,scale,emphasis));
+    // Preserve the target's safe lower edge while the overview enlarges its face.
+    // Only the render transform moves; endIntro restores the gameplay anchor.
+    this.root.position.y+=(this.root.scale.y-this.introScale.y)*journeyDallasSharpshooter01.targetRadius*1.03;
     this.root.lookAt(camera.position);this.root.quaternion.slerp(this.introRotation,1-emphasis);
   }
-  endIntro():void{this.root.scale.copy(this.introScale);this.root.quaternion.copy(this.introRotation);}
+  endIntro():void{this.root.position.copy(this.introPosition);this.root.scale.copy(this.introScale);this.root.quaternion.copy(this.introRotation);}
   dispose():void{
     this.root.removeFromParent();
     if(--SharpshooterTargetView.users===0){const shared=SharpshooterTargetView.shared!;

@@ -108,14 +108,17 @@ export class SharpshooterIntro {
     camera.lookAt(this.look);camera.updateMatrixWorld();
     if(this.overlay){
       this.overlay.style.opacity=String(1-handoff);
-      for(let index=0;index<this.labels.length;index++){
-        this.projected.copy(this.targets[index]!).project(camera);
-        const label=this.labels[index]!;
-        label.style.left=`${(this.projected.x+1)*50}%`;
-        label.style.top=`${(1-this.projected.y)*50}%`;
-      }
     }
     if(this.round.visible)fitProjectileRound(this.round,1000,camera,viewportHeight);
+  }
+  /** Match labels to the render-only overview lift, after target emphasis is applied. */
+  updateLabels(camera:THREE.PerspectiveCamera):void {
+    for(let index=0;index<this.labels.length;index++){
+      this.projected.copy(this.targets[index]!).project(camera);
+      const label=this.labels[index]!;
+      label.style.left=`${(this.projected.x+1)*50}%`;
+      label.style.top=`${(1-this.projected.y)*50}%`;
+    }
   }
   begin(aircraft:THREE.Object3D,getMuzzle:(point:THREE.Vector3)=>void,elapsed:number):void {
     this.savedPosition.copy(aircraft.position);this.savedRotation.copy(aircraft.quaternion);this.savedVisible=aircraft.visible;

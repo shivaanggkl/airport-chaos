@@ -20,6 +20,18 @@ export const movingTargetPlacements = Object.freeze([
   {label:'SOUTHEAST DALLAS',x:6500,z:6800,moving:false},
 ].map(point => Object.freeze(scaleDallasPoint(point))));
 
+// Mission 3 follows the reference's clockwise Dallas route. Targets 4 and 7 stay fixed.
+export const doubleTroublePlacements = Object.freeze([
+  {label:'NORTH LAS COLINAS',x:-13500,z:-11000,moving:true},
+  {label:'SOUTH ADDISON',x:-2500,z:-16100,moving:true},
+  {label:'WHITE ROCK LAKE',x:6000,z:-8500,moving:true},
+  {label:'EAST DALLAS',x:4800,z:-2500,moving:false},
+  {label:'SOUTHEAST DALLAS',x:6500,z:6000,moving:true},
+  {label:'EAST OF DALLAS EXECUTIVE',x:-1000,z:10000,moving:true},
+  {label:'TRINITY CORRIDOR',x:-10000,z:4000,moving:false},
+  {label:'IRVING',x:-16000,z:-2500,moving:true},
+].map(point => Object.freeze(scaleDallasPoint(point))));
+
 // A target's anchor never changes after activation. Motion uses mission elapsed
 // time, so pausing/reconnecting preserves the same phase without frame packets.
 export function sharpshooterTargetPose(target, elapsedMs, out) {

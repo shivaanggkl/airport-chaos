@@ -204,7 +204,7 @@ test('temporary safety distance is attitude-specific, smooth and returns to the 
 
 test('Firehawk has a slightly higher rear angle while other aircraft profiles stay unchanged',async()=>{
  const s=await fixture('fighter');const profile=normalAircraftCameraProfile('fighter');
- assert.equal(profile.elevation,9*Math.PI/180);assert.equal(profile.widthFraction,.34);assert.equal(profile.focusRatio,.01);
+ assert.equal(profile.elevation,12*Math.PI/180);assert.equal(profile.widthFraction,.34);assert.equal(profile.focusRatio,.01);
  for(const type of ['trainer','privateJet','cargo']){
   const other=normalAircraftCameraProfile(type);
   assert.equal(other.elevation,type==='trainer'?14*Math.PI/180:8*Math.PI/180);
@@ -217,7 +217,7 @@ test('Firehawk has a slightly higher rear angle while other aircraft profiles st
  assert.ok(Math.abs(center.project(s.camera).y)<.04,'Firehawk moves closer to screen center instead of the bottom edge');
  s.airplane.position.y=0;s.updateCamera(6);
  const runwayOffset=s.chaseCameraPosition.clone().sub(s.airplane.position).sub(s.cameraFrameWorldCenter);
- assert.ok(Math.atan2(runwayOffset.y,Math.hypot(runwayOffset.x,runwayOffset.z))<11*Math.PI/180,'runway clearance must not restore the old high viewing angle');
+ assert.ok(Math.atan2(runwayOffset.y,Math.hypot(runwayOffset.x,runwayOffset.z))<profile.elevation+2*Math.PI/180,'runway clearance stays within two degrees of the configured Firehawk angle');
 });
 
 
