@@ -285,7 +285,7 @@ const baseJourneyDallas15 = Object.freeze({
 // Two independently flying opponents share permission to initiate shots.
 const baseJourneyDallas16 = Object.freeze({
   id:'journey-dallas-16',cityId:'dallas',name:'DOUBLE THREAT',chapter:'SKY HUNTERS',
-  firstClearCredits:2_100,startAirportId:'dfw',timeLimitMs: 60_000,enemyHealth:300,aggressionDistance:8_000 / DALLAS_WORLD_SCALE,
+  firstClearCredits:2_100,startAirportId:'love',timeLimitMs: 60_000,enemyHealth:300,aggressionDistance:8_000 / DALLAS_WORLD_SCALE,
   enemies:Object.freeze([
     Object.freeze({aircraft:'privateJet',livery:'nightowl-sunset-red',x:-65_000 / DALLAS_WORLD_SCALE,z:-53_500 / DALLAS_WORLD_SCALE,altitude:750}),
     Object.freeze({aircraft:'trainer',livery:'bluejay-skybolt',x:-57_000 / DALLAS_WORLD_SCALE,z:-51_000 / DALLAS_WORLD_SCALE,altitude:900}),
@@ -296,7 +296,7 @@ const baseJourneyDallas16 = Object.freeze({
 // A heavy, aggressive opponent uses the same single-enemy combat lifecycle.
 const baseJourneyDallas17 = Object.freeze({
   id: 'journey-dallas-17', cityId: 'dallas', name: 'IRON HUNTER', chapter: 'SKY HUNTERS', firstClearCredits: 2_250,
-  startAirportId: 'executive', timeLimitMs: 60_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 300,
+  startAirportId: 'love', timeLimitMs: 60_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 300,
   enemyAltitude: 800, aggressionDistance: 6_000 / DALLAS_WORLD_SCALE, patrolRadius: 2_000, cruiseSpeed: 400,
   enemySpawn: Object.freeze({ x: -10_500 / DALLAS_WORLD_SCALE, z: 16_000 / DALLAS_WORLD_SCALE }),
   enemies: Object.freeze([
@@ -309,7 +309,7 @@ const baseJourneyDallas17 = Object.freeze({
 // Chapter 2 finale; weapon pacing and damage are private to this encounter.
 const baseJourneyDallas18 = Object.freeze({
   id: 'journey-dallas-18', cityId: 'dallas', name: 'FINAL SHOWDOWN', chapter: 'SKY HUNTERS', firstClearCredits: 2_400,
-  startAirportId: 'dfw', timeLimitMs: 60_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-stealth-gray', enemyHealth: 300,
+  startAirportId: 'love', timeLimitMs: 60_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-stealth-gray', enemyHealth: 300,
   enemyAltitude: 900, aggressionDistance: 8_000 / DALLAS_WORLD_SCALE, patrolRadius: 2_500, cruiseSpeed: 600,
   enemySpawn: Object.freeze({ x: -47_500 / DALLAS_WORLD_SCALE, z: -48_000 / DALLAS_WORLD_SCALE }),
   enemies: Object.freeze([
@@ -492,7 +492,7 @@ export const journeyDallasTerritoryDefense01 = Object.freeze({
 export const journeyDallasTwinHunters01 = Object.freeze({
   id: 'journey-dallas-twin-hunters-01', cityId: 'dallas', name: 'TWIN HUNTERS', difficulty: 'MEDIUM',
   objective: 'Shoot down both enemy aircraft before time runs out!',
-  runwayStart: true, startAirportId: 'dfw',
+  runwayStart: true, startAirportId: 'love',
   timeLimitMs: 242_000, firstClearCredits: 1500, enemyHealth: 300, aggressionDistance: 6000,
   airborneSpawn: Object.freeze({x: -27000, z: -40000, altitude: 1100, heading: Math.PI, speed: 650}),
   enemies: Object.freeze([

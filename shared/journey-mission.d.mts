@@ -123,19 +123,19 @@ export const journeyDallas15: Readonly<{
 }>;
 export const journeyDallas16: Readonly<{
   id:'journey-dallas-16';cityId:'dallas';name:'DOUBLE THREAT';chapter:'SKY HUNTERS';
-  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs: 180000;enemyHealth:300;aggressionDistance:8000;
+  firstClearCredits:2100;startAirportId:'love';timeLimitMs: 180000;enemyHealth:300;aggressionDistance:8000;
   enemies:readonly Readonly<{aircraft:'privateJet'|'trainer';livery:string;x:number;z:number;altitude:number}>[];
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas17:Readonly<{
   id:'journey-dallas-17';cityId:'dallas';name:'IRON HUNTER';chapter:'SKY HUNTERS';firstClearCredits:2250;
-  startAirportId:'executive';timeLimitMs: 180000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:300;
+  startAirportId:'love';timeLimitMs: 180000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:300;
   enemyAltitude:2400;aggressionDistance:6000;patrolRadius:6000;cruiseSpeed:400;enemySpawn:Readonly<{x:number;z:number}>;
   enemies: readonly Readonly<{aircraft:'cargo'|'privateJet'|'trainer';livery:string;name:string;level:'HARD'|'VERY_HARD';health:200|300;x:number;z:number;altitude:number}>[];
 }>;
 export const journeyDallas18: Readonly<{
   id: 'journey-dallas-18'; cityId: 'dallas'; name: 'FINAL SHOWDOWN'; chapter: 'SKY HUNTERS'; firstClearCredits: 2400;
-  startAirportId: 'dfw'; timeLimitMs: 180000; enemyAircraft: 'fighter'; enemyLivery: 'firehawk-stealth-gray'; enemyHealth: 300;
+  startAirportId: 'love'; timeLimitMs: 180000; enemyAircraft: 'fighter'; enemyLivery: 'firehawk-stealth-gray'; enemyHealth: 300;
   enemyAltitude: 2700; aggressionDistance: 8000; patrolRadius: 7500; cruiseSpeed: 600;
   enemySpawn: Readonly<{x:number;z:number}>; enemyDamage: 20; shotIntervalMs: 750; burstShots: 2; burstPauseMs: 2000;
   enemies: readonly Readonly<{aircraft:'fighter'|'privateJet'|'trainer';livery:string;name:string;level:'LEGENDARY'|'VERY_HARD';health:300|200;x:number;z:number;altitude:number}>[];
@@ -238,7 +238,7 @@ export const journeyDallasCoinHunt01: Readonly<{
 
 export const journeyDallasTwinHunters01: Readonly<{
   id: 'journey-dallas-twin-hunters-01'; cityId: 'dallas'; name: 'TWIN HUNTERS'; difficulty: 'MEDIUM';
-  runwayStart: true; startAirportId: 'dfw';
+  runwayStart: true; startAirportId: 'love';
   objective: string; timeLimitMs: 242000; firstClearCredits: 1500; enemyHealth: 300; aggressionDistance: 6000;
   airborneSpawn: Readonly<{x:number;z:number;altitude:number;heading:number;speed:number}>;
   enemies: readonly Readonly<{aircraft:'trainer'|'privateJet';livery:string;name:string;level:'MEDIUM';fireDelayMs:number;x:number;z:number;altitude:number}>[];

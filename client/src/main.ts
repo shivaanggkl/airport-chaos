@@ -10002,7 +10002,9 @@ function updateRemotePlayers(delta: number): void {
       remote.playerProxy.visible = false;
       continue;
     }
-    const identityVisible = remoteIdentityVisible(remote);
+    const twinHuntersIntroActor = flightLaunchState === 'active' && missionCombatIntroPath?.missionNumber === 15 &&
+      (remote.plane === missionCombatIntroPath.opponent || remote.playerId === journeyAttempt?.secondaryTargetId);
+    const identityVisible = !twinHuntersIntroActor && remoteIdentityVisible(remote);
     const distance = remote.plane.position.distanceTo(airplane.position);
     const visualScale = remote.plane.userData.rearGuardEscort ? journeyAttempt?.missionId === journeyDallas12.id ? journeyDallas12.escortScale : journeyAttempt?.missionId === journeyDallas10.id ? journeyDallas10.escortScale : journeyAttempt?.missionId === journeyDallas09.id ? journeyDallas09.escortScale : journeyDallas08.escortScale : remoteAircraftVisualScale(distance);
     const renderedScale = visualScale * (remote.plane.userData.rearGuardEscort ? 1 : aircraftPresentationScale[remote.aircraftType]);
