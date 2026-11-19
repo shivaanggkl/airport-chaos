@@ -200,7 +200,7 @@ test('all five bonus entries share details, progress and the authoritative coin-
   }
 });
 
-test('Plane Battles and every bonus intro share the target-style bottom summary',()=>{
+test('Plane Battles, every playable Territory mission, and every bonus intro share the bottom summary',()=>{
   const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
   const styles=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
   const ast=ts.createSourceFile('main.ts',source,ts.ScriptTarget.Latest,true);
@@ -218,6 +218,21 @@ test('Plane Battles and every bonus intro share the target-style bottom summary'
     assert.equal(title.children[0].tag,'strong');assert.equal(title.children[0].textContent,detail.title);
     assert.deepEqual(title.children.slice(1).map(line=>line.textContent),detail.description.split('\n'));
   }
+  const territories=missionJourneyStages.filter(stage=>stage.categoryId==='territory-missions'&&stage.kind==='main'&&stage.implementation==='playable');
+  assert.equal(territories.length,4);
+  for(const stage of territories){
+    context.journeyAttempt={missionId:stage.missionId};context.renderMissionIntroSummary();
+    const detail=missionJourneyDetails.find(mission=>mission.id===stage.missionId);
+    assert.ok(title.classList.contains('is-mission-intro-summary'));
+    assert.equal(title.children[0].textContent,detail.title);
+    assert.deepEqual(title.children.slice(1).map(line=>line.textContent),detail.description.split('\n'));
+    const heading=title.children[0];context.renderMissionIntroSummary();assert.equal(title.children[0],heading,'unchanged frames reuse the summary');
+  }
+  context.journeyAttempt={missionId:'journey-dallas-territory-hold-01'};
+  const briefing='LAS COLINAS · BLUEJAY GUARDIAN\nCapture all 3 TERRITORIES\nHold all 3 together for 30 seconds';
+  context.renderMissionIntroSummary(briefing);
+  assert.deepEqual(title.children.slice(1).map(line=>line.textContent),briefing.split('\n'));
+  assert.match(source,/renderMissionIntroSummary\(missionCaptureIntroPath.sequence \? text : undefined\)/,'capture frames keep the shared summary');
   for(const missionId of ['journey-dallas-sharpshooter-01']){
     title.textContent='original intro';context.journeyAttempt={missionId};context.renderMissionIntroSummary();
     assert.equal(title.textContent,'original intro');assert.ok(!title.classList.contains('is-mission-intro-summary'));

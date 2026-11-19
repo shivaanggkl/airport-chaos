@@ -4932,8 +4932,7 @@ function ensureCaptureCompetition(playerId: string, attempt: JourneyAttempt): Ca
   return state;
 }
 function reviveTerritoryHoldOpponent(playerId:string,pilot:PlayerState,attempt:JourneyAttempt,enemy:CaptureOpponent,slot:number):void {
-  const airports=botAirports('dallas');
-  const airport=airports.reduce((nearest,item)=>Math.hypot(item.x-enemy.position.x,item.z-enemy.position.z)<Math.hypot(nearest.x-enemy.position.x,nearest.z-enemy.position.z)?item:nearest,airports[0]!);
+  const airport=botAirports('dallas').find(item=>item.id==='dfw')!;
   const along=airport.runwayLength*.3;
   enemy.position={x:airport.x+Math.sin(airport.heading)*along,y:botRunwayHeight('dallas',airport.x,airport.z)+1.2,z:airport.z+Math.cos(airport.heading)*along};
   enemy.rotation={x:0,y:airport.heading,z:0};enemy.velocity={x:0,y:0,z:0};
