@@ -1443,7 +1443,8 @@ function journeyMissionHeading(id: string): string {
   if (ringSlot) return `M${ringSlot.categoryNumber}: ${ringSlot.kind === 'bonus' ? 'COLLECT COINS' : '10 RINGS'}`;
   const battleSlot = journeyCategorySlots.find(slot => slot.id === id && (slot.categoryId === 'plane-battles' || slot.categoryId === 'giant-battles'));
   if (battleSlot) return `M${battleSlot.categoryNumber}: ${missionJourneyDetails.find(mission => mission.id === battleSlot.missionId)!.title}`;
-  if(id===journeyDallasTerritoryHold01.id)return 'M4: CAPTURE & HOLD 3 TERRITORIES';
+  const territorySlot = journeyCategorySlot(id);
+  if (territorySlot?.categoryId === 'territory-missions') return `M${territorySlot.categoryNumber}: ${missionJourneyDetails.find(mission => mission.id === territorySlot.missionId)!.title}`;
   const targetMission=journeySharpshooterMission(id);
   if(targetMission)return `M${journeyCategorySlot(id)?.categoryNumber ?? 1}: ${targetMission===journeyDallasSharpshooter01?'TARGETS':targetMission.name}`;
   const slot = journeyCatalog.find(slot => slot.id === id);
@@ -3296,7 +3297,7 @@ function updateJourneyHud(): void {
   if (journeyHudBonusTitle) journeyHudBonusTitle.hidden = !bonusRound;
   if (bonusRound && journeyHudBonusTitle) journeyHudBonusTitle.textContent = missionJourneyDetails.find(mission => mission.id === journeyAttempt?.missionId)?.title ?? 'COLLECT COINS';
   const missionNumber = journeyMissionSlot(journeyAttempt.missionId);
-  if (journeyHudHeading) journeyHudHeading.textContent = territoryDefense ? 'M16: TERRITORY' : missionNumber
+  if (journeyHudHeading) journeyHudHeading.textContent = missionNumber
     ? journeyMissionHeading(journeyAttempt.missionId) : 'MISSION';
   const missionDefinition = journeyMissionDefinitions.find(mission => mission.id === journeyAttempt?.missionId);
   const initialLimit = missionDefinition && 'timeLimitMs' in missionDefinition ? missionDefinition.timeLimitMs : null;
@@ -3730,7 +3731,8 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   journeyResultElement.querySelector<HTMLElement>('.journey-result-status-mark')!.textContent = success ? '✓' : '';
   const resultSlot = journeyCategorySlot(attempt.missionId);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = resultSlot?.kind === 'bonus' && resultSlot.categoryId !== 'golden-rings' ? 'BONUS' : resultSlot ? `M${resultSlot.categoryNumber}` : 'MISSION';
-  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = journeyCatalog.find(slot => slot.id === attempt.missionId)?.title ?? 'MISSION';
+  const territoryDetail = resultSlot?.categoryId === 'territory-missions' ? missionJourneyDetails.find(mission => mission.id === resultSlot.missionId) : undefined;
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = territoryDetail?.title ?? journeyCatalog.find(slot => slot.id === attempt.missionId)?.title ?? 'MISSION';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success ? attempt.missionId===journeyDallasCoinHunt01.id ? 'BONUS ROUND COMPLETE' : 'MISSION CLEARED' : 'MISSION FAILED';
   const formatResultTime = (milliseconds: number): string => {
     const seconds = Math.max(0, Math.floor(milliseconds / 1000));

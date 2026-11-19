@@ -21,7 +21,8 @@ test('live bonus round: validated pickups, airborne recovery, reconnect, cash-ou
  const profiles=new PlayerProfileStore(path);const initial=profiles.getOrCreate(identity.pilotId,'Pilot').credits;
  const db=new DatabaseSync(path);db.prepare("INSERT OR REPLACE INTO pilot_tutorial_state(pilot_id,version,status,updated_at,completed_at,required) VALUES(?, 'tutorial_v1','completed',?,?,0)").run(identity.pilotId,Date.now(),Date.now());
  const store=new JourneyAttemptStore(path,true),attempt=store.launch(identity.pilotId,'trainer',Date.now(),mission.id);
- db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(identity.pilotId,'journey-dallas-15','previous-clear',Date.now(),1000);
+ for(const id of [1,3,4,5,6].map(n=>`journey-dallas-${String(n).padStart(2,'0')}`))
+  db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(identity.pilotId,id,`${id}-clear`,Date.now(),1000);
  // A second durable round expires without ever opening a socket.
  const offline=sessions.issue(undefined,false);profiles.getOrCreate(offline.pilotId,'Offline');
  const offlineAttempt=store.launch(offline.pilotId,'trainer',Date.now(),mission.id);
@@ -58,6 +59,8 @@ test('live bonus round: validated pickups, airborne recovery, reconnect, cash-ou
    const target=coinCenterline(.025),dx=target.x-position.x,dz=target.z-position.z,length=Math.hypot(dx,dz);
    position.x+=dx/length*distance;position.z+=dz/length*distance;heading=Math.atan2(-dx,-dz);state();
   }
+  // Let the final queued transform reach the server before recording the pre-crash count.
+  await sleep(100);
   const progress=store.get(identity.pilotId,attempt.attemptId)!;assert.ok(progress.coinHunt!.collected>0);assert.equal(progress.status,'RACING');
   assert.equal(profiles.getOrCreate(identity.pilotId,'Pilot').credits,initial);
   send({type:'journeyCrash'});
