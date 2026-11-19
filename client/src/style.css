@@ -7400,21 +7400,15 @@ html.custom-control-layout #game-root #radar-panel {
 .coin-hunt-flying-credit {position:fixed;width:30px;height:30px;object-fit:contain;pointer-events:none;z-index:100;}
 #game-root.launch-cinematic-active.coin-hunt-intro-details > #mission-status-layer,
 #game-root.launch-cinematic-active.coin-hunt-intro-details > #unified-flight-hud {opacity:1 !important;--launch-hud-opacity:1;}
-#game-root.coin-hunt-intro .flight-launch-title {top:clamp(110px,22vh,190px);max-width:55vw;white-space:normal;}
 @media(max-width:600px) {
  .coin-hunt-counter {left:55%;grid-template-columns:22px auto;padding:3px 6px;}
  .coin-hunt-counter img {width:22px;height:22px;}
- #game-root.coin-hunt-intro .flight-launch-title {max-width:47vw;left:auto;right:10px;transform:none;top:25vh;font-size:13px;letter-spacing:.02em;}
 }
 
-#game-root.coin-hunt-intro-details .flight-launch-title {
-  left:auto;right:16px;transform:none;max-width:calc(100vw - 360px);font-size:clamp(14px,2vw,26px);
-}
 @media(max-width:600px) and (orientation:portrait) {
  .coin-hunt-counter {left:14px;transform:none;}
  .unified-flight-hud .coin-hunt-counter strong {font-size:inherit;}
  #game-root.coin-hunt-active .mission-status-layer {top:max(140px,calc(var(--safe-area-top) + 134px));}
- #game-root.coin-hunt-intro .flight-launch-title {left:14px;right:14px;top:auto;bottom:max(24px,var(--safe-area-bottom));max-width:none;}
 }
 
 body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equipped-page { padding-top: max(12px, var(--safe-area-top)); }
@@ -7533,11 +7527,11 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 /* M8 overview labels the assigned targets; no preview target models. */
 #game-root.launch-cinematic-active > .sharpshooter-placement-overview { position: absolute; inset: 0; z-index: 21; pointer-events: none; }
 .sharpshooter-overview-heading,
-#game-root .flight-launch-title.is-plane-battle-summary { position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: grid; gap: 5px; justify-items: center; padding: 10px 25px; border: 2px solid var(--ui-bright-gold); border-radius: 15px; background: linear-gradient(#164668, #08243f); box-shadow: 0 0 18px rgb(var(--ui-bright-gold-rgb) / 0.200), inset 0 1px #ffffff55; white-space: nowrap; }
+#game-root .flight-launch-title.is-mission-intro-summary { position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: grid; gap: 5px; justify-items: center; padding: 10px 25px; border: 2px solid var(--ui-bright-gold); border-radius: 15px; background: linear-gradient(#164668, #08243f); box-shadow: 0 0 18px rgb(var(--ui-bright-gold-rgb) / 0.200), inset 0 1px #ffffff55; white-space: nowrap; }
 .sharpshooter-overview-heading strong,
-#game-root .flight-launch-title.is-plane-battle-summary > strong { color: var(--ui-bright-gold); font: 900 clamp(17px, 2.3vw, 28px)/1 var(--font-body); letter-spacing: .12em; }
+#game-root .flight-launch-title.is-mission-intro-summary > strong { color: var(--ui-bright-gold); font: 900 clamp(17px, 2.3vw, 28px)/1 var(--font-body); letter-spacing: .12em; }
 .sharpshooter-overview-heading span,
-#game-root .flight-launch-title.is-plane-battle-summary > span { color: #fff; font: 800 clamp(10px, 1.3vw, 16px)/1.2 var(--font-body); }
+#game-root .flight-launch-title.is-mission-intro-summary > span { color: #fff; font: 800 clamp(10px, 1.3vw, 16px)/1.2 var(--font-body); }
 .sharpshooter-placement { position: absolute; display: grid; justify-items: center; gap: 3px; transform: translate(-50%, -100%); padding-bottom: 12px; color: #fff; font: 850 clamp(8px, 1vw, 12px)/1.1 var(--font-body); text-shadow: 0 1px 3px #001527; }
 .sharpshooter-placement b { display: grid; place-items: center; width: clamp(25px, 3vw, 38px); height: clamp(25px, 3vw, 38px); border: 2px solid var(--ui-bright-gold); border-radius: 50%; background: linear-gradient(var(--ui-bright-gold), var(--ui-bright-gold)); color: #09253c; font-size: 1.8em; text-shadow: none; box-shadow: 0 0 12px rgb(var(--ui-bright-gold-rgb) / 0.502); }
 #game-root.sharpshooter-intro:has(.sharpshooter-placement-overview) .flight-launch-title { display: none; }
@@ -7609,12 +7603,12 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 #game-root .flight-launch-title.is-ring-mission-info.is-visible { transform: translateY(0); }
 #game-root .flight-launch-title.is-ring-mission-info > span { color: var(--ui-bright-gold); font: inherit; }
 
-/* Plane Battles uses the same bottom summary panel as the target overview. */
-#game-root .flight-launch-title.is-plane-battle-summary {
+/* Mission intros share the bottom summary panel used by the target overview. */
+#game-root .flight-launch-title.is-mission-intro-summary {
   top: auto; right: auto; width: max-content;
   max-width: calc(100% - max(16px, var(--safe-area-left, 0px)) - max(16px, var(--safe-area-right, 0px)));
   box-sizing: border-box; text-align: center; white-space: normal;
   transform: translate(-50%, 8px); text-shadow: none;
 }
-#game-root .flight-launch-title.is-plane-battle-summary.is-visible { transform: translateX(-50%); }
-#game-root .flight-launch-title.is-plane-battle-summary > span { letter-spacing: .02em; }
+#game-root .flight-launch-title.is-mission-intro-summary.is-visible { transform: translateX(-50%); }
+#game-root .flight-launch-title.is-mission-intro-summary > span { letter-spacing: .02em; }

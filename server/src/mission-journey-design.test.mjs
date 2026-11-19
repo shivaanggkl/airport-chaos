@@ -35,8 +35,8 @@ test('server eligibility drives nodes, while placeholders stay locked even with 
   missionJourneyStages.forEach((stage, index) => assert.equal(all.statuses[index], stage.implementation === 'playable' ? 'completed' : 'locked'));
   const allCleared = Object.fromEntries(missions.journeyMissionOrder.map(id => [id, {completed:true}]));
   allCleared['journey-dallas-02'] = {completed:true}; // Historical Lake Racer clears no longer count.
-  assert.equal(journeyMainCompleted(allCleared), 24);
-  assert.deepEqual(journeyCompletionSummary(allCleared), {completed:29,total:34});
+  assert.equal(journeyMainCompleted(allCleared), 23);
+  assert.deepEqual(journeyCompletionSummary(allCleared), {completed:28,total:34});
   assert.match(view, /play.disabled = placeholder \|\| this.cityLocked/);
   assert.match(view, /placeholder \? 'COMING SOON'/);
   assert.match(bootstrap, /missionJourney.setCityLocked\(!dallasUnlocked\(\)\)/);
@@ -69,5 +69,5 @@ test('only the track scrolls, with touch, wheel, keyboard and Special Pursuits r
   assert.match(view, /focus\(\{ preventScroll: true \}\)/);
   assert.match(view, /this.mainScroll = this.viewport.scrollLeft/);
   assert.match(view, /this.viewport.scrollLeft = open \? 0 : this.mainScroll/);
-  assert.match(view, /selected.categoryId !== 'plane-battles'/);
+  assert.doesNotMatch(view, /data-extra-pursuits|2 EXTRA/);
 });

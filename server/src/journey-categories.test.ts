@@ -24,8 +24,8 @@ function clear(db: DatabaseSync, id: string, pilot = 'pilot'): void {
 test('32 display slots and two pursuits exclude the retired Airport & Cargo chapter', () => {
   assert.equal(journeyCategorySlots.length, 32);
   assert.equal(journeyPursuitSlots.length, 2);
-  assert.equal(journeyMainMissionIds.length, 27);
-  assert.equal(journeyPlayableMainIds.length, 24);
+  assert.equal(journeyMainMissionIds.length, 26);
+  assert.equal(journeyPlayableMainIds.length, 23);
   assert.deepEqual(journeyCategories.map(group => group.missionIds.length), [6,6,6,6,6]);
   const all = [...journeyCategorySlots, ...journeyPursuitSlots];
   assert.equal(new Set(all.map(slot => slot.id)).size, 34);
@@ -50,7 +50,7 @@ test('Shooting Targets ends with the same playable bonus round as Golden Rings',
 });
 
 test('retired missions cannot launch even with historical clears or QA access', () => fixture((store, db, path) => {
-  const removed = ['journey-dallas-13', 'journey-dallas-02', 'journey-dallas-airport-hop-01', ...Array.from({length:5}, (_, i) => `placeholder-dallas-airport-cargo-${i + 2}`)];
+  const removed = ['journey-dallas-09', 'journey-dallas-13', 'journey-dallas-02', 'journey-dallas-airport-hop-01', ...Array.from({length:5}, (_, i) => `placeholder-dallas-airport-cargo-${i + 2}`)];
   for (const id of removed) clear(db, id);
   db.prepare('INSERT INTO journey_access_grants(pilot_id,mission_id) VALUES(?,?)').run('pilot', removed[0]!);
   const qaStore = new JourneyAttemptStore(path, true);
@@ -208,5 +208,32 @@ test('retiring First Contact abandons unfinished attempts without changing compl
  assert.equal(retired.status,'ABANDONED');assert.equal(retired.failureReason,'MISSION_RETIRED');
  assert.equal(reopened.activeSnapshot('pilot',a.attemptId),undefined);
  assert.equal(reopened.progress('pilot','journey-dallas-13').completed,true);
+ assert.deepEqual(db.prepare('SELECT credits FROM player_profiles WHERE pilot_id=?').get('pilot'),before);
+}));
+
+
+test('Giant Battles removes the three-escort mission, shifts the remaining slots and shares bonus six',()=>fixture((store,db,path)=>{
+ const ids=['journey-dallas-07','journey-dallas-08','journey-dallas-10','journey-dallas-11','journey-dallas-12','journey-dallas-coin-hunt-04'];
+ const group=journeyCategories.find(group=>group.id==='giant-battles');
+ assert.deepEqual(group.missionIds,ids);
+ const slots=journeyCategorySlots.filter(slot=>slot.categoryId===group.id);
+ assert.deepEqual(slots.map(slot=>slot.categoryNumber),[1,2,3,4,5,6]);
+ assert.equal(slots[5].kind,'bonus');assert.equal(slots[5].missionId,'journey-dallas-coin-hunt-01');
+ for(const id of ids.slice(0,5)){
+  assert.equal(store.canAccessMission('pilot',id),true);
+  assert.equal(store.launch('pilot','trainer',2000,id).missionId,id);
+  clear(db,id);
+ }
+ assert.ok(!journeyMissionOrder.includes('journey-dallas-09'));
+ assert.ok(!journeyCategorySlots.some(slot=>slot.id==='journey-dallas-09'));
+ const a=store.launch('pilot','trainer',3000,ids[0]);
+ db.prepare('UPDATE journey_attempts SET mission_id=? WHERE attempt_id=?').run('journey-dallas-09',a.attemptId);
+ clear(db,'journey-dallas-09');
+ const before=db.prepare('SELECT credits FROM player_profiles WHERE pilot_id=?').get('pilot');
+ const reopened=new JourneyAttemptStore(path);
+ assert.equal(reopened.get('pilot',a.attemptId).failureReason,'MISSION_RETIRED');
+ assert.equal(reopened.get('pilot',a.attemptId).status,'ABANDONED');
+ assert.equal(reopened.activeSnapshot('pilot',a.attemptId),undefined);
+ assert.equal(reopened.progress('pilot','journey-dallas-09').completed,true);
  assert.deepEqual(db.prepare('SELECT credits FROM player_profiles WHERE pilot_id=?').get('pilot'),before);
 }));

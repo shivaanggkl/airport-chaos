@@ -6,7 +6,7 @@ import ts from 'typescript';
 import * as THREE from 'three';
 import {CombatMissionIntroPath} from '../../client/src/mission-combat-intro.ts';
 
-test('Twin Hunters shows both widely separated real aircraft up close and hands back to the runway camera',()=>{
+test('Twin Hunters reveals both opponents before the player and hands back to the runway camera',()=>{
  const actor=(size,position)=>{const root=new THREE.Group();root.add(new THREE.Mesh(new THREE.BoxGeometry(...size)));root.position.set(...position);return root;};
  const player=actor([8,3,12],[-50000,10,-40000]);
  const bluejay=actor([100,40,150],[-28900,100,-35700]);
@@ -14,7 +14,7 @@ test('Twin Hunters shows both widely separated real aircraft up close and hands 
  const roots=[player,bluejay,nightowl],originals=roots.map(root=>root.position.clone());
  const path=new CombatMissionIntroPath(bluejay,player,15,false,false,undefined,undefined,false,false,false,undefined,false,nightowl);
  const position=new THREE.Vector3(),target=new THREE.Vector3(),chase=player.position.clone().add(new THREE.Vector3(0,5,25));
- for(const aspect of [1280/589,812/375])for(const [elapsed,actor]of [[0,player],[2400,player],[2500,bluejay],[4000,bluejay],[5499,bluejay],[5500,nightowl],[7000,nightowl],[7999,nightowl]]){
+ for(const aspect of [1280/589,812/375])for(const [elapsed,actor]of [[0,bluejay],[2499,bluejay],[2500,nightowl],[4000,nightowl],[5499,nightowl],[5500,player],[7000,player],[7999,player]]){
   path.sample(elapsed,position,target,chase,player.position);
   assert.ok(target.distanceTo(actor.position)<1e-6);
   assert.ok(path.streamingPosition(elapsed).distanceTo(actor.position)<1e-6);

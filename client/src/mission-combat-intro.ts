@@ -92,7 +92,7 @@ export class CombatMissionIntroPath {
   private sampleTwinHunters(elapsed:number,position:THREE.Vector3,target:THREE.Vector3,chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {
     if (this.missionNumber === 15) {
       // The assigned pair can be kilometres apart. Reveal each real aircraft up close.
-      const actor = elapsed < 2500 ? this.player : elapsed < 5500 ? this.opponent : this.secondOpponent!;
+      const actor = elapsed < 2500 ? this.opponent : elapsed < 5500 ? this.secondOpponent! : this.player;
       const radius = actor === this.player ? this.playerRadius : actor === this.opponent ? this.opponentRadius : this.secondOpponentRadius;
       const orbit = .65 + THREE.MathUtils.smoothstep(elapsed, 0, 8000) * .3;
       this.offset.set(Math.sin(orbit) * radius, radius * .25, Math.cos(orbit) * radius)
@@ -209,7 +209,7 @@ export class CombatMissionIntroPath {
   }
   streamingPosition(elapsed: number): THREE.Vector3 {
     if(this.missionNumber===20)return elapsed<3000||elapsed>=5000&&elapsed<8000?this.opponent.position:this.player.position;
-    if(this.missionNumber===15)return elapsed<2500||elapsed>=8000?this.player.position:elapsed<5500?this.opponent.position:this.secondOpponent!.position;
+    if(this.missionNumber===15)return elapsed<2500?this.opponent.position:elapsed<5500?this.secondOpponent!.position:this.player.position;
     if(this.finalIntro)return elapsed<28000?this.opponent.position:this.player.position;
     if(this.huntingIntro)return elapsed<24000?this.opponent.position:this.player.position;
     if(this.strikingIntro)return elapsed<23000?this.opponent.position:this.player.position;
