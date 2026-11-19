@@ -77,6 +77,7 @@ test('all five Chapter 3 battles reverse at launch and recovery while bonus and 
  const end=source.indexOf('\n\n',start);
  for(const slot of battles){
   const mission=Object.values(missions).find(value=>value?.id===slot.missionId&&value.startAirportId);
+  assert.equal(mission.startAirportId,'love',slot.id);
   const airport=cityAirports.dallas.find(airport=>airport.id===mission.startAirportId);
   assert.ok(ctx.journeyUsesReverseRunway(slot.missionId));
   const local={...ctx,journeyAttempt:{missionId:slot.missionId},spawnAirportId:airport.id};
@@ -94,4 +95,20 @@ test('all five Chapter 3 battles reverse at launch and recovery while bonus and 
  for(const slot of journeyCategorySlots.filter(slot=>slot.kind==='bonus'||!['plane-battles','dr-boss'].includes(slot.categoryId)))
   assert.equal(ctx.journeyUsesReverseRunway(slot.missionId),false,slot.id);
  assert.equal(ctx.journeyUsesReverseRunway(),false);
+});
+
+
+test('Chapter 3 hostility requires Love Field departure proof, not the previous airports',()=>{
+ const ctx=vm.createContext({...missions,cityAirports,playerJourneyDfwTakeoff:new Set(['pilot']),playerJourneyLoveTakeoff:new Set(),
+  playerJourneyExecutiveTakeoff:new Set(['pilot']),playerJourneyAddisonTakeoff:new Set(),playerJourneyRunwayPrep:new Set(),botTerrainHeight:()=>0});
+ vm.runInContext(compile(fn('skyHunterDepartureReady')),ctx);
+ const pilot={position:{x:love.x+2000,y:500,z:love.z}};
+ for(const mission of [missions.journeyDallas14,missions.journeyDallas16,missions.journeyDallas17,missions.journeyDallas18]){
+  assert.equal(ctx.skyHunterDepartureReady('pilot',pilot,mission.id),false);
+  ctx.playerJourneyLoveTakeoff.add('pilot');
+  assert.equal(ctx.skyHunterDepartureReady('pilot',pilot,mission.id),true);
+  ctx.playerJourneyLoveTakeoff.clear();
+ }
+ assert.match(source,/active.missionId === journeyDallas16.id && !playerJourneyLoveTakeoff.has\(ownerId\)/);
+ assert.match(source,/attempt.missionId===journeyDallas16.id&&\(!playerJourneyLoveTakeoff.has\(pilotId\)/);
 });
