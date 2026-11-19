@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { aircraftVisualConfig, groundContactVisualOffset } from '../../shared/aircraft-visual-rules.mjs';
 import { aircraftDefinitions } from '../../client/src/aircraft.ts';
 import { aircraftCameraProfile, normalAircraftCameraProfile, cacheAircraftSafetyPoints, fitAircraftChase, requiredChaseDistance } from '../../client/src/chase-camera-framing.ts';
 const source = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
@@ -23,12 +24,12 @@ async function fixture(type, aspect=844/390) {
  model.scale.setScalar(Math.min(definition.wingSpan/size.x,(definition.bodyLength+definition.noseLength)/size.z));
  const center=new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());model.position.copy(center).negate();
  if(gltf.scene.userData.aircraftNormalizationCenter)model.position.fromArray(gltf.scene.userData.aircraftNormalizationCenter).multiply(model.scale).negate();
- const airplane=new THREE.Group();airplane.add(model);airplane.position.y=1000;airplane.userData.assetStatus='loaded';
+ const airplane=new THREE.Group();airplane.add(model);airplane.position.y=1000;airplane.userData.assetStatus='loaded';airplane.userData.airframeRoot=model;
  const camera=new THREE.PerspectiveCamera(58,aspect,2,10000);
  const state={THREE,fitAircraftChase,cacheAircraftSafetyPoints,requiredChaseDistance,aircraftCameraProfile,normalAircraftCameraProfile,aircraftType:type,smoothedChaseElevation:normalAircraftCameraProfile(type).elevation,smoothedChaseFocusRatio:normalAircraftCameraProfile(type).focusRatio,cameraSafetyPoints:[],smoothedCameraSafetyDistance:0,cameraSafetyRotation:new THREE.Quaternion(),roll:0,airplane,camera,aircraftVictory:null,currentAircraft:definition,
   CAMERA_CHASE_FOV:58,innerWidth:844,innerHeight:844/aspect,
   flightGameRoot:{},getComputedStyle:()=>({getPropertyValue:()=> '0px'}),performance:{now:()=>1000},
-  cameraFramingKey:'',cameraFramingAssetStatus:'',cameraFramingAspect:0,cameraFramePoints:[],cameraFrameVertex:new THREE.Vector3(),cameraFramingWidth:0,cameraFramingHeight:0,defaultChaseDistance:0,defaultChaseHeight:0,
+  cameraFramingAirframeY:0,cameraFramingKey:'',cameraFramingAssetStatus:'',cameraFramingAspect:0,cameraFramePoints:[],cameraFrameVertex:new THREE.Vector3(),cameraFramingWidth:0,cameraFramingHeight:0,defaultChaseDistance:0,defaultChaseHeight:0,
   cameraFocusAhead:0,smoothedChaseDistance:0,cameraDistanceMultiplier:1,cameraOrbitRadiusTarget:0,
   cameraOrbitDragging:false,cameraOrbitRecenterAt:null,cameraOrbitBlend:0,cameraOrbitYaw:0,cameraOrbitPitch:0,
   cameraWorldUp:new THREE.Vector3(0,1,0),cameraPitchAxis:new THREE.Vector3(1,0,0),
@@ -236,5 +237,36 @@ test('automatic camera keeps the same rear aircraft-relative angle through climb
    const cameraRight=new THREE.Vector3(1,0,0).applyQuaternion(s.cameraChaseQuaternion);
    assert.ok(Math.abs(cameraRight.y)<1e-6,`${type}: aircraft banking must not tilt the chase frame`);
   }
+ }
+});
+
+
+test('every aircraft keeps identical framing after releasing runway lift and on airborne starts',async()=>{
+ for(const type of Object.keys(aircraftDefinitions)){
+  const s=await fixture(type,1280/589),{airplane,camera}=s;
+  const airframe=airplane.userData.airframeRoot,baseY=airframe.position.y;
+  const lift=groundContactVisualOffset(aircraftVisualConfig[type].groundContacts,new THREE.Quaternion(),0);
+  const measure=()=>{
+   s.updateCamera(6);camera.position.copy(s.chaseCameraPosition);camera.lookAt(s.chaseLookTarget);camera.updateMatrixWorld();
+   airplane.updateWorldMatrix(true,true);
+   const center=new THREE.Box3().setFromObject(airframe).getCenter(new THREE.Vector3()).project(camera);
+   return {screen:center,position:s.chaseCameraPosition.clone(),look:s.chaseLookTarget.clone()};
+  };
+  const airborne=measure();
+  airframe.position.y=baseY+lift;s.cameraFramingKey='';measure();
+  const cachedPoints=s.cameraFramePoints.length;
+  for(const fraction of [1,.75,.25,0]){
+   airframe.position.y=baseY+lift*fraction;
+   const current=measure();
+   assert.ok(current.screen.distanceTo(airborne.screen)<1e-6,`${type}: runway-lift release changes screen framing`);
+   assert.equal(s.cameraFramePoints.length,cachedPoints);
+  }
+  const takeoff=measure();
+  assert.ok(takeoff.position.distanceTo(airborne.position)<1e-6,`${type}: runway and airborne starts must use the same camera position`);
+  assert.ok(takeoff.look.distanceTo(airborne.look)<1e-6,`${type}: runway and airborne starts must use the same focus`);
+  // Resizing refreshes the fit without recapturing an obsolete airframe offset.
+  s.innerWidth=1000;s.innerHeight=600;camera.aspect=1000/600;camera.updateProjectionMatrix();
+  const resized=measure();s.cameraFramingKey='';const recached=measure();
+  assert.ok(resized.position.distanceTo(recached.position)<1e-6,`${type}: resizing after takeoff cannot retain runway lift`);
  }
 });

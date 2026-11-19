@@ -1441,6 +1441,8 @@ function journeyMissionHeading(id: string): string {
   if (journeyCategorySlots.some(slot => slot.id === id && slot.kind === 'bonus')) return 'BONUS ROUND';
   const ringSlot = journeyCategorySlots.find(slot => slot.id === id && slot.categoryId === 'golden-rings');
   if (ringSlot) return `M${ringSlot.categoryNumber}: ${ringSlot.kind === 'bonus' ? 'COLLECT COINS' : '10 RINGS'}`;
+  const battleSlot = journeyCategorySlots.find(slot => slot.id === id && slot.categoryId === 'plane-battles');
+  if (battleSlot) return `M${battleSlot.categoryNumber}: ${missionJourneyDetails.find(mission => mission.id === battleSlot.missionId)!.title}`;
   const targetMission=journeySharpshooterMission(id);
   if(targetMission)return `M${journeyCategorySlot(id)?.categoryNumber ?? 1}: ${targetMission===journeyDallasSharpshooter01?'TARGETS':targetMission.name}`;
   const slot = journeyCatalog.find(slot => slot.id === id);
@@ -5195,6 +5197,7 @@ let cameraFramingWidth = 0;
 let cameraFramingHeight = 0;
 let cameraFramingAspect = 0;
 let cameraFramingAssetStatus = '';
+let cameraFramingAirframeY = 0;
 let smoothedChaseElevation = normalAircraftCameraProfile(aircraftType).elevation;
 let smoothedChaseFocusRatio: number = normalAircraftCameraProfile(aircraftType).focusRatio;
 let cameraSafetyPoints: number[] = [];
@@ -11083,6 +11086,7 @@ function refreshCameraFraming(): void {
   if (!modelChanged && cameraFramingWidth === innerWidth && cameraFramingHeight === innerHeight && cameraFramingAspect === camera.aspect) return;
 
   if (modelChanged) {
+    cameraFramingAirframeY = (airplane.userData.airframeRoot as THREE.Group | undefined)?.position.y ?? 0;
     airplane.updateWorldMatrix(true, true);
     cameraFrameRootInverse.copy(airplane.matrixWorld).invert();
     cameraFrameLocalBounds.makeEmpty();
@@ -11194,7 +11198,11 @@ function updateCamera(delta: number): void {
   const safetyRate = safetyTarget > smoothedCameraSafetyDistance ? 20 : 4;
   smoothedCameraSafetyDistance += (safetyTarget - smoothedCameraSafetyDistance) * (1 - Math.exp(-Math.max(0, delta) * safetyRate));
   const gameplayChaseDistance = smoothedChaseDistance + smoothedCameraSafetyDistance;
-  cameraFrameWorldCenter.copy(cameraFrameCenter).applyQuaternion(airplane.quaternion);
+  // Bounds stay cached, but the visual airframe releases its runway lift after takeoff.
+  // Track that translation so runway and airborne starts share the same framing.
+  cameraFrameWorldCenter.copy(cameraFrameCenter);
+  cameraFrameWorldCenter.y += ((airplane.userData.airframeRoot as THREE.Group | undefined)?.position.y ?? 0) - cameraFramingAirframeY;
+  cameraFrameWorldCenter.applyQuaternion(airplane.quaternion);
   chaseCameraPosition.copy(cameraOrbitOffset
     .set(
       0,
