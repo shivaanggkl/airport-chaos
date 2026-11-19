@@ -2860,13 +2860,7 @@ function createTerritoryWallGeometry(definition: CityTerritory): THREE.BufferGeo
 }
 
 function territoryDisplayName(definition: CityTerritory): string {
-  if ((journeyAttempt && journeyCompetitiveCaptureMission(journeyAttempt.missionId))) {
-    if (definition.id === 'las-colinas') return captureMissionTerritoryName;
-    if (definition.id === 'love-field') return dallasAirportNames.love;
-    if (definition.id === 'downtown') return dallasAirportNames.downtown;
-  }
-  return definition.id === focusedTerritoryTargetId() && !(journeyAttempt && journeyCompetitiveCaptureMission(journeyAttempt.missionId))
-    ? 'LAS COLINAS' : definition.displayName;
+  return definition.displayName;
 }
 function createCityTerritoryBorders(){return territoryDefinitions.map((definition) => {
   const wall = new THREE.Mesh(createTerritoryWallGeometry(definition), territoryWallMaterial);
@@ -2953,7 +2947,7 @@ function refreshTerritoryBorders(): void {
     applyTerritoryBorderStyle(entry);
     entry.owner.textContent = definition.id === focusedTerritoryTargetId()
       ? journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id
-        ? state?.controllerId ? `Owned by ${state.controllerName ?? 'another pilot'}` : 'NEUTRAL · CAPTURE LAS COLINAS'
+        ? state?.controllerId ? `Owned by ${state.controllerName ?? 'another pilot'}` : `NEUTRAL · CAPTURE ${captureMissionTerritoryName}`
         : 'MISSION TARGET · CAPTURE'
       : state?.contested ? 'CONTESTED' : state?.controllerId ? `Owned by ${state.controllerName ?? 'another pilot'}` : 'NEUTRAL';
     entry.label.style.setProperty('--territory-accent', entry.displayColor);
@@ -3062,8 +3056,8 @@ function journeyTerritoryCaptureLabel(): string {
   const target = territoryDefinitions.find(item => item.id === journeyDallasCapture01.territoryId)!;
   const agl = airplane.position.y - getTerrainHeight(airplane.position.x, airplane.position.z);
   const inside = territoryContains(target, airplane.position) && agl > 0;
-  return inside && journeyAttempt.status === 'RACING' ? 'STAY INSIDE LAS COLINAS'
-    : progress ? 'RETURN TO LAS COLINAS' : 'FLY TO LAS COLINAS';
+  return inside && journeyAttempt.status === 'RACING' ? `STAY INSIDE ${captureMissionTerritoryName}`
+    : progress ? `RETURN TO ${captureMissionTerritoryName}` : `FLY TO ${captureMissionTerritoryName}`;
 }
 
 function updateTerritoryPanel(allowDemonstration = true): void {
@@ -3071,7 +3065,7 @@ function updateTerritoryPanel(allowDemonstration = true): void {
     const mission = journeyDallasTerritoryDefense01;
     const state = displayedTerritoryState(mission.territoryId)!;
     const percent = Math.floor(journeyAttempt.captureMs * 100 / mission.captureDurationMs);
-    cityTerritoriesPanel.update([{name:'LAS COLINAS',
+    cityTerritoriesPanel.update([{name:captureMissionTerritoryName,
       color:state.controllerId ? territoryDefinitions.find(item=>item.id===mission.territoryId)!.fixedColor : neutralTerritoryColor,
       controllerId:state.controllerId, controllerName:state.controllerName, contested:state.contested,
       statusLabel:state.contested ? 'UNDER ATTACK' : state.controllerId ? state.controllerName ?? 'PILOT'

@@ -58,7 +58,7 @@ test('M21 uses the same separate territory host and clean mission box as M5', ()
   assert.equal(c.missionTerritoryCard.hidden, false);
   assert.equal(c.journeyHudObjective.textContent, '• Capture 3 TERRITORIES');
   for (const key of ['journeyHudProgress', 'journeyHudTarget', 'journeyHudSegmentRow']) assert.equal(c[key].hidden, true);
-  assert.deepEqual(rows.map(row => row.name), ['LAS COLINAS', 'LOVE FIELD AIRPORT', 'CENTRAL DISTRICT']);
+  assert.deepEqual(rows.map(row => row.name), ['LAS COLINAS TERRITORY', 'LOVE FIELD TERRITORY', 'DOWNTOWN DALLAS TERRITORY']);
   assert.deepEqual(rows.map(row => row.statusLabel), ['CAPTURING 50%', 'UNASSIGNED', 'UNASSIGNED']);
   c.missionTerritoryCard.classList.add('is-collapsed'); c.layout();
   assert.equal(c.missionTerritoryCard.classList.contains('is-collapsed'), true, 'HUD refresh must preserve the collapse choice');

@@ -1,7 +1,8 @@
+import { territoriesForCity } from '../../shared/city-territories.mjs';
 import { journeyDallasMostWantedSurvival01, journeyDallasCaptureThree01, journeyDallasTerritoryHold01, journeyTerritoryCaptureMission, journeyCaptureTerritoryId, journeyDallasAceIntercept01, journeyDallasTerritoryDefense01, journeyDallasTwinHunters01, journeyCatalog } from '../../shared/journey-mission.mjs';
 import { journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasSharpshooter02, journeyDallasSharpshooter03, journeyDallasSharpshooter04, journeyDallasSharpshooter05, journeyDallasCapture01, journeyDallas01, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 
-export const captureMissionTerritoryName = 'LAS COLINAS';
+export const captureMissionTerritoryName = territoriesForCity('dallas').find(territory => territory.id === 'las-colinas')!.displayName;
 
 export const territoryDefenseInstructions = [
   'Capture 1 TERRITORY',

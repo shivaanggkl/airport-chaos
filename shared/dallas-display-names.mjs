@@ -5,6 +5,6 @@ export const dallasDisplayNames = Object.freeze({
   addison: 'ADDISON AIRPORT',
   executive: 'DALLAS EXECUTIVE AIRPORT',
   reunion: 'SKYLINE TOWER',
-  lasColinas: 'CANAL DISTRICT',
-  downtown: 'CENTRAL DISTRICT',
+  lasColinas: 'LAS COLINAS',
+  downtown: 'DOWNTOWN DALLAS',
 });
