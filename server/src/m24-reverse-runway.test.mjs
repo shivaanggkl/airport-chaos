@@ -92,7 +92,7 @@ test('all five Chapter 3 battles reverse at launch and recovery while bonus and 
    assert.equal(recovered.heading,airport.heading+Math.PI);
   }
  }
- for(const slot of journeyCategorySlots.filter(slot=>slot.kind==='bonus'||!['plane-battles','dr-boss'].includes(slot.categoryId)))
+ for(const slot of journeyCategorySlots.filter(slot=>slot.kind==='bonus'||!['plane-battles','territory-missions','dr-boss'].includes(slot.categoryId)))
   assert.equal(ctx.journeyUsesReverseRunway(slot.missionId),false,slot.id);
  assert.equal(ctx.journeyUsesReverseRunway(),false);
 });
@@ -111,4 +111,29 @@ test('Chapter 3 hostility requires Love Field departure proof, not the previous 
  }
  assert.match(source,/active.missionId === journeyDallas16.id && !playerJourneyLoveTakeoff.has\(ownerId\)/);
  assert.match(source,/attempt.missionId===journeyDallas16.id&&\(!playerJourneyLoveTakeoff.has\(pilotId\)/);
+});
+
+test('Chapter 5 regular starts and recovery mirror the DFW runway without changing bonus rounds',()=>{
+ const dfw=cityAirports.dallas.find(a=>a.id==='dfw');let attempt;
+ const ctx=vm.createContext({...missions,journeyCategorySlot,cityAirports,dallasAirportElevations:new Map([['dfw',135]]),
+  playerJourneyAttempts:new Map([['pilot','attempt']]),journeyStore:{activeSnapshot:()=>attempt},players:new Map(),
+  nearestCityAirport:()=>undefined,respawnClearance:60,combatTransformFreshMs:5000});
+ vm.runInContext(compile(fn('journeyUsesReverseRunway')+fn('expectedInitialTransform')+fn('safeRespawnTransform')),ctx);
+ const slots=journeyCategorySlots.filter(s=>s.categoryId==='territory-missions'&&s.kind==='main');assert.equal(slots.length,5);
+ for(const slot of slots){
+  assert.equal(ctx.journeyUsesReverseRunway(slot.missionId),true,slot.id);
+  for(let lane=0;lane<12;lane++){
+   const normal=ctx.expectedInitialTransform('dallas',lane,{x:0,y:0,z:45},'dfw');
+   const reversed=ctx.expectedInitialTransform('dallas',lane,{x:0,y:0,z:45},'dfw',true);
+   assert.ok(Math.abs(normal.x+reversed.x-2*dfw.x)<1e-7);assert.ok(Math.abs(normal.z+reversed.z-2*dfw.z)<1e-7);
+   assert.equal(reversed.y,135);assert.ok(Math.abs(reversed.z-dfw.z)<dfw.runwayLength/2-120);
+  }
+  if(slot.implementation!=='playable')continue;
+  for(const status of ['APPROACH','RACING']){
+   attempt={missionId:slot.missionId,status};
+   const restored=ctx.safeRespawnTransform('pilot',{pilotId:'pilot',cityId:'dallas',position:{x:0,y:500,z:0},spawnSlot:0},10000);
+   assert.equal(restored.heading,dfw.heading+Math.PI);assert.ok(restored.position.z<dfw.z);assert.equal(restored.position.y,135);
+  }
+ }
+ for(const bonus of journeyCategorySlots.filter(s=>s.kind==='bonus'))assert.equal(ctx.journeyUsesReverseRunway(bonus.missionId),false);
 });

@@ -13,6 +13,7 @@ import {JourneyAttemptStore} from './journey-attempts.js';
 import {journeyCategorySlots} from '../../shared/journey-categories.mjs';
 import {journeyMissionOrder} from '../../shared/journey-mission.mjs';
 import {PROTOCOL_VERSION} from '../../shared/protocol.mjs';
+import {cityAirports} from '../../shared/city-airports.mjs';
 const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
 test('Ch5 regular missions start at DFW and all five chapter bonuses use the same airborne launch',{timeout:35000},async()=>{
  const dir=mkdtempSync(join(tmpdir(),'ch5-start-')),path=join(dir,'profiles.sqlite');
@@ -39,8 +40,8 @@ test('Ch5 regular missions start at DFW and all five chapter bonuses use the sam
    const packets:any[]=[];const ws=new WebSocket(`ws://127.0.0.1:${port}/?city=dallas&launchMode=missions&journeyAttempt=${attempt.attemptId}&protocol=${PROTOCOL_VERSION}`,{origin:base,headers:headers(i)});sockets.push(ws);ws.on('message',b=>packets.push(JSON.parse(String(b))));
    for(let n=0;n<300&&!packets.some(p=>p.type==='welcome');n++)await sleep(20);
    const welcome=packets.find(p=>p.type==='welcome');assert.ok(welcome,logs+JSON.stringify(packets.slice(-1)));
-   if(slot.kind==='main'){assert.equal(welcome.spawnAirportId,'dfw',slot.id);assert.equal(welcome.airborneSpawn,undefined,slot.id);}
-   else {assert.ok(welcome.airborneSpawn,'all chapters retain the identical airborne bonus');if(bonusSpawn)assert.deepEqual(welcome.airborneSpawn,bonusSpawn);else bonusSpawn=welcome.airborneSpawn;}
+   if(slot.kind==='main'){assert.equal(welcome.spawnAirportId,'dfw',slot.id);assert.equal(welcome.airborneSpawn,undefined,slot.id);const dfw=cityAirports.dallas.find(a=>a.id==='dfw')!;assert.equal(welcome.runwaySpawn.heading,dfw.heading+Math.PI);assert.ok(welcome.runwaySpawn.position.z<dfw.z);}
+   else {assert.equal(welcome.runwaySpawn,undefined);assert.ok(welcome.airborneSpawn,'all chapters retain the identical airborne bonus');if(bonusSpawn)assert.deepEqual(welcome.airborneSpawn,bonusSpawn);else bonusSpawn=welcome.airborneSpawn;}
    for(let n=0;n<100&&!packets.some(p=>p.type==='journeyAttempt');n++)await sleep(20);
    assert.equal(packets.find(p=>p.type==='journeyAttempt').attempt.missionId,slot.missionId);
    ws.terminate();

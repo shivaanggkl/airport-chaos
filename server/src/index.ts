@@ -8214,7 +8214,9 @@ function runwayOrTaxiSpawnArea(player: PlayerState): { id: string } | undefined 
 function safeRespawnTransform(playerId: string, player: PlayerState, now: number): { position: Vector3; heading: number } {
   const activeAttemptId = playerJourneyAttempts.get(playerId);
   const activeAttempt = activeAttemptId ? journeyStore.activeSnapshot(player.pilotId, activeAttemptId) : undefined;
-  const missionAirportId = activeAttempt?.missionId === journeyDallasTwinHunters01.id ? journeyDallasTwinHunters01.startAirportId
+  const activeSlot = activeAttempt ? journeyCategorySlot(activeAttempt.missionId) : undefined;
+  const missionAirportId = activeSlot?.categoryId === 'territory-missions' && activeSlot.kind === 'main' ? 'dfw'
+    : activeAttempt?.missionId === journeyDallasTwinHunters01.id ? journeyDallasTwinHunters01.startAirportId
     : activeAttempt?.missionId === journeyDallasAirportHop01.id ? (activeAttempt.airportHopStage >= 2 ? 'love' : 'dfw')
     : activeAttempt?.missionId === journeyDallas19.id ? journeyDallas19.startAirportId
     : activeAttempt?.missionId === journeyDallas23.id ? journeyDallas23.startAirportId
@@ -8314,7 +8316,7 @@ function resetHumanToSafeRunway(playerId: string, player: PlayerState, profile: 
 
 function journeyUsesReverseRunway(missionId?: string): boolean {
   const slot = missionId ? journeyCategorySlot(missionId) : undefined;
-  return missionId === journeyDallas19.id || slot?.categoryId === 'plane-battles' && slot.kind === 'main';
+  return missionId === journeyDallas19.id || (slot?.categoryId === 'plane-battles' || slot?.categoryId === 'territory-missions') && slot.kind === 'main';
 }
 
 function expectedInitialTransform(cityId: CityId, spawnSlot: number, generic: Vector3, airportId = 'dfw', reverseRunway = false): Vector3 {
