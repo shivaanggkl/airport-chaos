@@ -11,12 +11,12 @@ import {PlayerProfileStore} from './player-profiles.js';
 import {PilotSessionStore} from './session-auth.js';
 import {JourneyAttemptStore} from './journey-attempts.js';
 import {PROTOCOL_VERSION} from '../../shared/protocol.mjs';
-import {journeyDallasSharpshooter02,journeyDallasSharpshooter03,journeyDallasSharpshooter04} from '../../shared/journey-mission.mjs';
-import {movingTargetPlacements,doubleTroublePlacements,precisionFirePlacements} from '../../shared/sharpshooter-target.mjs';
+import {journeyDallasSharpshooter02,journeyDallasSharpshooter03,journeyDallasSharpshooter04,journeyDallasSharpshooter05} from '../../shared/journey-mission.mjs';
+import {movingTargetPlacements,doubleTroublePlacements,precisionFirePlacements,targetMasterPlacements} from '../../shared/sharpshooter-target.mjs';
 const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
 
-for(const mission of [journeyDallasSharpshooter02,journeyDallasSharpshooter03,journeyDallasSharpshooter04]){
-const placements=mission===journeyDallasSharpshooter02?movingTargetPlacements:mission===journeyDallasSharpshooter03?doubleTroublePlacements:precisionFirePlacements;
+for(const mission of [journeyDallasSharpshooter02,journeyDallasSharpshooter03,journeyDallasSharpshooter04,journeyDallasSharpshooter05]){
+const placements=mission===journeyDallasSharpshooter02?movingTargetPlacements:mission===journeyDallasSharpshooter03?doubleTroublePlacements:mission===journeyDallasSharpshooter04?precisionFirePlacements:targetMasterPlacements;
 test(`live ${mission.name} sends every mapped target and starts its clock only after handoff`,{timeout:45000},async()=>{
  const directory=mkdtempSync(join(tmpdir(),'moving-live-')),path=join(directory,'profiles.sqlite');
  const identity=new PilotSessionStore(path).issue(undefined,false);
@@ -24,7 +24,7 @@ test(`live ${mission.name} sends every mapped target and starts its clock only a
  const store=new JourneyAttemptStore(path);
  const db=new DatabaseSync(path),now=Date.now();
  db.prepare("INSERT OR REPLACE INTO pilot_tutorial_state(pilot_id,version,status,updated_at,completed_at,required) VALUES(?,'tutorial_v1','completed',?,?,0)").run(identity.pilotId,now,now);
- for(const id of ['journey-dallas-01','journey-dallas-sharpshooter-01',...(mission!==journeyDallasSharpshooter02?[journeyDallasSharpshooter02.id]:[]),...(mission===journeyDallasSharpshooter04?[journeyDallasSharpshooter03.id]:[])])db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(identity.pilotId,id,id,now,1000);
+ for(const id of ['journey-dallas-01','journey-dallas-sharpshooter-01',...(mission!==journeyDallasSharpshooter02?[journeyDallasSharpshooter02.id]:[]),...([journeyDallasSharpshooter04.id,journeyDallasSharpshooter05.id].includes(mission.id)?[journeyDallasSharpshooter03.id]:[]),...(mission===journeyDallasSharpshooter05?[journeyDallasSharpshooter04.id]:[])])db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(identity.pilotId,id,id,now,1000);
  db.close();
  let attempt:ReturnType<JourneyAttemptStore['launch']>;
  const port=await new Promise<number>(resolve=>{const listener=createServer();listener.listen(0,'127.0.0.1',()=>{const port=(listener.address() as {port:number}).port;listener.close(()=>resolve(port));});});
@@ -53,7 +53,7 @@ test(`live ${mission.name} sends every mapped target and starts its clock only a
   const racing=await wait(packet=>packet.type==='journeyAttempt'&&packet.attempt.status==='RACING');
   assert.equal(racing.attempt.deadlineAt-racing.attempt.startedAt,mission.timeLimitMs);assert.equal(racing.attempt.sharpshooter.targets.length,mission.targetCount);
   const response=await fetch(`http://127.0.0.1:${port}/api/journey/dallas`,{headers:{Cookie:`airport_chaos_session=${identity.cookie}`}});
-  assert.equal(response.status,200);const progress=await response.json() as any;assert.equal(progress[mission===journeyDallasSharpshooter02?'missionSharpshooter02':mission===journeyDallasSharpshooter03?'missionSharpshooter03':'missionSharpshooter04'].eligible,true);
+  assert.equal(response.status,200);const progress=await response.json() as any;assert.equal(progress[mission===journeyDallasSharpshooter02?'missionSharpshooter02':mission===journeyDallasSharpshooter03?'missionSharpshooter03':mission===journeyDallasSharpshooter04?'missionSharpshooter04':'missionSharpshooter05'].eligible,true);
  }finally{socket?.terminate();server.kill('SIGTERM');if(server.exitCode===null)await new Promise<void>(resolve=>server.once('exit',()=>resolve()));rmSync(directory,{recursive:true,force:true});}
 });
 

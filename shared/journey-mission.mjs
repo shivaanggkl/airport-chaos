@@ -1,5 +1,5 @@
 import { dallasDisplayNames as airportName } from './dallas-display-names.mjs';
-import { sharpshooterPlacements, doubleTroublePlacements, precisionFirePlacements } from './sharpshooter-target.mjs';
+import { sharpshooterPlacements, doubleTroublePlacements, precisionFirePlacements, targetMasterPlacements } from './sharpshooter-target.mjs';
 import { territoriesForCity } from './city-territories.mjs';
 import { transportTuning, transportLockParts } from './giant-incoming.mjs';
 import { remoteAircraftScale } from './remote-aircraft-visual-rules.mjs';
@@ -538,11 +538,18 @@ export const journeyDallasSharpshooter04 = Object.freeze({
   targetCount: precisionFirePlacements.length, timeLimitMs: 195_000, firstClearCredits: 1_250,
   airborneSpawn: Object.freeze({x:-60000,z:-6000,altitude:1000,heading:-0.55,speed:180}),
 });
+export const journeyDallasSharpshooter05 = Object.freeze({
+  ...journeyDallasSharpshooter01,
+  id: 'journey-dallas-sharpshooter-05', name: 'TARGET MASTER', difficulty: 'VERY HARD',
+  objective: 'SHOOT down 12 TARGETS\n12 moving targets',
+  targetCount: targetMasterPlacements.length, timeLimitMs: 540_000, firstClearCredits: 1_500,
+});
 export function journeySharpshooterMission(id) {
   return id === journeyDallasSharpshooter01.id ? journeyDallasSharpshooter01
     : id === journeyDallasSharpshooter02.id ? journeyDallasSharpshooter02
     : id === journeyDallasSharpshooter03.id ? journeyDallasSharpshooter03
-    : id === journeyDallasSharpshooter04.id ? journeyDallasSharpshooter04 : undefined;
+    : id === journeyDallasSharpshooter04.id ? journeyDallasSharpshooter04
+    : id === journeyDallasSharpshooter05.id ? journeyDallasSharpshooter05 : undefined;
 }
 export const journeyDallasAirportHop01 = Object.freeze({
   id: 'journey-dallas-airport-hop-01', cityId: 'dallas', name: 'AIRPORT HOP', difficulty: 'MEDIUM',
@@ -645,6 +652,7 @@ export const journeyCatalog = Object.freeze([
   [journeyDallasSharpshooter02.id, 'Moving Targets'],
   [journeyDallasSharpshooter03.id, 'Double Trouble'],
   [journeyDallasSharpshooter04.id, 'Precision Fire'],
+  [journeyDallasSharpshooter05.id, 'Target Master'],
 ].map(([identity, title], index) => Object.freeze({
   id: identity === null ? `placeholder-dallas-${String(index + 1).padStart(2, '0')}` : typeof identity === 'string' ? identity : `journey-dallas-${String(identity).padStart(2, '0')}`,
   number: index + 1, title,
