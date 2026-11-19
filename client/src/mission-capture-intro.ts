@@ -19,7 +19,7 @@ export class MissionCaptureIntroPath {
   private readonly streamingFocus: THREE.Vector3;
 
   constructor(territory: CaptureTerritory, _captureMs: number,
-    heightAt: (x: number, z: number) => number, readonly defense?:{player:THREE.Group;invader:THREE.Group},readonly sequence?:{player:THREE.Group;territories:readonly CaptureTerritory[]}) {
+    heightAt: (x: number, z: number) => number, readonly defense?:{player:THREE.Group;invader:THREE.Group},readonly sequence?:{player:THREE.Group;territories:readonly CaptureTerritory[];instructions?:readonly string[];owners?:readonly Readonly<{territoryId:string;name:string}>[]}) {
     const { minX, maxX, minZ, maxZ } = territory.bounds;
     const { x, z } = territory.center;
     const ground = heightAt(x, z);
@@ -34,7 +34,11 @@ export class MissionCaptureIntroPath {
   territoryAt(elapsed:number):CaptureTerritory|undefined{return this.sequenceFrames[elapsed<6000?0:elapsed<8000?1:2]?.territory;}
 
   text(elapsed: number): string {
-    if(this.sequence)return captureThreeInstructions.join('\n');
+    if(this.sequence){
+      const territory=this.territoryAt(elapsed),owner=this.sequence.owners?.find(owner=>owner.territoryId===territory?.id);
+      const ownership=owner&&territory&&this.showsTerritory(elapsed)?`${territory.displayName.toUpperCase()} · ${owner.name}\n`:'';
+      return ownership+(this.sequence.instructions??captureThreeInstructions).join('\n');
+    }
     if(this.defense)return territoryDefenseInstructions.join('\n');
     return captureMissionInstructions.join('\n');
   }

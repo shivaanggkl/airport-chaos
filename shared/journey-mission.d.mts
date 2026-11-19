@@ -275,7 +275,7 @@ export const journeyDallasCaptureThree01: Readonly<{
   territoryIds: readonly ['las-colinas','love-field','downtown'];
   airborneSpawn: Readonly<{x: -58000; z: -28050; altitude: 900; heading: number; speed: 650}>;
 }>;
-export function journeyTerritoryCaptureMission(id: string | undefined): typeof journeyDallasCapture01 | typeof journeyDallasCaptureThree01 | undefined;
+export function journeyTerritoryCaptureMission(id: string | undefined): typeof journeyDallasCapture01 | typeof journeyDallasCaptureThree01 | typeof journeyDallasTerritoryHold01 | undefined;
 export function journeyCaptureTerritoryId(id: string | undefined, stage?: number): string | undefined;
 
 export const journeyDallasMostWantedSurvival01: Readonly<{
@@ -289,3 +289,8 @@ export const journeyDallasMostWantedSurvival01: Readonly<{
     Readonly<{aircraft:'privateJet';livery:'nightowl-sunset-red';level:'MEDIUM';health:250;fireDelayMs:10000;x:-23200;z:-26600;altitude:-100}>
   ];
 }>;
+
+export const journeyDallasTerritoryHold01: Readonly<Omit<typeof journeyDallasCaptureThree01,'id'|'name'|'objective'|'firstClearCredits'> & {
+ id:'journey-dallas-territory-hold-01';name:'TERRITORY TAKEOVER';objective:string;firstClearCredits:2500;holdDurationMs:30000;opponentRespawnMs:10000;owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'privateJet'|'cargo';name:string}>[];
+}>;
+export function journeyCompetitiveCaptureMission(id:string|undefined):typeof journeyDallasCaptureThree01|typeof journeyDallasTerritoryHold01|undefined;

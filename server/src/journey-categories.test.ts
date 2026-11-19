@@ -24,8 +24,8 @@ function clear(db: DatabaseSync, id: string, pilot = 'pilot'): void {
 test('32 display slots and two pursuits exclude the retired Airport & Cargo chapter', () => {
   assert.equal(journeyCategorySlots.length, 32);
   assert.equal(journeyPursuitSlots.length, 2);
-  assert.equal(journeyMainMissionIds.length, 26);
-  assert.equal(journeyPlayableMainIds.length, 23);
+  assert.equal(journeyMainMissionIds.length, 25);
+  assert.equal(journeyPlayableMainIds.length, 24);
   assert.deepEqual(journeyCategories.map(group => group.missionIds.length), [6,6,6,6,6]);
   const all = [...journeyCategorySlots, ...journeyPursuitSlots];
   assert.equal(new Set(all.map(slot => slot.id)).size, 34);
@@ -237,3 +237,14 @@ test('Giant Battles removes the three-escort mission, shifts the remaining slots
  assert.equal(reopened.progress('pilot','journey-dallas-09').completed,true);
  assert.deepEqual(db.prepare('SELECT credits FROM player_profiles WHERE pilot_id=?').get('pilot'),before);
 }));
+
+
+test('Territory Missions ends with the existing shared bonus as mission six',()=>{
+ const group=journeyCategories.find(group=>group.id==='territory-missions');
+ assert.equal(group.missionIds.length,6);assert.equal(group.missionIds[5],'journey-dallas-coin-hunt-05');
+ const bonus=journeyCategorySlots.find(slot=>slot.id===group.missionIds[5]);
+ assert.equal(bonus.categoryNumber,6);assert.equal(bonus.kind,'bonus');
+ assert.equal(bonus.implementation,'playable');assert.equal(bonus.missionId,'journey-dallas-coin-hunt-01');
+ assert.equal(categoryMissionAccess(bonus.id,new Set(journeyMainMissionIds)),true);
+ assert.ok(!journeyCategorySlots.some(slot=>slot.id==='placeholder-dallas-territory-missions-6'));
+});

@@ -5,7 +5,7 @@ export type CaptureTerritory = { id: string; ownerId?: string; capturingId?: str
 export type CaptureOpponent = {
   id: string; aircraft: 'trainer' | 'fighter' | 'privateJet' | 'cargo'; level: 'EASY' | 'HARD';
   position: {x:number;y:number;z:number}; rotation: {x:number;y:number;z:number};
-  velocity: {x:number;y:number;z:number}; health: number; goal: number; retargetAt?:number;
+  velocity: {x:number;y:number;z:number}; health: number; goal: number; retargetAt?:number; respawnRemainingMs?:number; respawnUpdatedAt?:number; name?:string; role?:'owner'|'attacker'; runwayStart?:boolean; provokedUntil?:number;
 };
 export type CaptureCompetition = { territories: CaptureTerritory[]; opponents: CaptureOpponent[]; updatedAt: number };
 
@@ -26,7 +26,7 @@ export function releaseCaptureActor(state: CaptureCompetition, actorId: string):
 }
 
 /** Eligibility and actor identity come exclusively from accepted server state. */
-export function advanceCaptureCompetition(state: CaptureCompetition, actors: readonly CaptureActor[], now: number): void {
+export function advanceCaptureCompetition(state: CaptureCompetition, actors: readonly CaptureActor[], now: number, requireDefeatedOwner = false): void {
   const elapsed = now - state.updatedAt;
   const delta = elapsed > 0 && elapsed <= 800 ? Math.min(400, elapsed) : 0;
   state.updatedAt = now;
@@ -47,7 +47,8 @@ export function advanceCaptureCompetition(state: CaptureCompetition, actors: rea
     const contender = contenders[0]!;
     if (territory.capturingId !== contender.id) { territory.capturingId = contender.id; territory.captureMs = 0; }
     // A present owner can defend; killing it releases the territory to white.
-    const defending = actors.some(actor => actor.id === territory.ownerId && actor.alive && actor.territoryId === territory.id);
+    const defending = actors.some(actor => actor.id === territory.ownerId && actor.alive && actor.territoryId === territory.id) ||
+      requireDefeatedOwner && state.opponents.some((enemy,index)=>index<3&&enemy.id===territory.ownerId&&enemy.health>0);
     territory.captureMs = Math.min(mission.captureDurationMs * (defending ? .95 : 1), territory.captureMs + delta);
     if (territory.captureMs >= mission.captureDurationMs) {
       territory.ownerId = contender.id; territory.capturingId = undefined; territory.captureMs = 0; territory.contested = false;
@@ -57,4 +58,14 @@ export function advanceCaptureCompetition(state: CaptureCompetition, actors: rea
 
 export function captureCompetitionOwned(state: CaptureCompetition, actorId = 'pilot'): number {
   return state.territories.filter(territory => territory.ownerId === actorId).length;
+}
+
+/** Paused, disconnected and stalled time never shortens an opponent's respawn buffer. */
+export function advanceCaptureRespawn(enemy:CaptureOpponent,now:number,fresh:boolean,delayMs:number):boolean {
+  if(enemy.health>0)return false;
+  const elapsed=now-(enemy.respawnUpdatedAt??now);
+  enemy.respawnUpdatedAt=now;
+  const delta=fresh&&elapsed>0&&elapsed<=800?Math.min(400,elapsed):0;
+  enemy.respawnRemainingMs=Math.max(0,(enemy.respawnRemainingMs??delayMs)-delta);
+  return enemy.respawnRemainingMs===0;
 }
