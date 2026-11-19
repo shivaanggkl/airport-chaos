@@ -4,17 +4,17 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {DatabaseSync} from 'node:sqlite';
-import {journeyDallasSharpshooter01,journeyDallasSharpshooter02,journeyDallasSharpshooter03} from '../../shared/journey-mission.mjs';
-import {movingTargetPlacements,doubleTroublePlacements,sharpshooterTargetPose} from '../../shared/sharpshooter-target.mjs';
+import {journeyDallasSharpshooter01,journeyDallasSharpshooter02,journeyDallasSharpshooter03,journeyDallasSharpshooter04} from '../../shared/journey-mission.mjs';
+import {movingTargetPlacements,doubleTroublePlacements,precisionFirePlacements,sharpshooterTargetPose} from '../../shared/sharpshooter-target.mjs';
 import {journeyCategorySlot} from '../../shared/journey-categories.mjs';
 import {missionFocusForAttempt} from '../../shared/mission-focus.mjs';
 import {createSharpshooterTarget,sharpshooterHitFraction} from './sharpshooter-target.js';
 import {PlayerProfileStore} from './player-profiles.js';
 import {JourneyAttemptStore} from './journey-attempts.js';
-const spawn={x:-15000,y:800,z:-23000};
-for(const mission of [journeyDallasSharpshooter02,journeyDallasSharpshooter03]){
-const placements=mission===journeyDallasSharpshooter02?movingTargetPlacements:doubleTroublePlacements;
-const expected=mission===journeyDallasSharpshooter02?{number:2,count:6,moving:4,time:180000,reward:950}:{number:3,count:8,moving:6,time:360000,reward:1100};
+for(const mission of [journeyDallasSharpshooter02,journeyDallasSharpshooter03,journeyDallasSharpshooter04]){
+const spawn={x:mission.airborneSpawn.x,y:mission.airborneSpawn.altitude,z:mission.airborneSpawn.z};
+const placements=mission===journeyDallasSharpshooter02?movingTargetPlacements:mission===journeyDallasSharpshooter03?doubleTroublePlacements:precisionFirePlacements;
+const expected=mission===journeyDallasSharpshooter02?{number:2,count:6,moving:4,time:180000,reward:950}:mission===journeyDallasSharpshooter03?{number:3,count:8,moving:6,time:360000,reward:1100}:{number:4,count:10,moving:8,time:195000,reward:1250};
 const targets=()=>placements.map((_,stage)=>createSharpshooterTarget(stage,spawn,.7,0,()=>50,mission.id));
 
 test(`${mission.name} has its mapped anchors and correct moving/stationary split`,()=>{
@@ -29,6 +29,11 @@ test(`${mission.name} has its mapped anchors and correct moving/stationary split
   const later=sharpshooterTargetPose(target,2500,{x:0,y:0,z:0});
   assert.equal(later.x-start.x,placements[i]!.moving?450:0);assert.equal(later.z,start.z);
   assert.deepEqual(sharpshooterTargetPose(target,10000,{x:0,y:0,z:0}),start);
+ }
+ if(mission===journeyDallasSharpshooter04){
+  assert.deepEqual(placements.flatMap((p,i)=>!p.moving?[i+1]:[]),[3,8]);
+  assert.equal(new Set(list.map(t=>t.y)).size,10);
+  for(const [i,t]of list.entries())assert.equal(t.y,precisionFirePlacements[i]!.altitude);
  }
  assert.ok(missionFocusForAttempt({missionId:mission.id,status:'RACING'}));
 });
@@ -50,7 +55,7 @@ test(`${mission.name} unlocks after its predecessor, preserves state and grants 
  const db=new DatabaseSync(path);let store=new JourneyAttemptStore(path);const now=Date.now();
  try{
   assert.equal(store.canAccessMission('pilot',mission.id),false);
-  for(const id of mission===journeyDallasSharpshooter02?[journeyDallasSharpshooter01.id]:[journeyDallasSharpshooter01.id,journeyDallasSharpshooter02.id])
+  for(const id of mission===journeyDallasSharpshooter02?[journeyDallasSharpshooter01.id]:[journeyDallasSharpshooter01.id,journeyDallasSharpshooter02.id,...(mission===journeyDallasSharpshooter04?[journeyDallasSharpshooter03.id]:[])])
    db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run('pilot',id,id,now,1000);
   assert.equal(store.canAccessMission('pilot',mission.id),true);
   const start=()=>{const a=store.launch('pilot','trainer',now,mission.id);store.approach('pilot',a.attemptId,now+1);store.prepareSharpshooter('pilot',a.attemptId,targets());assert.equal(store.get('pilot',a.attemptId)!.deadlineAt,null);return store.startSharpshooter('pilot',a.attemptId,now+1000)!;};
@@ -59,7 +64,7 @@ test(`${mission.name} unlocks after its predecessor, preserves state and grants 
   assert.equal(store.hitSharpshooter('pilot',a.attemptId,0,now+2100),undefined);
   store=new JourneyAttemptStore(path);assert.deepEqual(store.get('pilot',a.attemptId)!.sharpshooter!.targets,targets());
   assert.equal(store.resume('pilot',a.attemptId,now+3000)!.attempt.deadlineAt,a.deadlineAt!+1000);
-  for(const stage of mission===journeyDallasSharpshooter02?[3,0,5,1,4,2]:[3,0,5,1,4,2,7,6]){assert.ok(store.hitSharpshooter('pilot',a.attemptId,stage,now+4000+stage));assert.equal(store.hitSharpshooter('pilot',a.attemptId,stage,now+5000+stage),undefined);}
+  for(const stage of [3,0,5,1,4,2,7,6,9,8].filter(stage=>stage<expected.count)){assert.ok(store.hitSharpshooter('pilot',a.attemptId,stage,now+4000+stage));assert.equal(store.hitSharpshooter('pilot',a.attemptId,stage,now+5000+stage),undefined);}
   assert.equal(store.get('pilot',a.attemptId)!.firstClearCredits,expected.reward);
   const replay=start();for(let i=0;i<expected.count;i++)store.hitSharpshooter('pilot',replay.attemptId,i,now+4000+i);
   assert.equal(store.get('pilot',replay.attemptId)!.firstClearCredits,0);

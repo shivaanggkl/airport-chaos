@@ -5,3 +5,5 @@ export function sharpshooterTargetPose<T extends {x:number;y:number;z:number}>(t
 export const movingTargetPlacements: readonly Readonly<{label:string;x:number;z:number;moving:boolean}>[];
 
 export const doubleTroublePlacements: readonly Readonly<{label:string;x:number;z:number;moving:boolean}>[];
+
+export const precisionFirePlacements: readonly Readonly<{label:string;x:number;z:number;altitude:number;moving:boolean}>[];

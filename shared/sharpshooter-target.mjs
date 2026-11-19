@@ -32,6 +32,21 @@ export const doubleTroublePlacements = Object.freeze([
   {label:'IRVING',x:-16000,z:-2500,moving:true},
 ].map(point => Object.freeze(scaleDallasPoint(point))));
 
+// Mission 4: clockwise route from Irving; targets 3 and 8 stay fixed.
+// Altitudes are world-space heights; target creation also enforces scenery clearance.
+export const precisionFirePlacements = Object.freeze([
+  {label:'NORTH IRVING',x:-16000,z:-6500,altitude:950,moving:true},
+  {label:'LAS COLINAS',x:-10500,z:-13000,altitude:1550,moving:true},
+  {label:'ADDISON',x:-1500,z:-18000,altitude:2200,moving:false},
+  {label:'RICHARDSON',x:6500,z:-14000,altitude:1250,moving:true},
+  {label:'WHITE ROCK LAKE',x:8500,z:-6500,altitude:1850,moving:true},
+  {label:'MESQUITE APPROACH',x:8500,z:4000,altitude:1050,moving:true},
+  {label:'SOUTHEAST DALLAS',x:2000,z:9500,altitude:2450,moving:true},
+  {label:'EAST OF DALLAS EXECUTIVE',x:-6500,z:10500,altitude:1400,moving:false},
+  {label:'TRINITY CORRIDOR',x:-12500,z:4000,altitude:2000,moving:true},
+  {label:'IRVING',x:-9000,z:-4500,altitude:1150,moving:true},
+].map(point => Object.freeze(scaleDallasPoint(point))));
+
 // A target's anchor never changes after activation. Motion uses mission elapsed
 // time, so pausing/reconnecting preserves the same phase without frame packets.
 export function sharpshooterTargetPose(target, elapsedMs, out) {
