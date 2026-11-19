@@ -4,7 +4,7 @@ const id = number => `journey-dallas-${String(number).padStart(2, '0')}`;
 const category = (key, label, color, icon, ids) => Object.freeze({ id: key, label, color, icon, missionIds: Object.freeze(ids) });
 export const journeyCategories = Object.freeze([
   category('golden-rings', 'GOLDEN RINGS', '#ffd239', 'ring', [...[1, 3, 4, 5, 6].map(id), 'journey-dallas-coin-hunt-01']),
-  category('shooting-targets', 'SHOOTING TARGETS', '#60ef45', 'target', ['journey-dallas-sharpshooter-01', ...Array.from({ length: 5 }, (_, i) => `placeholder-dallas-shooting-targets-${i + 2}`)]),
+  category('shooting-targets', 'SHOOTING TARGETS', '#60ef45', 'target', ['journey-dallas-sharpshooter-01', 'journey-dallas-sharpshooter-02', ...Array.from({ length: 4 }, (_, i) => `placeholder-dallas-shooting-targets-${i + 3}`)]),
   category('plane-battles', 'PLANE BATTLES', '#ff683e', 'plane', [id(13), id(14), 'journey-dallas-twin-hunters-01', id(16), id(17), id(18)]),
   category('giant-battles', 'GIANT BATTLES', '#b76aff', 'giant', [7, 8, 9, 10, 11, 12].map(id)),
   category('territory-missions', 'TERRITORY MISSIONS', '#35f2e4', 'territory', ['journey-dallas-capture-01', 'journey-dallas-territory-defense-01', 'journey-dallas-capture-three-01', 'placeholder-dallas-27', 'placeholder-dallas-territory-missions-5', 'placeholder-dallas-territory-missions-6']),

@@ -384,7 +384,7 @@ test('every Journey result uses its category number rather than the old overall 
  const id=n=>`journey-dallas-${String(n).padStart(2,'0')}`;
  const groups=[
   [1,3,4,5,6].map(id),
-  ['journey-dallas-sharpshooter-01'],
+  ['journey-dallas-sharpshooter-01','journey-dallas-sharpshooter-02'],
   [id(13),id(14),'journey-dallas-twin-hunters-01',id(16),id(17),id(18)],
   [7,8,9,10,11,12].map(id),
   ['journey-dallas-capture-01','journey-dallas-territory-defense-01','journey-dallas-capture-three-01'],

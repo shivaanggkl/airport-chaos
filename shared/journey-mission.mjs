@@ -520,6 +520,15 @@ export const journeyDallasSharpshooter01 = Object.freeze({
   airborneSpawn: Object.freeze({x: cityAirports.dallas.find(a => a.id === 'love').x,
     z: cityAirports.dallas.find(a => a.id === 'love').z, altitude: 800, heading: 0, speed: 180}),
 });
+export const journeyDallasSharpshooter02 = Object.freeze({
+  ...journeyDallasSharpshooter01,
+  id: 'journey-dallas-sharpshooter-02', name: 'MOVING TARGETS',
+  objective: 'SHOOT down 6 TARGETS\n4 moving + 2 stationary', firstClearCredits: 950,
+});
+export function journeySharpshooterMission(id) {
+  return id === journeyDallasSharpshooter01.id ? journeyDallasSharpshooter01
+    : id === journeyDallasSharpshooter02.id ? journeyDallasSharpshooter02 : undefined;
+}
 export const journeyDallasAirportHop01 = Object.freeze({
   id: 'journey-dallas-airport-hop-01', cityId: 'dallas', name: 'AIRPORT HOP', difficulty: 'MEDIUM',
   objective: `Take off from ${airportName.dfw}\nFly to ${airportName.love} and land\nFly to ${airportName.addison} and land before time ends`,
@@ -618,6 +627,7 @@ export const journeyCatalog = Object.freeze([
   [12, 'Armored Giant & Two Escorts'],
   [23, 'Monster Pursuit'],
   [19, 'Final Monster Battle'],
+  [journeyDallasSharpshooter02.id, 'Moving Targets'],
 ].map(([identity, title], index) => Object.freeze({
   id: identity === null ? `placeholder-dallas-${String(index + 1).padStart(2, '0')}` : typeof identity === 'string' ? identity : `journey-dallas-${String(identity).padStart(2, '0')}`,
   number: index + 1, title,

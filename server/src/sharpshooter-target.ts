@@ -1,24 +1,28 @@
 import type { SharpshooterTarget } from '../../shared/sharpshooter-target.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { sharpshooterPlacements, sharpshooterTargetPose } from '../../shared/sharpshooter-target.mjs';
-import { journeyDallasSharpshooter01 as mission } from '../../shared/journey-mission.mjs';
+import { sharpshooterPlacements, movingTargetPlacements, sharpshooterTargetPose } from '../../shared/sharpshooter-target.mjs';
+import { journeyDallasSharpshooter01 as mission, journeyDallasSharpshooter02, journeySharpshooterMission } from '../../shared/journey-mission.mjs';
 
 type Point = {x:number;y:number;z:number};
 const current:Point={x:0,y:0,z:0},previous:Point={x:0,y:0,z:0},velocity:Point={x:0,y:0,z:0};
 /** All arguments originate from the server-accepted pilot transform. */
 export function createSharpshooterTarget(stage:number, position:Point, heading:number, elapsedMs:number,
-  clearanceAt:(x:number,z:number)=>number):SharpshooterTarget {
+  clearanceAt:(x:number,z:number)=>number, missionId:string=mission.id):SharpshooterTarget {
+  const definition=journeySharpshooterMission(missionId);
+  if(!definition)throw new Error('Unknown target mission');
   if (![position.x,position.y,position.z,heading,elapsedMs].every(Number.isFinite) || stage<0 || stage>=mission.targetCount || !Number.isInteger(stage))
     throw new Error('Invalid sharpshooter stage');
   const placement=sharpshooterPlacements[stage]!;
-  const angle=heading+placement.angleDegrees*Math.PI/180;
+  const fixed=missionId===journeyDallasSharpshooter02.id?movingTargetPlacements[stage]:undefined;
+  const angle=fixed?0:heading+placement.angleDegrees*Math.PI/180;
   const distance=placement.distance;
-  const x=position.x-Math.sin(angle)*distance,z=position.z-Math.cos(angle)*distance;
+  const x=fixed?.x??position.x-Math.sin(angle)*distance,z=fixed?.z??position.z-Math.cos(angle)*distance;
   // Include the complete moving sweep and circular face, not only its center.
   let floor=-Infinity;
-  for(const offset of [-370,0,370])for(const cross of [-220,0,220])
+  const sweep=fixed?.moving?450+mission.targetRadius:370;
+  for(const offset of [-sweep,0,sweep])for(const cross of [-220,0,220])
     floor=Math.max(floor,clearanceAt(x+Math.cos(angle)*offset-Math.sin(angle)*cross,z-Math.sin(angle)*offset-Math.cos(angle)*cross));
-  return {stage,x,y:Math.max(position.y+placement.altitude,floor+mission.targetRadius+150),z,heading:angle,activatedAt:elapsedMs};
+  return {stage,x,y:Math.max(fixed?1000:position.y+placement.altitude,floor+mission.targetRadius+150),z,heading:angle,activatedAt:elapsedMs,...(fixed?{motionAmplitude:fixed.moving?450:0,motionPeriodMs:10000}:{})};
 }
 
 /** Existing swept solver rejects misses; the face-plane contact then matches
