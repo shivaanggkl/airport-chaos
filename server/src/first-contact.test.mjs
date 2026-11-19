@@ -207,7 +207,8 @@ test('M7 launch refuses an old backend before creating an attempt and explains t
     const objective = { textContent: '' }, calls = [];
     const context = vm.createContext({...cityAirspace,insideAceInterceptAirspace,journeyDallas18,journeyDallas17,
       journeyLaunchPending: false, dallasUnlocked: () => true, cityJourneyMode: '', entryState: 'MISSION_JOURNEY',
-      missionJourney: { selectedMissionNumber: 7, hide: () => {} },
+      missionJourney: { selectedMissionId: mission.id, hide: () => {} },
+      missionJourneyStages: [{ id: mission.id, implementation: 'playable' }], journeyMissionSlot: () => 3,
       journeyMissionOrder: Array(6).fill('').concat(mission.id), pendingAircraftSelection: undefined,
       apiUrl: path => path, apiFetch: async path => {
         calls.push(path);

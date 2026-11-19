@@ -7,6 +7,7 @@ export type AppShellHeaderData = {
   active: AppShellActive;
   hubActions: boolean;
   pageTitle?: string;
+  pageTitleContent?: HTMLElement;
   advertiseVisible: boolean;
   pilotName: string;
   credits: number;
@@ -45,6 +46,16 @@ export class AppShellHeader {
   private readonly pageBack: HTMLButtonElement;
   private readonly pageTitle: HTMLElement;
   private readonly utilities: HTMLElement;
+  private readonly titleResize: ResizeObserver;
+  private readonly titleMutation: MutationObserver;
+  private titleFitFrame = 0;
+  private fitContentTitle = false;
+  private readonly scheduleTitleFit = (): void => {
+    if (!this.titleFitFrame) this.titleFitFrame = window.requestAnimationFrame(() => {
+      this.titleFitFrame = 0;
+      this.fitPageTitle();
+    });
+  };
   private readonly credits: HTMLElement;
   private readonly creditMark: HTMLElement;
   private readonly skyTokens: HTMLElement;
@@ -87,6 +98,11 @@ export class AppShellHeader {
     this.pageBack.addEventListener('click', handlers.back);
     this.pageTitle = document.createElement('h1');
     this.pageTitle.className = 'context-winged-title app-shell-page-title';
+    this.titleResize = new ResizeObserver(this.scheduleTitleFit);
+    this.titleResize.observe(this.element);
+    this.titleMutation = new MutationObserver(this.scheduleTitleFit);
+    this.titleMutation.observe(this.pageTitle, {childList:true,characterData:true,subtree:true});
+    void document.fonts.ready.then(this.scheduleTitleFit);
 
     this.advertise = document.createElement('button');
     this.advertise.type = 'button';
@@ -194,7 +210,13 @@ export class AppShellHeader {
     this.brand.hidden = isPage;
     this.pageBack.hidden = !isPage;
     this.pageTitle.hidden = !isPage;
-    this.pageTitle.textContent = data.pageTitle ?? '';
+    if (data.pageTitleContent) {
+      if (this.pageTitle.firstElementChild !== data.pageTitleContent) this.pageTitle.replaceChildren(data.pageTitleContent);
+    } else {
+      this.pageTitle.textContent = data.pageTitle ?? '';
+      this.pageTitle.style.removeProperty('font-size');
+    }
+    this.fitContentTitle = Boolean(data.pageTitleContent);
     this.avatar.hidden = isPage;
     this.utilities.hidden = isPage;
     this.store.classList.toggle('has-offers', data.storeHasOffers);
@@ -207,6 +229,30 @@ export class AppShellHeader {
     this.setActive(this.rewards, data.active === 'REWARDS');
     this.setActive(this.avatar, data.active === 'PROFILE' || data.active === 'SETTINGS');
     this.element.hidden = false;
+    if (this.fitContentTitle) this.scheduleTitleFit();
+  }
+
+  /** Fit long live titles using the shared header's existing font, wings and styling. */
+  private fitPageTitle(): void {
+    if (!this.fitContentTitle || this.element.hidden || this.pageTitle.hidden || !this.pageTitle.isConnected) return;
+    this.pageTitle.style.removeProperty('font-size');
+    const rect = this.pageTitle.getBoundingClientRect();
+    if (!rect.width) return;
+    const back = this.pageBack.getBoundingClientRect();
+    const wallet = this.element.querySelector<HTMLElement>('.app-shell-wallet')!.getBoundingClientRect();
+    const center = (rect.left + rect.right) / 2;
+    const width = Math.min(rect.width, 2 * Math.min(center - back.right - 10, wallet.left - center - 10));
+    const style = getComputedStyle(this.pageTitle);
+    const wings = ['::before','::after'].map(part => getComputedStyle(this.pageTitle,part)).filter(part => part.display !== 'none');
+    const decoration = wings.reduce((sum,part) => sum + (parseFloat(part.width) || 0),0) + wings.length * (parseFloat(style.columnGap) || 0);
+    const available = width - decoration - 2;
+    const text = document.createRange();
+    text.selectNodeContents(this.pageTitle);
+    const required = text.getBoundingClientRect().width;
+    if (available > 0 && required > available) {
+      const size = parseFloat(style.fontSize) * available / required;
+      this.pageTitle.style.fontSize = `${Math.floor(size * 10) / 10}px`;
+    }
   }
 
   updateIdentity(pilotName: string, credits: number, skyTokens: number, pilotLevel?: number): void {
@@ -299,12 +345,16 @@ export class AppShellHeader {
   }
 
   hide(): void {
+    if (this.titleFitFrame) window.cancelAnimationFrame(this.titleFitFrame);
+    this.titleFitFrame = 0;
     this.stopCreditAnimation();
     this.element.hidden = true;
   }
 
   dispose(): void {
     this.hide();
+    this.titleResize.disconnect();
+    this.titleMutation.disconnect();
     if (this.rewardTimer !== undefined) window.clearTimeout(this.rewardTimer);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
   }

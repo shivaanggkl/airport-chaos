@@ -6,16 +6,13 @@ import { newPilotLiveryIds } from '../../shared/cosmetics.mjs';
 import { aircraftPresentationScale } from '../../shared/aircraft-presentation-scale.mjs';
 
 type Preview = { scene: THREE.Scene; aircraft: THREE.Group; size: THREE.Vector3 };
-type Card = { art: HTMLElement; item: StoreItem };
+type Card = { art: HTMLElement; item: StoreItem; viewport?: HTMLElement };
 
-const cameraPitch = 0.3;
+const cameraPitch = 0.18;
 const detailCameraPitch = 0.18;
 const heroYaw = 0.75;
 const clockwiseRadiansPerSecond = 0.22;
 const manualRotationPauseMs = 2_000;
-// The models use gameplay dimensions. Blend each card's framing with the
-// largest aircraft so compact planes stay legible without looking equally big.
-const frameRadius = Math.max(...Object.values(aircraftPresentationDimensions).map(size => Math.hypot(size.span, size.length) * 0.5));
 
 function appearanceId(item: StoreItem): string {
   if (item.kind === 'paint') return item.id;
@@ -56,7 +53,7 @@ export class StoreAircraftPreviews {
   }
 
   setCards(cards: ReadonlyArray<{ art: HTMLElement; item: StoreItem }>): void {
-    this.cards = [...cards];
+    this.cards = cards.map(card => ({ ...card, viewport: card.art.querySelector<HTMLElement>('.store-aircraft-stage') ?? card.art }));
     if (!cards.length && !this.detail) {
       this.stop();
       this.renderer.setScissorTest(false);
@@ -158,10 +155,14 @@ export class StoreAircraftPreviews {
     scene.add(aircraft);
     const preview = { scene, aircraft, size: new THREE.Box3().setFromObject(aircraft).getSize(new THREE.Vector3()) };
     this.previews.set(item.id, preview);
-    void attachAircraftAsset(aircraft, fallback, item.aircraftType, dimensions.length, dimensions.span, () => {
-      const bounds = new THREE.Box3().setFromObject(aircraft);
+    void attachAircraftAsset(aircraft, fallback, item.aircraftType, dimensions.length, dimensions.span, model => {
+      const yaw = aircraft.rotation.y;
+      aircraft.rotation.y = 0;
+      aircraft.updateWorldMatrix(true, true);
+      const bounds = new THREE.Box3().setFromObject(model);
       bounds.getSize(preview.size);
       aircraft.position.copy(bounds.getCenter(new THREE.Vector3())).multiplyScalar(-1);
+      aircraft.rotation.y = yaw;
       this.start();
     });
     return preview;
@@ -196,8 +197,8 @@ export class StoreAircraftPreviews {
     this.renderer.setScissorTest(false);
     this.renderer.clear();
     this.renderer.setScissorTest(true);
-    for (const { art, item } of this.detail ? [this.detail] : this.cards) {
-      const rect = art.getBoundingClientRect();
+    for (const { art, item, viewport } of this.detail ? [this.detail] : this.cards) {
+      const rect = (viewport ?? art).getBoundingClientRect();
       const left = Math.max(rect.left, gridRect.left, railRect.left);
       const right = Math.min(rect.right, gridRect.right, railRect.right);
       const top = Math.max(rect.top, gridRect.top, railRect.top);
@@ -209,9 +210,12 @@ export class StoreAircraftPreviews {
       const aspect = rect.width / rect.height;
       const pitch = this.detail ? detailCameraPitch : cameraPitch;
       const aircraftRadius = Math.hypot(preview.size.x, preview.size.z) * 0.5;
-      const framingRadius = this.detail ? aircraftRadius : Math.sqrt(aircraftRadius * frameRadius);
-      const verticalRadius = preview.size.y * 0.5 * Math.cos(pitch) + aircraftRadius * Math.sin(pitch);
-      const halfHeight = Math.max(framingRadius / aspect, verticalRadius) / 0.92;
+      const yaw = this.detail ? this.detailYaw : this.listingYaw;
+      const cosYaw = Math.abs(Math.cos(yaw)), sinYaw = Math.abs(Math.sin(yaw));
+      const horizontalRadius = this.detail ? aircraftRadius : (preview.size.x * cosYaw + preview.size.z * sinYaw) * .5;
+      const depthRadius = this.detail ? aircraftRadius : (preview.size.x * sinYaw + preview.size.z * cosYaw) * .5;
+      const verticalRadius = preview.size.y * 0.5 * Math.cos(pitch) + depthRadius * Math.sin(pitch);
+      const halfHeight = Math.max(horizontalRadius / aspect, verticalRadius) / (this.detail ? .92 : .84);
       this.camera.left = -halfHeight * aspect;
       this.camera.right = halfHeight * aspect;
       this.camera.top = halfHeight;

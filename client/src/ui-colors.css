@@ -1,0 +1,5 @@
+/* Shared UI accent; imported by the game and standalone pages. */
+:root {
+  --ui-bright-gold: #ffdc43;
+  --ui-bright-gold-rgb: 255 220 67;
+}

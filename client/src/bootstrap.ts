@@ -1,4 +1,4 @@
-import { journeyMissionOrder, journeyCatalog } from '../../shared/journey-mission.mjs';
+import { journeyMissionOrder, journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { createMenuCarouselCard, createMenuCarouselArtwork, setMenuCarouselArtwork, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
 import { missionTimePreset } from './mission-time-presets';
 import './style.css';
@@ -155,21 +155,34 @@ type JourneyProgressResponse = JourneyProgressEntry & { [key: `mission${string}`
 function missionProgress(progress: JourneyProgressResponse, id: string): JourneyProgressEntry | undefined {
   return id === 'journey-dallas-most-wanted-survival-01' ? progress.missionMostWantedSurvival01 : id === 'journey-dallas-capture-three-01' ? progress.missionCaptureThree01 : id === 'journey-dallas-ace-intercept-01' ? progress.missionAceIntercept01 : id === 'journey-dallas-territory-defense-01' ? progress.missionTerritoryDefense01 : id === 'journey-dallas-twin-hunters-01' ? progress.missionTwinHunters01 : id === 'journey-dallas-coin-hunt-01' ? progress.missionCoinHunt01 : id === 'journey-dallas-sharpshooter-01' ? progress.missionSharpshooter01 : id === 'journey-dallas-airport-hop-01' ? progress.missionAirportHop01 : id === 'journey-dallas-capture-01' ? progress.missionCapture01 : id === 'journey-dallas-01' ? progress : progress[`mission${id.slice(-2)}`];
 }
+let journeyProgressRevision = 0;
+let journeyProgressOwner: string | undefined;
 async function refreshJourneyProgress(): Promise<JourneyProgressResponse | undefined> {
+  const revision = ++journeyProgressRevision;
+  const pilotId = garageIdentity.pilotId;
+  if (journeyProgressOwner !== pilotId) {
+    journeyProgressOwner = pilotId;
+    missionJourney.setProgress({});
+  }
+  const current = (): boolean => revision === journeyProgressRevision && garageIdentity.pilotId === pilotId;
   try {
     const response = await apiFetch(apiUrl('/api/journey/dallas'), { cache: 'no-store' });
+    if (!current()) return undefined;
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        missionJourney.setSignInRequired(false);
+        missionJourney.setProgress({});
+      }
       if (response.status === 403 && hubAccount.state === 'account') await refreshHubPilotData();
-      missionJourney.setSignInRequired(false);
-      missionJourney.setProgress({});
       return undefined;
     }
     const progress = await response.json() as JourneyProgressResponse;
+    if (!current()) return undefined;
     missionJourney.setSignInRequired(false);
     missionJourney.setProgress(Object.fromEntries(journeyMissionOrder.map(id => [id, missionProgress(progress, id) ?? {}])));
     return progress;
   } catch {
-    missionJourney.setProgress({});
+    // A temporary network failure must not replace this pilot's last confirmed progress with zero.
     return undefined;
   }
 }
@@ -178,10 +191,9 @@ async function playJourneyMission(): Promise<void> {
   if (journeyLaunchPending) return;
   if (!dallasUnlocked()) return;
   cityJourneyMode = 'missions';
-  const missionNumber = missionJourney.selectedMissionNumber;
-  const stage = journeyCatalog[missionNumber - 1];
+  const stage = missionJourneyStages.find(stage => stage.id === missionJourney.selectedMissionId);
   if (stage?.implementation !== 'playable') return;
-  const mission = stage.id.replace('journey-dallas-', 'mission-') as typeof journeyAttemptMission;
+  const mission = stage.missionId.replace('journey-dallas-', 'mission-') as typeof journeyAttemptMission;
   journeyLaunchPending = true;
   try {
     if (pendingAircraftSelection && !await pendingAircraftSelection) throw new Error('Aircraft change was not confirmed');
@@ -209,7 +221,7 @@ async function playJourneyMission(): Promise<void> {
     const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
     if (!dallas) throw new Error('Dallas is unavailable');
     citySelector.hidden = true;
-    await enterCity(dallas, missionTimePreset(missionNumber));
+    await enterCity(dallas, missionTimePreset(journeyMissionSlot(stage.missionId)!));
   } catch (error) {
     console.error('[journey] Mission launch failed', error);
     if (entryState === 'FLIGHT' && gameRoot.hidden) showMissionJourney(false, false);
@@ -505,7 +517,7 @@ function citySelectionPageTitle(): string {
       ? selectedHomeMultiplayerMode === 'sky' ? 'SKYDUEL'
         : homeMultiplayerModes.find(mode => mode.id === selectedHomeMultiplayerMode)!.title
       : 'FREE FLY';
-  return `${mode} · CITY`;
+  return `${mode}·CITY`;
 }
 
 function showAppHeader(active: AppShellActive): void {
@@ -521,7 +533,7 @@ function showAppHeader(active: AppShellActive): void {
     : !citySelector.hidden && citySelector.dataset.view === 'multiplayer' ? 'DALLAS MULTIPLAYER'
     : !citySelector.hidden && citySelector.dataset.view === 'time' ? 'CHOOSE TIME'
     : entryState === 'CITY_SELECTION' ? citySelectionPageTitle()
-    : entryState === 'MISSION_JOURNEY' ? `${missionJourneyCity.displayName.toUpperCase()} · MISSIONS`
+    : entryState === 'MISSION_JOURNEY' ? `${missionJourneyCity.displayName.toUpperCase()} JOURNEY`
     : entryState === 'STORE' ? 'STORE'
     : entryState === 'AIRCRAFT' ? 'AIRCRAFT HANGAR'
     : entryState === 'PILOT_MENU' && hubPilotMenu.isSectionOpen('REWARDS') ? 'REWARDS'
@@ -532,6 +544,7 @@ function showAppHeader(active: AppShellActive): void {
     active,
     hubActions: !pageTitle && (entryState === 'HANGAR' || entryState === 'PILOT_MENU'),
     pageTitle,
+    pageTitleContent: entryState === 'MISSION_JOURNEY' && pageTitle === `${missionJourneyCity.displayName.toUpperCase()} JOURNEY` ? missionJourney.headerContent : undefined,
     advertiseVisible: true,
     pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
@@ -710,7 +723,7 @@ function cityJourneyState(entry: CityJourneyEntry): { detail: string; status: st
   }
   const unlocked = cityJourneyMode !== 'missions' || entry.id !== 'dallas' || dallasUnlocked();
   const detail = cityJourneyMode === 'missions'
-    ? `${journeyCatalog.length} MISSIONS`
+    ? `${missionJourneyStages.filter(stage => stage.kind !== 'special').length} MISSIONS`
     : cityJourneyMode === 'multiplayer' ? homeMultiplayerModes.find(mode=>mode.id===selectedHomeMultiplayerMode)!.title : capabilities?.competitiveEnabled ? 'MULTIPLAYER FREE FLY' : 'PRACTICE FREE FLY';
   return { city, detail, status: unlocked ? 'AVAILABLE' : 'COMPLETE MILWAUKEE TRAINING FIRST', cta: unlocked ? cityJourneyMode === 'missions' ? 'VIEW MISSIONS' : 'CONTINUE' : 'LOCKED', locked: !unlocked, disabled: !unlocked && cityJourneyMode !== 'missions' };
 }
@@ -762,7 +775,7 @@ function createCityJourneyCards(): void {
       artwork.querySelector('.home-mode-flag')!.classList.toggle('is-unavailable', comingSoon);
       statusTag.classList.toggle('is-unavailable', comingSoon);
       statusTag.textContent = comingSoon ? 'COMING SOON'
-        : entry.id === 'milwaukee' ? 'PRACTICE' : `${journeyCatalog.length} MISSIONS`;
+        : entry.id === 'milwaukee' ? 'PRACTICE' : `${missionJourneyStages.filter(stage => stage.kind !== 'special').length} MISSIONS`;
       artwork.querySelector('.menu-card-artwork')!.append(statusTag);
       card.append(artwork);
     }
@@ -833,7 +846,7 @@ function renderCityJourney(): void {
     }
     view.card.tabIndex = fullCardDisplay && offset === 0 && !state.disabled ? 0 : -1;
     if (dallasFullCard) view.card.setAttribute('aria-label', cityJourneyMode === 'missions'
-      ? `Dallas, Single Player, ${journeyCatalog.length} missions`
+      ? `Dallas, Single Player, ${missionJourneyStages.filter(stage => stage.kind !== 'special').length} missions`
       : cityJourneyMode === 'solo-free-fly' || selectedHomeMultiplayerMode==='assault' ? 'Dallas, Single Player' : 'Dallas, Multiplayer');
     else if (entry.id === 'milwaukee') view.card.setAttribute('aria-label', 'Milwaukee, Training City');
     else if (entry.id === 'california') view.card.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'California, Single Player, Coming Soon' : 'California, Multiplayer, Coming Soon');
@@ -1012,6 +1025,7 @@ async function refreshHubSponsor(): Promise<void> {
 }
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && homeHangar.isVisible()) void refreshHubSponsor();
+  if (!document.hidden && entryState === 'MISSION_JOURNEY') void refreshJourneyProgress();
 });
 
 let hubStoredPreferences: Record<string, unknown> = {};
@@ -2567,7 +2581,7 @@ async function start(): Promise<void> {
     const progress = await refreshJourneyProgress();
     const earnedCredits = journeyReceipt ? takeJourneyRewardReceipt(journeyReceipt, garageIdentity.pilotId) : 0;
     if (journeyReceipt && progress) {
-      const completed = journeyCatalog.find(slot => slot.implementation === 'playable' &&
+      const completed = missionJourneyStages.find(slot => slot.implementation === 'playable' &&
         missionProgress(progress, slot.id)?.completed && missionProgress(progress, slot.id)?.firstAttemptId === journeyReceipt);
       if (completed) pendingJourneyCelebration = { mission: completed.number, credits: earnedCredits };
     }

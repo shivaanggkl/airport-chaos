@@ -56,7 +56,10 @@ function artwork(item: StoreItem): HTMLElement {
   const expand = document.createElement('span'); expand.className = 'store-art-expand';
   expand.setAttribute('aria-hidden', 'true');
   expand.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>';
-  art.append(role, expand);
+  const stage = document.createElement('div'); stage.className = 'store-aircraft-stage';
+  stage.setAttribute('aria-hidden', 'true');
+  stage.append(expand);
+  art.append(stage, role);
   return art;
 }
 
@@ -86,7 +89,7 @@ export class GameStore {
     element.innerHTML = `<div class="store-frame"><header class="store-heading context-page-heading"></header><div class="store-category-rail"><nav class="store-tabs" aria-label="Store categories"></nav></div><div class="store-content"><div class="store-rail"><div class="store-grid" tabindex="0" role="region" aria-label="Products, scroll horizontally" aria-live="polite"></div><button class="store-rail-arrow store-rail-prev" type="button" aria-label="Previous products" hidden></button><button class="store-rail-arrow store-rail-next" type="button" aria-label="Next products" hidden></button><div class="store-rail-progress" role="progressbar" aria-label="Product scroll position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="store-rail-thumb"></span></div></div></div><p class="store-notice" role="status" aria-live="polite"></p></div><div class="store-detail-overlay" hidden></div>`;
     this.frame = element.querySelector('.store-frame')!;
     this.detailOverlay = element.querySelector('.store-detail-overlay')!;
-    const detailPanel = createAircraftDetailPanel(() => this.closeDetail());
+    const detailPanel = createAircraftDetailPanel(() => this.closeDetail(), () => this.closeDetail());
     detailPanel.setAttribute('role', 'dialog');
     detailPanel.setAttribute('aria-modal', 'true');
     detailPanel.setAttribute('aria-labelledby', 'store-detail-title');

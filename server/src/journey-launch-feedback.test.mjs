@@ -1,9 +1,10 @@
+import { journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
-import {journeyMissionOrder} from '../../shared/journey-mission.mjs';
+import {missionJourneyStages} from '../../client/src/mission-journey-model.js';
 
 const source=readFileSync(new URL('../../client/src/bootstrap.ts',import.meta.url),'utf8');
 const ast=ts.createSourceFile('bootstrap.ts',source,ts.ScriptTarget.Latest,true);
@@ -11,7 +12,7 @@ const launch=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name
 const code=ts.transpileModule(launch.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 function fixture(response){
  const message={textContent:''},entered=[];
- const ctx=vm.createContext({journeyLaunchPending:false,dallasUnlocked:()=>true,cityJourneyMode:'missions',missionJourney:{selectedMissionNumber:11},journeyMissionOrder,pendingAircraftSelection:undefined,
+ const ctx=vm.createContext({journeyLaunchPending:false,dallasUnlocked:()=>true,cityJourneyMode:'missions',missionJourney:{selectedMissionId: 'journey-dallas-17'},missionJourneyStages,journeyMissionSlot,pendingAircraftSelection:undefined,
  apiFetch:async()=>response,apiUrl:path=>path,journeyAttemptId:null,journeyAttemptMission:null,cities:[{id:'dallas',status:'available'}],citySelector:{hidden:false},enterCity:async(...args)=>entered.push(args),missionTimePreset:()=> 'evening',
  console:{error(){}},entryState:'MISSION_JOURNEY',gameRoot:{hidden:true},showMissionJourney:()=>{},refreshJourneyProgress:async()=>{},missionJourneyElement:{querySelector:()=>message}});
  vm.runInContext(code,ctx);

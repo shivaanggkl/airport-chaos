@@ -65,13 +65,13 @@ import ts from 'typescript';
 import {competitiveModes} from '../../shared/competitive-modes.mjs';
 import {duelScoreWinner} from './sky-duel-rules.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
-import { journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
+import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas16 } from '../../shared/journey-mission.mjs';
 const tree=ts.createSourceFile('index.ts',server,ts.ScriptTarget.Latest,true);
 function runtime() {
  const names=['runwayCombatProtected','runwayOrTaxiSpawnArea','applyCombatHit','fireBlockReason','canFire'];
  const code=tree.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text??'')).map(n=>n.getText(tree)).join('\n');
  const packets:unknown[]=[];let scores=0;
- const ctx=vm.createContext({competitiveModes,duelScoreWinner,Date:{now:()=>10000},cityAirports,journeyDallas08,journeyDallas09,journeyDallas10,dallasAirportElevations:new Map(cityAirports.dallas.map(a=>[a.id,100])),
+ const ctx=vm.createContext({competitiveModes,duelScoreWinner,Date:{now:()=>10000},cityAirports,journeyDallas08,journeyDallas09,journeyDallas10,journeyDallas16,dallasAirportElevations:new Map(cityAirports.dallas.map(a=>[a.id,100])),
   landingFlightState:new Map(),players:new Map(),playerJourneyRunwayPrep:new Set(),
   focusedBotInteractionExcluded:()=>false,tutorialCombatPairAllowed:()=>true,sameCombatContext:()=>true,
   skyDuelSessions:new Map([['match',{id:'match',phase:'active',startedAt:0,scoreA:0,scoreB:0}]]),skyDuelHealth:100,sendSkyDuel:(_s:unknown,p:unknown)=>packets.push(p),
