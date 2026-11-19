@@ -197,3 +197,29 @@ test('all three bonus entries share details, progress and the authoritative coin
     assert.equal(context.journeyAttemptMission,'mission-coin-hunt-01');
   }
 });
+
+test('all five Plane Battles intros share the target-style bottom summary and exclude the bonus',()=>{
+  const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+  const styles=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
+  const ast=ts.createSourceFile('main.ts',source,ts.ScriptTarget.Latest,true);
+  const render=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='renderPlaneBattleIntroSummary');
+  const title=new Element();
+  const context=vm.createContext({journeyAttempt:null,journeyCategorySlot:id=>missionJourneyStages.find(stage=>stage.id===id),
+    missionJourneyDetails,flightLaunchTitle:title,document:{createElement:tag=>new Element(tag)}});
+  vm.runInContext(ts.transpileModule(render.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+  const battles=missionJourneyStages.filter(stage=>stage.categoryId==='plane-battles'&&stage.kind==='main');
+  assert.equal(battles.length,5);
+  for(const stage of battles){
+    context.journeyAttempt={missionId:stage.missionId};context.renderPlaneBattleIntroSummary();
+    const detail=missionJourneyDetails.find(mission=>mission.id===stage.missionId);
+    assert.ok(title.classList.contains('is-plane-battle-summary'));
+    assert.equal(title.children[0].tag,'strong');assert.equal(title.children[0].textContent,detail.title);
+    assert.deepEqual(title.children.slice(1).map(line=>line.textContent),detail.description.split('\n'));
+  }
+  for(const missionId of ['journey-dallas-coin-hunt-01','journey-dallas-sharpshooter-01']){
+    title.textContent='original intro';context.journeyAttempt={missionId};context.renderPlaneBattleIntroSummary();
+    assert.equal(title.textContent,'original intro');assert.ok(!title.classList.contains('is-plane-battle-summary'));
+  }
+  assert.match(styles,/\.sharpshooter-overview-heading,\s*#game-root \.flight-launch-title\.is-plane-battle-summary\s*\{/);
+  assert.match(source,/missionNumber === 15 && !flightLaunchTitle.classList.contains\('is-plane-battle-summary'\)/);
+});

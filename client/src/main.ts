@@ -5546,6 +5546,22 @@ async function prepareMonsterMissionIntro(attemptId:string):Promise<void>{
   beginFlightLaunchCinematic();
 }
 
+function renderPlaneBattleIntroSummary(): void {
+  const slot = journeyAttempt && journeyCategorySlot(journeyAttempt.missionId);
+  const detail = slot?.categoryId === 'plane-battles' && slot.kind === 'main'
+    ? missionJourneyDetails.find(mission => mission.id === slot.missionId) : undefined;
+  flightLaunchTitle.classList.toggle('is-plane-battle-summary', Boolean(detail));
+  if (!detail) return;
+  const heading = document.createElement('strong');
+  heading.textContent = detail.title;
+  const lines = detail.description.split('\n').map(text => {
+    const line = document.createElement('span');
+    line.textContent = text;
+    return line;
+  });
+  flightLaunchTitle.replaceChildren(heading, ...lines);
+}
+
 function beginFlightLaunchCinematic(): void {
   void audioManager.prepareGameplay();
   if (flightLaunchState !== 'pending' || trainingRequested || guidedTutorialActive) return;
@@ -5569,6 +5585,7 @@ function beginFlightLaunchCinematic(): void {
           : missionCombatIntroPath.missionNumber === 12 ? missionJourneyDetails.find(mission => mission.id === journeyDallas18.id)!.description.split('\n').map(line => `<span>• ${line}</span>`).join('')
           : '<span>Find And Shoot Down NIGHTOWL Plane Before Time Runs Out.</span>'
       : journeyAttempt?.missionId === journeyDallas01.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas01.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas03.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas03.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas04.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas04.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas05.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas05.id)!.description}</span>` : journeyAttempt?.missionId === journeyDallas06.id ? `<span>• ${missionJourneyDetails.find(mission => mission.id === journeyDallas06.id)!.description}</span>` : '<span>Fly through 10 Golden Gates before time runs out.</span>';
+    renderPlaneBattleIntroSummary();
     flightLaunchTitle.classList.toggle('is-monster-arrival',Boolean(missionCombatIntroPath?.arrivalIntro||missionCombatIntroPath?.strikingIntro||missionCombatIntroPath?.huntingIntro));
     if(missionCombatIntroPath?.arrivalIntro)flightLaunchTitle.textContent=m19IntroText(0);
     if(missionCombatIntroPath?.strikingIntro)flightLaunchTitle.textContent=m20IntroText(0);
@@ -5634,7 +5651,7 @@ function clearFlightLaunchPresentation(): void {
   cameraOrbitBlend = 0;
   cameraOrbitRecenterAt = null;
   cameraRelativeOffsetInitialized = false;
-  flightLaunchTitle.classList.remove('is-visible','is-monster-arrival','is-ring-mission-info');
+  flightLaunchTitle.classList.remove('is-visible','is-monster-arrival','is-ring-mission-info','is-plane-battle-summary');
   missionIntroSkip.hidden = true;
   flightGameRoot.classList.remove('golden-gates-intro', 'airport-hop-intro', 'capture-intro-row', 'twin-hunters-intro', 'territory-defense-intro');
   if (journeyAttempt?.missionId === journeyDallasCapture01.id) updateTerritoryPanel();
@@ -5802,7 +5819,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
       setMissionInstructions(flightLaunchTitle,`• ${missionJourneyDetails.find(mission=>mission.id===journeyDallasMostWantedSurvival01.id)!.description}`);
     } else if (missionCombatIntroPath?.missionNumber === 20) {
       setMissionInstructions(flightLaunchTitle,missionJourneyDetails.find(mission=>mission.id===journeyDallasAceIntercept01.id)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
-    } else if (missionCombatIntroPath?.missionNumber === 15) {
+    } else if (missionCombatIntroPath?.missionNumber === 15 && !flightLaunchTitle.classList.contains('is-plane-battle-summary')) {
       setMissionInstructions(flightLaunchTitle,missionJourneyDetails.find(mission=>mission.id===journeyDallasTwinHunters01.id)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
     } else if(missionCombatIntroPath?.missionNumber===19){
       if(!skipped||!(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro))monsterView?.setIntroTime(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro?elapsed/1000:elapsed<6000?elapsed/1000:null);

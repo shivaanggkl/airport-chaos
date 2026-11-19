@@ -59,6 +59,7 @@ import {monsterBuildingCoverage,segmentBlockedByBuildings} from './monster-arriv
 import {createStrikingWarlordEncounter} from './striking-warlord.js';
 import {stepM19,disposeM19,permittedM19Damage,type M19Encounter} from './m19-titan.js';
 import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
+import { journeyCategorySlot } from '../../shared/journey-categories.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 import { journeyFormationStatus, type FormationStatus } from '../../shared/journey-formation.mjs';
 import { excludesFocusedBotInteraction, missionFocusForAttempt } from '../../shared/mission-focus.mjs';
@@ -8202,7 +8203,7 @@ function safeRespawnTransform(playerId: string, player: PlayerState, now: number
   const nearest = player.freeFlyMode ? nearestCityAirport(player.cityId, player.position) : undefined;
   const recoveryAirports = nearest ? [nearest, ...airports.filter(airport => airport.id !== nearest.id)] : airports;
   const preferredSlot = player.spawnSlot ?? 0;
-  const reverseRunway = activeAttempt?.missionId === journeyDallas19.id && ['APPROACH', 'RACING'].includes(activeAttempt.status);
+  const reverseRunway = Boolean(activeAttempt && journeyUsesReverseRunway(activeAttempt.missionId) && ['APPROACH', 'RACING'].includes(activeAttempt.status));
   let fallback: { position: Vector3; heading: number } | undefined;
   for (const airport of recoveryAirports) {
     const groundY = player.cityId === 'dallas' ? (dallasAirportElevations.get(airport.id) ?? 0) : 0;
@@ -8272,6 +8273,11 @@ function resetHumanToSafeRunway(playerId: string, player: PlayerState, profile: 
     lifeState: player.lifeState, spawnPosition: safeSpawn.position, spawnHeading: safeSpawn.heading,
   });
   broadcastLeaderboard(player.cityId);
+}
+
+function journeyUsesReverseRunway(missionId?: string): boolean {
+  const slot = missionId ? journeyCategorySlot(missionId) : undefined;
+  return missionId === journeyDallas19.id || slot?.categoryId === 'plane-battles' && slot.kind === 'main';
 }
 
 function expectedInitialTransform(cityId: CityId, spawnSlot: number, generic: Vector3, airportId = 'dfw', reverseRunway = false): Vector3 {
@@ -9068,7 +9074,7 @@ server.on('connection', (socket, request) => {
   if(airborneSpawn&&journeyAttempt?.missionId===journeyDallasAceIntercept01.id&&!interceptResume)airborneSpawn.position.y=Math.max(airborneSpawn.position.y,botSafeFloor('dallas',airborneSpawn.position.x,airborneSpawn.position.z,journeyAceClearance)+50);
   if(airborneSpawn && journeyAttempt?.missionId===journeyDallasCoinHunt01.id)
     airborneSpawn.position.y=journeyAttempt!.coinHunt?.altitude??getCoinTrailAltitude();
-  const reverseRunway = journeyAttempt?.missionId === journeyDallas19.id;
+  const reverseRunway = journeyUsesReverseRunway(journeyAttempt?.missionId);
   const initialAcceptedPosition = airborneSpawn?.position ?? expectedInitialTransform(cityId, spawnSlot, spawnPosition, spawnAirportId, reverseRunway);
   const initialHeading = airborneSpawn?.heading ?? (cityId === 'dallas'
     ? (cityAirports[cityId].find(airport => airport.id === spawnAirportId)?.heading ?? 0) + (reverseRunway ? Math.PI : 0) : 0);
