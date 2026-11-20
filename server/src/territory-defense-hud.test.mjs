@@ -51,26 +51,36 @@ test('reviewed mission card has two objectives and a hold clock, with no duplica
  for(const key of ['journeyHudTarget','journeyHudTimer','journeyHudHint','journeyHudEnemy','segments'])assert.equal(ctx[key].hidden,true,key);
 });
 
-test('M16 switches the bottom capture bar to the authoritative hold clock after ownership',()=>{
+test('M2 plays the shared ownership motion before showing the authoritative hold clock',()=>{
  const captureHud=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='updateCaptureHud');
- const calls=[];
- const ctx=vm.createContext({journeyDallasCapture01,journeyDallasCaptureThree01,journeyDallasTerritoryDefense01:mission,
-  journeyAttempt:{missionId:mission.id,status:'RACING',captureMs:15000},journeyPaused:false,
+ const calls=[];let now=1000;
+ const ctx=vm.createContext({performance:{now:()=>now},territoryCaptureCelebrationMs:2800,territoryDefenseCaptureHandoff:undefined,journeyCompetitiveCaptureMission:()=>undefined,celebrateMissionTerritoryCapture(){calls.push(['celebrate']);},journeyDallasCapture01,journeyDallasCaptureThree01,journeyDallasTerritoryDefense01:mission,
+  journeyAttempt:{attemptId:'attempt',missionId:mission.id,status:'RACING',captureMs:15000},journeyPaused:false,
   captureMissionTerritoryName:'LAS COLINAS',flightGameRoot:{classList:{toggle(name,live){calls.push(['live',live]);}}},
-  missionCaptureBar:{show(...args){calls.push(['show',...args]);},showHold(...args){calls.push(['hold',...args]);},hide(){calls.push(['hide']);}}});
+  missionCaptureBar:{show(...args){calls.push(['show',...args]);},showHold(...args){calls.push(['hold',...args]);},hide(){calls.push(['hide']);},stopCelebration(){calls.push(['stop']);}}});
  const formatter=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='formatJourneyResultTime');
  vm.runInContext(ts.transpileModule(formatter.getText(ast)+'\n'+captureHud.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);
  ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['show','LAS COLINAS',25,false]);
  ctx.journeyPaused=true;ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hide']);
  ctx.journeyPaused=false;ctx.journeyAttempt.captureMs=mission.captureDurationMs;
  ctx.journeyAttempt.defenseMs=6000;
- ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hold','LAS COLINAS','0:06','1:00']);
+ ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['celebrate']);assert.deepEqual(calls.pop(),['show','LAS COLINAS',100,true]);
+ now+=1000;ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['show','LAS COLINAS',100,true]);
+ now+=1800;ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hold','LAS COLINAS','0:06','1:00']);
  ctx.journeyAttempt.defenseMs=90000;
  ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hold','LAS COLINAS','1:00','1:00']);
  ctx.journeyPaused=true;
  ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hide']);
  ctx.journeyPaused=false;
  ctx.journeyAttempt.status='FAILED';ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hide']);
+ // Rejoining an already-owned territory must show the current clock without replaying capture.
+ ctx.journeyAttempt={attemptId:'resumed',missionId:mission.id,status:'RACING',captureMs:mission.captureDurationMs,defenseMs:26000};
+ ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hold','LAS COLINAS','0:26','1:00']);
+ // Pausing a fresh ownership animation cancels it; resume displays live progress.
+ ctx.journeyAttempt={attemptId:'new',missionId:mission.id,status:'RACING',captureMs:100};ctx.updateCaptureHud();
+ ctx.journeyAttempt.captureMs=mission.captureDurationMs;ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['celebrate']);
+ ctx.journeyPaused=true;ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hide']);
+ ctx.journeyPaused=false;ctx.journeyAttempt.defenseMs=4000;ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['hold','LAS COLINAS','0:04','1:00']);
  ctx.journeyAttempt={missionId:journeyDallasCapture01.id,status:'COMPLETED',captureMs:journeyDallasCapture01.captureDurationMs};
  ctx.updateCaptureHud();assert.deepEqual(calls.pop(),['show','LAS COLINAS',100,true]);
 });

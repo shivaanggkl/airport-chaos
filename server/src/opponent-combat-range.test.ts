@@ -27,12 +27,12 @@ test('M2 supplies the combat target through 9km instead of dropping it after 5km
  const pilot={pilotId:'pilot',lifeState:'alive',health:100,position:{...territory.center,y:1000},lockedTargetId:'enemy'};
  const enemy={cityId:'dallas',aircraftType:'privateJet',position:{...territory.center,y:1000}};
  const ctx=vm.createContext({...missions,players:new Map([['pilot',pilot]]),journeyStore:{activeSnapshot:()=>({status:'RACING'})},territoriesForCity,territoryContains,
-  journeyAceClearance:300,botSafeFloor:()=>0,safeBotWaypoint:(_c:any,_from:any,to:any)=>to,insideJourneyHunterArena:()=>true,botFireSolution:()=>({}),opponentReactionReady:()=>true,
+  journeyAceClearance:300,botSafeFloor:()=>0,safeBotWaypoint:(_c:any,_from:any,to:any)=>to,insideAceInterceptAirspace:()=>true,botFireSolution:()=>({}),opponentReactionReady:()=>true,
   planOpponentTactics:(_opponent:any,args:any)=>({waypoint:args.objective??pilot.position,tactic:'attackPass',turnSign:1})});
  vm.runInContext(compile(fn('hunterNavigationTarget')),ctx);
  for(const distance of [5001,8999,9000,9001]){
   pilot.position={x:territory.center.x+distance,y:1000,z:territory.center.z};
-  const bot={personality:'hunter',journeyTerritoryDefense:true,journeyTargetPlayerId:'pilot',journeyAttemptId:'attempt',journeyDefenseRouteIndex:1,opponent:{},speed:420};
+  const bot={personality:'hunter',journeyTerritoryDefense:true,journeyTargetPlayerId:'pilot',journeyAttemptId:'attempt',opponent:{},speed:420};
   const navigation=ctx.hunterNavigationTarget('enemy',enemy,bot,10000);
   assert.equal(navigation.target?.[0],distance<=COMBAT_RANGE?'pilot':undefined,String(distance));
  }

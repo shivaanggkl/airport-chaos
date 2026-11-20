@@ -12,7 +12,7 @@ import {PilotSessionStore} from './session-auth.ts';
 import {JourneyAttemptStore} from './journey-attempts.ts';
 import {newCaptureCompetition,type CaptureOpponent} from './capture-competition.ts';
 import {PROTOCOL_VERSION} from '../../shared/protocol.mjs';
-import {journeyDallasCaptureThree01 as mission} from '../../shared/journey-mission.mjs';
+import {journeyDallasCaptureThree01 as mission,journeyMissionOrder} from '../../shared/journey-mission.mjs';
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function freePort(){return new Promise<number>(resolve=>{const s=createServer();s.listen(0,'127.0.0.1',()=>{const port=(s.address() as {port:number}).port;s.close(()=>resolve(port));});});}
 
@@ -24,7 +24,7 @@ test('live M21: six private opponents, real bullets, neutral territories, pause 
  const db=new DatabaseSync(path);db.prepare("INSERT OR REPLACE INTO pilot_tutorial_state(pilot_id,version,status,updated_at,completed_at,required) VALUES(?,'tutorial_v1','completed',?,?,0)").run(identity.pilotId,Date.now(),Date.now());
  db.prepare("INSERT OR REPLACE INTO pilot_tutorial_state(pilot_id,version,status,updated_at,completed_at,required) VALUES(?,'tutorial_v1','completed',?,?,0)").run(spectatorIdentity.pilotId,Date.now(),Date.now());
  const store=new JourneyAttemptStore(path,true),attempt=store.launch(identity.pilotId,'trainer',Date.now(),mission.id);
- db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(identity.pilotId,'journey-dallas-territory-defense-01','m20-clear',Date.now(),1000);
+ for(const id of journeyMissionOrder)if(id!==mission.id)db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(identity.pilotId,id,id,Date.now(),1000);
  store.approach(identity.pilotId,attempt.attemptId);store.startTerritoryCapture(identity.pilotId,attempt.attemptId);
  let position={x:-40500,y:2500,z:-28050},sequence=0;
  const opponents=Array.from({length:6},(_,slot):CaptureOpponent=>({id:`bot:journey:${attempt.attemptId}:capture:${slot}`,aircraft:'trainer',level:slot<3?'EASY':'HARD',

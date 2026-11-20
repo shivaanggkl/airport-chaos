@@ -39,7 +39,7 @@ test('M21 uses only its new slot, authoritative geometry, prescribed spawn and M
  assert.equal(catalog.journeyCatalog.length,30);assert.equal(catalog.journeyMissionSlot(mission.id),21);assert.equal(catalog.journeyMissionSlot(catalog.journeyDallasAceIntercept01.id),20);
  assert.equal(mission.timeLimitMs,360000);assert.equal(mission.firstClearCredits,2250);assert.equal(mission.captureDurationMs,15000);
  assert.deepEqual(mission.territoryIds,['las-colinas','love-field','downtown']);
- assert.deepEqual(mission.territoryIds.map(id=>territories.find(t=>t.id===id).center),[{x:-40500,z:-28050},{x:-15420,z:-23340},{x:-1800,z:-1350}]);
+ assert.deepEqual(mission.territoryIds.map(id=>territories.find(t=>t.id===id).center),[{x:-40500,z:-28050},{x:-15420,z:-23340}]);
  assert.equal(mission.runwayStart,true);assert.equal(mission.startAirportId,'dfw');
  assert.equal(authorizedJourneyAirborneSpawn({missionId:mission.id,status:'APPROACH'},mission,()=>100),undefined);
  const start=source.indexOf('  const spawnAirportId ='),end=source.indexOf('  // All six Golden Gates',start);
@@ -58,15 +58,15 @@ test('shared capture engine requires 15 continuous seconds per territory, resets
  const initial=f.profiles.getOrCreate('pilot','Pilot').credits;
  for(let replay=0;replay<2;replay++){
   const a=f.start();assert.equal(a.captureStage,0);assert.equal(a.deadlineAt-a.startedAt,360000);
-  for(let stage=0;stage<3;stage++){
+  for(let stage=0;stage<mission.territoryIds.length;stage++){
    for(let i=0;i<10;i++)f.tick(a);
    assert.equal(f.store.get('pilot',a.attemptId).captureMs,4000);
    const reset=f.tick(a,false,true);assert.equal(reset.captureStage,stage);assert.equal(reset.captureMs,0);
    for(let i=0;i<37;i++){const partial=f.tick(a);assert.equal(partial.captureStage,stage);assert.equal(partial.status,'RACING');}
    const completed=f.tick(a,true,false,200);assert.equal(completed.captureStage,stage+1);assert.equal(completed.captureMs,0);
-   assert.equal(completed.status,stage===2?'COMPLETED':'RACING');assert.equal(completed.deadlineAt,a.deadlineAt);
+   assert.equal(completed.status,stage===mission.territoryIds.length-1?'COMPLETED':'RACING');assert.equal(completed.deadlineAt,a.deadlineAt);
   }
-  const done=f.store.get('pilot',a.attemptId);assert.equal(done.firstClearCredits,replay===0?2250:0);assert.ok(done.finishTimeMs>45000);
+  const done=f.store.get('pilot',a.attemptId);assert.equal(done.firstClearCredits,replay===0?2250:0);assert.ok(done.finishTimeMs>30000);
   assert.equal(f.tick(a),undefined);
  }
  assert.equal(f.profiles.getOrCreate('pilot','Pilot').credits,initial+2250);
@@ -118,12 +118,12 @@ test('pause, durable reconnect, timeout, failure, fresh retry and verified conti
  assert.equal(f.store.advanceTerritoryCapture('pilot',retry.attemptId,true,retry.deadlineAt),undefined);
  }finally{f.close();}
 });
-test('12-second capture intro uses the three existing definitions, exact text and a clean skip handoff without moving the aircraft',()=>{
+test('12-second capture intro uses the two existing definitions, exact text and a clean skip handoff without moving the aircraft',()=>{
  const player=new THREE.Group();player.position.set(-58000,1000,-28050);const initial=player.position.clone();
  const sequence=mission.territoryIds.map(id=>territories.find(t=>t.id===id));
  const intro=new MissionCaptureIntroPath(sequence[0],15000,()=>100,undefined,{player,territories:sequence});
- assert.equal(intro.durationMs,12000);assert.deepEqual([0,3000,6000,9000].map(t=>intro.text(t)),Array(4).fill('Capture 3 TERRITORIES'));
- assert.deepEqual([3000,6000,8000].map(t=>intro.territoryAt(t).id),mission.territoryIds);
+ assert.equal(intro.durationMs,12000);assert.deepEqual([0,3000,6000,9000].map(t=>intro.text(t)),Array(4).fill('Capture 2 TERRITORIES'));
+ assert.deepEqual([3000,6000,8000].map(t=>intro.territoryAt(t).id),[...mission.territoryIds,mission.territoryIds[1]]);
  const position=new THREE.Vector3(),target=new THREE.Vector3(),chase=new THREE.Vector3(1,2,3),look=new THREE.Vector3(4,5,6);
  for(const time of [0,3000,6000,8000,12000]){intro.sample(time,position,target,chase,look);assert.deepEqual(player.position,initial);assert.equal(intro.showsCaptureRow(time),false);}
  assert.deepEqual(position,chase);assert.deepEqual(target,look);

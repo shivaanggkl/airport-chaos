@@ -485,8 +485,7 @@ export const journeyDallasTerritoryDefense01 = Object.freeze({
   defenseDurationMs:60000, enemyCaptureDurationMs:60000, timeLimitMs:304000, firstClearCredits:1700,
   airborneSpawn:Object.freeze({x:-47000,z:-28050,altitude:900,heading:-Math.PI/2,speed:650}),
   enemyAircraft:'privateJet', enemyLivery:'nightowl-sunset-red', enemyHealth:300,
-  enemySpawn:Object.freeze({x:-22000,z:-28050}), enemyAltitude:1000, cruiseSpeed:420, aggressionDistance: COMBAT_RANGE, fireDelayMs:8000,
-  patrolRoute:Object.freeze([{x:-35000,z:-28050},{x:-45500,z:-34000},{x:-45000,z:-22000},{x:-35500,z:-18500}].map(Object.freeze)),
+  enemySpawn:Object.freeze({x:-22000,z:-28050}), enemyAltitude:1000, cruiseSpeed:420, aggressionDistance: COMBAT_RANGE, fireDelayMs:0,
 });
 
 // Already-scaled Dallas coordinates; shared by spawn, HUD and authoritative combat.
@@ -586,17 +585,18 @@ export const journeyDallasAceIntercept01 = Object.freeze({
 });
 
 export const journeyDallasCaptureThree01 = Object.freeze({
-  id: 'journey-dallas-capture-three-01', cityId: 'dallas', name: 'CAPTURE 3 TERRITORIES',
+  id: 'journey-dallas-capture-three-01', cityId: 'dallas', name: 'CAPTURE 2 TERRITORIES',
   runwayStart: true, startAirportId: 'dfw',
   chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 360_000, firstClearCredits: 2_250,
-  objective: 'Capture all 3 marked territories before time runs out!', captureDurationMs: 15_000,
-  territoryIds: Object.freeze(['las-colinas', 'love-field', 'downtown']),
+  objective: 'Capture both marked territories before time runs out!', captureDurationMs: 15_000,
+  territoryIds: Object.freeze(['las-colinas', 'love-field']),
   airborneSpawn: Object.freeze({x: -58_000, z: -28_050, altitude: 900, heading: -Math.PI / 2, speed: 650}),
 });
 
 export const journeyDallasTerritoryHold01 = Object.freeze({
   ...journeyDallasCaptureThree01,
   id: 'journey-dallas-territory-hold-01', name: 'TERRITORY TAKEOVER',
+  territoryIds: Object.freeze(['las-colinas', 'love-field', 'downtown']),
   objective: 'Defeat the territory owners and capture all 3 territories. Hold all 3 together for 30 seconds.',
   firstClearCredits: 2500, holdDurationMs: 30000, opponentRespawnMs: 10000,
   owners: Object.freeze([
@@ -615,7 +615,7 @@ export function journeyTerritoryCaptureMission(id) {
   return id === journeyDallasCapture01.id ? journeyDallasCapture01 : journeyCompetitiveCaptureMission(id);
 }
 export function journeyCaptureTerritoryId(id, stage = 0) {
-  return journeyCompetitiveCaptureMission(id) ? journeyDallasCaptureThree01.territoryIds[stage]
+  return journeyCompetitiveCaptureMission(id) ? journeyCompetitiveCaptureMission(id).territoryIds[stage]
     : id === journeyDallasCapture01.id ? journeyDallasCapture01.territoryId : undefined;
 }
 
@@ -657,7 +657,7 @@ export const journeyCatalog = Object.freeze([
   [9, 'Giant Plane & Three Escorts'],
   [6, 'Golden Championship'],
   [journeyDallasAceIntercept01.id, 'Ace Intercept'],
-  [journeyDallasCaptureThree01.id, 'Capture 3 Territories'],
+  [journeyDallasCaptureThree01.id, 'Capture 2 Territories'],
   [10, 'Giant Plane & Four Escorts'],
   [17, 'Iron Hunter'],
   [11, 'Armored Giant Plane'],

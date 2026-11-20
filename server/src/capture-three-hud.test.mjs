@@ -56,17 +56,17 @@ test('M21 uses the same separate territory host and clean mission box as M5', ()
   assert.equal(hosts.at(-1), c.missionTerritoryCard);
   assert.equal(modes.at(-1), 'mission-territories');
   assert.equal(c.missionTerritoryCard.hidden, false);
-  assert.equal(c.journeyHudObjective.textContent, '• Capture 3 TERRITORIES');
+  assert.equal(c.journeyHudObjective.textContent, '• Capture 2 TERRITORIES');
   for (const key of ['journeyHudProgress', 'journeyHudTarget', 'journeyHudSegmentRow']) assert.equal(c[key].hidden, true);
-  assert.deepEqual(rows.map(row => row.name), ['LAS COLINAS TERRITORY', 'LOVE FIELD TERRITORY', 'DOWNTOWN DALLAS TERRITORY']);
-  assert.deepEqual(rows.map(row => row.statusLabel), ['CAPTURING 50%', 'UNASSIGNED', 'UNASSIGNED']);
+  assert.deepEqual(rows.map(row => row.name), ['LAS COLINAS TERRITORY', 'LOVE FIELD TERRITORY']);
+  assert.deepEqual(rows.map(row => row.statusLabel), ['CAPTURING 50%', 'UNASSIGNED']);
   c.missionTerritoryCard.classList.add('is-collapsed'); c.layout();
   assert.equal(c.missionTerritoryCard.classList.contains('is-collapsed'), true, 'HUD refresh must preserve the collapse choice');
 });
 
 test('M21 shared capture bar and owned rows follow live ownership in any order', () => {
   const { context: c, rows, bars } = fixture();
-  for (let stage = 0; stage < 3; stage++) {
+  for (let stage = 0; stage < 2; stage++) {
     const target = c.territoryDefinitions.find(t => t.id === c.journeyDallasCaptureThree01.territoryIds[stage]);
     c.airplane.position = { ...target.center, y: 1000 };
     c.journeyAttempt.captureStage = stage; c.journeyAttempt.captureMs = 7500;
@@ -78,7 +78,7 @@ test('M21 shared capture bar and owned rows follow live ownership in any order',
     assert.ok(rows.slice(stage + 1).every(row => !row.captured && row.statusLabel === 'UNASSIGNED'));
   }
   c.journeyAttempt.captureTerritories.forEach(t=>{t.controllerId='pilot';t.capturingPlayerId=undefined;t.captureProgress=0;});
-  c.journeyAttempt.captureStage = 3; c.journeyAttempt.status = 'COMPLETED'; c.journeyAttempt.captureMs = 0;
+  c.journeyAttempt.captureStage = 2; c.journeyAttempt.status = 'COMPLETED'; c.journeyAttempt.captureMs = 0;
   c.render();
   assert.ok(rows.every(row => row.captured && row.statusLabel === 'OWNED'));
   assert.deepEqual(bars.at(-1), ['ALL TERRITORIES', 0, true], 'shared bar renders confirmed capture as 100%');
@@ -95,7 +95,7 @@ test('pause, leaving the boundary and a reset hold cannot show false M21 capture
   assert.equal(rows[0].controllerId, 'pilot'); assert.equal(rows[1].captured, false);
 });
 
-test('all three M21 territories can be unassigned, stolen and released with real owner colours',()=>{
+test('both M3 territories can be unassigned, stolen and released with real owner colours',()=>{
  const {context:c,rows}=fixture();
  c.journeyAttempt.captureTerritories=c.journeyDallasCaptureThree01.territoryIds.map(id=>({id,captureProgress:0,contested:false}));
  c.render();assert.ok(rows.every(row=>row.color==='#ffffff'&&row.statusLabel==='UNASSIGNED'));

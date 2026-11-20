@@ -9,8 +9,8 @@ export type CaptureOpponent = {
 };
 export type CaptureCompetition = { territories: CaptureTerritory[]; opponents: CaptureOpponent[]; updatedAt: number };
 
-export function newCaptureCompetition(opponents: CaptureOpponent[], now: number): CaptureCompetition {
-  return { territories: mission.territoryIds.map(id => ({id, captureMs:0, contested:false})), opponents, updatedAt:now };
+export function newCaptureCompetition(opponents: CaptureOpponent[], now: number, territoryIds: readonly string[] = mission.territoryIds): CaptureCompetition {
+  return { territories: territoryIds.map(id => ({id, captureMs:0, contested:false})), opponents, updatedAt:now };
 }
 
 /** A defeated challenger loses its attempt, never somebody else's ownership. */
