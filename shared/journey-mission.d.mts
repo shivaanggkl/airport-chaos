@@ -273,11 +273,11 @@ export const journeyDallasCaptureThree01: Readonly<{
   chapter: 'SKY COMMANDER'; difficulty: 'HARD'; timeLimitMs: 360000; firstClearCredits: 2250;
   objective: 'Defeat the territory owners, capture both territories and hold both together for 30 seconds.'; captureDurationMs: 15000;
   holdDurationMs:30000;opponentRespawnMs:15000;opponentCount:4;
-  owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'privateJet';name:string}>[];
+  owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'privateJet';name:string;initiallyOwned?:boolean}>[];
   territoryIds: readonly ['las-colinas','love-field'];
   airborneSpawn: Readonly<{x: -58000; z: -28050; altitude: 900; heading: number; speed: 650}>;
 }>;
-export function journeyTerritoryCaptureMission(id: string | undefined): typeof journeyDallasCapture01 | typeof journeyDallasCaptureThree01 | typeof journeyDallasTerritoryHold01 | undefined;
+export function journeyTerritoryCaptureMission(id: string | undefined): typeof journeyDallasCapture01 | typeof journeyDallasCaptureThree01 | typeof journeyDallasTerritoryHold01 | typeof journeyDallasTerritoryDomination01 | undefined;
 export function journeyCaptureTerritoryId(id: string | undefined, stage?: number): string | undefined;
 
 export const journeyDallasMostWantedSurvival01: Readonly<{
@@ -293,6 +293,12 @@ export const journeyDallasMostWantedSurvival01: Readonly<{
 }>;
 
 export const journeyDallasTerritoryHold01: Readonly<Omit<typeof journeyDallasCaptureThree01,'id'|'name'|'objective'|'firstClearCredits'|'territoryIds'|'holdDurationMs'|'opponentRespawnMs'|'opponentCount'|'owners'> & {
- territoryIds:readonly ['las-colinas','love-field','downtown'];id:'journey-dallas-territory-hold-01';name:'TERRITORY TAKEOVER';objective:string;firstClearCredits:2500;opponentCount:6;holdDurationMs:30000;opponentRespawnMs:10000;owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'privateJet'|'cargo';name:string}>[];
+ territoryIds:readonly ['las-colinas','love-field','downtown'];id:'journey-dallas-territory-hold-01';name:'TERRITORY TAKEOVER';objective:string;firstClearCredits:2500;opponentCount:6;holdDurationMs:30000;opponentRespawnMs:10000;owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'privateJet'|'cargo';name:string;initiallyOwned?:boolean}>[];
 }>;
-export function journeyCompetitiveCaptureMission(id:string|undefined):typeof journeyDallasCaptureThree01|typeof journeyDallasTerritoryHold01|undefined;
+export function journeyCompetitiveCaptureMission(id:string|undefined):typeof journeyDallasCaptureThree01|typeof journeyDallasTerritoryHold01|typeof journeyDallasTerritoryDomination01|undefined;
+
+export const journeyDallasTerritoryDomination01: Readonly<Omit<typeof journeyDallasCaptureThree01,'id'|'name'|'objective'|'timeLimitMs'|'firstClearCredits'|'territoryIds'|'holdDurationMs'|'opponentCount'|'owners'> & {
+ id:'journey-dallas-territory-domination-01';name:'CAPTURE 6 TERRITORIES';objective:string;timeLimitMs:600000;firstClearCredits:3000;holdDurationMs:0;opponentCount:9;
+ territoryIds:readonly ['love-field','trinity-corridor','white-rock','las-colinas','downtown','addison'];
+ owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'fighter'|'privateJet'|'cargo';name:string;initiallyOwned:boolean}>[];
+}>;

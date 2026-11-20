@@ -11,15 +11,15 @@ type CaptureTerritory = Readonly<{
 
 /** Presentation-only lesson. Never moves the player or changes capture state. */
 export class MissionCaptureIntroPath {
-  get sweepMs():number {return this.sequence?11_500:this.defense?11_500:14_000;}
-  get durationMs():number {return this.sequence?12_000:this.defense?12_000:15_000;}
+  get sweepMs():number {return this.sequence?this.durationMs-500:this.defense?11_500:14_000;}
+  get durationMs():number {return this.sequence?Math.max(12_000,5_000+this.sequence.territories.length*2_000):this.defense?12_000:15_000;}
   private readonly radius: number;
   private readonly sequenceFrames: {territory:CaptureTerritory;focus:THREE.Vector3;radius:number}[];
   private readonly focus: THREE.Vector3;
   private readonly streamingFocus: THREE.Vector3;
 
   constructor(territory: CaptureTerritory, _captureMs: number,
-    heightAt: (x: number, z: number) => number, readonly defense?:{player:THREE.Group;invader:THREE.Group},readonly sequence?:{player:THREE.Group;territories:readonly CaptureTerritory[];instructions?:readonly string[];owners?:readonly Readonly<{territoryId:string;name:string}>[]}) {
+    heightAt: (x: number, z: number) => number, readonly defense?:{player:THREE.Group;invader:THREE.Group},readonly sequence?:{player:THREE.Group;territories:readonly CaptureTerritory[];instructions?:readonly string[];owners?:readonly Readonly<{territoryId:string;name:string}>[];showNeutralOwnership?:boolean}) {
     const { minX, maxX, minZ, maxZ } = territory.bounds;
     const { x, z } = territory.center;
     const ground = heightAt(x, z);
@@ -31,19 +31,23 @@ export class MissionCaptureIntroPath {
       radius:Math.hypot((territory.bounds.maxX-territory.bounds.minX)/2,(territory.bounds.maxZ-territory.bounds.minZ)/2,1000)}));
   }
 
-  territoryAt(elapsed:number):CaptureTerritory|undefined{return this.sequenceFrames[Math.min(this.sequenceFrames.length-1,elapsed<6000?0:elapsed<8000?1:2)]?.territory;}
+  private sequenceIndex(elapsed:number):number {
+    return Math.max(0,Math.min(this.sequenceFrames.length-1,this.sequenceFrames.length>3?Math.floor((elapsed-3000)/2000):elapsed<6000?0:elapsed<8000?1:2));
+  }
+
+  territoryAt(elapsed:number):CaptureTerritory|undefined{return this.sequenceFrames[this.sequenceIndex(elapsed)]?.territory;}
 
   text(elapsed: number): string {
     if(this.sequence){
       const territory=this.territoryAt(elapsed),owner=this.sequence.owners?.find(owner=>owner.territoryId===territory?.id);
-      const ownership=owner&&territory&&this.showsTerritory(elapsed)?`${territory.displayName.toUpperCase()} · ${owner.name}\n`:'';
+      const ownership=territory&&this.showsTerritory(elapsed)&&(owner||this.sequence.showNeutralOwnership)?`${territory.displayName.toUpperCase()} · ${owner?.name??'UNASSIGNED'}\n`:'';
       return ownership+(this.sequence.instructions??captureThreeInstructions).join('\n');
     }
     if(this.defense)return territoryDefenseInstructions.join('\n');
     return captureMissionInstructions.join('\n');
   }
 
-  showsTerritory(elapsed: number): boolean { return this.sequence?elapsed>=3000&&elapsed<10000:this.defense?elapsed>=3000&&elapsed<6000:elapsed >= 2_500 && elapsed < this.sweepMs + 500; }
+  showsTerritory(elapsed: number): boolean { return this.sequence?elapsed>=3000&&elapsed<this.durationMs-2000:this.defense?elapsed>=3000&&elapsed<6000:elapsed >= 2_500 && elapsed < this.sweepMs + 500; }
 
   showsCaptureRow(elapsed: number): boolean { return !this.sequence && !this.defense && elapsed >= 3_000 && elapsed < this.durationMs; }
 
@@ -56,11 +60,11 @@ export class MissionCaptureIntroPath {
     chasePosition: THREE.Vector3, chaseTarget: THREE.Vector3, aspect = 16 / 9): void {
     if(this.sequence){
       if(elapsed<3000){position.copy(chasePosition);target.copy(this.sequence.player.position);this.streamingFocus.copy(this.sequence.player.position);return;}
-      const frame=this.sequenceFrames[Math.min(this.sequenceFrames.length-1,elapsed<6000?0:elapsed<8000?1:2)]!;
+      const frame=this.sequenceFrames[this.sequenceIndex(elapsed)]!;
       const halfFov=Math.atan(Math.tan(THREE.MathUtils.degToRad(29))*Math.min(1,Math.max(.5,aspect)));
       const distance=frame.radius/Math.sin(halfFov)*1.28;
       this.shotSequence(position,target,frame.focus,distance);
-      const blend=THREE.MathUtils.smoothstep(elapsed,10000,12000);position.lerp(chasePosition,blend);target.lerp(chaseTarget,blend);this.streamingFocus.copy(target);return;
+      const blend=THREE.MathUtils.smoothstep(elapsed,this.durationMs-2000,this.durationMs);position.lerp(chasePosition,blend);target.lerp(chaseTarget,blend);this.streamingFocus.copy(target);return;
     }
     if(this.defense){
       if(elapsed<3000){

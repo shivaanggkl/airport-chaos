@@ -6,6 +6,7 @@ import ts from 'typescript';
 import * as missions from '../../shared/journey-mission.mjs';
 import { territoriesForCity, territoryContains } from '../../shared/city-territories.mjs';
 import { dallasDisplayNames } from '../../shared/dallas-display-names.mjs';
+import {journeyCategorySlot,journeyCategorySlots} from '../../shared/journey-categories.mjs';
 import { missionJourneyDetails } from '../../client/src/mission-journey-content.ts';
 
 const source = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
@@ -26,10 +27,9 @@ function element() {
     toggle(name, force) { const active = force ?? !classes.has(name); if (active) classes.add(name); else classes.delete(name); return active; },
   } };
 }
-function fixture() {
+function fixture(mission = missions.journeyDallasCaptureThree01) {
   const rows = [], bars = [], hosts = [], modes = [];
   const territoryDefinitions = territoriesForCity('dallas');
-  const mission = missions.journeyDallasCaptureThree01;
   const context = vm.createContext({ ...missions, missionJourneyDetails, dallasAirportNames: dallasDisplayNames,
     captureMissionTerritoryName: 'LAS COLINAS', journeyMode: true,
     journeyAttempt: { missionId: mission.id, status: 'RACING', captureStage: 0, captureMs: 7500 },
@@ -104,4 +104,21 @@ test('both M3 territories can be unassigned, stolen and released with real owner
  c.render();assert.equal(rows[1].color,'#ff0000');assert.equal(rows[1].statusLabel,'FIREHAWK 4');
  c.journeyAttempt.captureTerritories[1].controllerId=undefined;c.journeyAttempt.captureTerritories[1].controllerName=undefined;
  c.render();assert.equal(rows[1].color,'#ffffff');assert.equal(rows[1].statusLabel,'UNASSIGNED');
+});
+
+
+test('M5 uses M5 numbering, all six territory rows, and capture progress with no hold/status line',()=>{
+ const {context:c,rows,bars}=fixture(missions.journeyDallasTerritoryDomination01);
+ c.journeyCategorySlot=journeyCategorySlot;c.journeyCategorySlots=journeyCategorySlots;
+ vm.runInContext(ts.transpileModule(declaration('journeyMissionHeading').getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,c);
+ assert.equal(c.journeyMissionHeading(c.journeyAttempt.missionId),'M5: CAPTURE 6 TERRITORIES');
+ c.journeyAttempt.captureMs=0;
+ c.journeyAttempt.captureTerritories=missions.journeyDallasTerritoryDomination01.territoryIds.map((id,index)=>({id,controllerId:index<2?`enemy-${index}`:undefined,controllerName:index<2?missions.journeyDallasTerritoryDomination01.owners[index].name:undefined,captureProgress:0,contested:false}));
+ c.render();assert.equal(rows.length,6);assert.equal(rows.filter(row=>row.statusLabel==='UNASSIGNED').length,4);
+ assert.equal(c.journeyHudProgress.hidden,true);assert.equal(c.journeyHudProgress.textContent,'');
+ assert.equal(c.journeyHudObjective.textContent,'• Defeat the territory owners\n• Capture all 6 TERRITORIES\n• Own all 6 together to win');
+ c.journeyAttempt.captureMs=7500;c.journeyAttempt.captureTerritories[2].capturingPlayerId='pilot';c.journeyAttempt.captureTerritories[2].captureProgress=50;c.render();
+ assert.deepEqual(bars.at(-1),['WHITE ROCK TERRITORY',50,false]);
+ c.journeyAttempt.captureTerritories.forEach(t=>{t.controllerId='pilot';t.capturingPlayerId=undefined;t.captureProgress=0;});c.journeyAttempt.captureStage=6;c.journeyAttempt.captureMs=0;c.journeyAttempt.status='COMPLETED';c.render();
+ assert.deepEqual(bars.at(-1),['ALL TERRITORIES',0,true]);assert.equal(bars.some(call=>Array.isArray(call)&&call[0]==='hold'),false);
 });
