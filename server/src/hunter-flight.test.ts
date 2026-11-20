@@ -83,7 +83,7 @@ test('real ballistic shots hit straight moving targets; post-launch evasive turn
   }
   assert.ok(straightHits >= 15, `straight hits ${straightHits}/20`);
   assert.ok(evasiveHits < straightHits / 2, `evasions ${evasiveHits}/20`);
-  assert.equal(hunterBallisticSolution(origin, velocity, { ...target, z: -6000 }, moving), null);
+  assert.equal(hunterBallisticSolution(origin, velocity, { ...target, z: -(COMBAT_RANGE + 1) }, moving), null);
 });
 
 test('Hunter snapshot rendering stays continuous at packet joins and across heading wrap', () => {

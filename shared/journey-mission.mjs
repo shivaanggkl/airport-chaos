@@ -1,3 +1,4 @@
+import { COMBAT_RANGE } from './protocol.mjs';
 import { dallasDisplayNames as airportName } from './dallas-display-names.mjs';
 import { sharpshooterPlacements, doubleTroublePlacements, precisionFirePlacements, targetMasterPlacements } from './sharpshooter-target.mjs';
 import { territoriesForCity } from './city-territories.mjs';
@@ -395,7 +396,7 @@ const scaleDallasJourney = mission => Object.freeze({
   ...(mission.enemySpawn ? { enemySpawn: Object.freeze(scaleDallasPoint(mission.enemySpawn)) } : {}),
   ...(mission.enemies ? { enemies: Object.freeze(mission.enemies.map(enemy => Object.freeze({ ...scaleDallasPoint(enemy), altitude: enemy.altitude * DALLAS_WORLD_SCALE }))) } : {}),
   ...(mission.monster ? { monster: Object.freeze(scaleDallasPoint(mission.monster)) } : {}),
-  ...Object.fromEntries(['enemyAltitude', 'aggressionDistance', 'patrolRadius', 'threatDistance', 'arrivalRadius', 'approachRestartZ'].filter(key => mission[key] !== undefined).map(key => [key, mission[key] * DALLAS_WORLD_SCALE])),
+  ...Object.fromEntries(['enemyAltitude', 'aggressionDistance', 'patrolRadius', 'threatDistance', 'arrivalRadius', 'approachRestartZ'].filter(key => mission[key] !== undefined).map(key => [key, key === 'aggressionDistance' ? Math.max(COMBAT_RANGE, mission[key] * DALLAS_WORLD_SCALE) : mission[key] * DALLAS_WORLD_SCALE])),
 });
 export const journeyDallas01 = scaleDallasJourney(baseJourneyDallas01);
 export const journeyDallas02 = scaleDallasJourney(baseJourneyDallas02);
@@ -484,7 +485,7 @@ export const journeyDallasTerritoryDefense01 = Object.freeze({
   defenseDurationMs:60000, enemyCaptureDurationMs:60000, timeLimitMs:304000, firstClearCredits:1700,
   airborneSpawn:Object.freeze({x:-47000,z:-28050,altitude:900,heading:-Math.PI/2,speed:650}),
   enemyAircraft:'privateJet', enemyLivery:'nightowl-sunset-red', enemyHealth:300,
-  enemySpawn:Object.freeze({x:-22000,z:-28050}), enemyAltitude:1000, cruiseSpeed:420, aggressionDistance:5000, fireDelayMs:8000,
+  enemySpawn:Object.freeze({x:-22000,z:-28050}), enemyAltitude:1000, cruiseSpeed:420, aggressionDistance: COMBAT_RANGE, fireDelayMs:8000,
   patrolRoute:Object.freeze([{x:-35000,z:-28050},{x:-45500,z:-34000},{x:-45000,z:-22000},{x:-35500,z:-18500}].map(Object.freeze)),
 });
 
@@ -493,7 +494,7 @@ export const journeyDallasTwinHunters01 = Object.freeze({
   id: 'journey-dallas-twin-hunters-01', cityId: 'dallas', name: 'TWIN HUNTERS', difficulty: 'MEDIUM',
   objective: 'Shoot down both enemy aircraft before time runs out!',
   runwayStart: true, startAirportId: 'love',
-  timeLimitMs: 242_000, firstClearCredits: 1500, enemyHealth: 300, aggressionDistance: 6000,
+  timeLimitMs: 242_000, firstClearCredits: 1500, enemyHealth: 300, aggressionDistance: COMBAT_RANGE,
   airborneSpawn: Object.freeze({x: -27000, z: -40000, altitude: 1100, heading: Math.PI, speed: 650}),
   enemies: Object.freeze([
     Object.freeze({aircraft: 'trainer', livery: 'bluejay-skybolt', name: 'BLUEJAY', level: 'MEDIUM', fireDelayMs: 6000, x: -28900, z: -35700, altitude: 100}),
@@ -574,7 +575,7 @@ export const journeyDallasAceIntercept01 = Object.freeze({
   runwayStart: true, startAirportId: 'dfw',
   chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 260_000, firstClearCredits: 2_150,
   objective: 'Destroy the enemy Firehawk!', enemyAircraft: 'fighter', enemyLivery: 'firehawk-stealth-gray',
-  enemyHealth: 350, escapeHealth: 175, fireDelayMs: 6_000, aggressionDistance: 9_000,
+  enemyHealth: 350, escapeHealth: 175, fireDelayMs: 6_000, aggressionDistance: COMBAT_RANGE,
   dogfightRadius: 10_000, cruiseSpeed: 650, escapeCruiseSpeed: 750, escapeMaxSpeed: 850, arrivalRadius: 650,
   airborneSpawn: Object.freeze({x: -20_000, z: -25_000, altitude: 1_100, heading: -.432, speed: 650}),
   enemySpawn: Object.freeze({x: -17_000, z: -18_500, altitude: 1_200, heading: 2.709}),
@@ -622,7 +623,7 @@ export const journeyDallasMostWantedSurvival01 = Object.freeze({
   id: 'journey-dallas-most-wanted-survival-01', cityId: 'dallas', name: 'MOST WANTED SURVIVAL',
   chapter: 'SKY COMMANDER', difficulty: 'VERY HARD', timeLimitMs: 120_000, firstClearCredits: 2_600,
   objective: 'Survive until the timer reaches zero!', replacementDelayMs: 15_000, boundaryGraceMs: 10_000,
-  enemyHealth: 300, aggressionDistance: 9_000, startAirportId: 'dfw', gates: Object.freeze([]),
+  enemyHealth: 300, aggressionDistance: COMBAT_RANGE, startAirportId: 'dfw', gates: Object.freeze([]),
   airborneSpawn: Object.freeze({x: -28_000, z: -22_000, altitude: 1_100, heading: Math.PI, speed: 650}),
   bounds: Object.freeze({minX: -61_000, maxX: 3_000, minZ: -54_000, maxZ: 10_000}),
   enemies: Object.freeze([

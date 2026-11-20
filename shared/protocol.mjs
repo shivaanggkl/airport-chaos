@@ -52,7 +52,16 @@ export function ballisticIntercept(origin, shooterVelocity, targetPosition, targ
   };
   let low = 0, high = 0;
   const lifetime = COMBAT_RANGE / BASE_PROJECTILE_SPEED;
-  for (let step = 1; step <= 64; step += 1) {
+  // A fast incoming aircraft can cross the firing line between coarse samples.
+  // Its closest approach supplies a valid bracket without increasing scan work.
+  const targetSpeedSquared = targetVelocity.x ** 2 + targetVelocity.y ** 2 + targetVelocity.z ** 2;
+  const closestAt = targetSpeedSquared > 0
+    ? -(rx * targetVelocity.x + ry * targetVelocity.y + rz * targetVelocity.z) / targetSpeedSquared : 0;
+  if (closestAt > 0 && closestAt <= lifetime) {
+    const sample = at(closestAt);
+    if (sample.distance <= sample.speed * closestAt) high = closestAt;
+  }
+  if (!high) for (let step = 1; step <= 64; step += 1) {
     high = lifetime * step / 64;
     const sample = at(high);
     if (sample.distance <= sample.speed * high) break;
