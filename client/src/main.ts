@@ -3387,7 +3387,8 @@ function updateJourneyHud(): void {
   if(captureThree){
     if(journeyHudObjective) setMissionInstructions(journeyHudObjective,missionJourneyDetails.find(mission=>mission.id===journeyAttempt?.missionId)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
     for(const item of [journeyHudProgress,journeyHudTarget,journeyHudSegmentRow,journeyHudTimer,journeyHudHint,journeyHudEnemy])if(item)item.hidden=true;
-    if(journeyCompetitiveCaptureMission(journeyAttempt.missionId)&&journeyHudProgress){
+    if(journeyHudProgress)journeyHudProgress.textContent='';
+    if(journeyAttempt.missionId===journeyDallasTerritoryHold01.id&&journeyHudProgress){
       journeyHudProgress.hidden=false;
       journeyHudProgress.textContent=`HOLD ${Math.floor((journeyAttempt.defenseMs??0)/1000)} / ${journeyCompetitiveCaptureMission(journeyAttempt.missionId)!.holdDurationMs/1000} SEC · TERRITORIES ${journeyAttempt.captureStage??0}/${journeyCompetitiveCaptureMission(journeyAttempt.missionId)!.territoryIds.length}`;
     }

@@ -588,8 +588,8 @@ export const journeyDallasCaptureThree01 = Object.freeze({
   id: 'journey-dallas-capture-three-01', cityId: 'dallas', name: 'CAPTURE & HOLD 2 TERRITORIES',
   runwayStart: true, startAirportId: 'dfw',
   chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 360_000, firstClearCredits: 2_250,
-  objective: 'Defeat the territory owners, capture both territories and hold both together for 15 seconds.', captureDurationMs: 15_000,
-  holdDurationMs: 15000, opponentRespawnMs: 15000, opponentCount: 4,
+  objective: 'Defeat the territory owners, capture both territories and hold both together for 30 seconds.', captureDurationMs: 15_000,
+  holdDurationMs: 30000, opponentRespawnMs: 15000, opponentCount: 4,
   owners: Object.freeze([
     Object.freeze({territoryId:'las-colinas',aircraft:'trainer',name:'BLUEJAY GUARDIAN'}),
     Object.freeze({territoryId:'love-field',aircraft:'privateJet',name:'NIGHTOWL GUARDIAN'}),

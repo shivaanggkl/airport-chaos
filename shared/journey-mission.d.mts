@@ -271,8 +271,8 @@ export const journeyDallasCaptureThree01: Readonly<{
   id: 'journey-dallas-capture-three-01'; cityId: 'dallas'; name: 'CAPTURE & HOLD 2 TERRITORIES';
   runwayStart: true; startAirportId: 'dfw';
   chapter: 'SKY COMMANDER'; difficulty: 'HARD'; timeLimitMs: 360000; firstClearCredits: 2250;
-  objective: 'Defeat the territory owners, capture both territories and hold both together for 15 seconds.'; captureDurationMs: 15000;
-  holdDurationMs:15000;opponentRespawnMs:15000;opponentCount:4;
+  objective: 'Defeat the territory owners, capture both territories and hold both together for 30 seconds.'; captureDurationMs: 15000;
+  holdDurationMs:30000;opponentRespawnMs:15000;opponentCount:4;
   owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'privateJet';name:string}>[];
   territoryIds: readonly ['las-colinas','love-field'];
   airborneSpawn: Readonly<{x: -58000; z: -28050; altitude: 900; heading: number; speed: 650}>;
