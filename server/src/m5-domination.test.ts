@@ -33,7 +33,7 @@ test('M5 is playable after M4 with six exact territories, nine opponents and no 
  const slot=journeyCategorySlot(mission.id)!;assert.equal(slot.categoryId,'territory-missions');assert.equal(slot.categoryNumber,5);assert.equal(slot.implementation,'playable');
  assert.equal(categoryMissionAccess(mission.id,new Set()),false);assert.equal(categoryMissionAccess(mission.id,new Set([catalog.journeyDallasTerritoryHold01.id])),true);
  assert.deepEqual(new Set(mission.territoryIds),new Set(['white-rock','downtown','las-colinas','love-field','trinity-corridor','addison']));
- assert.equal(mission.timeLimitMs,600000);assert.equal(mission.firstClearCredits,3000);assert.equal(mission.holdDurationMs,0);assert.equal(mission.opponentRespawnMs,15000);assert.equal(mission.opponentCount,9);
+ assert.equal(mission.timeLimitMs,600000);assert.equal(mission.firstClearCredits,3000);assert.equal(mission.holdDurationMs,0);assert.equal(mission.opponentRespawnMs,30000);assert.equal(mission.opponentCount,9);
  assert.equal(missionFocusForAttempt({missionId:mission.id,status:'RACING'}).showAmbientAIAircraft,false);
 });
 test('only Love Field and Trinity start owned; four guardians seek their own districts and three hunt the pilot',()=>{
@@ -83,13 +83,14 @@ test('M5 wins on the final ownership tick, loses progress when a territory is st
   const timed=start();assert.equal(store.advanceTerritoryCapture('pilot',timed.attemptId,true,timed.deadlineAt!,false,state),undefined);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
-test('all nine roles wait a full 15 fresh seconds and return to the DFW runway with their original assignment',()=>{
+test('all nine roles wait a full 30 fresh seconds and return to the DFW runway with their original assignment',()=>{
  const {ctx}=setup(),state=ctx.ensureCaptureCompetition('pilot',{attemptId:'a',missionId:mission.id});
  for(const [slot,enemy]of state.opponents.entries()){
   enemy.health=0;let now=1000;enemy.respawnUpdatedAt=now;
-  for(let i=0;i<37;i++)assert.equal(advanceCaptureRespawn(enemy,now+=400,true,mission.opponentRespawnMs),false);
+  for(let i=0;i<74;i++)assert.equal(advanceCaptureRespawn(enemy,now+=400,true,mission.opponentRespawnMs),false);
   assert.equal(advanceCaptureRespawn(enemy,now+=20000,false,mission.opponentRespawnMs),false);
-  assert.equal(advanceCaptureRespawn(enemy,now+=200,true,mission.opponentRespawnMs),true);
+  assert.equal(advanceCaptureRespawn(enemy,now+=399,true,mission.opponentRespawnMs),false);
+  assert.equal(advanceCaptureRespawn(enemy,now+=1,true,mission.opponentRespawnMs),true);
   const identity={id:enemy.id,role:enemy.role,goal:enemy.goal};ctx.reviveTerritoryHoldOpponent('pilot',{}, {attemptId:'a'},enemy,slot);
   assert.deepEqual({id:enemy.id,role:enemy.role,goal:enemy.goal},identity);
   const airport=cityAirports.dallas.find(a=>a.id==='dfw')!;assert.equal(enemy.position.x,airport.x);assert.equal(enemy.position.z,airport.z+airport.runwayLength*.3);assert.equal(enemy.position.y,121.2);assert.equal(enemy.runwayStart,true);assert.equal(enemy.health,maxHealthForAircraft(enemy.aircraft));
