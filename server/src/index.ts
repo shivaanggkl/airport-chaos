@@ -4919,7 +4919,7 @@ function ensureCaptureCompetition(playerId: string, attempt: JourneyAttempt): Ca
         return {id:`bot:journey:${attempt.attemptId}:capture:${slot}`,aircraft,level:'HARD',
           position:{...point,y:botSafeFloor('dallas',point.x,point.z,journeyAceClearance)+300},
           rotation:{x:0,y:angle,z:0},velocity:{x:-Math.sin(angle)*speed,y:0,z:-Math.cos(angle)*speed},
-          health:maxHealthForAircraft(aircraft),goal:slot%mission.territoryIds.length,name:mission.owners[slot]?.name??`FIREHAWK HUNTER ${slot-mission.owners.length+1}`,role:slot<mission.owners.length?'owner' as const:'attacker' as const};
+          health:maxHealthForAircraft(aircraft),goal:slot%mission.territoryIds.length,name:('opponentNames' in mission?mission.opponentNames[slot]:undefined)??mission.owners[slot]?.name??`FIREHAWK HUNTER ${slot-mission.owners.length+1}`,role:slot<mission.owners.length?'owner' as const:'attacker' as const};
       });
       state = newCaptureCompetition(opponents,Date.now(),mission.territoryIds);
       state.territories.forEach((territory,index)=>{if(mission.owners[index]?.initiallyOwned!==false)territory.ownerId=opponents[index]!.id;});
@@ -4933,10 +4933,13 @@ function ensureCaptureCompetition(playerId: string, attempt: JourneyAttempt): Ca
     captureCompetitions.set(attempt.attemptId,state);
   }
   for (const [slot,enemy] of state.opponents.entries()) {
+    const name = 'opponentNames' in mission ? mission.opponentNames[slot] : undefined;
+    if (name) enemy.name = name;
     if (enemy.health <= 0) continue;
     const existing = players.get(enemy.id);
     if (existing?.bot?.journeyAttemptId === attempt.attemptId) {
       existing.bot.journeyTargetPlayerId = playerId;
+      if (name) existing.displayName = name;
       continue;
     }
     createBot('dallas',undefined,{attemptId:attempt.attemptId,targetPlayerId:playerId,target:pilot,captureOpponent:enemy,captureSlot:slot});

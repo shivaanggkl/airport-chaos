@@ -610,19 +610,21 @@ export const journeyDallasTerritoryHold01 = Object.freeze({
     Object.freeze({territoryId:'downtown',aircraft:'cargo',name:'MAMMOTH GUARDIAN'}),
   ]),
 });
+const dallasDominationPilotNames = Object.freeze(['Patty','Nose','Bop','Noodle','Goop','Tofu','Pickle','Boop','Wobble']);
 export const journeyDallasTerritoryDomination01 = Object.freeze({
   ...journeyDallasCaptureThree01,
   id: 'journey-dallas-territory-domination-01', name: 'CAPTURE 6 TERRITORIES',
   objective: 'Defeat territory owners and own all 6 territories together to win.',
   timeLimitMs: 600000, firstClearCredits: 3000, holdDurationMs: 0, opponentCount: 9,
+  opponentNames: dallasDominationPilotNames,
   territoryIds: Object.freeze(['love-field','trinity-corridor','white-rock','las-colinas','downtown','addison']),
   owners: Object.freeze([
-    Object.freeze({territoryId:'love-field',aircraft:'privateJet',name:'NIGHTOWL GUARDIAN',initiallyOwned:true}),
-    Object.freeze({territoryId:'trinity-corridor',aircraft:'cargo',name:'MAMMOTH GUARDIAN',initiallyOwned:true}),
-    Object.freeze({territoryId:'white-rock',aircraft:'trainer',name:'WHITE ROCK GUARDIAN',initiallyOwned:false}),
-    Object.freeze({territoryId:'las-colinas',aircraft:'fighter',name:'LAS COLINAS GUARDIAN',initiallyOwned:false}),
-    Object.freeze({territoryId:'downtown',aircraft:'privateJet',name:'DOWNTOWN GUARDIAN',initiallyOwned:false}),
-    Object.freeze({territoryId:'addison',aircraft:'trainer',name:'ADDISON GUARDIAN',initiallyOwned:false}),
+    Object.freeze({territoryId:'love-field',aircraft:'privateJet',name:dallasDominationPilotNames[0],initiallyOwned:true}),
+    Object.freeze({territoryId:'trinity-corridor',aircraft:'cargo',name:dallasDominationPilotNames[1],initiallyOwned:true}),
+    Object.freeze({territoryId:'white-rock',aircraft:'trainer',name:dallasDominationPilotNames[2],initiallyOwned:false}),
+    Object.freeze({territoryId:'las-colinas',aircraft:'fighter',name:dallasDominationPilotNames[3],initiallyOwned:false}),
+    Object.freeze({territoryId:'downtown',aircraft:'privateJet',name:dallasDominationPilotNames[4],initiallyOwned:false}),
+    Object.freeze({territoryId:'addison',aircraft:'trainer',name:dallasDominationPilotNames[5],initiallyOwned:false}),
   ]),
 });
 export function journeyCompetitiveCaptureMission(id) {

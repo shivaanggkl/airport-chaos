@@ -1428,7 +1428,7 @@ const journeyHudHeaderTimer = skyChallengeElement.querySelector<HTMLElement>('[d
 const journeyHudBonusBadge = skyChallengeElement.querySelector<HTMLElement>('[data-journey-bonus-badge]');
 const journeyHudBonusTitle = skyChallengeElement.querySelector<HTMLElement>('[data-journey-bonus-title]');
 const m19MissionObjective = 'Destroy The MONSTER Before Time Runs Out.';
-const journeyMissionDefinitions = [journeyDallasMostWantedSurvival01,journeyDallasCaptureThree01, journeyDallasTerritoryHold01,journeyDallasTerritoryDefense01,journeyDallasTwinHunters01, journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasSharpshooter02, journeyDallasSharpshooter03, journeyDallasSharpshooter04, journeyDallasSharpshooter05, journeyDallasAirportHop01, journeyDallasCapture01,
+const journeyMissionDefinitions = [journeyDallasMostWantedSurvival01,journeyDallasCaptureThree01, journeyDallasTerritoryHold01,journeyDallasTerritoryDomination01,journeyDallasTerritoryDefense01,journeyDallasTwinHunters01, journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasSharpshooter02, journeyDallasSharpshooter03, journeyDallasSharpshooter04, journeyDallasSharpshooter05, journeyDallasAirportHop01, journeyDallasCapture01,
   journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
   journeyDallasAceIntercept01, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18,
   journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12,

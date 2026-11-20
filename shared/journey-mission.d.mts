@@ -298,7 +298,7 @@ export const journeyDallasTerritoryHold01: Readonly<Omit<typeof journeyDallasCap
 export function journeyCompetitiveCaptureMission(id:string|undefined):typeof journeyDallasCaptureThree01|typeof journeyDallasTerritoryHold01|typeof journeyDallasTerritoryDomination01|undefined;
 
 export const journeyDallasTerritoryDomination01: Readonly<Omit<typeof journeyDallasCaptureThree01,'id'|'name'|'objective'|'timeLimitMs'|'firstClearCredits'|'territoryIds'|'holdDurationMs'|'opponentCount'|'owners'> & {
- id:'journey-dallas-territory-domination-01';name:'CAPTURE 6 TERRITORIES';objective:string;timeLimitMs:600000;firstClearCredits:3000;holdDurationMs:0;opponentCount:9;
+ id:'journey-dallas-territory-domination-01';name:'CAPTURE 6 TERRITORIES';objective:string;timeLimitMs:600000;firstClearCredits:3000;holdDurationMs:0;opponentCount:9;opponentNames:readonly string[];
  territoryIds:readonly ['love-field','trinity-corridor','white-rock','las-colinas','downtown','addison'];
  owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'fighter'|'privateJet'|'cargo';name:string;initiallyOwned:boolean}>[];
 }>;
