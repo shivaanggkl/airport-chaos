@@ -244,3 +244,13 @@ test('blue detection beyond firing range never implies a reachable red lock', ()
   assert.equal(combatIntercept(zero,zero,{x:0,y:0,z:-(COMBAT_RANGE+1000)},zero),null);
   assert.equal(combatLockReady({x:0,y:0,z:-(COMBAT_RANGE+1000)},{x:0,y:0}),false);
 });
+
+test('fast incoming aircraft remain interceptable when they cross between long-range scan samples',()=>{
+ for(const speed of [5000,6000,8000]){
+  const origin={x:0,y:900,z:0},shooter={x:0,y:0,z:-400},target={x:0,y:900,z:-1800},velocity={x:10,y:0,z:speed};
+  const shot=combatIntercept(origin,shooter,target,velocity);assert.ok(shot);
+  const bullet=shot.point;
+  const time=shot.seconds;
+  assert.ok(Math.hypot(bullet.x-target.x-velocity.x*time,bullet.y-target.y,bullet.z-target.z-velocity.z*time)<.02);
+ }
+});

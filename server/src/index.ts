@@ -376,7 +376,7 @@ const skyDuelRunwayElevations = skyDuelAirportIds.map(id => dallasAirportElevati
 const skyDuelHealth = 100;
 const skyDuelAiTuning = Object.freeze({
   aircraft: 'fighter' as AircraftType,
-  detectionRange: 6_500,
+  detectionRange: COMBAT_RANGE,
 
 });
 
