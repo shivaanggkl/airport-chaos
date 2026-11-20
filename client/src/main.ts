@@ -10,7 +10,7 @@ import { SharpshooterIntro } from './sharpshooter-intro';
 import { SharpshooterTargetView } from './sharpshooter-target';
 import { type SharpshooterTarget } from '../../shared/sharpshooter-target.mjs';
 import { rewardedAdProvider, type RewardedAdAttempt } from './rewarded-ads';
-import { missionJourneyDetails, captureMissionInstructions, captureMissionTerritoryName, territoryDefenseInstructions, territoryHoldInstructions } from './mission-journey-content';
+import { missionJourneyDetails, captureMissionInstructions, captureMissionTerritoryName, territoryDefenseInstructions, territoryHoldInstructions, captureThreeInstructions } from './mission-journey-content';
 import { CombatStatsHeader } from './combat-stats-header';
 import { horizontalDistanceSquared, isFiniteGuidancePosition, opponentAltitudeGuidance } from './opponent-altitude-guidance';
 import { AircraftVictory } from './aircraft-victory';
@@ -3144,10 +3144,13 @@ function updateCaptureHud(): void {
       (captureMission.id !== journeyDallasTerritoryDefense01.id || journeyAttempt.captureMs < captureMission.captureDurationMs);
     const holding = captureMission.id === journeyDallasTerritoryDefense01.id && journeyAttempt.status === 'RACING' &&
       journeyAttempt.captureMs >= captureMission.captureDurationMs;
-    const live = !journeyPaused && (captured || capturing || holding);
+    const live = !journeyPaused && (captured || capturing || holding || Boolean(journeyCompetitiveCaptureMission(journeyAttempt.missionId) && journeyAttempt.status==='RACING' && journeyAttempt.captureStage===journeyCompetitiveCaptureMission(journeyAttempt.missionId)!.territoryIds.length));
     flightGameRoot.classList.toggle('has-live-territory-status', live);
     if (live) {
-      if (holding && territoryDefenseCaptureHandoff && performance.now() < territoryDefenseCaptureHandoff.until) {
+      const competitive = journeyCompetitiveCaptureMission(journeyAttempt.missionId);
+      if (competitive && journeyAttempt.status==='RACING' && journeyAttempt.captureStage===competitive.territoryIds.length) {
+        missionCaptureBar.showHold('ALL TERRITORIES',formatJourneyResultTime(journeyAttempt.defenseMs??0),formatJourneyResultTime(competitive.holdDurationMs));
+      } else if (holding && territoryDefenseCaptureHandoff && performance.now() < territoryDefenseCaptureHandoff.until) {
         missionCaptureBar.show(name, 100, true);
         if (captureJustOwned) celebrateMissionTerritoryCapture();
       } else if (holding) {
@@ -3384,9 +3387,9 @@ function updateJourneyHud(): void {
   if(captureThree){
     if(journeyHudObjective) setMissionInstructions(journeyHudObjective,missionJourneyDetails.find(mission=>mission.id===journeyAttempt?.missionId)!.description.split('\n').map(line=>`• ${line}`).join('\n'));
     for(const item of [journeyHudProgress,journeyHudTarget,journeyHudSegmentRow,journeyHudTimer,journeyHudHint,journeyHudEnemy])if(item)item.hidden=true;
-    if(journeyAttempt.missionId===journeyDallasTerritoryHold01.id&&journeyHudProgress){
+    if(journeyCompetitiveCaptureMission(journeyAttempt.missionId)&&journeyHudProgress){
       journeyHudProgress.hidden=false;
-      journeyHudProgress.textContent=`HOLD ${Math.floor((journeyAttempt.defenseMs??0)/1000)} / 30 SEC · TERRITORIES ${journeyAttempt.captureStage??0}/3`;
+      journeyHudProgress.textContent=`HOLD ${Math.floor((journeyAttempt.defenseMs??0)/1000)} / ${journeyCompetitiveCaptureMission(journeyAttempt.missionId)!.holdDurationMs/1000} SEC · TERRITORIES ${journeyAttempt.captureStage??0}/${journeyCompetitiveCaptureMission(journeyAttempt.missionId)!.territoryIds.length}`;
     }
     updateTerritoryPanel();
     monsterBossHud.classList.add('hidden');escortHealthHud.classList.add('hidden');updateCaptureHud();return;
@@ -3764,7 +3767,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   const finishTime = formatResultTime(attempt.finishTimeMs ?? 0);
   const bestTime = formatResultTime(attempt.bestTimeMs ?? attempt.finishTimeMs ?? 0);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
-    ? attempt.missionId === journeyDallasMostWantedSurvival01.id ? 'MOST WANTED SURVIVED! · YOU ESCAPED THE HUNTERS!' : journeyCompetitiveCaptureMission(attempt.missionId) ? `ALL ${journeyCompetitiveCaptureMission(attempt.missionId)!.territoryIds.length} TERRITORIES CAPTURED! · TERRITORIES ${journeyCompetitiveCaptureMission(attempt.missionId)!.territoryIds.length}/${journeyCompetitiveCaptureMission(attempt.missionId)!.territoryIds.length}` : attempt.missionId === journeyDallasCoinHunt01.id ? `${attempt.coinHunt?.collected??0} CREDITS COLLECTED · ${attempt.firstClearCredits} CREDITS AWARDED` : journeySharpshooterMission(attempt.missionId) ? `TARGETS ${attempt.sharpshooter?.destroyed ?? journeySharpshooterMission(attempt.missionId)!.targetCount}/${attempt.sharpshooter?.destroyed ?? journeySharpshooterMission(attempt.missionId)!.targetCount} — MISSION COMPLETE!` : attempt.missionId === journeyDallasAirportHop01.id ? `LANDINGS 2/2 · TIME: ${finishTime}` : attempt.missionId === journeyDallasCapture01.id ? 'TERRITORY CAPTURED!' : (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 ${dfwMission ? 'RINGS' : 'GOLDEN GATES'} CLEARED · TIME: ${finishTime} · BEST: ${bestTime}`
+    ? attempt.missionId === journeyDallasMostWantedSurvival01.id ? 'MOST WANTED SURVIVED! · YOU ESCAPED THE HUNTERS!' : journeyCompetitiveCaptureMission(attempt.missionId) ? `ALL ${journeyCompetitiveCaptureMission(attempt.missionId)!.territoryIds.length} TERRITORIES CAPTURED & HELD! · TERRITORIES ${journeyCompetitiveCaptureMission(attempt.missionId)!.territoryIds.length}/${journeyCompetitiveCaptureMission(attempt.missionId)!.territoryIds.length}` : attempt.missionId === journeyDallasCoinHunt01.id ? `${attempt.coinHunt?.collected??0} CREDITS COLLECTED · ${attempt.firstClearCredits} CREDITS AWARDED` : journeySharpshooterMission(attempt.missionId) ? `TARGETS ${attempt.sharpshooter?.destroyed ?? journeySharpshooterMission(attempt.missionId)!.targetCount}/${attempt.sharpshooter?.destroyed ?? journeySharpshooterMission(attempt.missionId)!.targetCount} — MISSION COMPLETE!` : attempt.missionId === journeyDallasAirportHop01.id ? `LANDINGS 2/2 · TIME: ${finishTime}` : attempt.missionId === journeyDallasCapture01.id ? 'TERRITORY CAPTURED!' : (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 ${dfwMission ? 'RINGS' : 'GOLDEN GATES'} CLEARED · TIME: ${finishTime} · BEST: ${bestTime}`
       : legendaryMission ? `AIRPORT CHAOS — JOURNEY COMPLETE · 20/20 PLAYABLE MISSIONS · PRECISION FLIGHT — COMPLETE · LEGENDARY ACE — DEFEATED · PERFECT LANDING — ACHIEVED · SCORE: ${attempt.landingScore ?? 0}/1000 · LEGENDARY PILOT UNLOCKED`
       : pursuitMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
       : monsterShowdownMission ? `MONSTER DEFEATED · TIME: ${finishTime}`
@@ -13519,7 +13522,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         beginFlightLaunchCinematic();
       } else if (journeyCompetitiveCaptureMission(message.attempt.missionId) && message.attempt.status === 'APPROACH') {
         const sequence=journeyCompetitiveCaptureMission(message.attempt.missionId)!.territoryIds.map(id=>territoryDefinitions.find(item=>item.id===id)!);
-        missionCaptureIntroPath=new MissionCaptureIntroPath(sequence[0]!,journeyDallasCaptureThree01.captureDurationMs,getTerrainHeight,undefined,{player:airplane,territories:sequence,...(message.attempt.missionId===journeyDallasTerritoryHold01.id?{instructions:territoryHoldInstructions,owners:journeyDallasTerritoryHold01.owners}: {})});
+        missionCaptureIntroPath=new MissionCaptureIntroPath(sequence[0]!,journeyDallasCaptureThree01.captureDurationMs,getTerrainHeight,undefined,{player:airplane,territories:sequence,instructions:message.attempt.missionId===journeyDallasTerritoryHold01.id?territoryHoldInstructions:captureThreeInstructions,owners:journeyCompetitiveCaptureMission(message.attempt.missionId)!.owners});
         beginFlightLaunchCinematic();
       } else if (message.attempt.missionId === journeyDallasCapture01.id && message.attempt.status === 'APPROACH') {
         const territory = territoryDefinitions.find(item => item.id === journeyDallasCapture01.territoryId)!;

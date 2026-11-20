@@ -48,7 +48,7 @@ export function advanceCaptureCompetition(state: CaptureCompetition, actors: rea
     if (territory.capturingId !== contender.id) { territory.capturingId = contender.id; territory.captureMs = 0; }
     // A present owner can defend; killing it releases the territory to white.
     const defending = actors.some(actor => actor.id === territory.ownerId && actor.alive && actor.territoryId === territory.id) ||
-      requireDefeatedOwner && state.opponents.some((enemy,index)=>index<3&&enemy.id===territory.ownerId&&enemy.health>0);
+      requireDefeatedOwner && state.opponents.some((enemy,index)=>(enemy.role==='owner'||!enemy.role&&index<state.territories.length)&&enemy.id===territory.ownerId&&enemy.health>0);
     territory.captureMs = Math.min(mission.captureDurationMs * (defending ? .95 : 1), territory.captureMs + delta);
     if (territory.captureMs >= mission.captureDurationMs) {
       territory.ownerId = contender.id; territory.capturingId = undefined; territory.captureMs = 0; territory.contested = false;

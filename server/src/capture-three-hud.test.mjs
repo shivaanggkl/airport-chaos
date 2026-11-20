@@ -14,7 +14,7 @@ const declaration = name => ast.statements.find(node => ts.isFunctionDeclaration
 const hud = declaration('updateJourneyHud');
 const layout = hud.getText(ast).slice(hud.getText(ast).indexOf('  const survivalMission'), hud.getText(ast).indexOf("  skyChallengeElement.classList.add('journey-hud')"));
 const branch = hud.body.statements.find(node => ts.isIfStatement(node) && node.expression.getText(ast) === 'captureThree');
-const code = ts.transpileModule(['territoryDisplayName', 'displayedTerritoryState', 'updateTerritoryPanel', 'updateCaptureHud'].map(name => declaration(name).getText(ast)).join('\n') +
+const code = ts.transpileModule(['territoryDisplayName', 'displayedTerritoryState', 'updateTerritoryPanel', 'updateCaptureHud', 'formatJourneyResultTime'].map(name => declaration(name).getText(ast)).join('\n') +
   `\nfunction layout(){${layout}}\nfunction render(){${branch.thenStatement.getText(ast)}}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 
 function element() {
@@ -37,7 +37,7 @@ function fixture() {
     airplane: { position: { ...territoryDefinitions.find(t => t.id === 'las-colinas').center, y: 1000 } },
     getTerrainHeight: () => 0, connectionReady: () => true, onGround: false, crashed: false, journeyPaused: false,
     cityTerritoriesPanel: { update(items) { rows.splice(0, rows.length, ...items); } },
-    missionCaptureBar: { show(...args) { bars.push(args); }, hide() { bars.push('hidden'); } },
+    missionCaptureBar: { show(...args) { bars.push(args); }, hide() { bars.push('hidden'); }, showHold(...args){bars.push(['hold',...args]);} },
     gameplayInfoCard: { setTerritoryPanelHost(host) { hosts.push(host); }, setMode(mode) { modes.push(mode); } },
     flightGameRoot: element(), skyChallengeElement: element(), missionTerritoryCard: element(),
     journeyHudObjective: element(), journeyHudProgress: element(), journeyHudTarget: element(), journeyHudSegmentRow: element(),
@@ -56,8 +56,8 @@ test('M21 uses the same separate territory host and clean mission box as M5', ()
   assert.equal(hosts.at(-1), c.missionTerritoryCard);
   assert.equal(modes.at(-1), 'mission-territories');
   assert.equal(c.missionTerritoryCard.hidden, false);
-  assert.equal(c.journeyHudObjective.textContent, '• Capture 2 TERRITORIES');
-  for (const key of ['journeyHudProgress', 'journeyHudTarget', 'journeyHudSegmentRow']) assert.equal(c[key].hidden, true);
+  assert.equal(c.journeyHudObjective.textContent, '• Defeat the territory owners\n• Capture both TERRITORIES\n• Hold both together for 15 seconds');
+  for (const key of ['journeyHudTarget', 'journeyHudSegmentRow']) assert.equal(c[key].hidden, true);
   assert.deepEqual(rows.map(row => row.name), ['LAS COLINAS TERRITORY', 'LOVE FIELD TERRITORY']);
   assert.deepEqual(rows.map(row => row.statusLabel), ['CAPTURING 50%', 'UNASSIGNED']);
   c.missionTerritoryCard.classList.add('is-collapsed'); c.layout();
@@ -78,6 +78,7 @@ test('M21 shared capture bar and owned rows follow live ownership in any order',
     assert.ok(rows.slice(stage + 1).every(row => !row.captured && row.statusLabel === 'UNASSIGNED'));
   }
   c.journeyAttempt.captureTerritories.forEach(t=>{t.controllerId='pilot';t.capturingPlayerId=undefined;t.captureProgress=0;});
+  c.journeyAttempt.captureStage=2;c.journeyAttempt.defenseMs=6000;c.render();assert.deepEqual(bars.at(-1),['hold','ALL TERRITORIES','0:06','0:15']);
   c.journeyAttempt.captureStage = 2; c.journeyAttempt.status = 'COMPLETED'; c.journeyAttempt.captureMs = 0;
   c.render();
   assert.ok(rows.every(row => row.captured && row.statusLabel === 'OWNED'));

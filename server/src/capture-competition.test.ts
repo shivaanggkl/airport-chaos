@@ -73,7 +73,7 @@ test('persisted ownership, lost territory and first-clear wallet protection surv
    // A completion event or old sequential tick alone cannot win M21.
    assert.equal(store.advanceTerritoryCapture('pilot',started.attemptId,true,now+1),undefined);
    state.territories.forEach(t=>{t.ownerId='pilot';});now+=400;
-   updated=store.advanceTerritoryCapture('pilot',started.attemptId,true,now,false,state)!;
+   for(let i=0;i<39;i++)updated=store.advanceTerritoryCapture('pilot',started.attemptId,true,now+=400,false,state)!;
    assert.equal(updated.status,'COMPLETED');assert.equal(updated.firstClearCredits,replay===0?2250:0);
    assert.equal(store.advanceTerritoryCapture('pilot',started.attemptId,true,now+400,false,state),undefined);
   }
@@ -84,7 +84,7 @@ test('persisted ownership, lost territory and first-clear wallet protection surv
 const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
 const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);
 const declarations=(names:string[])=>ts.transpileModule(ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name!.text)).map(n=>n.getText(ast)).join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
-test('production setup creates exactly six private opponents: three EASY and three HARD, no respawn on refresh',()=>{
+test('production setup creates exactly four private opponents: two owners and two hunters, no respawn on refresh',()=>{
  const players=new Map([['owner',{position:{x:0,y:1000,z:0}}]]),states=new Map(),spawns:any[]=[];
  const context=vm.createContext({journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,captureCompetitions:states,structuredClone,players,journeyDallasCaptureThree01:mission,territoriesForCity,keepDallasEscortInside,
   aircraftFlightEnvelope,maxHealthForAircraft,newCaptureCompetition,botSafeFloor:()=>1000,journeyAceClearance:300,
@@ -93,13 +93,13 @@ test('production setup creates exactly six private opponents: three EASY and thr
  vm.runInContext(declarations(['ensureCaptureCompetition']),context);
  const attempt={missionId:mission.id,attemptId:'attempt',captureFlight:undefined};
  const state=context.ensureCaptureCompetition('owner',attempt);
- assert.equal(spawns.length,6);assert.equal(state.opponents.filter((e:CaptureOpponent)=>e.level==='EASY').length,3);
- assert.equal(state.opponents.filter((e:CaptureOpponent)=>e.level==='HARD').length,3);
- assert.ok(state.territories.every((t:any)=>!t.ownerId));
+ assert.equal(spawns.length,4);assert.equal(state.opponents.filter((e:CaptureOpponent)=>e.role==='owner').length,2);
+ assert.equal(state.opponents.filter((e:CaptureOpponent)=>e.role==='attacker').length,2);
+ assert.ok(state.territories.every((t:any)=>t.ownerId));
  assert.ok(spawns.every(s=>s.targetPlayerId==='owner'&&s.attemptId==='attempt'));
- context.ensureCaptureCompetition('owner',attempt);assert.equal(spawns.length,6);
+ context.ensureCaptureCompetition('owner',attempt);assert.equal(spawns.length,4);
  state.opponents[0].health=0;players.delete(state.opponents[0].id);
- context.ensureCaptureCompetition('owner',attempt);assert.equal(spawns.length,6);
+ context.ensureCaptureCompetition('owner',attempt);assert.equal(spawns.length,4);
  const legacy=structuredClone(state);legacy.territories.push({id:'downtown',ownerId:'pilot',captureMs:0,contested:false});legacy.opponents[1]!.goal=2;
  attempt.captureFlight={competition:legacy} as any;states.delete(attempt.attemptId);
  const resumed=context.ensureCaptureCompetition('owner',attempt);

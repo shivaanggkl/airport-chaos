@@ -4905,22 +4905,21 @@ function ensureCaptureCompetition(playerId: string, attempt: JourneyAttempt): Ca
   let state = captureCompetitions.get(attempt.attemptId);
   if (!state) {
     state = attempt.captureFlight?.competition && structuredClone(attempt.captureFlight.competition);
+    if(state && (state.opponents.length!==mission.opponentCount || state.opponents.some(enemy=>!enemy.role)))state=undefined;
     if (!state) {
-      const types: AircraftType[] = ['trainer','fighter','privateJet','cargo'];
-      const opponents = Array.from({length:6}, (_,slot): CaptureOpponent => {
+      const opponents = Array.from({length:mission.opponentCount}, (_,slot): CaptureOpponent => {
         const territory = territoriesForCity('dallas').find(item => item.id === mission.territoryIds[slot % mission.territoryIds.length])!;
         const angle = Math.random() * Math.PI * 2;
         const point = keepDallasEscortInside({x:territory.center.x+Math.sin(angle)*3500,z:territory.center.z+Math.cos(angle)*3500},400);
-        const aircraft = attempt.missionId===journeyDallasTerritoryHold01.id ? journeyDallasTerritoryHold01.owners[slot]?.aircraft ?? 'fighter' : types[Math.floor(Math.random()*types.length)]!;
+        const aircraft = mission.owners[slot]?.aircraft ?? 'fighter';
         const speed = aircraftFlightEnvelope[aircraft].maxSpeed * .6;
-        return {id:`bot:journey:${attempt.attemptId}:capture:${slot}`,aircraft,level:attempt.missionId===journeyDallasTerritoryHold01.id?'HARD':slot<3?'EASY':'HARD',
+        return {id:`bot:journey:${attempt.attemptId}:capture:${slot}`,aircraft,level:'HARD',
           position:{...point,y:botSafeFloor('dallas',point.x,point.z,journeyAceClearance)+300},
           rotation:{x:0,y:angle,z:0},velocity:{x:-Math.sin(angle)*speed,y:0,z:-Math.cos(angle)*speed},
-          health:maxHealthForAircraft(aircraft),goal:slot%mission.territoryIds.length,...(attempt.missionId===journeyDallasTerritoryHold01.id?{name:journeyDallasTerritoryHold01.owners[slot]?.name??`FIREHAWK HUNTER ${slot-2}`,role:slot<3?'owner' as const:'attacker' as const}: {})};
+          health:maxHealthForAircraft(aircraft),goal:slot%mission.territoryIds.length,name:mission.owners[slot]?.name??`FIREHAWK HUNTER ${slot-mission.owners.length+1}`,role:slot<mission.owners.length?'owner' as const:'attacker' as const};
       });
       state = newCaptureCompetition(opponents,Date.now(),mission.territoryIds);
-      if(attempt.missionId===journeyDallasTerritoryHold01.id)
-        state.territories.forEach((territory,index)=>{territory.ownerId=opponents[index]!.id;});
+      state.territories.forEach((territory,index)=>{territory.ownerId=opponents[index]!.id;});
     }
     // Normalize saved M3 attempts to the current two-territory requirement.
     state.territories = state.territories.filter(territory => mission.territoryIds.some(candidate=>candidate===territory.id));
@@ -4942,7 +4941,7 @@ function ensureCaptureCompetition(playerId: string, attempt: JourneyAttempt): Ca
   return state;
 }
 function reviveTerritoryHoldOpponent(playerId:string,pilot:PlayerState,attempt:JourneyAttempt,enemy:CaptureOpponent,slot:number):void {
-  const airport=botAirports('dallas').find(item=>item.id==='dfw')!;
+  const airport=cityAirports.dallas.find(item=>item.id==='dfw')!;
   const along=airport.runwayLength*.3;
   enemy.position={x:airport.x+Math.sin(airport.heading)*along,y:botRunwayHeight('dallas',airport.x,airport.z)+1.2,z:airport.z+Math.cos(airport.heading)*along};
   enemy.rotation={x:0,y:airport.heading,z:0};enemy.velocity={x:0,y:0,z:0};
@@ -4966,6 +4965,7 @@ function captureCompetitionSnapshot(playerId: string, attempt: JourneyAttempt) {
 }
 function updateCompetitiveCapture(playerId: string, player: PlayerState, attempt: JourneyAttempt, now: number): void {
   const state = ensureCaptureCompetition(playerId,attempt);
+  const mission = journeyCompetitiveCaptureMission(attempt.missionId)!;
   if (!state || pausedJourneyAttempts.has(attempt.attemptId) || attempt.pausedAt !== null) return;
   if (attempt.deadlineAt !== null && now >= attempt.deadlineAt) { failPlayerJourney(playerId,'TIME_UP',now); return; }
   const definitions = territoriesForCity('dallas').filter(item => journeyCompetitiveCaptureMission(attempt.missionId)!.territoryIds.some(candidate=>candidate===item.id));
@@ -4981,17 +4981,17 @@ function updateCompetitiveCapture(playerId: string, player: PlayerState, attempt
       enemy.position={...live.position};enemy.rotation={...live.rotation};enemy.velocity={...live.velocity};enemy.health=live.health;
       enemy.runwayStart=live.bot?.phase==='taxi'||live.bot?.phase==='takeoff';
       const territoryId=eligibleTerritory(live.position,live.velocity,true);
-      const holdSlot=attempt.missionId===journeyDallasTerritoryHold01.id?state.opponents.indexOf(enemy):-1;
-      actors.push({id:enemy.id,alive:true,territoryId:holdSlot>=0&&(holdSlot>=3||enemy.runwayStart||territoryId!==journeyDallasTerritoryHold01.territoryIds[holdSlot])?undefined:territoryId});
+      const holdSlot=state.opponents.indexOf(enemy);
+      actors.push({id:enemy.id,alive:true,territoryId:enemy.role==='attacker'||enemy.runwayStart||territoryId!==mission.territoryIds[holdSlot]?undefined:territoryId});
     } else {
-      if(attempt.missionId===journeyDallasTerritoryHold01.id){
-        if(advanceCaptureRespawn(enemy,now,fresh,journeyDallasTerritoryHold01.opponentRespawnMs)){reviveTerritoryHoldOpponent(playerId,player,attempt,enemy,state.opponents.indexOf(enemy));continue;}
+      if(mission){
+        if(advanceCaptureRespawn(enemy,now,fresh,mission.opponentRespawnMs)){reviveTerritoryHoldOpponent(playerId,player,attempt,enemy,state.opponents.indexOf(enemy));continue;}
       }
       enemy.health=0;actors.push({id:enemy.id,alive:false,territoryId:undefined});
     }
   }
   if (!fresh) state.updatedAt=now;
-  advanceCaptureCompetition(state,actors,now,attempt.missionId===journeyDallasTerritoryHold01.id);
+  advanceCaptureCompetition(state,actors,now,true);
   // Reuse the existing checkpoint JSON; balances and ownership outside M21 are untouched.
   const saved = attempt.captureFlight?.competition;
   if (now-(attempt.captureFlight?.updatedAt??0)>=1000 || !saved ||
@@ -6217,7 +6217,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
       enemy.provokedUntil=now+10000;
       const missionPilot=players.get(victim.bot.journeyTargetPlayerId);
       const attempt=missionPilot&&journeyStore.activeSnapshot(missionPilot.pilotId,victim.bot.journeyAttemptId);
-      if(victim.health===0&&attempt?.missionId===journeyDallasTerritoryHold01.id){enemy.respawnRemainingMs=journeyDallasTerritoryHold01.opponentRespawnMs;enemy.respawnUpdatedAt=now;}
+      if(victim.health===0&&journeyCompetitiveCaptureMission(attempt?.missionId)){enemy.respawnRemainingMs=journeyCompetitiveCaptureMission(attempt!.missionId)!.opponentRespawnMs;enemy.respawnUpdatedAt=now;}
       if (victim.health===0) releaseCaptureActor(state!,victimId);
       checkpointJourneyCapture(victim.bot.journeyTargetPlayerId,victim.bot.journeyAttemptId,now);
     }
@@ -7266,7 +7266,7 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     if(captureSpawn.runwayStart){
       bot.phase='taxi';bot.speed=0;
       bot.homeAirportIndex=airports.reduce((best,item,index)=>Math.hypot(item.x-player.position.x,item.z-player.position.z)<Math.hypot(airports[best]!.x-player.position.x,airports[best]!.z-player.position.z)?index:best,0);
-      bot.route=airportRoute(cityId,bot.homeAirportIndex,bot.personality);bot.routeIndex=0;
+      bot.route=airportRoute(cityId,bot.homeAirportIndex,bot.personality,'dfw');bot.routeIndex=0;
     }
     bot.speed = Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z);
     bot.journeyProvoked = true;
@@ -7571,7 +7571,7 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
   }
   const boundedDallasOpponent = cityConfined && bot.journeyDallasEntered === true ||
     player.cityId === 'dallas' && bot.journeyCrossfire === true && bot.journeySurvivalSlot !== undefined;
-  if (boundedDallasOpponent && !(bot.journeyTerritoryDefense && (bot.phase === 'taxi' || bot.phase === 'takeoff'))) target = { ...target, ...dallasEscortSteeringTarget(player.position, hunterForward(player), target) };
+  if (boundedDallasOpponent && !((bot.journeyTerritoryDefense || bot.journeyCaptureSlot !== undefined) && (bot.phase === 'taxi' || bot.phase === 'takeoff'))) target = { ...target, ...dallasEscortSteeringTarget(player.position, hunterForward(player), target) };
   const dx = target.x - player.position.x;
   const dy = target.y - player.position.y;
   const dz = target.z - player.position.z;
@@ -7722,7 +7722,7 @@ function provokeJourneyHunter(pilotId: string, pilot: PlayerState, targetId: str
   if ((attempt?.missionId !== journeyDallasMostWantedSurvival01.id && attempt?.missionId !== journeyDallasAceIntercept01.id && attempt?.missionId !== journeyDallasTerritoryDefense01.id && attempt?.missionId !== journeyDallas13.id && attempt?.missionId !== journeyDallas14.id && attempt?.missionId !== journeyDallas17.id && attempt?.missionId !== journeyDallas18.id && attempt?.missionId !== journeyDallas15.id && attempt?.missionId !== journeyDallasTwinHunters01.id && attempt?.missionId !== journeyDallas16.id && (attempt?.missionId!==journeyDallas19.id&&attempt?.missionId!==journeyDallas25.id&&attempt?.missionId!==journeyDallas21.id&&attempt?.missionId!==journeyDallas22.id&&attempt?.missionId!==journeyDallas23.id) && attempt?.missionId !== journeyDallas23.id && attempt?.missionId !== journeyDallas24.id) || attempt.status !== 'RACING' ||
     attempt.targetId !== targetId && attempt.secondaryTargetId !== targetId && !((attempt.missionId === journeyDallas17.id || attempt.missionId === journeyDallas18.id) && attempt.rearGuardThirdId === targetId || attempt.missionId === journeyDallas18.id && attempt.rearGuardFourthId === targetId)) return;
   if (!skyHunterDepartureReady(pilotId, pilot, attempt.missionId)) return;
-  if (bot.journeyTerritoryDefense && (bot.phase === 'taxi' || bot.phase === 'takeoff')) return;
+  if ((bot.journeyTerritoryDefense || bot.journeyCaptureSlot !== undefined) && (bot.phase === 'taxi' || bot.phase === 'takeoff')) return;
   if (attempt.missionId === journeyDallas24.id && attempt.legendaryPhase !== 'ACE') return;
   if (attempt.missionId === journeyDallas23.id && (bot.journeyDoubleOrdinal === 1
     ? attempt.doublePhase !== 'FIRST_FIGHT' || attempt.targetId !== targetId
@@ -7790,7 +7790,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     if (!pilot || !state || !saved || saved.health <= 0) return undefined;
     const territories = state.territories.map(({id}) => territoriesForCity('dallas').find(item => item.id === id)!);
     const holdMission=Boolean(saved.role);
-    if(holdMission&&bot.journeyCaptureSlot<3)saved.goal=bot.journeyCaptureSlot;
+    if(holdMission&&saved.role==='owner')saved.goal=bot.journeyCaptureSlot;
     if (!holdMission && state.territories[saved.goal]?.ownerId === botId) {
       const next = territories.map((territory,index) => ({index,distance:Math.hypot(territory.center.x-player.position.x,territory.center.z-player.position.z)}))
         .filter(item => state.territories[item.index]?.ownerId !== botId).sort((a,b)=>a.distance-b.distance);
@@ -7802,7 +7802,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     }
     const defending = territories.find((territory,index) => state.territories[index]?.ownerId === botId && territoryContains(territory,pilot.position));
     const nearby = pilot.lifeState === 'alive' && pilot.health > 0 && Math.hypot(pilot.position.x-player.position.x,pilot.position.z-player.position.z) <= COMBAT_RANGE*1.5;
-    const attack = holdMission ? pilot.lifeState==='alive' && pilot.health>0 && (bot.journeyCaptureSlot>=3 || territoryContains(territories[saved.goal]!,pilot.position) || now<(saved.provokedUntil??0)) : Boolean(defending) || nearby;
+    const attack = holdMission ? pilot.lifeState==='alive' && pilot.health>0 && (saved.role==='attacker' || territoryContains(territories[saved.goal]!,pilot.position) || now<(saved.provokedUntil??0)) : Boolean(defending) || nearby;
     const territory = defending ?? territories[saved.goal]!;
     const radius = Math.min(territory.bounds.maxX-territory.bounds.minX,territory.bounds.maxZ-territory.bounds.minZ)*.18;
     const angle = now/8000+bot.journeyCaptureSlot;
@@ -8133,7 +8133,7 @@ function updateBots(now: number, expertOnly = false): void {
     const followingCombatWaypoint = Boolean(combatNavigation);
     const requestedTarget = combatNavigation?.waypoint ?? bot.route[Math.min(bot.routeIndex, bot.route.length - 1)];
     const target = requestedTarget && bot.journeyAttemptId && !bot.journeyLeader && !bot.journeyRearGuardEscort &&
-      !(bot.journeyTerritoryDefense && (bot.phase === 'taxi' || bot.phase === 'takeoff'))
+      !((bot.journeyTerritoryDefense || bot.journeyCaptureSlot !== undefined) && (bot.phase === 'taxi' || bot.phase === 'takeoff'))
       ? bot.journeySurvivalSlot!==undefined ? survivalSteering(player.position,hunterForward(player),requestedTarget) : bot.journeyAceIntercept || bot.journeyDallasEntered ? {...requestedTarget,...dallasEscortSteeringTarget(player.position,hunterForward(player),requestedTarget)} : { ...requestedTarget, ...journeyHunterSteeringTarget(player.position, hunterForward(player), requestedTarget, (bot.journeyCrossfire || bot.journeyIronHunter || bot.journeyFinalShowdown) ? Number(cityRegistry.dallas.worldSize) / 2 : undefined) }
       : requestedTarget;
     if (!target) continue;
@@ -8166,7 +8166,7 @@ function updateBots(now: number, expertOnly = false): void {
       // tick here made its authoritative transform pause for 200 ms per corner.
       const nextPatrolWaypoint = bot.journeyAttemptId && !bot.journeyProvoked ? bot.route[bot.routeIndex] : undefined;
       if (nextPatrolWaypoint) {
-        advanceBotFlight(player, bot, bot.journeyLeader || bot.journeyTerritoryDefense ? nextPatrolWaypoint : {
+        advanceBotFlight(player, bot, bot.journeyLeader || bot.journeyTerritoryDefense || bot.journeyCaptureSlot !== undefined ? nextPatrolWaypoint : {
           ...nextPatrolWaypoint, ...journeyHunterSteeringTarget(player.position, hunterForward(player), nextPatrolWaypoint, (bot.journeyCrossfire || bot.journeyIronHunter || bot.journeyFinalShowdown) ? Number(cityRegistry.dallas.worldSize) / 2 : undefined),
         }, delta);
       } else if (smoothHunter(player)) {
