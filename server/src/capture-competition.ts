@@ -26,15 +26,39 @@ export function releaseCaptureActor(state: CaptureCompetition, actorId: string):
   }
 }
 
+/** Each guardian may claim only its assigned territory; hunters never claim one. */
+function captureAssignmentAllows(state: CaptureCompetition, actorId: string, territoryId: string): boolean {
+  if (actorId === 'pilot') return true;
+  const slot = state.opponents.findIndex(enemy => enemy.id === actorId);
+  return slot >= 0 && state.opponents[slot]!.role === 'owner' && state.territories[slot]?.id === territoryId;
+}
+
+/** Repair old private mission saves without erasing an eligible challenger’s progress. */
+export function enforceCaptureAssignments(state: CaptureCompetition): void {
+  for (const territory of state.territories) {
+    if (territory.ownerId && !captureAssignmentAllows(state, territory.ownerId, territory.id)) {
+      territory.ownerId = undefined;
+      territory.contested = false;
+    }
+    if (territory.capturingId && !captureAssignmentAllows(state, territory.capturingId, territory.id)) {
+      territory.capturingId = undefined;
+      territory.captureMs = 0;
+      territory.contested = false;
+    }
+  }
+}
+
 /** Eligibility and actor identity come exclusively from accepted server state. */
-export function advanceCaptureCompetition(state: CaptureCompetition, actors: readonly CaptureActor[], now: number, requireDefeatedOwner = false): void {
+export function advanceCaptureCompetition(state: CaptureCompetition, actors: readonly CaptureActor[], now: number, requireDefeatedOwner = false, assignedOwnersOnly = false): void {
+  if (assignedOwnersOnly) enforceCaptureAssignments(state);
   const elapsed = now - state.updatedAt;
   const delta = elapsed > 0 && elapsed <= 800 ? Math.min(400, elapsed) : 0;
   state.updatedAt = now;
   // Absence (outside this territory or a transient missing update) is not a defeat.
   for (const actor of actors) if (!actor.alive) releaseCaptureActor(state, actor.id);
   for (const territory of state.territories) {
-    const contenders = actors.filter(actor => actor.alive && actor.territoryId === territory.id && actor.id !== territory.ownerId);
+    const contenders = actors.filter(actor => actor.alive && actor.territoryId === territory.id && actor.id !== territory.ownerId &&
+      (!assignedOwnersOnly || captureAssignmentAllows(state, actor.id, territory.id)));
     territory.contested = contenders.length > 1 || Boolean(territory.ownerId && contenders.length);
     // Missing/stalled updates cannot award time or erase accepted progress.
     if (!delta) continue;

@@ -299,6 +299,7 @@ export function journeyCompetitiveCaptureMission(id:string|undefined):typeof jou
 
 export const journeyDallasTerritoryDomination01: Readonly<Omit<typeof journeyDallasCaptureThree01,'id'|'name'|'objective'|'timeLimitMs'|'firstClearCredits'|'territoryIds'|'holdDurationMs'|'opponentRespawnMs'|'opponentCount'|'owners'> & {
  id:'journey-dallas-territory-domination-01';name:'CAPTURE 6 TERRITORIES';objective:string;timeLimitMs:600000;firstClearCredits:3000;holdDurationMs:0;opponentRespawnMs:60000;opponentCount:9;opponentNames:readonly string[];
+ ownershipColors:Readonly<{pilot:string;opponents:readonly string[]}>;
  territoryIds:readonly ['love-field','trinity-corridor','white-rock','las-colinas','downtown','addison'];
  owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'fighter'|'privateJet'|'cargo';name:string;initiallyOwned:boolean}>[];
 }>;

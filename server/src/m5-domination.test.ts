@@ -13,7 +13,7 @@ import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs'
 import {maxHealthForAircraft} from '../../shared/aircraft-health.mjs';
 import {JourneyAttemptStore} from './journey-attempts.js';
 import {PlayerProfileStore} from './player-profiles.js';
-import {newCaptureCompetition,advanceCaptureCompetition,advanceCaptureRespawn,releaseCaptureActor} from './capture-competition.js';
+import {enforceCaptureAssignments,newCaptureCompetition,advanceCaptureCompetition,advanceCaptureRespawn,releaseCaptureActor} from './capture-competition.js';
 import {territoryDominationInstructions,missionJourneyDetails} from '../../client/src/mission-journey-content.ts';
 import {MissionCaptureIntroPath} from '../../client/src/mission-capture-intro.ts';
 import {journeyCategorySlot,categoryMissionAccess} from '../../shared/journey-categories.mjs';
@@ -24,9 +24,9 @@ const compile=(names:string[])=>ts.transpileModule(ast.statements.filter(n=>ts.i
 function setup(){
  const players=new Map<string,any>([['pilot',{pilotId:'pilot',position:{x:0,y:1000,z:0}}]]),spawns:any[]=[];
  const ctx=vm.createContext({...catalog,players,structuredClone,captureCompetitions:new Map(),territoriesForCity,territoryContains,newCaptureCompetition,cityAirports,aircraftFlightEnvelope,maxHealthForAircraft,
-  keepDallasEscortInside:(p:any)=>p,botSafeFloor:()=>1000,botRunwayHeight:()=>120,journeyAceClearance:300,
+  enforceCaptureAssignments,keepDallasEscortInside:(p:any)=>p,botSafeFloor:()=>1000,botRunwayHeight:()=>120,journeyAceClearance:300,
   removeBot:(id:string)=>players.delete(id),createBot:(_c:any,_d:any,spawn:any)=>{spawns.push(spawn);players.set(spawn.captureOpponent.id,{bot:{journeyAttemptId:spawn.attemptId}});}});
- vm.runInContext(compile(['ensureCaptureCompetition','reviveTerritoryHoldOpponent','hunterNavigationTarget']),ctx);
+ vm.runInContext(compile(['ensureCaptureCompetition','reviveTerritoryHoldOpponent','hunterNavigationTarget','captureCompetitionSnapshot']),ctx);
  return {ctx,players,spawns};
 }
 test('M5 is playable after M4 with six exact territories, nine opponents and no hold period',()=>{
@@ -135,4 +135,69 @@ test('legacy three-territory databases upgrade atomically without losing attempt
   assert.throws(()=>db.prepare('UPDATE journey_attempts SET capture_stage=7 WHERE attempt_id=?').run(a.attemptId),/CHECK constraint/);
   store=new JourneyAttemptStore(path,true);assert.equal(store.get('pilot',a.attemptId)!.captureStage,6,'migration is idempotent');
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+test('M5 hunters cannot claim, steal or contest any territory; each guardian can claim only its own',()=>{
+ for(let territoryIndex=0;territoryIndex<6;territoryIndex++)for(let slot=0;slot<9;slot++){
+  const {ctx}=setup(),state=ctx.ensureCaptureCompetition('pilot',{attemptId:'a',missionId:mission.id});
+  state.territories.forEach((territory:any)=>{territory.ownerId=undefined;territory.capturingId=undefined;territory.captureMs=0;});
+  const target=state.territories[territoryIndex],enemy=state.opponents[slot];
+  const canOwn=slot===territoryIndex;
+  for(let i=0;i<40;i++)advanceCaptureCompetition(state,[{id:enemy.id,alive:true,territoryId:target.id}],state.updatedAt+400,true,true);
+  assert.equal(target.ownerId,canOwn?enemy.id:undefined,`opponent ${slot+1} in ${target.id}`);
+  target.ownerId='pilot';target.capturingId=undefined;target.captureMs=0;
+  for(let i=0;i<40;i++)advanceCaptureCompetition(state,[{id:enemy.id,alive:true,territoryId:target.id},{id:'pilot',alive:true,territoryId:canOwn?undefined:target.id}],state.updatedAt+400,true,true);
+  assert.equal(target.ownerId,canOwn?enemy.id:'pilot');
+  if(!canOwn)assert.equal(target.contested,false,'unassigned opponents cannot contest ownership');
+ }
+ // Chasers physically inside an unowned territory must not interrupt the player’s capture.
+ const {ctx}=setup(),state=ctx.ensureCaptureCompetition('pilot',{attemptId:'a',missionId:mission.id}),target=state.territories[2];
+ const actors=[{id:'pilot',alive:true,territoryId:target.id},...state.opponents.slice(6).map((enemy:any)=>({id:enemy.id,alive:true,territoryId:target.id}))];
+ for(let i=0;i<38;i++)advanceCaptureCompetition(state,actors,state.updatedAt+400,true,true);
+ assert.equal(target.ownerId,'pilot');assert.equal(target.contested,false);
+});
+
+test('restoring M5 removes invalid hunter or wrong-guardian claims while preserving legitimate capture progress',()=>{
+ const {ctx}=setup(),state=ctx.ensureCaptureCompetition('pilot',{attemptId:'a',missionId:mission.id});
+ state.territories[0].ownerId=state.opponents[6].id;state.territories[0].capturingId='pilot';state.territories[0].captureMs=14250;
+ state.territories[1].ownerId=state.opponents[2].id;
+ state.territories[2].ownerId='pilot';state.territories[2].capturingId=state.opponents[8].id;state.territories[2].captureMs=14000;
+ state.territories[3].ownerId=state.opponents[3].id;
+ ctx.captureCompetitions.delete('a');
+ const restored=ctx.ensureCaptureCompetition('pilot',{attemptId:'a',missionId:mission.id,captureFlight:{competition:structuredClone(state)}});
+ assert.equal(restored.territories[0].ownerId,undefined);assert.equal(restored.territories[0].capturingId,'pilot');assert.equal(restored.territories[0].captureMs,14250);
+ assert.equal(restored.territories[1].ownerId,undefined);assert.equal(restored.territories[2].ownerId,'pilot');assert.equal(restored.territories[2].captureMs,0);
+ assert.equal(restored.territories[3].ownerId,state.opponents[3].id);
+});
+
+test('M5 snapshots use one player green and six distinct non-green opponent colors for every owner display',()=>{
+ const {ctx,players}=setup(),attempt={attemptId:'a',missionId:mission.id},state=ctx.ensureCaptureCompetition('pilot',attempt);
+ players.get('pilot').displayName='You';
+ assert.equal(new Set(mission.ownershipColors.opponents).size,6);
+ const green=new THREE.Color(mission.ownershipColors.pilot);assert.ok(green.g>green.r&&green.g>green.b);
+ for(const color of mission.ownershipColors.opponents){const rgb=new THREE.Color(color);assert.ok(rgb.g<=Math.max(rgb.r,rgb.b),`${color} must not be green`);}
+ state.territories.forEach((territory:any)=>{territory.ownerId='pilot';});
+ let snapshot=ctx.captureCompetitionSnapshot('pilot',attempt);
+ assert.ok(snapshot.every((territory:any)=>territory.ownerColor===mission.ownershipColors.pilot&&territory.controllerId==='pilot'));
+ state.territories.forEach((territory:any,index:number)=>{territory.ownerId=state.opponents[index].id;});
+ snapshot=ctx.captureCompetitionSnapshot('pilot',attempt);
+ assert.deepEqual(Array.from(snapshot,(territory:any)=>territory.ownerColor),mission.ownershipColors.opponents);
+ state.territories[0].ownerId=undefined;snapshot=ctx.captureCompetitionSnapshot('pilot',attempt);assert.equal(snapshot[0].ownerColor,undefined);
+});
+
+test('M5 owned borders keep their ownership color during a contest and change when stolen',()=>{
+ const source=readFileSync('client/src/main.ts','utf8'),ast=ts.createSourceFile('main.ts',source,ts.ScriptTarget.Latest,true);
+ const declaration=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='applyTerritoryBorderStyle')!;
+ const ctx=vm.createContext({THREE,journeyAttempt:{missionId:mission.id},journeyDallasTerritoryDomination01:mission,territoryOwnershipColors:{contested:'#ffb331'}});
+ vm.runInContext(ts.transpileModule(declaration.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);
+ const geometry=new THREE.BufferGeometry();
+ geometry.setAttribute('color',new THREE.BufferAttribute(new Float32Array(9),3));geometry.setAttribute('layer',new THREE.BufferAttribute(new Float32Array([0,.5,1]),1));geometry.setAttribute('emphasis',new THREE.BufferAttribute(new Float32Array(3),1));
+ const entry={displayColor:mission.ownershipColors.pilot,appearance:'own',missionTarget:true,styleSignature:'',wall:{geometry}};
+ const check=(color:string)=>{const expected=new THREE.Color(color),values=geometry.getAttribute('color');for(let i=0;i<3;i++){assert.ok(Math.abs(values.getX(i)-expected.r)<1e-6);assert.ok(Math.abs(values.getY(i)-expected.g)<1e-6);assert.ok(Math.abs(values.getZ(i)-expected.b)<1e-6);}};
+ ctx.applyTerritoryBorderStyle(entry);check(mission.ownershipColors.pilot);
+ entry.appearance='contested';ctx.applyTerritoryBorderStyle(entry);check(mission.ownershipColors.pilot);
+ entry.appearance='enemy';entry.displayColor=mission.ownershipColors.opponents[4]!;ctx.applyTerritoryBorderStyle(entry);check(mission.ownershipColors.opponents[4]!);
+ ctx.journeyAttempt.missionId=catalog.journeyDallasCaptureThree01.id;entry.appearance='contested';ctx.applyTerritoryBorderStyle(entry);
+ const amber=new THREE.Color('#ffb331');assert.ok(Math.abs(geometry.getAttribute('color').getY(2)-amber.g)<1e-6,'other missions retain existing contested colors');
+ geometry.dispose();
 });

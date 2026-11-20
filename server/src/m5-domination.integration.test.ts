@@ -39,6 +39,7 @@ test('live M5 API, DFW launch, nine private radar targets, initial ownership, pa
   const ids=new Set<string>(assigned.attempt.captureOpponentIds);assert.equal(ids.size,9,'all nine authoritative identities are available to the common radar');
   const owned=assigned.attempt.captureTerritories.filter((t:any)=>t.controllerId);assert.deepEqual(owned.map((t:any)=>t.id),['love-field','trinity-corridor']);assert.equal(assigned.attempt.captureTerritories.filter((t:any)=>!t.controllerId).length,4);
   assert.equal(owned[0].controllerName,'Patty');assert.equal(owned[1].controllerName,'Nose');
+  assert.deepEqual(owned.map((territory:any)=>territory.ownerColor),mission.ownershipColors.opponents.slice(0,2));
   for(const [index,id] of [...ids].entries()){const actor=await wait(p=>p.type==='playerState'&&p.playerId===id&&p.health>0);assert.equal(actor.displayName,mission.opponentNames[index]);}
   spectator=new WebSocket(`ws://127.0.0.1:${port}/?city=dallas&launchMode=free-fly&protocol=${PROTOCOL_VERSION}`,{origin:base,headers:{Cookie:`airport_chaos_session=${spectatorIdentity.cookie}`}});spectator.on('message',b=>publicPackets.push(JSON.parse(String(b))));
   for(let i=0;i<200&&!publicPackets.some(p=>p.type==='welcome');i++)await sleep(25);const publicWelcome=publicPackets.find(p=>p.type==='welcome');assert.ok(publicWelcome);assert.equal(publicWelcome.players.some((p:any)=>ids.has(p.playerId)),false);
