@@ -585,10 +585,15 @@ export const journeyDallasAceIntercept01 = Object.freeze({
 });
 
 export const journeyDallasCaptureThree01 = Object.freeze({
-  id: 'journey-dallas-capture-three-01', cityId: 'dallas', name: 'CAPTURE 2 TERRITORIES',
+  id: 'journey-dallas-capture-three-01', cityId: 'dallas', name: 'CAPTURE & HOLD 2 TERRITORIES',
   runwayStart: true, startAirportId: 'dfw',
   chapter: 'SKY COMMANDER', difficulty: 'HARD', timeLimitMs: 360_000, firstClearCredits: 2_250,
-  objective: 'Capture both marked territories before time runs out!', captureDurationMs: 15_000,
+  objective: 'Defeat the territory owners, capture both territories and hold both together for 15 seconds.', captureDurationMs: 15_000,
+  holdDurationMs: 15000, opponentRespawnMs: 15000, opponentCount: 4,
+  owners: Object.freeze([
+    Object.freeze({territoryId:'las-colinas',aircraft:'trainer',name:'BLUEJAY GUARDIAN'}),
+    Object.freeze({territoryId:'love-field',aircraft:'privateJet',name:'NIGHTOWL GUARDIAN'}),
+  ]),
   territoryIds: Object.freeze(['las-colinas', 'love-field']),
   airborneSpawn: Object.freeze({x: -58_000, z: -28_050, altitude: 900, heading: -Math.PI / 2, speed: 650}),
 });
@@ -598,7 +603,7 @@ export const journeyDallasTerritoryHold01 = Object.freeze({
   id: 'journey-dallas-territory-hold-01', name: 'TERRITORY TAKEOVER',
   territoryIds: Object.freeze(['las-colinas', 'love-field', 'downtown']),
   objective: 'Defeat the territory owners and capture all 3 territories. Hold all 3 together for 30 seconds.',
-  firstClearCredits: 2500, holdDurationMs: 30000, opponentRespawnMs: 10000,
+  firstClearCredits: 2500, holdDurationMs: 30000, opponentRespawnMs: 10000, opponentCount: 6,
   owners: Object.freeze([
     Object.freeze({territoryId:'las-colinas',aircraft:'trainer',name:'BLUEJAY GUARDIAN'}),
     Object.freeze({territoryId:'love-field',aircraft:'privateJet',name:'NIGHTOWL GUARDIAN'}),
@@ -657,7 +662,7 @@ export const journeyCatalog = Object.freeze([
   [9, 'Giant Plane & Three Escorts'],
   [6, 'Golden Championship'],
   [journeyDallasAceIntercept01.id, 'Ace Intercept'],
-  [journeyDallasCaptureThree01.id, 'Capture 2 Territories'],
+  [journeyDallasCaptureThree01.id, 'Capture & Hold 2 Territories'],
   [10, 'Giant Plane & Four Escorts'],
   [17, 'Iron Hunter'],
   [11, 'Armored Giant Plane'],

@@ -49,17 +49,17 @@ test('hold requires 30 uninterrupted fresh seconds, resets on loss, survives pau
   const start=()=>{const a=store.launch('pilot','trainer',now,mission.id);store.approach('pilot',a.attemptId,now+1);return store.startTerritoryCapture('pilot',a.attemptId,now+=10)!;};
   let a=start(),state=newCaptureCompetition([],now,mission.territoryIds);state.territories.forEach(t=>t.ownerId='pilot');
   const tick=(fresh=true,ms=400)=>store.advanceTerritoryCapture('pilot',a.attemptId,fresh,now+=ms,false,state)!;
-  for(let i=0;i<25;i++)a=tick();assert.equal(a.defenseMs,10000);assert.equal(a.status,'RACING');
+  a=tick();for(let i=0;i<25;i++)a=tick();assert.equal(a.defenseMs,10000);assert.equal(a.status,'RACING');
   a=tick(false,30000);assert.equal(a.defenseMs,10000,'offline time cannot advance the hold');
   state.territories[1]!.ownerId='enemy';a=tick();assert.equal(a.defenseMs,0);
-  state.territories[1]!.ownerId='pilot';for(let i=0;i<25;i++)a=tick();
+  state.territories[1]!.ownerId='pilot';a=tick();for(let i=0;i<25;i++)a=tick();
   store.saveCaptureFlight('pilot',a.attemptId,{position:{x:0,y:500,z:0},rotation:{x:0,y:0,z:0},velocity:{x:200,y:0,z:0},health:100,updatedAt:now,competition:state});
   store.pause('pilot',a.attemptId,now);now+=5000;
   assert.equal(store.advanceTerritoryCapture('pilot',a.attemptId,true,now,false,state),undefined);
   store=new JourneyAttemptStore(path,true);assert.equal(store.get('pilot',a.attemptId)!.defenseMs,10000);assert.deepEqual(store.get('pilot',a.attemptId)!.captureFlight!.competition,state);
   store.resume('pilot',a.attemptId,now);a=tick(false);assert.equal(a.defenseMs,10000);
   for(let i=0;i<49;i++)a=tick();assert.equal(a.status,'RACING');a=tick();assert.equal(a.status,'COMPLETED');assert.equal(a.firstClearCredits,2500);
-  a=start();for(let i=0;i<75;i++)a=tick();assert.equal(a.status,'COMPLETED');assert.equal(a.firstClearCredits,0);
+  a=start();for(let i=0;i<76;i++)a=tick();assert.equal(a.status,'COMPLETED');assert.equal(a.firstClearCredits,0);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
@@ -101,7 +101,7 @@ test('production M4 setup creates exactly three named territory owners and three
 test('every M4 opponent respawns at DFW even when Love Field is nearer',()=>{
  const airports=[{id:'love',x:0,z:0,heading:0,runwayLength:500},{id:'dfw',x:10000,z:20000,heading:0,runwayLength:1000}];
  const players=new Map<string,any>();let spawned:any;
- const ctx=vm.createContext({players,botAirports:()=>airports,botRunwayHeight:()=>120,maxHealthForAircraft:()=>100,
+ const ctx=vm.createContext({players,cityAirports:{dallas:airports},botRunwayHeight:()=>120,maxHealthForAircraft:()=>100,
   removeBot:(id:string)=>players.delete(id),createBot:(_city:any,_defense:any,data:any)=>spawned=data});
  vm.runInContext(compile(fn('reviveTerritoryHoldOpponent')),ctx);
  for(let slot=0;slot<6;slot++){

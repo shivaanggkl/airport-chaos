@@ -16,7 +16,7 @@ import {journeyDallasCaptureThree01 as mission,journeyMissionOrder} from '../../
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function freePort(){return new Promise<number>(resolve=>{const s=createServer();s.listen(0,'127.0.0.1',()=>{const port=(s.address() as {port:number}).port;s.close(()=>resolve(port));});});}
 
-test('live M21: six private opponents, real bullets, neutral territories, pause and isolation',{timeout:35000},async()=>{
+test('live M21: four private opponents, real bullets, owned territories, pause and isolation',{timeout:35000},async()=>{
  const dir=mkdtempSync(join(tmpdir(),'m21-competition-live-')),path=join(dir,'p.sqlite');
  const sessions=new PilotSessionStore(path),identity=sessions.issue(undefined,false),profiles=new PlayerProfileStore(path);
  const initialCredits=profiles.getOrCreate(identity.pilotId,'Pilot').credits;
@@ -27,9 +27,9 @@ test('live M21: six private opponents, real bullets, neutral territories, pause 
  for(const id of journeyMissionOrder)if(id!==mission.id)db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(identity.pilotId,id,id,Date.now(),1000);
  store.approach(identity.pilotId,attempt.attemptId);store.startTerritoryCapture(identity.pilotId,attempt.attemptId);
  let position={x:-40500,y:2500,z:-28050},sequence=0;
- const opponents=Array.from({length:6},(_,slot):CaptureOpponent=>({id:`bot:journey:${attempt.attemptId}:capture:${slot}`,aircraft:'trainer',level:slot<3?'EASY':'HARD',
-  position:{x:position.x+Math.sin(slot)*700,y:2500,z:position.z+Math.cos(slot)*700},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-200},health:100,goal:slot%3}));
- store.saveCaptureFlight(identity.pilotId,attempt.attemptId,{position,rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-200},health:100,updatedAt:Date.now(),competition:newCaptureCompetition(opponents,Date.now())});
+ const opponents=Array.from({length:4},(_,slot):CaptureOpponent=>({id:`bot:journey:${attempt.attemptId}:capture:${slot}`,aircraft:'trainer',level:'HARD',
+  position:{x:position.x+Math.sin(slot)*700,y:2500,z:position.z+Math.cos(slot)*700},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-200},health:100,goal:slot%2,role:slot<2?'owner':'attacker',name:mission.owners[slot]?.name??`HUNTER ${slot-1}`}));
+ store.saveCaptureFlight(identity.pilotId,attempt.attemptId,{position,rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-200},health:100,updatedAt:Date.now(),competition:{...newCaptureCompetition(opponents,Date.now()),territories:mission.territoryIds.map((id,i)=>({id,ownerId:opponents[i]!.id,captureMs:0,contested:false}))}});
  const port=await freePort(),server=spawn(process.execPath,['--import','tsx','server/src/index.ts'],{cwd:new URL('../../',import.meta.url).pathname,env:{...process.env,PORT:String(port),AIRPORT_CHAOS_PROFILE_DB:path,NODE_ENV:'test'},stdio:['ignore','pipe','pipe']});
  let logs='',socket:WebSocket|undefined,spectator:WebSocket|undefined,interval:ReturnType<typeof setInterval>|undefined;const packets:any[]=[];
  server.stdout.on('data',b=>logs+=b);server.stderr.on('data',b=>logs+=b);
@@ -40,8 +40,8 @@ test('live M21: six private opponents, real bullets, neutral territories, pause 
   socket=new WebSocket(`ws://127.0.0.1:${port}/?city=dallas&launchMode=missions&journeyAttempt=${attempt.attemptId}&protocol=${PROTOCOL_VERSION}`,{origin:`http://127.0.0.1:${port}`,headers:{Cookie:`airport_chaos_session=${identity.cookie}`}});
   socket.on('message',b=>packets.push(JSON.parse(String(b))));
   await wait(p=>p.type==='welcome');
-  const assigned=await wait(p=>p.type==='journeyAttempt'&&p.attempt.captureOpponentIds?.length===6);
-  assert.ok(assigned.attempt.captureTerritories.every((t:any)=>!t.controllerId));
+  const assigned=await wait(p=>p.type==='journeyAttempt'&&p.attempt.captureOpponentIds?.length===4);
+  assert.ok(assigned.attempt.captureTerritories.every((t:any)=>t.controllerId));
   const publicPackets:any[]=[];
   spectator=new WebSocket(`ws://127.0.0.1:${port}/?city=dallas&launchMode=free-fly&protocol=${PROTOCOL_VERSION}`,{origin:`http://127.0.0.1:${port}`,headers:{Cookie:`airport_chaos_session=${spectatorIdentity.cookie}`}});
   spectator.on('message',b=>publicPackets.push(JSON.parse(String(b))));

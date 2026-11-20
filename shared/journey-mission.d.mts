@@ -268,10 +268,12 @@ export const journeyDallasAceIntercept01: Readonly<{
 }>;
 
 export const journeyDallasCaptureThree01: Readonly<{
-  id: 'journey-dallas-capture-three-01'; cityId: 'dallas'; name: 'CAPTURE 2 TERRITORIES';
+  id: 'journey-dallas-capture-three-01'; cityId: 'dallas'; name: 'CAPTURE & HOLD 2 TERRITORIES';
   runwayStart: true; startAirportId: 'dfw';
   chapter: 'SKY COMMANDER'; difficulty: 'HARD'; timeLimitMs: 360000; firstClearCredits: 2250;
-  objective: 'Capture both marked territories before time runs out!'; captureDurationMs: 15000;
+  objective: 'Defeat the territory owners, capture both territories and hold both together for 15 seconds.'; captureDurationMs: 15000;
+  holdDurationMs:15000;opponentRespawnMs:15000;opponentCount:4;
+  owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'privateJet';name:string}>[];
   territoryIds: readonly ['las-colinas','love-field'];
   airborneSpawn: Readonly<{x: -58000; z: -28050; altitude: 900; heading: number; speed: 650}>;
 }>;
@@ -290,7 +292,7 @@ export const journeyDallasMostWantedSurvival01: Readonly<{
   ];
 }>;
 
-export const journeyDallasTerritoryHold01: Readonly<Omit<typeof journeyDallasCaptureThree01,'id'|'name'|'objective'|'firstClearCredits'|'territoryIds'> & {
- territoryIds:readonly ['las-colinas','love-field','downtown'];id:'journey-dallas-territory-hold-01';name:'TERRITORY TAKEOVER';objective:string;firstClearCredits:2500;holdDurationMs:30000;opponentRespawnMs:10000;owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'privateJet'|'cargo';name:string}>[];
+export const journeyDallasTerritoryHold01: Readonly<Omit<typeof journeyDallasCaptureThree01,'id'|'name'|'objective'|'firstClearCredits'|'territoryIds'|'holdDurationMs'|'opponentRespawnMs'|'opponentCount'|'owners'> & {
+ territoryIds:readonly ['las-colinas','love-field','downtown'];id:'journey-dallas-territory-hold-01';name:'TERRITORY TAKEOVER';objective:string;firstClearCredits:2500;opponentCount:6;holdDurationMs:30000;opponentRespawnMs:10000;owners:readonly Readonly<{territoryId:string;aircraft:'trainer'|'privateJet'|'cargo';name:string}>[];
 }>;
 export function journeyCompetitiveCaptureMission(id:string|undefined):typeof journeyDallasCaptureThree01|typeof journeyDallasTerritoryHold01|undefined;

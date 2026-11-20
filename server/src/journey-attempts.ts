@@ -815,11 +815,11 @@ export class JourneyAttemptStore {
       if(!territory)return undefined;
       const captureMs = Math.min(mission.captureDurationMs, (resetProgress ? 0 : current.captureMs) +
         Math.round(tickMs * (competitive?1:territory.captureWeight)));
-      const holdMission = mission.id === journeyDallasTerritoryHold01.id;
+      const holdMission = Boolean(competitive);
       const allOwned = competitive && competitive.territoryIds.every(id=>competition!.territories.some(territory=>territory.id===id&&territory.ownerId==='pilot'));
       const holdMs = holdMission && allOwned && !resetProgress
-        ? Math.min(journeyDallasTerritoryHold01.holdDurationMs, current.defenseMs + tickMs) : 0;
-      const completed=holdMission ? allOwned && holdMs >= journeyDallasTerritoryHold01.holdDurationMs
+        ? (current.captureStage === competitive!.territoryIds.length ? Math.min(competitive!.holdDurationMs, current.defenseMs + tickMs) : 0) : 0;
+      const completed=holdMission ? allOwned && holdMs >= competitive!.holdDurationMs
         : competitive ? allOwned : captureMs>=mission.captureDurationMs;
       const stage=competitive ? competitive.territoryIds.filter(id=>competition!.territories.some(territory=>territory.id===id&&territory.ownerId==='pilot')).length : current.captureStage;
       const displayedCapture = competitive ? competition!.territories.find(item => item.capturingId === 'pilot')?.captureMs ?? 0 : captureMs;
