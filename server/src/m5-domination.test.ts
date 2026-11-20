@@ -51,10 +51,16 @@ test('each living owner must be defeated; unassigned guardians can claim their o
  const {ctx}=setup(),state=ctx.ensureCaptureCompetition('pilot',{attemptId:'a',missionId:mission.id});let now=state.updatedAt;
  for(let i=0;i<50;i++)advanceCaptureCompetition(state,[{id:'pilot',alive:true,territoryId:'love-field'}],now+=400,true);
  assert.equal(state.territories[0].ownerId,state.opponents[0].id);
- for(let i=0;i<38;i++)advanceCaptureCompetition(state,[{id:state.opponents[2].id,alive:true,territoryId:'white-rock'}],now+=400,true);
+ assert.equal(state.territories[0].captureMs,mission.captureDurationMs*.95);
+ for(let i=0;i<38;i++)advanceCaptureCompetition(state,[{id:state.opponents[2].id,alive:true,territoryId:'white-rock'},{id:'pilot',alive:true,territoryId:'love-field'}],now+=400,true);
  assert.equal(state.territories[2].ownerId,state.opponents[2].id);
  for(const index of [0,2]){
   const enemy=state.opponents[index];enemy.health=0;releaseCaptureActor(state,enemy.id);assert.equal(state.territories[index].ownerId,undefined);
+  if(index===0){
+   assert.equal(state.territories[index].captureMs,mission.captureDurationMs*.95);
+   for(let tick=0;tick<2;tick++)advanceCaptureCompetition(state,[{id:'pilot',alive:true,territoryId:mission.territoryIds[index]}],now+=400,true);
+   assert.equal(state.territories[index].ownerId,'pilot','defeating the M5 owner needs only the remaining 5%, not a fresh capture');
+  }
   for(let i=0;i<38;i++)advanceCaptureCompetition(state,[{id:'pilot',alive:true,territoryId:mission.territoryIds[index]}],now+=400,true);
   assert.equal(state.territories[index].ownerId,'pilot');
  }

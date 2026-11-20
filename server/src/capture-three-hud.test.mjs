@@ -31,13 +31,15 @@ function fixture(mission = missions.journeyDallasCaptureThree01) {
   const rows = [], bars = [], hosts = [], modes = [];
   const territoryDefinitions = territoriesForCity('dallas');
   const context = vm.createContext({ ...missions, missionJourneyDetails, dallasAirportNames: dallasDisplayNames,
+    competitiveCaptureHandoff: undefined, territoryCaptureCelebrationMs: 2800, performance: {now:()=>1000},
+    celebrateMissionTerritoryCapture(index){ bars.push(['celebrate',index]); },
     captureMissionTerritoryName: 'LAS COLINAS', journeyMode: true,
-    journeyAttempt: { missionId: mission.id, status: 'RACING', captureStage: 0, captureMs: 7500 },
+    journeyAttempt: { attemptId: 'attempt', missionId: mission.id, status: 'RACING', captureStage: 0, captureMs: 7500 },
     territoryDefinitions, territoryContains, territoryState:new Map(), localPlayerId: 'pilot', neutralTerritoryColor: '#ffffff',
     airplane: { position: { ...territoryDefinitions.find(t => t.id === 'las-colinas').center, y: 1000 } },
     getTerrainHeight: () => 0, connectionReady: () => true, onGround: false, crashed: false, journeyPaused: false,
     cityTerritoriesPanel: { update(items) { rows.splice(0, rows.length, ...items); } },
-    missionCaptureBar: { show(...args) { bars.push(args); }, hide() { bars.push('hidden'); }, showHold(...args){bars.push(['hold',...args]);} },
+    missionCaptureBar: { show(...args) { bars.push(args); }, hide() { bars.push('hidden'); }, stopCelebration(){}, showHold(...args){bars.push(['hold',...args]);} },
     gameplayInfoCard: { setTerritoryPanelHost(host) { hosts.push(host); }, setMode(mode) { modes.push(mode); } },
     flightGameRoot: element(), skyChallengeElement: element(), missionTerritoryCard: element(),
     journeyHudObjective: element(), journeyHudProgress: element(), journeyHudTarget: element(), journeyHudSegmentRow: element(),
@@ -71,14 +73,14 @@ test('M21 shared capture bar and owned rows follow live ownership in any order',
     c.airplane.position = { ...target.center, y: 1000 };
     c.journeyAttempt.captureStage = stage; c.journeyAttempt.captureMs = 7500;
     c.journeyAttempt.captureTerritories = c.journeyDallasCaptureThree01.territoryIds.map((id,index)=>({id,controllerId:index<stage?'pilot':undefined,ownerColor:index<stage?'#35e0b7':undefined,capturingPlayerId:index===stage?'pilot':undefined,captureProgress:index===stage?50:0,contested:false}));
-    c.render();
+    c.render(); c.performance.now=()=>4000*(stage+1); c.render();
     assert.deepEqual(bars.at(-1), [rows[stage].name, 50, false]);
     assert.equal(rows[stage].statusLabel, 'CAPTURING 50%');
     assert.ok(rows.slice(0, stage).every(row => row.captured && row.statusLabel === 'OWNED'));
     assert.ok(rows.slice(stage + 1).every(row => !row.captured && row.statusLabel === 'UNASSIGNED'));
   }
   c.journeyAttempt.captureTerritories.forEach(t=>{t.controllerId='pilot';t.capturingPlayerId=undefined;t.captureProgress=0;});
-  c.journeyAttempt.captureStage=2;c.journeyAttempt.defenseMs=6000;c.render();assert.deepEqual(bars.at(-1),['hold','ALL TERRITORIES','0:06','0:30']);
+  c.journeyAttempt.captureStage=2;c.journeyAttempt.defenseMs=6000;c.render();c.performance.now=()=>12000;c.render();assert.deepEqual(bars.at(-1),['hold','ALL TERRITORIES','0:06','0:30']);
   c.journeyAttempt.captureStage = 2; c.journeyAttempt.status = 'COMPLETED'; c.journeyAttempt.captureMs = 0;
   c.render();
   assert.ok(rows.every(row => row.captured && row.statusLabel === 'OWNED'));
@@ -119,6 +121,23 @@ test('M5 uses M5 numbering, all six territory rows, and capture progress with no
  assert.equal(c.journeyHudObjective.textContent,'• Defeat the territory owners\n• Capture all 6 TERRITORIES\n• Own all 6 together to win');
  c.journeyAttempt.captureMs=7500;c.journeyAttempt.captureTerritories[2].capturingPlayerId='pilot';c.journeyAttempt.captureTerritories[2].captureProgress=50;c.render();
  assert.deepEqual(bars.at(-1),['WHITE ROCK TERRITORY',50,false]);
- c.journeyAttempt.captureTerritories.forEach(t=>{t.controllerId='pilot';t.capturingPlayerId=undefined;t.captureProgress=0;});c.journeyAttempt.captureStage=6;c.journeyAttempt.captureMs=0;c.journeyAttempt.status='COMPLETED';c.render();
+ c.journeyAttempt.captureTerritories.forEach(t=>{t.controllerId='pilot';t.capturingPlayerId=undefined;t.captureProgress=0;});c.journeyAttempt.captureStage=6;c.journeyAttempt.captureMs=0;c.journeyAttempt.status='COMPLETED';c.render();c.performance.now=()=>4000;c.render();
  assert.deepEqual(bars.at(-1),['ALL TERRITORIES',0,true]);assert.equal(bars.some(call=>Array.isArray(call)&&call[0]==='hold'),false);
+});
+
+test('all competitive capture missions explain the owner block and animate each acquired territory once',()=>{
+ for(const mission of [missions.journeyDallasCaptureThree01,missions.journeyDallasTerritoryHold01,missions.journeyDallasTerritoryDomination01]){
+  const {context:c,bars}=fixture(mission);let now=1000;c.performance.now=()=>now;
+  const first=c.journeyAttempt.captureTerritories[0];first.controllerId='owner';first.captureProgress=95;
+  c.render();assert.deepEqual(bars.at(-1),[c.territoryDefinitions.find(t=>t.id===first.id).displayName.toUpperCase(),95,false,true]);
+  first.controllerId=undefined;first.captureProgress=98;c.render();assert.equal(bars.at(-1).length,3,'owner defeated removes the hint while capture resumes');
+  first.controllerId='pilot';first.capturingPlayerId=undefined;first.captureProgress=0;c.journeyAttempt.captureMs=0;
+  c.render();assert.deepEqual(bars.at(-1),['celebrate',0]);
+  c.render();assert.deepEqual(bars.at(-1),[c.territoryDefinitions.find(t=>t.id===first.id).displayName.toUpperCase(),100,true]);
+  now+=2800;c.render();assert.equal(bars.at(-1),'hidden');
+  const last=c.journeyAttempt.captureTerritories.at(-1);last.controllerId='pilot';c.journeyAttempt.status='COMPLETED';
+  c.render();assert.deepEqual(bars.at(-1),['celebrate',mission.territoryIds.length-1]);
+  c.journeyPaused=true;c.render();assert.equal(bars.at(-1),'hidden');
+  c.journeyPaused=false;c.render();assert.equal(bars.filter(call=>Array.isArray(call)&&call[0]==='celebrate').length,2,'resume does not replay confirmed ownership');
+ }
 });

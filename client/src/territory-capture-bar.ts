@@ -6,11 +6,15 @@ export class TerritoryCaptureBar {
   private readonly label: HTMLElement;
   private readonly progress: HTMLProgressElement;
   private readonly percent: HTMLElement;
+  private readonly hint = document.createElement('small');
   private signature = '';
   private celebrationOverlay?: HTMLElement;
   private celebrationAnimations: Animation[] = [];
 
   constructor(private readonly root: HTMLElement) {
+    this.hint.className = 'territory-capture-hint';
+    this.hint.textContent = 'Defeat the owner to finish capturing.';
+    this.hint.hidden = true;
     this.content.className = 'live-territory-status';
     this.content.innerHTML = '<span class="live-territory-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="16" r="10"/><circle cx="16" cy="16" r="4"/><path d="M16 1v8m0 14v8M1 16h8m14 0h8"/></svg><span>✓</span></span><span class="live-territory-label"></span><progress class="live-territory-progress" max="100" aria-label="Territory capture progress"></progress><strong class="live-territory-percent"></strong>';
     this.label = this.content.querySelector('.live-territory-label')!;
@@ -18,14 +22,15 @@ export class TerritoryCaptureBar {
     this.percent = this.content.querySelector('.live-territory-percent')!;
   }
 
-  show(name: string, progress: number, captured: boolean): void {
+  show(name: string, progress: number, captured: boolean, blockedByOwner = false): void {
     const percent = captured ? 100 : Math.floor(Math.max(0, Math.min(100, progress)));
-    const signature = `${name}:${percent}:${captured}`;
-    if (this.root.firstElementChild !== this.content) this.root.replaceChildren(this.content);
+    const signature = `${name}:${percent}:${captured}:${blockedByOwner}`;
+    if (this.root.firstElementChild !== this.content) this.root.replaceChildren(this.content, this.hint);
     this.root.classList.add('is-mission-capture');
     this.root.classList.remove('hidden', 'is-holding');
     if (signature === this.signature) return;
     this.signature = signature;
+    this.hint.hidden = captured || !blockedByOwner;
     this.root.classList.toggle('is-captured', captured);
     this.progress.value = percent;
     this.progress.hidden = captured;
@@ -42,8 +47,9 @@ export class TerritoryCaptureBar {
   }
 
   showHold(name: string, elapsed: string, duration: string): void {
+    this.hint.hidden = true;
     const signature = `hold:${name}:${elapsed}:${duration}`;
-    if (this.root.firstElementChild !== this.content) this.root.replaceChildren(this.content);
+    if (this.root.firstElementChild !== this.content) this.root.replaceChildren(this.content, this.hint);
     this.root.classList.add('is-mission-capture', 'is-holding');
     this.root.classList.remove('hidden', 'is-captured');
     if (signature === this.signature) return;
@@ -112,6 +118,7 @@ export class TerritoryCaptureBar {
   }
 
   hide(): void {
+    this.hint.hidden = true;
     this.stopCelebration();
     this.root.classList.remove('is-mission-capture', 'is-captured', 'is-holding');
     this.root.classList.add('hidden');

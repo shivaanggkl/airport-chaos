@@ -13,13 +13,14 @@ export function newCaptureCompetition(opponents: CaptureOpponent[], now: number,
   return { territories: territoryIds.map(id => ({id, captureMs:0, contested:false})), opponents, updatedAt:now };
 }
 
-/** A defeated challenger loses its attempt, never somebody else's ownership. */
+/** Defeat releases ownership and the actor’s own attempt, preserving another challenger’s progress. */
 export function releaseCaptureActor(state: CaptureCompetition, actorId: string): void {
   for (const territory of state.territories) {
     if (territory.ownerId === actorId) {
       territory.ownerId = undefined;
-      territory.capturingId = undefined; territory.captureMs = 0; territory.contested = false;
-    } else if (territory.capturingId === actorId) {
+      territory.contested = false;
+    }
+    if (territory.capturingId === actorId) {
       territory.capturingId = undefined; territory.captureMs = 0; territory.contested = false;
     }
   }

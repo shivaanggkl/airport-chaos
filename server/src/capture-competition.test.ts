@@ -26,7 +26,7 @@ test('all territories start neutral, capture in any order and require simultaneo
  ticks(state,[actor('pilot','love-field'),actor('enemy')]);
  assert.equal(captureCompetitionOwned(state),2);
 });
-test('owners defend against stealing; killing the owner resets its holdings to neutral',()=>{
+test('defeating the owner preserves the challenger’s 95% until the remaining capture time finishes',()=>{
  const state=newCaptureCompetition([],0),id='las-colinas';
  ticks(state,[actor('pilot'),actor('enemy',id)]);
  ticks(state,[actor('pilot',id),actor('enemy',id)],60);
@@ -34,9 +34,24 @@ test('owners defend against stealing; killing the owner resets its holdings to n
  assert.equal(state.territories[0].captureMs,mission.captureDurationMs*.95);
  advanceCaptureCompetition(state,[actor('pilot',id),actor('enemy',undefined,false)],state.updatedAt+400);
  assert.equal(state.territories[0].ownerId,undefined);
- assert.ok(state.territories[0].captureMs<=400);
- ticks(state,[actor('pilot',id),actor('enemy',undefined,false)]);
+ assert.equal(state.territories[0].capturingId,'pilot');
+ assert.equal(state.territories[0].captureMs,mission.captureDurationMs*.95+400);
+ assert.equal(state.territories[0].ownerId,undefined,'the last 5% still requires fresh time inside');
+ advanceCaptureCompetition(state,[actor('pilot',id),actor('enemy',undefined,false)],state.updatedAt+400);
  assert.equal(state.territories[0].ownerId,'pilot');
+});
+test('owner death preserves only another challenger’s attempt; departure and defeat still reset capture',()=>{
+ for(const leaves of [true,false]){
+  const state=newCaptureCompetition([],0),territory=state.territories[0];
+  territory.ownerId='owner';territory.capturingId='pilot';territory.captureMs=mission.captureDurationMs*.95;
+  releaseCaptureActor(state,'owner');
+  assert.equal(territory.captureMs,14250);
+  advanceCaptureCompetition(state,[actor('pilot',leaves?undefined:territory.id,!leaves?false:true)],400,true);
+  assert.equal(territory.captureMs,0);assert.equal(territory.capturingId,undefined);assert.equal(territory.ownerId,undefined);
+ }
+ const state=newCaptureCompetition([],0),territory=state.territories[0];
+ territory.ownerId='owner';territory.capturingId='pilot';territory.captureMs=14250;
+ releaseCaptureActor(state,'pilot');assert.equal(territory.ownerId,'owner');assert.equal(territory.captureMs,0);
 });
 test('contests, stalls, pause/reconnect gaps and leaving the territory cannot create progress',()=>{
  const state=newCaptureCompetition([],0),id='love-field';

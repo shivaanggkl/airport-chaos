@@ -321,6 +321,7 @@ let airborneIntroAwaiting = false;
 let runwayJourneyIntroAwaiting = false;
 let cinematicDirector: CinematicDirector;
 let missionClearStartedAt: number | null = null;
+let missionClearCapturePreludeMs = 0;
 let missionClearAttemptId: string | null = null;
 const launchCinematicBlocksInput = (): boolean => aircraftVictory?.pending === true || flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || skyDuelUi?.blocksFlightInput() === true || airAssaultUi?.blocked() === true || flightDialogOpen();
 const journeyPreflightActive = (): boolean => journeyMode &&
@@ -1598,6 +1599,7 @@ const activeContractElement = document.querySelector<HTMLDivElement>('#active-co
 const contractPanelElement = document.querySelector<HTMLElement>('#contract-panel')!;
 const territoryCaptureElement = document.querySelector<HTMLElement>('#territory-capture')!;
 const missionCaptureBar = new TerritoryCaptureBar(territoryCaptureElement);
+let competitiveCaptureHandoff: {attemptId: string; owned: Set<string>; active?: {id: string; until: number}} | undefined;
 let territoryDefenseCaptureHandoff: {attemptId: string; owned: boolean; until: number} | undefined;
 territoryCaptureElement.hidden = !cityRules.territoriesEnabled || skyDuelMode;
 territoryDefenseAlertElement.hidden = !cityRules.territoriesEnabled || skyDuelMode;
@@ -3109,16 +3111,47 @@ function updateTerritoryPanel(allowDemonstration = true): void {
   cityTerritoriesPanel.update(cityTerritoryEntries(), localPlayerId);
 }
 
-function celebrateMissionTerritoryCapture(): void {
+function celebrateMissionTerritoryCapture(territoryIndex?: number): void {
   missionTerritoryCard.hidden = false;
   missionTerritoryCard.classList.remove('is-collapsed');
   missionTerritoryToggle.setAttribute('aria-expanded', 'true');
   missionTerritoryToggle.setAttribute('aria-label', 'Hide territory details');
   updateTerritoryPanel(false);
-  missionCaptureBar.celebrate(missionTerritoryCard);
+  missionCaptureBar.celebrate(territoryIndex === undefined ? missionTerritoryCard : cityTerritoriesPanel.captureTarget(territoryIndex) ?? missionTerritoryCard);
 }
 
 function updateCaptureHud(): void {
+  const competitiveMission = journeyAttempt && journeyCompetitiveCaptureMission(journeyAttempt.missionId);
+  const captureActive = !journeyPaused && (journeyAttempt?.status === 'RACING' || journeyAttempt?.status === 'COMPLETED');
+  let competitiveJustOwned = false;
+  if (competitiveMission && journeyAttempt && localPlayerId) {
+    const current = journeyAttempt.captureTerritories ?? [];
+    if (competitiveCaptureHandoff?.attemptId !== journeyAttempt.attemptId) {
+      competitiveCaptureHandoff = {attemptId: journeyAttempt.attemptId, owned: new Set(current.filter(t => t.controllerId === localPlayerId).map(t => t.id))};
+    } else {
+      for (const territory of current) {
+        if (territory.controllerId === localPlayerId) {
+          if (!competitiveCaptureHandoff.owned.has(territory.id) && captureActive) {
+            competitiveCaptureHandoff.active = {id: territory.id, until: performance.now() + territoryCaptureCelebrationMs};
+            competitiveJustOwned = true;
+          }
+          competitiveCaptureHandoff.owned.add(territory.id);
+        } else {
+          competitiveCaptureHandoff.owned.delete(territory.id);
+          if (competitiveCaptureHandoff.active?.id === territory.id) {
+            missionCaptureBar.stopCelebration();
+            competitiveCaptureHandoff.active = undefined;
+          }
+        }
+      }
+      if (!captureActive ||
+          (competitiveCaptureHandoff.active && performance.now() >= competitiveCaptureHandoff.active.until)) {
+        if (competitiveCaptureHandoff.active) missionCaptureBar.stopCelebration();
+        competitiveCaptureHandoff.active = undefined;
+      }
+    }
+  } else competitiveCaptureHandoff = undefined;
+  const acquired = competitiveCaptureHandoff?.active;
   let captureJustOwned = false;
   if (journeyAttempt?.missionId === journeyDallasTerritoryDefense01.id) {
     const owned = journeyAttempt.captureMs >= journeyDallasTerritoryDefense01.captureDurationMs;
@@ -3144,11 +3177,14 @@ function updateCaptureHud(): void {
       (captureMission.id !== journeyDallasTerritoryDefense01.id || journeyAttempt.captureMs < captureMission.captureDurationMs);
     const holding = captureMission.id === journeyDallasTerritoryDefense01.id && journeyAttempt.status === 'RACING' &&
       journeyAttempt.captureMs >= captureMission.captureDurationMs;
-    const live = !journeyPaused && (captured || capturing || holding || Boolean(journeyCompetitiveCaptureMission(journeyAttempt.missionId) && journeyCompetitiveCaptureMission(journeyAttempt.missionId)!.holdDurationMs>0 && journeyAttempt.status==='RACING' && journeyAttempt.captureStage===journeyCompetitiveCaptureMission(journeyAttempt.missionId)!.territoryIds.length));
+    const live = !journeyPaused && (Boolean(acquired) || captured || capturing || holding || Boolean(journeyCompetitiveCaptureMission(journeyAttempt.missionId) && journeyCompetitiveCaptureMission(journeyAttempt.missionId)!.holdDurationMs>0 && journeyAttempt.status==='RACING' && journeyAttempt.captureStage===journeyCompetitiveCaptureMission(journeyAttempt.missionId)!.territoryIds.length));
     flightGameRoot.classList.toggle('has-live-territory-status', live);
     if (live) {
       const competitive = journeyCompetitiveCaptureMission(journeyAttempt.missionId);
-      if (competitive && competitive.holdDurationMs>0 && journeyAttempt.status==='RACING' && journeyAttempt.captureStage===competitive.territoryIds.length) {
+      if (competitive && acquired) {
+        missionCaptureBar.show(territoryDisplayName(territoryDefinitions.find(t => t.id === acquired.id)!), 100, true);
+        if (competitiveJustOwned) celebrateMissionTerritoryCapture(competitive.territoryIds.findIndex(id => id === acquired.id));
+      } else if (competitive && competitive.holdDurationMs>0 && journeyAttempt.status==='RACING' && journeyAttempt.captureStage===competitive.territoryIds.length) {
         missionCaptureBar.showHold('ALL TERRITORIES',formatJourneyResultTime(journeyAttempt.defenseMs??0),formatJourneyResultTime(competitive.holdDurationMs));
       } else if (holding && territoryDefenseCaptureHandoff && performance.now() < territoryDefenseCaptureHandoff.until) {
         missionCaptureBar.show(name, 100, true);
@@ -3161,7 +3197,13 @@ function updateCaptureHud(): void {
         missionCaptureBar.showHold(captureMissionTerritoryName,
           formatJourneyResultTime(Math.max(0, Math.min(journeyDallasTerritoryDefense01.defenseDurationMs, journeyAttempt.defenseMs ?? 0))),
           formatJourneyResultTime(journeyDallasTerritoryDefense01.defenseDurationMs));
-      } else missionCaptureBar.show(name, journeyCompetitiveCaptureMission(captureMission.id) && liveTarget ? displayedTerritoryState(liveTarget.id)?.captureProgress ?? 0 : journeyAttempt.captureMs * 100 / captureMission.captureDurationMs, captured);
+      } else {
+        const state = liveTarget && displayedTerritoryState(liveTarget.id);
+        const progress = competitive && liveTarget ? state?.captureProgress ?? 0 : journeyAttempt.captureMs * 100 / captureMission.captureDurationMs;
+        const blocked = !captured && progress >= 95 && state?.capturingPlayerId === localPlayerId && Boolean(state?.controllerId && state.controllerId !== localPlayerId);
+        if (blocked) missionCaptureBar.show(name, progress, captured, true);
+        else missionCaptureBar.show(name, progress, captured);
+      }
     } else missionCaptureBar.hide();
     return;
   }
@@ -3996,7 +4038,7 @@ const missionClearDirection = new THREE.Vector3();
 const missionClearLevel = new THREE.Quaternion();
 const missionClearVelocity = new THREE.Vector3();
 const missionClearCruiseVelocity = new THREE.Vector3();
-const missionClearMissionIds = new Set<string>([journeyDallasMostWantedSurvival01.id,journeyDallasCaptureThree01.id,journeyDallasTerritoryHold01.id,journeyDallasAceIntercept01.id,journeyDallasTerritoryDefense01.id,journeyDallasCoinHunt01.id,journeyDallasSharpshooter01.id, journeyDallasSharpshooter02.id, journeyDallasSharpshooter03.id, journeyDallasSharpshooter04.id, journeyDallasSharpshooter05.id, journeyDallasAirportHop01.id, journeyDallasCapture01.id, journeyDallas01.id, journeyDallas02.id, journeyDallas03.id,
+const missionClearMissionIds = new Set<string>([journeyDallasTerritoryDomination01.id,journeyDallasMostWantedSurvival01.id,journeyDallasCaptureThree01.id,journeyDallasTerritoryHold01.id,journeyDallasAceIntercept01.id,journeyDallasTerritoryDefense01.id,journeyDallasCoinHunt01.id,journeyDallasSharpshooter01.id, journeyDallasSharpshooter02.id, journeyDallasSharpshooter03.id, journeyDallasSharpshooter04.id, journeyDallasSharpshooter05.id, journeyDallasAirportHop01.id, journeyDallasCapture01.id, journeyDallas01.id, journeyDallas02.id, journeyDallas03.id,
   journeyDallas04.id, journeyDallas05.id, journeyDallas06.id]);
 const MISSION_CLEAR_DURATION_MS = 4_200;
 const MISSION_CLEAR_REVEAL_MS = 700;
@@ -4004,6 +4046,7 @@ function beginMissionClear(attempt: JourneyAttemptState): void {
   if (missionClearAttemptId === attempt.attemptId) return;
   missionClearAttemptId = attempt.attemptId;
   missionClearStartedAt = performance.now();
+  missionClearCapturePreludeMs = attempt.missionId === journeyDallasCapture01.id || competitiveCaptureHandoff?.active ? territoryCaptureCelebrationMs : 0;
   missionClearDirection.set(0, 0, -1).applyQuaternion(airplane.quaternion);
   missionClearDirection.y = 0;
   if (missionClearDirection.lengthSq() < 0.0001) missionClearDirection.set(velocity.x, 0, velocity.z);
@@ -4031,8 +4074,8 @@ function beginMissionClear(attempt: JourneyAttemptState): void {
   missionClearElement.classList.remove('is-exiting');
   missionClearElement.classList.add('hidden');
   flightGameRoot.classList.add('mission-clear-active');
+  if (missionClearCapturePreludeMs) flightGameRoot.classList.add('territory-capture-celebrating');
   if (attempt.missionId === journeyDallasCapture01.id) {
-    flightGameRoot.classList.add('territory-capture-celebrating');
     updateCaptureHud();
     celebrateMissionTerritoryCapture();
   }
@@ -4090,7 +4133,7 @@ function updateAircraftVictory(delta: number): void {
 
 function updateMissionClear(delta: number): void {
   if (missionClearStartedAt === null) return;
-  const capturePrelude = journeyAttempt?.missionId === journeyDallasCapture01.id ? territoryCaptureCelebrationMs : 0;
+  const capturePrelude = missionClearCapturePreludeMs;
   const elapsed = performance.now() - missionClearStartedAt - capturePrelude;
   if (capturePrelude && elapsed >= 0 && flightGameRoot.classList.contains('territory-capture-celebrating')) {
     flightGameRoot.classList.remove('territory-capture-celebrating');
@@ -6745,7 +6788,7 @@ function createRemotePlayerProxy(isBot: boolean): THREE.Sprite {
     color: visualLanguage[isBot ? 'ai' : 'player'].color,
     transparent: true,
     depthWrite: false,
-    depthTest: false,
+    depthTest: true,
     fog: false,
     opacity: 0,
   });
