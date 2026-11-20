@@ -610,9 +610,25 @@ export const journeyDallasTerritoryHold01 = Object.freeze({
     Object.freeze({territoryId:'downtown',aircraft:'cargo',name:'MAMMOTH GUARDIAN'}),
   ]),
 });
+export const journeyDallasTerritoryDomination01 = Object.freeze({
+  ...journeyDallasCaptureThree01,
+  id: 'journey-dallas-territory-domination-01', name: 'CAPTURE 6 TERRITORIES',
+  objective: 'Defeat territory owners and own all 6 territories together to win.',
+  timeLimitMs: 600000, firstClearCredits: 3000, holdDurationMs: 0, opponentCount: 9,
+  territoryIds: Object.freeze(['love-field','trinity-corridor','white-rock','las-colinas','downtown','addison']),
+  owners: Object.freeze([
+    Object.freeze({territoryId:'love-field',aircraft:'privateJet',name:'NIGHTOWL GUARDIAN',initiallyOwned:true}),
+    Object.freeze({territoryId:'trinity-corridor',aircraft:'cargo',name:'MAMMOTH GUARDIAN',initiallyOwned:true}),
+    Object.freeze({territoryId:'white-rock',aircraft:'trainer',name:'WHITE ROCK GUARDIAN',initiallyOwned:false}),
+    Object.freeze({territoryId:'las-colinas',aircraft:'fighter',name:'LAS COLINAS GUARDIAN',initiallyOwned:false}),
+    Object.freeze({territoryId:'downtown',aircraft:'privateJet',name:'DOWNTOWN GUARDIAN',initiallyOwned:false}),
+    Object.freeze({territoryId:'addison',aircraft:'trainer',name:'ADDISON GUARDIAN',initiallyOwned:false}),
+  ]),
+});
 export function journeyCompetitiveCaptureMission(id) {
   return id === journeyDallasCaptureThree01.id ? journeyDallasCaptureThree01
-    : id === journeyDallasTerritoryHold01.id ? journeyDallasTerritoryHold01 : undefined;
+    : id === journeyDallasTerritoryHold01.id ? journeyDallasTerritoryHold01
+    : id === journeyDallasTerritoryDomination01.id ? journeyDallasTerritoryDomination01 : undefined;
 }
 
 /** Shared capture timing and rewards for M05 and competitive M21. */
@@ -677,6 +693,7 @@ export const journeyCatalog = Object.freeze([
   [journeyDallasSharpshooter04.id, 'Precision Fire'],
   [journeyDallasSharpshooter05.id, 'Target Master'],
   [journeyDallasTerritoryHold01.id, 'Territory Takeover'],
+  [journeyDallasTerritoryDomination01.id, 'Capture 6 Territories'],
 ].map(([identity, title], index) => Object.freeze({
   id: identity === null ? `placeholder-dallas-${String(index + 1).padStart(2, '0')}` : typeof identity === 'string' ? identity : `journey-dallas-${String(identity).padStart(2, '0')}`,
   number: index + 1, title,

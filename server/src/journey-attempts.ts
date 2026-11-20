@@ -8,7 +8,7 @@ import { territoriesForCity } from '../../shared/city-territories.mjs';
 import { journeyMissionOrder, journeyCatalog } from '../../shared/journey-mission.mjs';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { journeyDallasMostWantedSurvival01, journeyDallasCaptureThree01, journeyDallasTerritoryHold01, journeyCompetitiveCaptureMission, journeyTerritoryCaptureMission, journeyCaptureTerritoryId, journeyDallasAceIntercept01, journeyDallasTerritoryDefense01, journeyDallasTwinHunters01, journeyCrossfireMission, journeyDallasCoinHunt01, journeySharpshooterMission, journeyDallasSharpshooter01, journeyDallasSharpshooter02, journeyDallasSharpshooter03, journeyDallasSharpshooter04, journeyDallasSharpshooter05, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
+import { journeyDallasMostWantedSurvival01, journeyDallasCaptureThree01, journeyDallasTerritoryHold01, journeyDallasTerritoryDomination01, journeyCompetitiveCaptureMission, journeyTerritoryCaptureMission, journeyCaptureTerritoryId, journeyDallasAceIntercept01, journeyDallasTerritoryDefense01, journeyDallasTwinHunters01, journeyCrossfireMission, journeyDallasCoinHunt01, journeySharpshooterMission, journeyDallasSharpshooter01, journeyDallasSharpshooter02, journeyDallasSharpshooter03, journeyDallasSharpshooter04, journeyDallasSharpshooter05, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
 import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
 import { landingGradeForScore, type LandingGrade } from '../../shared/landing-scoring.mjs';
 import { isPerfectLandingGrade } from '../../shared/gameplay-cinematic-rules.mjs';
@@ -303,7 +303,19 @@ export class JourneyAttemptStore {
     } catch (error) { this.database.exec('ROLLBACK'); throw error; }
     const columns = this.database.prepare('PRAGMA table_info(journey_attempts)').all() as { name: string }[];
     if (!columns.some(column => column.name === 'most_wanted_state'))this.database.exec('ALTER TABLE journey_attempts ADD COLUMN most_wanted_state TEXT');
-    if (!columns.some(column => column.name === 'capture_stage'))this.database.exec('ALTER TABLE journey_attempts ADD COLUMN capture_stage INTEGER NOT NULL DEFAULT 0 CHECK(capture_stage BETWEEN 0 AND 3)');
+    if (!columns.some(column => column.name === 'capture_stage'))this.database.exec('ALTER TABLE journey_attempts ADD COLUMN capture_stage INTEGER NOT NULL DEFAULT 0 CHECK(capture_stage BETWEEN 0 AND 6)');
+    const captureSchema = this.database.prepare("SELECT sql FROM sqlite_schema WHERE type='table' AND name='journey_attempts'").get() as {sql:string};
+    if (/CHECK\s*\(\s*"?capture_stage"?\s+BETWEEN\s+0\s+AND\s+3\s*\)/i.test(captureSchema.sql)) {
+      // Expand the legacy column atomically, retaining rows, indexes and foreign keys.
+      this.database.exec('BEGIN IMMEDIATE');
+      try {
+        this.database.exec(`ALTER TABLE journey_attempts ADD COLUMN capture_stage_expanded INTEGER NOT NULL DEFAULT 0 CHECK(capture_stage_expanded BETWEEN 0 AND 6);
+          UPDATE journey_attempts SET capture_stage_expanded=capture_stage;
+          ALTER TABLE journey_attempts DROP COLUMN capture_stage;
+          ALTER TABLE journey_attempts RENAME COLUMN capture_stage_expanded TO capture_stage;`);
+        this.database.exec('COMMIT');
+      } catch (error) { this.database.exec('ROLLBACK'); throw error; }
+    }
     if (!columns.some(column => column.name === 'capture_flight_state'))this.database.exec('ALTER TABLE journey_attempts ADD COLUMN capture_flight_state TEXT');
     if (!columns.some(column => column.name === 'ace_intercept_state'))
       this.database.exec('ALTER TABLE journey_attempts ADD COLUMN ace_intercept_state TEXT');
@@ -815,7 +827,7 @@ export class JourneyAttemptStore {
       if(!territory)return undefined;
       const captureMs = Math.min(mission.captureDurationMs, (resetProgress ? 0 : current.captureMs) +
         Math.round(tickMs * (competitive?1:territory.captureWeight)));
-      const holdMission = Boolean(competitive);
+      const holdMission = Boolean(competitive && competitive.holdDurationMs>0);
       const allOwned = competitive && competitive.territoryIds.every(id=>competition!.territories.some(territory=>territory.id===id&&territory.ownerId==='pilot'));
       const holdMs = holdMission && allOwned && !resetProgress
         ? (current.captureStage === competitive!.territoryIds.length ? Math.min(competitive!.holdDurationMs, current.defenseMs + tickMs) : 0) : 0;
@@ -1413,7 +1425,7 @@ export class JourneyAttemptStore {
   continueAfterAd(pilotId: string, attemptId: string, adAttemptId: string, now = Date.now()): JourneyAttempt | undefined {
     return this.transaction(pilotId, () => {
       const current = this.get(pilotId, attemptId);
-      const mission = current && [journeyDallasMostWantedSurvival01,journeyDallasCaptureThree01, journeyDallasTerritoryHold01,journeyDallasAceIntercept01,journeyDallasTerritoryDefense01,journeyDallasTwinHunters01, journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasSharpshooter02, journeyDallasSharpshooter03, journeyDallasSharpshooter04, journeyDallasSharpshooter05, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyDallas25].find(definition => definition.id === current.missionId);
+      const mission = current && [journeyDallasMostWantedSurvival01,journeyDallasCaptureThree01, journeyDallasTerritoryHold01,journeyDallasTerritoryDomination01,journeyDallasAceIntercept01,journeyDallasTerritoryDefense01,journeyDallasTwinHunters01, journeyDallasCoinHunt01, journeyDallasSharpshooter01, journeyDallasSharpshooter02, journeyDallasSharpshooter03, journeyDallasSharpshooter04, journeyDallasSharpshooter05, journeyDallasAirportHop01, journeyDallasCapture01, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyDallas25].find(definition => definition.id === current.missionId);
       if (current?.status !== 'FAILED' || current.finishedAt === null || current.startedAt === null || current.deadlineAt === null ||
           !['CRASHED', 'MONSTER_KILLED', 'TIME_UP', 'ENEMY_ESCAPED', 'TERRITORY_OVERRUN', 'LEFT_COMBAT_AREA'].includes(current.failureReason ?? '') || !mission || !('timeLimitMs' in mission)) return undefined;
       if (!this.continuation(pilotId, attemptId, now) || this.database.prepare(`SELECT 1 FROM rewarded_ad_attempts

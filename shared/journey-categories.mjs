@@ -7,7 +7,7 @@ export const journeyCategories = Object.freeze([
   category('shooting-targets', 'SHOOTING TARGETS', '#60ef45', 'target', ['journey-dallas-sharpshooter-01', 'journey-dallas-sharpshooter-02', 'journey-dallas-sharpshooter-03', 'journey-dallas-sharpshooter-04', 'journey-dallas-sharpshooter-05', 'journey-dallas-coin-hunt-02']),
   category('plane-battles', 'PLANE BATTLES', '#ff683e', 'plane', [id(14), 'journey-dallas-twin-hunters-01', id(16), id(17), id(18), 'journey-dallas-coin-hunt-03']),
   category('giant-battles', 'GIANT BATTLES', '#b76aff', 'giant', [...[7, 8, 10, 11, 12].map(id), 'journey-dallas-coin-hunt-04']),
-  category('territory-missions', 'TERRITORY MISSIONS', '#35f2e4', 'territory', ['journey-dallas-capture-01', 'journey-dallas-territory-defense-01', 'journey-dallas-capture-three-01', 'journey-dallas-territory-hold-01', 'placeholder-dallas-territory-missions-5', 'journey-dallas-coin-hunt-05']),
+  category('territory-missions', 'TERRITORY MISSIONS', '#35f2e4', 'territory', ['journey-dallas-capture-01', 'journey-dallas-territory-defense-01', 'journey-dallas-capture-three-01', 'journey-dallas-territory-hold-01', 'journey-dallas-territory-domination-01', 'journey-dallas-coin-hunt-05']),
 ]);
 const extras = [
   { id: 'dr-boss', label: 'DR. BOSS', color: '#e05dff', icon: 'boss', missionIds: [id(23), id(19)] },
