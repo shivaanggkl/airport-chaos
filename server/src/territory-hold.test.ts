@@ -29,7 +29,7 @@ test('M4 uses the shared territory rules, owns the expected slot, and describes 
 });
 
 test('a live initial owner must be defeated before its territory can be stolen',()=>{
- let now=1000;const state=newCaptureCompetition(Array.from({length:6},(_,i)=>enemy(i)),now);
+ let now=1000;const state=newCaptureCompetition(Array.from({length:6},(_,i)=>enemy(i)),now,mission.territoryIds);
  state.territories.forEach((t,i)=>t.ownerId=state.opponents[i]!.id);
  for(let i=0;i<45;i++)advanceCaptureCompetition(state,[{id:'pilot',alive:true,territoryId:state.territories[0]!.id}],now+=400,true);
  assert.equal(state.territories[0]!.ownerId,'enemy-0');
@@ -47,7 +47,7 @@ test('hold requires 30 uninterrupted fresh seconds, resets on loss, survives pau
  const profiles=new PlayerProfileStore(path);profiles.getOrCreate('pilot','Pilot');let store=new JourneyAttemptStore(path,true),now=Date.now();
  try{
   const start=()=>{const a=store.launch('pilot','trainer',now,mission.id);store.approach('pilot',a.attemptId,now+1);return store.startTerritoryCapture('pilot',a.attemptId,now+=10)!;};
-  let a=start(),state=newCaptureCompetition([],now);state.territories.forEach(t=>t.ownerId='pilot');
+  let a=start(),state=newCaptureCompetition([],now,mission.territoryIds);state.territories.forEach(t=>t.ownerId='pilot');
   const tick=(fresh=true,ms=400)=>store.advanceTerritoryCapture('pilot',a.attemptId,fresh,now+=ms,false,state)!;
   for(let i=0;i<25;i++)a=tick();assert.equal(a.defenseMs,10000);assert.equal(a.status,'RACING');
   a=tick(false,30000);assert.equal(a.defenseMs,10000,'offline time cannot advance the hold');

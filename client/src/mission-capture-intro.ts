@@ -31,7 +31,7 @@ export class MissionCaptureIntroPath {
       radius:Math.hypot((territory.bounds.maxX-territory.bounds.minX)/2,(territory.bounds.maxZ-territory.bounds.minZ)/2,1000)}));
   }
 
-  territoryAt(elapsed:number):CaptureTerritory|undefined{return this.sequenceFrames[elapsed<6000?0:elapsed<8000?1:2]?.territory;}
+  territoryAt(elapsed:number):CaptureTerritory|undefined{return this.sequenceFrames[Math.min(this.sequenceFrames.length-1,elapsed<6000?0:elapsed<8000?1:2)]?.territory;}
 
   text(elapsed: number): string {
     if(this.sequence){
@@ -56,7 +56,7 @@ export class MissionCaptureIntroPath {
     chasePosition: THREE.Vector3, chaseTarget: THREE.Vector3, aspect = 16 / 9): void {
     if(this.sequence){
       if(elapsed<3000){position.copy(chasePosition);target.copy(this.sequence.player.position);this.streamingFocus.copy(this.sequence.player.position);return;}
-      const frame=this.sequenceFrames[elapsed<6000?0:elapsed<8000?1:2]!;
+      const frame=this.sequenceFrames[Math.min(this.sequenceFrames.length-1,elapsed<6000?0:elapsed<8000?1:2)]!;
       const halfFov=Math.atan(Math.tan(THREE.MathUtils.degToRad(29))*Math.min(1,Math.max(.5,aspect)));
       const distance=frame.radius/Math.sin(halfFov)*1.28;
       this.shotSequence(position,target,frame.focus,distance);

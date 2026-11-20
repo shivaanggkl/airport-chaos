@@ -11,6 +11,7 @@ import {territoriesForCity,territoryContains,territoryCaptureFlightEligible} fro
 import {missionFocusForAttempt} from '../../shared/mission-focus.mjs';
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
 import {cityAirports} from '../../shared/city-airports.mjs';
+import {maxHealthForAircraft} from '../../shared/aircraft-health.mjs';
 import {projectileDamageForAircraft} from '../../shared/protocol.mjs';
 import {authorizedJourneyAirborneSpawn} from './journey-airborne-spawn.js';
 import {JourneyAttemptStore} from './journey-attempts.js';
@@ -96,15 +97,6 @@ test('production factory stages the real Sunset Red Medium Nightowl at exact coo
  assert.equal(players.size,1);assert.equal(enemy.position.x,-22000);assert.equal(enemy.position.z,-28050);assert.ok(enemy.position.y>900);assert.equal(enemy.rotation.y,Math.PI/2);assert.equal(enemy.health,300);assert.equal(enemy.bot.speed,420);assert.equal(enemy.bot.opponent.definition.level,'MEDIUM');assert.equal(enemy.bot.opponent.definition.livery,mission.enemyLivery);assert.equal(enemy.spawnProtectedUntil,0);
 });
 
-test('production AI follows ordered route, enters near 17 seconds and cycles the interior patrol with shared flight',()=>{
- const enemy={cityId:'dallas',lifeState:'alive',aircraftType:'privateJet',position:{...mission.enemySpawn,y:1300},rotation:{x:0,y:Math.PI/2,z:0},velocity:{x:-420,y:0,z:0}},pilot={pilotId:'pilot',aircraftType:'trainer',lifeState:'alive',position:{x:-80000,y:1300,z:-28050},rotation:{x:0,y:0,z:0},velocity:{x:650,y:0,z:0}};
- const bot={personality:'hunter',journeyTerritoryDefense:true,journeyTargetPlayerId:'owner',journeyAttemptId:'attempt',speed:420,bankControl:0,combatTurnSign:1,opponent:createOpponent({aircraft:'privateJet',livery:mission.enemyLivery,level:'MEDIUM',cityId:'dallas',position:enemy.position,rotation:enemy.rotation,speed:420,health:300,behavior:'objective'})};
- const ctx=runtime(['hunterNavigationTarget'],{players:new Map([['owner',pilot]]),journeyStore:{activeSnapshot:()=>({status:'RACING'})},planOpponentTactics,territoriesForCity,territoryContains,botSafeFloor:()=>100,journeyAceClearance:300,safeBotWaypoint:(_city,_from,to)=>to,insideJourneyHunterArena:()=>true,botFireSolution:()=>({reason:'range'}),opponentReactionReady:()=>true});
- const visited=[0];let entered;
- for(let step=0;step<4400;step++){const now=step*50;const next=ctx.hunterNavigationTarget('invader',enemy,bot,now);advanceHunterFlight(enemy,bot,next.waypoint,bot.opponent.tactics.plan.cruise,.05,()=>100);if(entered===undefined&&territoryContains(territory,enemy.position))entered=step*.05;if(visited.at(-1)!==bot.journeyDefenseRouteIndex)visited.push(bot.journeyDefenseRouteIndex);if(visited.length>=5)break;}
- assert.ok(entered>=15&&entered<=20,`entry ${entered}`);assert.deepEqual(visited.slice(0,5),[0,1,2,3,1]);
-});
-
 test('12-second shared territory cinematic uses real aircraft and exact text with unchanged handoff transforms',async()=>{
  const THREE=await import('three'),{MissionCaptureIntroPath}=await import('../../client/src/mission-capture-intro.ts');const player=new THREE.Group(),invader=new THREE.Group();player.position.set(-47000,900,-28050);invader.position.set(-22000,1100,-28050);
  const intro=new MissionCaptureIntroPath(territory,90000,()=>0,{player,invader}),position=new THREE.Vector3(),target=new THREE.Vector3(),chase=new THREE.Vector3(-48000,1200,-28050),aim=player.position.clone();assert.equal(intro.durationMs,12000);
@@ -117,8 +109,8 @@ test('production damage rejects early fire; destroying the invader does not bypa
  const f=fixture();try{const a=start(f);const pilot={pilotId:'pilot',entityType:'player',cityId:'dallas',lifeState:'alive',health:100,isBot:false,score:0,aircraftType:'trainer',position:{x:-47000,y:1000,z:-28050}};
  const enemy={entityType:'player',cityId:'dallas',lifeState:'alive',isBot:true,score:0,health:300,spawnProtectedUntil:0,aircraftType:'privateJet',position:{x:-45000,y:1100,z:-28050},bot:{journeyFirstContact:true,journeyTerritoryDefense:true,journeyAttemptId:a.attemptId,journeyTargetPlayerId:'owner',journeyProvoked:true}};
  const players=new Map([['owner',pilot],['invader',enemy]]),packets=[];
- const ctx=runtime(['applyCombatHit','transportEscortHealth'],{players,journeyStore:f.store,playerJourneyAttempts:new Map([['owner',a.attemptId]]),playerJourneyRunwayPrep:new Set(),runwayCombatProtected:()=>false,focusedBotInteractionExcluded:()=>false,tutorialCombatPairAllowed:()=>true,sameCombatContext:()=>true,insideJourneyHunterArena:()=>true,stabilityDiagnosticsEnabled:false,airportRepairStays:new Map(),sendToPlayer:(_id,p)=>packets.push(p),sendJourneyState:()=>{},provokeJourneyHunter:()=>{},markPlayerDestroyed:(_id,p)=>p.lifeState='destroyed',isHumanPilot:()=>false,botKillRewardMultiplier:.1,persistScore:()=>{},broadcastToCity:()=>assert.fail('private actor leaked'),broadcastLeaderboard:()=>{},removeBot:id=>players.delete(id),updateKing:()=>{},cityKings:new Map(),handleWantedDestruction:()=>{},challengeForPlayer:()=>undefined,recordOpponentHit,recordOpponentDamage});
- assert.equal(ctx.applyCombatHit('owner','invader','dallas',1500,25),false);f.store.startFirstContact('pilot',a.attemptId,2000);assert.equal(ctx.applyCombatHit('invader','owner','dallas',9999,25),false);assert.equal(pilot.health,100);
+ const ctx=runtime(['applyCombatHit','transportEscortHealth'],{players,journeyStore:f.store,playerJourneyAttempts:new Map([['owner',a.attemptId]]),playerJourneyRunwayPrep:new Set(),runwayCombatProtected:()=>false,focusedBotInteractionExcluded:()=>false,tutorialCombatPairAllowed:()=>true,sameCombatContext:()=>true,insideJourneyHunterArena:()=>true,stabilityDiagnosticsEnabled:false,airportRepairStays:new Map(),sendToPlayer:(_id,p)=>packets.push(p),sendJourneyState:()=>{},provokeJourneyHunter:()=>{},markPlayerDestroyed:(_id,p)=>p.lifeState='destroyed',isHumanPilot:()=>false,botKillRewardMultiplier:.1,persistScore:()=>{},broadcastToCity:(_city,p)=>{assert.equal(p.playerId,'owner');},broadcastLeaderboard:()=>{},removeBot:id=>players.delete(id),updateKing:()=>{},cityKings:new Map(),handleWantedDestruction:()=>{},challengeForPlayer:()=>undefined,recordOpponentHit,recordOpponentDamage,maxHealthForAircraft});
+ assert.equal(ctx.applyCombatHit('owner','invader','dallas',1500,25),false);f.store.startFirstContact('pilot',a.attemptId,2000);assert.equal(ctx.applyCombatHit('invader','owner','dallas',2001,25),true);assert.equal(pilot.health,75);
  for(let i=1;i<=12;i++){assert.equal(ctx.applyCombatHit('owner','invader','dallas',2100+i*100,25),true);assert.equal(enemy.health,300-i*25);assert.equal(f.store.get('pilot',a.attemptId).status,'RACING');}
  assert.equal(f.store.get('pilot',a.attemptId).firstClearCredits,0);assert.equal(f.store.get('pilot',a.attemptId).crossfireKills,1);assert.equal(f.db.prepare('SELECT credits FROM player_profiles').get().credits,0);assert.equal(players.has('invader'),false);assert.equal(packets.filter(p=>p.type==='damage').length,12);assert.equal(packets.find(p=>p.type==='damage').maxHealth,300);
  }finally{f.close();}
@@ -143,11 +135,13 @@ test('M16 rollout preserves earned M17 access once; new M15 clears unlock M16 be
  }finally{f.close();}
 });
 
-test('invader returns to its next ordered patrol waypoint after a shared attack pass',()=>{
- const enemy={cityId:'dallas',lifeState:'alive',position:{x:-40000,y:1300,z:-28050}},pilot={pilotId:'pilot',lifeState:'alive',position:{x:-41000,y:1300,z:-28050}},bot={personality:'hunter',journeyTerritoryDefense:true,journeyTargetPlayerId:'owner',journeyAttemptId:'attempt',journeyDefenseRouteIndex:1,speed:420,opponent:{}};let phase=0;const objectives=[];
- const ctx=runtime(['hunterNavigationTarget'],{players:new Map([['owner',pilot]]),journeyStore:{activeSnapshot:()=>({status:'RACING'})},territoriesForCity,territoryContains,botSafeFloor:()=>100,journeyAceClearance:300,insideJourneyHunterArena:()=>true,botFireSolution:()=>({}),opponentReactionReady:()=>true,planOpponentTactics:(_bot,input)=>{objectives.push(input.objective);return{tactic:phase++===0?'attackPass':'extendAway',waypoint:{x:0,y:1300,z:0},turnSign:1};}});
+test('invader keeps pursuing outside the territory after each attack pass',()=>{
+ const enemy={cityId:'dallas',lifeState:'alive',position:{x:-40000,y:1300,z:-28050}},pilot={pilotId:'pilot',lifeState:'alive',position:{x:-41000,y:1300,z:-28050}},bot={personality:'hunter',journeyTerritoryDefense:true,journeyTargetPlayerId:'owner',journeyAttemptId:'attempt',speed:420,opponent:{}};let phase=0;const objectives=[];
+ const ctx=runtime(['hunterNavigationTarget'],{players:new Map([['owner',pilot]]),journeyStore:{activeSnapshot:()=>({status:'RACING'})},territoriesForCity,territoryContains,botSafeFloor:()=>100,journeyAceClearance:300,insideAceInterceptAirspace:()=>true,botFireSolution:()=>({}),opponentReactionReady:()=>true,planOpponentTactics:(_bot,input)=>{objectives.push(input.objective);return{tactic:phase++===0?'attackPass':'extendAway',waypoint:{x:0,y:1300,z:0},turnSign:1};}});
  ctx.hunterNavigationTarget('invader',enemy,bot,1000);ctx.hunterNavigationTarget('invader',enemy,bot,2000);ctx.hunterNavigationTarget('invader',enemy,bot,3000);
- assert.equal(objectives[0],undefined);assert.equal(objectives[1],undefined);assert.equal(objectives[2].x,mission.patrolRoute[1].x);assert.equal(bot.journeyDefenseReturning,true);
+ assert.equal(objectives[0],undefined);assert.equal(objectives[1],undefined);assert.equal(objectives[2],undefined);
+ pilot.position={x:10000,y:1300,z:10000};ctx.hunterNavigationTarget('invader',enemy,bot,4000);assert.equal(objectives[3],undefined);
+ bot.phase='takeoff';assert.equal(ctx.hunterNavigationTarget('invader',enemy,bot,5000),undefined);
 });
 
 
@@ -166,4 +160,41 @@ test('mission ownership renders neutral white before capture and the owning pilo
  assert.equal(ctx.displayedTerritoryState(mission.territoryId).controllerName,'Nightowl');
  ctx.journeyMode=false;assert.equal(ctx.displayedTerritoryState(mission.territoryId),globalState);
  assert.match(client,/entry.displayColor = state\?\.controllerId \? definition.fixedColor : neutralTerritoryColor/);
+});
+
+test('M2 defeated invader is atomically replaced without resetting capture, hold, deadline or rewards',()=>{
+ const f=fixture();try{
+  const a=start(f);f.store.startFirstContact('pilot',a.attemptId,2000);let now=capture(f,a.attemptId);
+  f.store.advanceTerritoryDefense('pilot',a.attemptId,true,false,now+=400);
+  for(const [oldId,newId]of [['invader','reborn-1'],['reborn-1','reborn-2']]){
+   const dead=f.store.completeHunter('pilot',a.attemptId,oldId,++now);assert.equal(dead.crossfireKills,1);
+   assert.equal(f.store.respawnTerritoryDefenseInvader('other',a.attemptId,oldId,newId,now),undefined);
+   assert.equal(f.store.respawnTerritoryDefenseInvader('pilot',a.attemptId,'wrong',newId,now),undefined);
+   f.store.pause('pilot',a.attemptId,now);
+   assert.equal(f.store.respawnTerritoryDefenseInvader('pilot',a.attemptId,oldId,newId,now),undefined);
+   f.store.resume('pilot',a.attemptId,now);
+   const alive=f.store.respawnTerritoryDefenseInvader('pilot',a.attemptId,oldId,newId,now);
+   assert.equal(alive.targetId,newId);assert.equal(alive.crossfireKills,0);assert.equal(alive.captureMs,dead.captureMs);assert.equal(alive.defenseMs,dead.defenseMs);assert.equal(alive.enemyCaptureMs,dead.enemyCaptureMs);assert.equal(alive.deadlineAt,dead.deadlineAt);assert.equal(alive.firstClearCredits,0);
+   assert.equal(f.store.respawnTerritoryDefenseInvader('pilot',a.attemptId,oldId,'duplicate',now),undefined);
+  }
+  f.store.completeHunter('pilot',a.attemptId,'reborn-2',++now);
+  assert.equal(f.store.respawnTerritoryDefenseInvader('pilot',a.attemptId,'reborn-2','late',now+mission.timeLimitMs),undefined);
+  f.store.fail('pilot',a.attemptId,'CRASHED',now);
+  assert.equal(f.store.respawnTerritoryDefenseInvader('pilot',a.attemptId,'reborn-2','after-end',now),undefined);
+  assert.equal(f.db.prepare('SELECT credits FROM player_profiles').get().credits,0);
+ }finally{f.close();}
+});
+
+test('M2 respawns once immediately at DFW and preserves runway takeoff before pursuit',()=>{
+ const f=fixture();try{
+  const a=start(f);f.store.startFirstContact('pilot',a.attemptId,2000);f.store.completeHunter('pilot',a.attemptId,'invader',2100);
+  const players=new Map(),pilot={pilotId:'pilot',lifeState:'alive'},sent=[];
+  const ctx=runtime(['ensureFirstContact','createBot','airportRoute'],{createOpponent,players,nextBotSerial:1,botNames:['Hunter'],botPersonalities:['hunter'],botAirports:()=>cityAirports.dallas.filter(a=>a.id!=='dfw'),cityAirports,territoriesForCity,botAirborneClearance:300,botCruiseClearance:300,botRunwayHeight:()=>120,boundJourneyHunterPoint:p=>p,botTerrainHeight:()=>120,botSafeFloor:()=>900,safeBotWaypoint:(_city,_from,to)=>to,journeyAceClearance:300,aircraftFlightEnvelope,DALLAS_WORLD_SCALE:3,sendToPlayer:(_id,p)=>sent.push(p),broadcastToCity:()=>assert.fail('private invader broadcast'),botStateMessage:(_id,p)=>p,journeyStore:f.store,sendJourneyState:()=>{},removeBot:id=>players.delete(id),failPlayerJourney:()=>assert.fail('unexpected failure'),provokeJourneyHunter:()=>{}});
+  ctx.ensureFirstContact('owner',pilot,f.store.get('pilot',a.attemptId),2100);
+  const state=f.store.get('pilot',a.attemptId),enemy=players.get(state.targetId),dfw=cityAirports.dallas.find(a=>a.id==='dfw');
+  assert.notEqual(state.targetId,'invader');assert.equal(enemy.position.x,dfw.x);assert.equal(enemy.position.z,dfw.z+dfw.runwayLength*.30);assert.equal(enemy.position.y,121.2);assert.equal(enemy.health,300);assert.equal(enemy.bot.phase,'taxi');assert.equal(enemy.bot.speed,0);assert.equal(enemy.rotation.y,0);assert.equal(enemy.bot.journeyDallasEntered,true);assert.equal(enemy.bot.opponent.definition.level,'MEDIUM');assert.equal(enemy.bot.opponent.definition.livery,mission.enemyLivery);assert.equal(mission.fireDelayMs,0);
+  ctx.ensureFirstContact('owner',pilot,state,2101);assert.equal(players.size,1);
+  f.store.pause('pilot',a.attemptId,2102);f.db.prepare('UPDATE journey_attempts SET crossfire_kills=1 WHERE attempt_id=?').run(a.attemptId);
+  ctx.ensureFirstContact('owner',pilot,f.store.get('pilot',a.attemptId),2103);assert.equal(players.size,1,'no respawn while paused');
+ }finally{f.close();}
 });

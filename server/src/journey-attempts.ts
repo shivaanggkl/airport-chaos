@@ -816,16 +816,16 @@ export class JourneyAttemptStore {
       const captureMs = Math.min(mission.captureDurationMs, (resetProgress ? 0 : current.captureMs) +
         Math.round(tickMs * (competitive?1:territory.captureWeight)));
       const holdMission = mission.id === journeyDallasTerritoryHold01.id;
-      const allOwned = competitive && captureCompetitionOwned(competition!) === journeyDallasCaptureThree01.territoryIds.length;
+      const allOwned = competitive && competitive.territoryIds.every(id=>competition!.territories.some(territory=>territory.id===id&&territory.ownerId==='pilot'));
       const holdMs = holdMission && allOwned && !resetProgress
         ? Math.min(journeyDallasTerritoryHold01.holdDurationMs, current.defenseMs + tickMs) : 0;
       const completed=holdMission ? allOwned && holdMs >= journeyDallasTerritoryHold01.holdDurationMs
         : competitive ? allOwned : captureMs>=mission.captureDurationMs;
-      const stage=competitive ? captureCompetitionOwned(competition!) : current.captureStage;
+      const stage=competitive ? competitive.territoryIds.filter(id=>competition!.territories.some(territory=>territory.id===id&&territory.ownerId==='pilot')).length : current.captureStage;
       const displayedCapture = competitive ? competition!.territories.find(item => item.capturingId === 'pilot')?.captureMs ?? 0 : captureMs;
       this.database.prepare('UPDATE journey_attempts SET capture_ms=?,capture_stage=?,hold_updated_at=?,defense_ms=? WHERE pilot_id=? AND attempt_id=?')
         .run(displayedCapture,stage,now,holdMission?holdMs:current.defenseMs,pilotId,attemptId);
-      if (completed && (!competitive || stage===journeyDallasCaptureThree01.territoryIds.length)) {
+      if (completed && (!competitive || stage===competitive!.territoryIds.length)) {
         const elapsedMs = now - current.startedAt!;
         const first = this.database.prepare(`INSERT OR IGNORE INTO journey_completions
           (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`)
@@ -1232,6 +1232,16 @@ export class JourneyAttemptStore {
     });
   }
 
+  /** Replace only a confirmed defeated M2 invader, preserving the running objective. */
+  respawnTerritoryDefenseInvader(pilotId: string, attemptId: string, defeatedId: string, replacementId: string, now = Date.now()): JourneyAttempt | undefined {
+    if (!replacementId || replacementId === defeatedId) return undefined;
+    const changed = this.database.prepare(`UPDATE journey_attempts SET target_id=?,crossfire_kills=0
+      WHERE pilot_id=? AND attempt_id=? AND mission_id=? AND target_id=? AND crossfire_kills=1
+        AND status='RACING' AND paused_at IS NULL AND deadline_at>?`)
+      .run(replacementId,pilotId,attemptId,journeyDallasTerritoryDefense01.id,defeatedId,now).changes;
+    return changed === 1 ? this.get(pilotId,attemptId) : undefined;
+  }
+
   /** Only confirmed destruction of the encounter's assigned enemy can complete combat. */
   completeHunter(pilotId: string, attemptId: string, targetId: string, now = Date.now()): JourneyAttempt | undefined {
     return this.transaction(pilotId, wallet => {
@@ -1242,7 +1252,7 @@ export class JourneyAttemptStore {
         current.status !== 'RACING' || current.missionId === journeyDallasAceIntercept01.id && (current.pausedAt !== null || current.aceIntercept?.health !== 0 || current.aceIntercept.route.escaped) || current.missionId===journeyDallasTerritoryDefense01.id&&current.pausedAt!==null || (journeyCrossfireMission(current.missionId) || current.missionId===journeyDallas17.id || current.missionId===journeyDallas18.id ? ![current.targetId,current.secondaryTargetId,...(current.missionId===journeyDallas17.id||current.missionId===journeyDallas18.id?[current.rearGuardThirdId]:[]),...(current.missionId===journeyDallas18.id?[current.rearGuardFourthId]:[])].includes(targetId) : current.targetId !== targetId) ||
         (current.startedAt === null || current.deadlineAt === null || now >= current.deadlineAt || !this.canAccessMission(pilotId, current.missionId))) return undefined;
       if (current.missionId === journeyDallasTerritoryDefense01.id && current.defenseMs < journeyDallasTerritoryDefense01.defenseDurationMs) {
-        // A takedown removes the threat; capture and the full hold are still required.
+        // Record the defeated invader for a fresh runway launch; capture and the full hold are still required.
         this.database.prepare('UPDATE journey_attempts SET crossfire_kills=1 WHERE pilot_id=? AND attempt_id=?')
           .run(pilotId,attemptId);
         return this.get(pilotId,attemptId);

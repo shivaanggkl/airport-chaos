@@ -19,12 +19,12 @@ function ticks(state:ReturnType<typeof newCaptureCompetition>,actors:ReturnType<
 test('all territories start neutral, capture in any order and require simultaneous ownership',()=>{
  const state=newCaptureCompetition([],0);
  assert.ok(state.territories.every(t=>!t.ownerId&&t.captureMs===0));
- for(const id of ['downtown','las-colinas','love-field'])ticks(state,[actor('pilot',id)]);
- assert.equal(captureCompetitionOwned(state),3);
- ticks(state,[actor('pilot'),actor('enemy','downtown')]);
+ for(const id of mission.territoryIds)ticks(state,[actor('pilot',id)]);
  assert.equal(captureCompetitionOwned(state),2);
- ticks(state,[actor('pilot','downtown'),actor('enemy')]);
- assert.equal(captureCompetitionOwned(state),3);
+ ticks(state,[actor('pilot'),actor('enemy','love-field')]);
+ assert.equal(captureCompetitionOwned(state),1);
+ ticks(state,[actor('pilot','love-field'),actor('enemy')]);
+ assert.equal(captureCompetitionOwned(state),2);
 });
 test('owners defend against stealing; killing the owner resets its holdings to neutral',()=>{
  const state=newCaptureCompetition([],0),id='las-colinas';
@@ -62,12 +62,12 @@ test('persisted ownership, lost territory and first-clear wallet protection surv
    const started=store.startTerritoryCapture('pilot',launched.attemptId,now)!;
    const state=newCaptureCompetition([],now);
    const flight={position:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},velocity:{x:100,y:0,z:0},health:100,updatedAt:now,competition:state};
-   state.territories[0]!.ownerId='pilot';state.territories[1]!.ownerId='pilot';
+   state.territories[0]!.ownerId='pilot';
    store.saveCaptureFlight('pilot',started.attemptId,flight);now+=400;
    let updated=store.advanceTerritoryCapture('pilot',started.attemptId,true,now,false,state)!;
-   assert.equal(updated.status,'RACING');assert.equal(updated.captureStage,2);
+   assert.equal(updated.status,'RACING');assert.equal(updated.captureStage,1);
    state.territories[0]!.ownerId='enemy';store.saveCaptureFlight('pilot',started.attemptId,{...flight,updatedAt:now});now+=400;
-   updated=store.advanceTerritoryCapture('pilot',started.attemptId,true,now,false,state)!;assert.equal(updated.captureStage,1);
+   updated=store.advanceTerritoryCapture('pilot',started.attemptId,true,now,false,state)!;assert.equal(updated.captureStage,0);
    const reopened=new JourneyAttemptStore(path,true),saved=reopened.get('pilot',started.attemptId)!;
    assert.equal(saved.captureFlight?.competition?.territories[0]?.ownerId,'enemy');
    // A completion event or old sequential tick alone cannot win M21.
@@ -86,12 +86,12 @@ const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);
 const declarations=(names:string[])=>ts.transpileModule(ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name!.text)).map(n=>n.getText(ast)).join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 test('production setup creates exactly six private opponents: three EASY and three HARD, no respawn on refresh',()=>{
  const players=new Map([['owner',{position:{x:0,y:1000,z:0}}]]),states=new Map(),spawns:any[]=[];
- const context=vm.createContext({journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,captureCompetitions:states,players,journeyDallasCaptureThree01:mission,territoriesForCity,keepDallasEscortInside,
+ const context=vm.createContext({journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,captureCompetitions:states,structuredClone,players,journeyDallasCaptureThree01:mission,territoriesForCity,keepDallasEscortInside,
   aircraftFlightEnvelope,maxHealthForAircraft,newCaptureCompetition,botSafeFloor:()=>1000,journeyAceClearance:300,
   createBot(_city:unknown,_defense:unknown,spawn:any){spawns.push(spawn);players.set(spawn.captureOpponent.id,{bot:{journeyAttemptId:spawn.attemptId,journeyTargetPlayerId:spawn.targetPlayerId}} as any);},
  });
  vm.runInContext(declarations(['ensureCaptureCompetition']),context);
- const attempt={attemptId:'attempt',captureFlight:undefined};
+ const attempt={missionId:mission.id,attemptId:'attempt',captureFlight:undefined};
  const state=context.ensureCaptureCompetition('owner',attempt);
  assert.equal(spawns.length,6);assert.equal(state.opponents.filter((e:CaptureOpponent)=>e.level==='EASY').length,3);
  assert.equal(state.opponents.filter((e:CaptureOpponent)=>e.level==='HARD').length,3);
@@ -100,6 +100,11 @@ test('production setup creates exactly six private opponents: three EASY and thr
  context.ensureCaptureCompetition('owner',attempt);assert.equal(spawns.length,6);
  state.opponents[0].health=0;players.delete(state.opponents[0].id);
  context.ensureCaptureCompetition('owner',attempt);assert.equal(spawns.length,6);
+ const legacy=structuredClone(state);legacy.territories.push({id:'downtown',ownerId:'pilot',captureMs:0,contested:false});legacy.opponents[1]!.goal=2;
+ attempt.captureFlight={competition:legacy} as any;states.delete(attempt.attemptId);
+ const resumed=context.ensureCaptureCompetition('owner',attempt);
+ assert.deepEqual(Array.from(resumed.territories,(t:any)=>t.id),['las-colinas','love-field']);
+ assert.ok(resumed.opponents.every((e:any)=>e.goal<2));assert.equal(resumed.opponents[0].health,0);
 });
 
 test('real bot factory preserves each assigned aircraft, EASY/HARD profile, health and city-private identity',async()=>{
@@ -164,7 +169,7 @@ test('production M21 capture covers all territory edges and corners at low and h
  const state=newCaptureCompetition([],1000);
  const player={cityId:'dallas',pilotId:'pilot',lifeState:'alive',health:100,hasRespawnTransform:true,portalTransit:false,
   lastStateAt:1400,lastAcceptedTransformAt:1400,lastAcceptedPosition:{x:0,y:1000,z:0},velocity:{x:100,y:0,z:0}};
- const attempt={attemptId:'attempt',status:'RACING',pausedAt:null,deadlineAt:1e9,captureFlight:undefined};
+ const attempt={missionId:mission.id,attemptId:'attempt',status:'RACING',pausedAt:null,deadlineAt:1e9,captureFlight:undefined};
  const context=vm.createContext({journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,journeyDallasCaptureThree01:mission,territoriesForCity,territoryCaptureFlightEligible,
   pausedJourneyAttempts:new Set(),hasOpenPlayerSocket:()=>true,botTerrainHeight:()=>100,
   landingFlightState:new Map([['owner',{airborne:true}]]),players:new Map(),
@@ -225,9 +230,9 @@ test('an absent owner retains the territory through a contested tick and challen
  assert.equal(territory.captureMs,0);
 });
 test('ownership transfers only at full capture, with no intermediate unassigned state',()=>{
- const state=newCaptureCompetition([],0),id='downtown';
+ const state=newCaptureCompetition([],0),id='love-field';
  ticks(state,[actor('pilot',id)]);
- const territory=state.territories[2]!;
+ const territory=state.territories[1]!;
  for(let tick=1;tick<=38;tick++){
   advanceCaptureCompetition(state,[actor('pilot'),actor('challenger',id)],state.updatedAt+400);
   assert.equal(territory.ownerId,tick<38?'pilot':'challenger');
