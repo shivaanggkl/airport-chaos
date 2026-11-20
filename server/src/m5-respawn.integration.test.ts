@@ -17,7 +17,7 @@ import {journeyDallasTerritoryDomination01 as mission,journeyMissionOrder} from 
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function freePort(){return new Promise<number>(resolve=>{const s=createServer();s.listen(0,'127.0.0.1',()=>{const port=(s.address() as {port:number}).port;s.close(()=>resolve(port));});});}
 
-test('live Ch5 M5: nine defeated opponents respect the full respawn buffer then take off from DFW',{timeout:60000},async()=>{
+test('live Ch5 M5: nine defeated opponents respect the full respawn buffer then take off from DFW',{timeout:90000},async()=>{
  const dir=mkdtempSync(join(tmpdir(),'m21-competition-live-')),path=join(dir,'p.sqlite');
  const sessions=new PilotSessionStore(path),identity=sessions.issue(undefined,false),profiles=new PlayerProfileStore(path);
  profiles.getOrCreate(identity.pilotId,'Pilot');
@@ -46,13 +46,13 @@ test('live Ch5 M5: nine defeated opponents respect the full respawn buffer then 
    position={...position,z:position.z-15};
    socket.send(JSON.stringify({type:'state',position,rotation:{x:0,y:0,z:0},aircraftType:'trainer',stateSequence:++sequence}));
   },100);
-  await sleep(15000);
-  assert.equal(packets.some(p=>p.type==='playerState'&&opponents.some(enemy=>enemy.id===p.playerId)&&p.health>0),false,'opponents remain defeated after the old 15-second delay');
+  await sleep(30000);
+  assert.equal(packets.some(p=>p.type==='playerState'&&opponents.some(enemy=>enemy.id===p.playerId)&&p.health>0),false,'opponents remain defeated after the old 30-second delay');
   const assigned=await wait(p=>p.type==='journeyAttempt'&&p.attempt.captureOpponentIds?.length===9);
   assert.equal(assigned.attempt.status,'RACING','respawns do not complete the takeover mission');
   for(const enemy of opponents){
    const born=await wait(p=>p.type==='playerState'&&p.playerId===enemy.id&&p.health>0);
-   assert.ok(Date.now()-started>=29000,'a full fresh 30-second buffer precedes resurrection');
+   assert.ok(Date.now()-started>=59000,'a full fresh 60-second buffer precedes resurrection');
    assert.equal(born.position.x,dfw.x);assert.equal(born.position.z,dfw.z+dfw.runwayLength*.3);
   }
   const born=packets.find(p=>p.type==='playerState'&&p.playerId===opponents[0]!.id&&p.health>0);
