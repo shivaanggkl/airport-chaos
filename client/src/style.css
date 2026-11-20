@@ -7613,3 +7613,16 @@ body:has(.garage-overlay.is-equipped-page:not([hidden])) .garage-overlay.is-equi
 }
 #game-root .flight-launch-title.is-mission-intro-summary.is-visible { transform: translateX(-50%); }
 #game-root .flight-launch-title.is-mission-intro-summary > span { letter-spacing: .02em; }
+
+.territory-capture-hint:not([hidden]) {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: #09233ee8;
+  color: #fff;
+  text-align: center;
+  font: 700 clamp(11px, 1vw, 13px)/1.2 var(--font-body);
+}

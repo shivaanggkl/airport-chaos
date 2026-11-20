@@ -16,7 +16,7 @@ const branch=hud.body.statements.find(n=>ts.isIfStatement(n)&&n.expression.getTe
 const code=ts.transpileModule(declarations+'\nfunction renderM16()'+branch.thenStatement.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 function element(){return {hidden:false,textContent:'',children:[],className:'',style:{setProperty(){}},classList:{add(){}},setAttribute(){},append(child){this.children.push(child);},replaceChildren(...children){this.children=children;},querySelector(){return this.children.find(child=>child.className.includes('territory-defense-instructions'));}};}
 function fixture(){
- const rows=[],ctx=vm.createContext({journeyDallasTerritoryDefense01:mission,journeyMode:true,territoryDefenseInstructions,
+ const rows=[],ctx=vm.createContext({journeyDallasTerritoryDefense01:mission,journeyMode:true,territoryDefenseInstructions,captureMissionTerritoryName:'LAS COLINAS',
   setMissionInstructions(el,text){el.replaceChildren({children:text.split('\n').map(line=>({textContent:line.replace(/^• /,'')}))});},
   journeyAttempt:{missionId:mission.id,status:'APPROACH',captureMs:0,defenseMs:0,enemyCaptureMs:0,invaderInside:false,targetId:'invader',failureReason:null},
   localPlayerId:'local',serverProfile:{pilotName:'Pilot-651'},territoryDefinitions:territoriesForCity('dallas'),territoryState:new Map(),neutralTerritoryColor:'#ffffff',
@@ -54,7 +54,7 @@ test('reviewed mission card has two objectives and a hold clock, with no duplica
 test('M2 plays the shared ownership motion before showing the authoritative hold clock',()=>{
  const captureHud=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='updateCaptureHud');
  const calls=[];let now=1000;
- const ctx=vm.createContext({performance:{now:()=>now},territoryCaptureCelebrationMs:2800,territoryDefenseCaptureHandoff:undefined,journeyCompetitiveCaptureMission:()=>undefined,celebrateMissionTerritoryCapture(){calls.push(['celebrate']);},journeyDallasCapture01,journeyDallasCaptureThree01,journeyDallasTerritoryDefense01:mission,
+ const ctx=vm.createContext({performance:{now:()=>now},territoryCaptureCelebrationMs:2800,territoryDefenseCaptureHandoff:undefined,competitiveCaptureHandoff:undefined,journeyCompetitiveCaptureMission:()=>undefined,celebrateMissionTerritoryCapture(){calls.push(['celebrate']);},journeyDallasCapture01,journeyDallasCaptureThree01,journeyDallasTerritoryDefense01:mission,
   journeyAttempt:{attemptId:'attempt',missionId:mission.id,status:'RACING',captureMs:15000},journeyPaused:false,
   captureMissionTerritoryName:'LAS COLINAS',flightGameRoot:{classList:{toggle(name,live){calls.push(['live',live]);}}},
   missionCaptureBar:{show(...args){calls.push(['show',...args]);},showHold(...args){calls.push(['hold',...args]);},hide(){calls.push(['hide']);},stopCelebration(){calls.push(['stop']);}}});

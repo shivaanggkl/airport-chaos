@@ -123,6 +123,15 @@ export class CityTerritoriesPanel {
     this.empty.textContent = message || 'NO TERRITORIES IN THIS CITY';
   }
 
+  captureTarget(index: number): HTMLElement | undefined {
+    const row = this.rows[index]?.row;
+    if (!row || row.hidden) return undefined;
+    const bounds = this.root.getBoundingClientRect(), rect = row.getBoundingClientRect();
+    if (rect.top < bounds.top) this.root.scrollTop += rect.top - bounds.top;
+    else if (rect.bottom > bounds.bottom) this.root.scrollTop += rect.bottom - bounds.bottom;
+    return row;
+  }
+
   update(territories: readonly CityTerritoryEntry[], localId: string | null, online = true): void {
     this.onCount?.(online ? territories.filter(territory => territory.controllerId && !territory.contested).length : 0);
     while (this.rows.length < territories.length) {
