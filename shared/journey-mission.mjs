@@ -617,6 +617,7 @@ export const journeyDallasTerritoryDomination01 = Object.freeze({
   objective: 'Defeat territory owners and own all 6 territories together to win.',
   timeLimitMs: 600000, firstClearCredits: 3000, holdDurationMs: 0, opponentRespawnMs: 60000, opponentCount: 9,
   opponentNames: dallasDominationPilotNames,
+  ownershipColors: Object.freeze({pilot: '#39d353', opponents: Object.freeze(['#ef5350','#f6a623','#a777ef','#4d8ffa','#f06eaa','#ffd54f'])}),
   territoryIds: Object.freeze(['love-field','trinity-corridor','white-rock','las-colinas','downtown','addison']),
   owners: Object.freeze([
     Object.freeze({territoryId:'love-field',aircraft:'privateJet',name:dallasDominationPilotNames[0],initiallyOwned:true}),

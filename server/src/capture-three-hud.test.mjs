@@ -141,3 +141,13 @@ test('all competitive capture missions explain the owner block and animate each 
   c.journeyPaused=false;c.render();assert.equal(bars.filter(call=>Array.isArray(call)&&call[0]==='celebrate').length,2,'resume does not replay confirmed ownership');
  }
 });
+
+test('M5 territory rows share player green and switch only the stolen row to its opponent color',()=>{
+ const mission=missions.journeyDallasTerritoryDomination01,{context:c,rows}=fixture(mission);
+ c.journeyAttempt.captureMs=0;
+ c.journeyAttempt.captureTerritories=mission.territoryIds.map((id,index)=>({id,controllerId:index<3?'pilot':`enemy-${index}`,ownerColor:index<3?mission.ownershipColors.pilot:mission.ownershipColors.opponents[index],captureProgress:0,contested:false}));
+ c.render();assert.ok(rows.slice(0,3).every(row=>row.captured&&row.color===mission.ownershipColors.pilot));
+ assert.deepEqual(rows.slice(3).map(row=>row.color),mission.ownershipColors.opponents.slice(3));
+ c.journeyAttempt.captureTerritories[1].controllerId='enemy-1';c.journeyAttempt.captureTerritories[1].ownerColor=mission.ownershipColors.opponents[1];c.render();
+ assert.equal(rows[1].color,mission.ownershipColors.opponents[1]);assert.equal(rows[1].captured,false);assert.equal(rows[0].color,mission.ownershipColors.pilot);assert.equal(rows[2].color,mission.ownershipColors.pilot);
+});

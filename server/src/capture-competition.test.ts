@@ -8,7 +8,7 @@ import ts from 'typescript';
 import {newCaptureCompetition,advanceCaptureCompetition,captureCompetitionOwned,releaseCaptureActor,type CaptureOpponent} from './capture-competition.ts';
 import {JourneyAttemptStore} from './journey-attempts.ts';
 import {PlayerProfileStore} from './player-profiles.ts';
-import {journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,journeyDallasCaptureThree01 as mission} from '../../shared/journey-mission.mjs';
+import {journeyDallasTerritoryDomination01,journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,journeyDallasCaptureThree01 as mission} from '../../shared/journey-mission.mjs';
 import {territoriesForCity} from '../../shared/city-territories.mjs';
 import {keepDallasEscortInside} from './journey-hunter-airspace.ts';
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
@@ -101,7 +101,7 @@ const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);
 const declarations=(names:string[])=>ts.transpileModule(ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name!.text)).map(n=>n.getText(ast)).join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 test('production setup creates exactly four private opponents: two owners and two hunters, no respawn on refresh',()=>{
  const players=new Map([['owner',{position:{x:0,y:1000,z:0}}]]),states=new Map(),spawns:any[]=[];
- const context=vm.createContext({journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,captureCompetitions:states,structuredClone,players,journeyDallasCaptureThree01:mission,territoriesForCity,keepDallasEscortInside,
+ const context=vm.createContext({journeyDallasTerritoryDomination01,journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,captureCompetitions:states,structuredClone,players,journeyDallasCaptureThree01:mission,territoriesForCity,keepDallasEscortInside,
   aircraftFlightEnvelope,maxHealthForAircraft,newCaptureCompetition,botSafeFloor:()=>1000,journeyAceClearance:300,
   createBot(_city:unknown,_defense:unknown,spawn:any){spawns.push(spawn);players.set(spawn.captureOpponent.id,{bot:{journeyAttemptId:spawn.attemptId,journeyTargetPlayerId:spawn.targetPlayerId}} as any);},
  });
@@ -185,7 +185,7 @@ test('production M21 capture covers all territory edges and corners at low and h
  const player={cityId:'dallas',pilotId:'pilot',lifeState:'alive',health:100,hasRespawnTransform:true,portalTransit:false,
   lastStateAt:1400,lastAcceptedTransformAt:1400,lastAcceptedPosition:{x:0,y:1000,z:0},velocity:{x:100,y:0,z:0}};
  const attempt={missionId:mission.id,attemptId:'attempt',status:'RACING',pausedAt:null,deadlineAt:1e9,captureFlight:undefined};
- const context=vm.createContext({journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,journeyDallasCaptureThree01:mission,territoriesForCity,territoryCaptureFlightEligible,
+ const context=vm.createContext({journeyDallasTerritoryDomination01,journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,journeyDallasCaptureThree01:mission,territoriesForCity,territoryCaptureFlightEligible,
   pausedJourneyAttempts:new Set(),hasOpenPlayerSocket:()=>true,botTerrainHeight:()=>100,
   landingFlightState:new Map([['owner',{airborne:true}]]),players:new Map(),
   ensureCaptureCompetition:()=>state,advanceCaptureCompetition,checkpointJourneyCapture(){},

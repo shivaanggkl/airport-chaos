@@ -1,4 +1,4 @@
-import { advanceCaptureCompetition, advanceCaptureRespawn, newCaptureCompetition, releaseCaptureActor, type CaptureCompetition, type CaptureOpponent } from './capture-competition.js';
+import { enforceCaptureAssignments, advanceCaptureCompetition, advanceCaptureRespawn, newCaptureCompetition, releaseCaptureActor, type CaptureCompetition, type CaptureOpponent } from './capture-competition.js';
 import { defeatSurvivalHunter, insideSurvivalArea, survivalOutcome, survivalReplacement, survivalSteering, type SurvivalHunter, type SurvivalState } from './most-wanted-survival.js';
 import { aceInterceptDistance, insideAceInterceptAirspace, updateAceIntercept, type AceInterceptState } from './ace-intercept.js';
 import { dallasCoinTrail } from '../../shared/collectible-trail.mjs';
@@ -4927,6 +4927,7 @@ function ensureCaptureCompetition(playerId: string, attempt: JourneyAttempt): Ca
     // Normalize saved M3 attempts to the current two-territory requirement.
     state.territories = state.territories.filter(territory => mission.territoryIds.some(candidate=>candidate===territory.id));
     for (const enemy of state.opponents) enemy.goal %= mission.territoryIds.length;
+    if (mission.id === journeyDallasTerritoryDomination01.id) enforceCaptureAssignments(state);
     // Never credit time spent paused, disconnected or restarting the server.
     state.updatedAt = Date.now();
     for(const enemy of state.opponents)if(enemy.health<=0)enemy.respawnUpdatedAt=state.updatedAt;
@@ -4957,13 +4958,14 @@ function reviveTerritoryHoldOpponent(playerId:string,pilot:PlayerState,attempt:J
 }
 
 function captureCompetitionSnapshot(playerId: string, attempt: JourneyAttempt) {
+  const colors = attempt.missionId === journeyDallasTerritoryDomination01.id ? journeyDallasTerritoryDomination01.ownershipColors : undefined;
   const state = captureCompetitions.get(attempt.attemptId) ?? attempt.captureFlight?.competition;
   return journeyCompetitiveCaptureMission(attempt.missionId)!.territoryIds.map(id => {
     const territory = state?.territories.find(item => item.id === id);
     const slot = state?.opponents.findIndex(enemy => enemy.id === territory?.ownerId) ?? -1;
     return {id,controllerId:territory?.ownerId === 'pilot' ? playerId : territory?.ownerId,
       controllerName:territory?.ownerId === 'pilot' ? players.get(playerId)?.displayName : territory?.ownerId ? players.get(territory.ownerId)?.displayName : undefined,
-      ownerColor:territory?.ownerId === 'pilot' ? '#35e0b7' : slot>=0 ? captureOwnerColors[slot] : undefined,
+      ownerColor:territory?.ownerId === 'pilot' ? colors?.pilot ?? '#35e0b7' : slot>=0 ? (colors?.opponents ?? captureOwnerColors)[slot] : undefined,
       capturingPlayerId:territory?.capturingId==='pilot'?playerId:territory?.capturingId,
       captureProgress:(territory?.captureMs??0)*100/journeyDallasCaptureThree01.captureDurationMs,
       contested:territory?.contested??false};
@@ -4997,7 +4999,7 @@ function updateCompetitiveCapture(playerId: string, player: PlayerState, attempt
     }
   }
   if (!fresh) state.updatedAt=now;
-  advanceCaptureCompetition(state,actors,now,true);
+  advanceCaptureCompetition(state,actors,now,true,mission.id === journeyDallasTerritoryDomination01.id);
   // Reuse the existing checkpoint JSON; balances and ownership outside M21 are untouched.
   const saved = attempt.captureFlight?.competition;
   if (now-(attempt.captureFlight?.updatedAt??0)>=1000 || !saved ||

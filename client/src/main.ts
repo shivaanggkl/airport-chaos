@@ -2889,7 +2889,8 @@ scene.add(territoryPulseMesh);
 let pulsingTerritory: (typeof territoryBorders)[number] | undefined;
 let territoryBorderRefreshAt = 0;
 function applyTerritoryBorderStyle(entry: (typeof territoryBorders)[number]): void {
-  const signature = `${entry.displayColor}:${entry.appearance}:${entry.missionTarget}`;
+  const retainOwnerColor = journeyAttempt?.missionId === journeyDallasTerritoryDomination01.id;
+  const signature = `${entry.displayColor}:${entry.appearance}:${entry.missionTarget}:${retainOwnerColor}`;
   if (signature === entry.styleSignature) return;
   entry.styleSignature = signature;
   const colorAttribute = entry.wall.geometry.getAttribute('color') as THREE.BufferAttribute;
@@ -2898,7 +2899,7 @@ function applyTerritoryBorderStyle(entry: (typeof territoryBorders)[number]): vo
   const baseColor = new THREE.Color(entry.displayColor);
   const contestedColor = new THREE.Color(territoryOwnershipColors.contested);
   for (let index = 0; index < colorAttribute.count; index += 1) {
-    const color = entry.appearance === 'contested' && layerAttribute.getX(index) >= 0.5 ? contestedColor : baseColor;
+    const color = !retainOwnerColor && entry.appearance === 'contested' && layerAttribute.getX(index) >= 0.5 ? contestedColor : baseColor;
     colorAttribute.setXYZ(index, color.r, color.g, color.b);
     emphasisAttribute.setX(index, entry.missionTarget ? 1.3 : 1);
   }
