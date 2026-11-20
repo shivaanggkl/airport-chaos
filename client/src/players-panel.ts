@@ -135,7 +135,8 @@ export class CityTerritoriesPanel {
       const slot = this.rows[index], territory = territories[index];
       slot.row.hidden = !territory;
       if (!territory) continue;
-      if (slot.name.textContent !== territory.name) slot.name.textContent = territory.name;
+      const name = territory.name.replace(/\s+territory$/i, '');
+      if (slot.name.textContent !== name) slot.name.textContent = name;
       const captured = online && territory.captured === true;
       slot.row.classList.toggle('mission-owned', captured);
       const mark = captured ? '✓' : '';

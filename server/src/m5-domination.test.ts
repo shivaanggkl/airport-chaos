@@ -38,14 +38,14 @@ test('M5 is playable after M4 with six exact territories, nine opponents and no 
 });
 test('only Love Field and Trinity start owned; four guardians seek their own districts and three hunt the pilot',()=>{
  const {ctx,spawns}=setup(),attempt={attemptId:'a',missionId:mission.id},state=ctx.ensureCaptureCompetition('pilot',attempt);
- assert.equal(spawns.length,9);assert.equal(state.opponents.filter((e:any)=>e.role==='owner').length,6);assert.equal(state.opponents.filter((e:any)=>e.role==='attacker').length,3);
+ assert.equal(spawns.length,9);assert.deepEqual(Array.from(state.opponents,(e:any)=>e.name),mission.opponentNames);assert.equal(new Set(mission.opponentNames).size,9);assert.ok(mission.opponentNames.every(name=>/^\w{1,6}$/.test(name)));assert.equal(state.opponents.filter((e:any)=>e.role==='owner').length,6);assert.equal(state.opponents.filter((e:any)=>e.role==='attacker').length,3);
  assert.ok(state.opponents.every((e:any)=>e.level==='HARD'));
  for(const [index,territory]of state.territories.entries())assert.equal(territory.ownerId,index<2?state.opponents[index].id:undefined);
  assert.deepEqual(Array.from(state.opponents.slice(0,6),(e:any)=>mission.territoryIds[e.goal]),['love-field','trinity-corridor','white-rock','las-colinas','downtown','addison']);
  ctx.ensureCaptureCompetition('pilot',attempt);assert.equal(spawns.length,9);
  // Returning to this attempt restores claims and defeated aircraft without creating replacements early.
- state.opponents[0].health=0;const restored=structuredClone(state);ctx.captureCompetitions.delete('a');
- ctx.ensureCaptureCompetition('pilot',{...attempt,captureFlight:{competition:restored}});assert.equal(spawns.length,9);
+ state.opponents[0].health=0;const restored=structuredClone(state);restored.opponents[0].name='NIGHTOWL GUARDIAN';restored.opponents[1].name='MAMMOTH GUARDIAN';ctx.captureCompetitions.delete('a');
+ const resumed=ctx.ensureCaptureCompetition('pilot',{...attempt,captureFlight:{competition:restored}});assert.equal(spawns.length,9);assert.deepEqual(Array.from(resumed.opponents,(e:any)=>e.name),mission.opponentNames);
 });
 test('each living owner must be defeated; unassigned guardians can claim their own territory',()=>{
  const {ctx}=setup(),state=ctx.ensureCaptureCompetition('pilot',{attemptId:'a',missionId:mission.id});let now=state.updatedAt;
@@ -104,7 +104,7 @@ test('M5 uses shared instructions and a six-stop screenplay with two owners and 
  const detail=missionJourneyDetails.find(m=>m.id===mission.id)!;assert.equal(detail.title,'CAPTURE 6 TERRITORIES');assert.equal(detail.timeLimit,'10:00');assert.equal(detail.rewardCredits,3000);assert.equal(detail.description,territoryDominationInstructions.join('\n'));assert.doesNotMatch(detail.description,/hold|respawn|aggressive|hunter/i);
  const territories=mission.territoryIds.map(id=>territoriesForCity('dallas').find(t=>t.id===id)!);
  const intro=new MissionCaptureIntroPath(territories[0]!,15000,()=>0,undefined,{player:new THREE.Group(),territories,instructions:territoryDominationInstructions,owners:mission.owners.filter(o=>o.initiallyOwned),showNeutralOwnership:true});
- for(let i=0;i<6;i++){const time=3000+i*2000;assert.equal(intro.territoryAt(time)?.id,mission.territoryIds[i]);assert.match(intro.text(time),i<2?/GUARDIAN/:/UNASSIGNED/);assert.doesNotMatch(intro.text(time),/hold|respawn|aggressive/i);}
+ for(let i=0;i<6;i++){const time=3000+i*2000;assert.equal(intro.territoryAt(time)?.id,mission.territoryIds[i]);if(i<2)assert.ok(intro.text(time).includes(mission.owners[i]!.name));else assert.match(intro.text(time),/UNASSIGNED/);assert.doesNotMatch(intro.text(time),/hold|respawn|aggressive/i);}
  assert.equal(intro.durationMs,17000);
 });
 
