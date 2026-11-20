@@ -36,7 +36,7 @@ test('M3 starts with exactly two named territory owners and two HARD pursuing op
  ctx.ensureCaptureCompetition('pilot',attempt);assert.equal(spawns.length,4);
  for(const enemy of state.opponents){enemy.health=0;ctx.ensureCaptureCompetition('pilot',attempt);}assert.equal(spawns.length,4,'refresh never bypasses respawn buffer');
 });
-test('M3 requires killing the owner, capturing both, and 15 uninterrupted fresh seconds; rewards once',()=>{
+test('M3 requires killing the owner, capturing both, and 30 uninterrupted fresh seconds; rewards once',()=>{
  const dir=mkdtempSync(join(tmpdir(),'m3-takeover-')),path=join(dir,'p.sqlite');
  const profiles=new PlayerProfileStore(path);profiles.getOrCreate('pilot','Pilot');let store=new JourneyAttemptStore(path,true),now=Date.now();
  try{
@@ -55,8 +55,8 @@ test('M3 requires killing the owner, capturing both, and 15 uninterrupted fresh 
  store.saveCaptureFlight('pilot',a.attemptId,{position:{x:0,y:500,z:0},rotation:{x:0,y:0,z:0},velocity:{x:200,y:0,z:0},health:100,updatedAt:now,competition:state});
  store.pause('pilot',a.attemptId,now);now+=5000;assert.equal(store.advanceTerritoryCapture('pilot',a.attemptId,true,now,false,state),undefined);
  store=new JourneyAttemptStore(path,true);assert.equal(store.get('pilot',a.attemptId)!.defenseMs,10000);store.resume('pilot',a.attemptId,now);
- for(let i=0;i<12;i++)a=tick();assert.equal(a.status,'RACING');a=tick();assert.equal(a.status,'COMPLETED');assert.equal(a.defenseMs,15000);assert.equal(a.firstClearCredits,2250);
- a=start();for(let i=0;i<39;i++)a=tick();assert.equal(a.status,'COMPLETED');assert.equal(a.firstClearCredits,0);
+ for(let i=0;i<49;i++)a=tick();assert.equal(a.status,'RACING');a=tick();assert.equal(a.status,'COMPLETED');assert.equal(a.defenseMs,30000);assert.equal(a.firstClearCredits,2250);
+ a=start();for(let i=0;i<76;i++)a=tick();assert.equal(a.status,'COMPLETED');assert.equal(a.firstClearCredits,0);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 test('all four M3 roles wait 15 fresh seconds and relaunch at DFW without changing identity or goal',()=>{
@@ -83,11 +83,11 @@ test('M3 owner defends and recaptures its own territory; both hunters pursue out
   if(slot<2){assert.equal(saved.goal,slot);pilot.position={...territoriesForCity('dallas').find(t=>t.id===mission.territoryIds[slot])!.center,y:2000};ctx.hunterNavigationTarget(saved.id,enemy,bot,2000);assert.equal(plan.objective,undefined);}
  }
 });
-test('M3 journey, pause/gameplay instructions and screenplay explain ownership and the 15 second goal',()=>{
+test('M3 journey, pause/gameplay instructions and screenplay explain ownership and the 30 second goal',()=>{
  const detail=missionJourneyDetails.find(m=>m.id===mission.id)!;assert.equal(detail.description,captureThreeInstructions.join('\n'));assert.match(detail.title,/HOLD 2/);assert.doesNotMatch(detail.description,/respawn|aggressive|HARD|hunter/i);
  const definitions=mission.territoryIds.map(id=>territoriesForCity('dallas').find(t=>t.id===id)!);
  const intro=new MissionCaptureIntroPath(definitions[0]!,15000,()=>0,undefined,{player:new THREE.Group(),territories:definitions,instructions:captureThreeInstructions,owners:mission.owners});
- for(const time of [3000,6000]){assert.match(intro.text(time),/GUARDIAN/);assert.match(intro.text(time),/15 seconds/);}
+ for(const time of [3000,6000]){assert.match(intro.text(time),/GUARDIAN/);assert.match(intro.text(time),/30 seconds/);}
  assert.equal(catalog.journeyDallasTerritoryHold01.holdDurationMs,30000);assert.equal(catalog.journeyDallasTerritoryHold01.opponentCount,6);assert.equal(catalog.journeyDallasTerritoryHold01.opponentRespawnMs,10000);
 });
 

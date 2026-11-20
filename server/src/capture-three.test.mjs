@@ -66,8 +66,8 @@ test('shared capture engine requires 15 continuous seconds per territory, resets
    const completed=f.tick(a,true,false,200);assert.equal(completed.captureStage,stage+1);assert.equal(completed.captureMs,0);
    assert.equal(completed.status,'RACING');assert.equal(completed.deadlineAt,a.deadlineAt);
   }
-  for(let i=0;i<37;i++)assert.equal(f.tick(a).status,'RACING');
-  assert.equal(f.tick(a,true,false,200).status,'COMPLETED');
+  for(let i=0;i<74;i++)assert.equal(f.tick(a).status,'RACING');
+  assert.equal(f.tick(a,true,false,400).status,'COMPLETED');
   const done=f.store.get('pilot',a.attemptId);assert.equal(done.firstClearCredits,replay===0?2250:0);assert.ok(done.finishTimeMs>30000);
   assert.equal(f.tick(a),undefined);
  }
@@ -124,7 +124,7 @@ test('12-second capture intro uses the two existing definitions, exact text and 
  const player=new THREE.Group();player.position.set(-58000,1000,-28050);const initial=player.position.clone();
  const sequence=mission.territoryIds.map(id=>territories.find(t=>t.id===id));
  const intro=new MissionCaptureIntroPath(sequence[0],15000,()=>100,undefined,{player,territories:sequence});
- assert.equal(intro.durationMs,12000);assert.deepEqual([0,3000,6000,9000].map(t=>intro.text(t)),Array(4).fill('Defeat the territory owners\nCapture both TERRITORIES\nHold both together for 15 seconds'));
+ assert.equal(intro.durationMs,12000);assert.deepEqual([0,3000,6000,9000].map(t=>intro.text(t)),Array(4).fill('Defeat the territory owners\nCapture both TERRITORIES\nHold both together for 30 seconds'));
  assert.deepEqual([3000,6000,8000].map(t=>intro.territoryAt(t).id),[...mission.territoryIds,mission.territoryIds[1]]);
  const position=new THREE.Vector3(),target=new THREE.Vector3(),chase=new THREE.Vector3(1,2,3),look=new THREE.Vector3(4,5,6);
  for(const time of [0,3000,6000,8000,12000]){intro.sample(time,position,target,chase,look);assert.deepEqual(player.position,initial);assert.equal(intro.showsCaptureRow(time),false);}

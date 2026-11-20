@@ -11,7 +11,7 @@ export const territoryDefenseInstructions = [
 
 export const territoryHoldInstructions = ['Defeat the territory owners', 'Capture all 3 TERRITORIES', 'Hold all 3 together for 30 seconds'] as const;
 
-export const captureThreeInstructions = ['Defeat the territory owners', 'Capture both TERRITORIES', 'Hold both together for 15 seconds'] as const;
+export const captureThreeInstructions = ['Defeat the territory owners', 'Capture both TERRITORIES', 'Hold both together for 30 seconds'] as const;
 
 export const captureMissionInstructions = [
   'Capture 1 TERRITORY before time ends',

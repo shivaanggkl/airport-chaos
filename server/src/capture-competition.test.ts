@@ -73,7 +73,7 @@ test('persisted ownership, lost territory and first-clear wallet protection surv
    // A completion event or old sequential tick alone cannot win M21.
    assert.equal(store.advanceTerritoryCapture('pilot',started.attemptId,true,now+1),undefined);
    state.territories.forEach(t=>{t.ownerId='pilot';});now+=400;
-   for(let i=0;i<39;i++)updated=store.advanceTerritoryCapture('pilot',started.attemptId,true,now+=400,false,state)!;
+   for(let i=0;i<76;i++)updated=store.advanceTerritoryCapture('pilot',started.attemptId,true,now+=400,false,state)!;
    assert.equal(updated.status,'COMPLETED');assert.equal(updated.firstClearCredits,replay===0?2250:0);
    assert.equal(store.advanceTerritoryCapture('pilot',started.attemptId,true,now+400,false,state),undefined);
   }
