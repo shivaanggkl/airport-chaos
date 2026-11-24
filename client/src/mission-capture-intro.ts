@@ -1,4 +1,4 @@
-import {territoryDeparture, territoryDepartureFleetMs, territoryDepartureDurationMs} from '../../shared/territory-departure.mjs';
+import {territoryDeparture, territoryDepartureFleetStartMs, territoryDepartureFleetMs, territoryDepartureDurationMs} from '../../shared/territory-departure.mjs';
 import {TerritoryDepartureIntro, type DepartureAircraft} from './territory-departure-intro';
 import * as THREE from 'three';
 
@@ -36,14 +36,14 @@ export class MissionCaptureIntroPath {
   }
 
   private sequenceIndex(elapsed:number):number {
-    if(this.departures)return Math.max(0,Math.min(this.sequenceFrames.length-1,Math.floor((elapsed-territoryDepartureFleetMs)/territoryDeparture.overviewMs)));
+    if(this.departures)return Math.max(0,Math.min(this.sequenceFrames.length-1,Math.floor(elapsed/territoryDeparture.overviewMs)));
     return Math.max(0,Math.min(this.sequenceFrames.length-1,this.sequenceFrames.length>3?Math.floor((elapsed-3000)/2000):elapsed<6000?0:elapsed<8000?1:2));
   }
 
   territoryAt(elapsed:number):CaptureTerritory|undefined{return this.sequenceFrames[this.sequenceIndex(elapsed)]?.territory;}
 
   text(elapsed: number): string {
-    if(this.departures&&elapsed<territoryDepartureFleetMs)return this.departures.text(elapsed);
+    if(this.departures&&elapsed>=territoryDepartureFleetStartMs&&elapsed<territoryDepartureFleetMs)return this.departures.text(elapsed);
     if(this.departures&&elapsed>=this.durationMs-territoryDeparture.handoffMs)return 'YOUR TURN · DFW RUNWAY\nCapture all 6 territories\nOwn all 6 together to win';
     if(this.sequence){
       const territory=this.territoryAt(elapsed),owner=this.sequence.owners?.find(owner=>owner.territoryId===territory?.id);
@@ -54,7 +54,7 @@ export class MissionCaptureIntroPath {
     return captureMissionInstructions.join('\n');
   }
 
-  showsTerritory(elapsed: number): boolean { return this.departures?elapsed>=territoryDepartureFleetMs&&elapsed<this.durationMs-territoryDeparture.handoffMs:this.sequence?elapsed>=3000&&elapsed<this.durationMs-2000:this.defense?elapsed>=3000&&elapsed<6000:elapsed >= 2_500 && elapsed < this.sweepMs + 500; }
+  showsTerritory(elapsed: number): boolean { return this.departures?elapsed>=0&&elapsed<territoryDepartureFleetStartMs:this.sequence?elapsed>=3000&&elapsed<this.durationMs-2000:this.defense?elapsed>=3000&&elapsed<6000:elapsed >= 2_500 && elapsed < this.sweepMs + 500; }
 
   showsCaptureRow(elapsed: number): boolean { return !this.sequence && !this.defense && elapsed >= 3_000 && elapsed < this.durationMs; }
 
@@ -65,14 +65,14 @@ export class MissionCaptureIntroPath {
 
   sample(elapsed: number, position: THREE.Vector3, target: THREE.Vector3,
     chasePosition: THREE.Vector3, chaseTarget: THREE.Vector3, aspect = 16 / 9): void {
-    if(this.departures&&elapsed<territoryDepartureFleetMs){
-      this.departures.sample(elapsed,position,target);this.streamingFocus.copy(target);return;
+    if(this.departures&&elapsed>=territoryDepartureFleetStartMs&&elapsed<territoryDepartureFleetMs){
+      this.departures.sample(elapsed,position,target,aspect);this.streamingFocus.copy(target);return;
     }
     if(this.departures&&elapsed>=this.durationMs-territoryDeparture.handoffMs){
       this.departures.handoff(elapsed-(this.durationMs-territoryDeparture.handoffMs),position,target,chasePosition,chaseTarget);this.streamingFocus.copy(this.sequence!.player.position);return;
     }
     if(this.sequence){
-      if(elapsed<3000){position.copy(chasePosition);target.copy(this.sequence.player.position);this.streamingFocus.copy(this.sequence.player.position);return;}
+      if(elapsed<3000&&!this.departures){position.copy(chasePosition);target.copy(this.sequence.player.position);this.streamingFocus.copy(this.sequence.player.position);return;}
       const frame=this.sequenceFrames[this.sequenceIndex(elapsed)]!;
       const halfFov=Math.atan(Math.tan(THREE.MathUtils.degToRad(29))*Math.min(1,Math.max(.5,aspect)));
       const distance=frame.radius/Math.sin(halfFov)*1.28;
@@ -104,7 +104,7 @@ export class MissionCaptureIntroPath {
     target.copy(this.focus);
   }
 
-  fov(elapsed: number, chaseFov: number): number { return this.departures&&elapsed<territoryDepartureFleetMs?56:this.showsTerritory(elapsed) ? 58 : chaseFov; }
+  fov(elapsed: number, chaseFov: number): number { return this.departures&&elapsed>=territoryDepartureFleetStartMs?elapsed<territoryDepartureFleetMs?42:THREE.MathUtils.lerp(42,chaseFov,THREE.MathUtils.smoothstep(elapsed,territoryDepartureFleetMs,this.durationMs)):this.showsTerritory(elapsed) ? 58 : chaseFov; }
 
   wipe(elapsed: number): number {
     if(this.defense||this.sequence)return 0;
