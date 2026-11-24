@@ -14,7 +14,7 @@ import {journeyDallasTerritoryDomination01 as mission,journeyDallasTerritoryHold
 import {cityAirports} from '../../shared/city-airports.mjs';
 import {PROTOCOL_VERSION} from '../../shared/protocol.mjs';
 const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
-test('live M5 API, DFW launch, nine private radar targets, initial ownership, pause and cleanup',{timeout:45000},async()=>{
+test('live M5 API, DFW launch, nine private radar targets, neutral territories and ordered departure handoff, pause and cleanup',{timeout:45000},async()=>{
  const dir=mkdtempSync(join(tmpdir(),'m5-api-')),path=join(dir,'profiles.sqlite');
  const sessions=new PilotSessionStore(path),identity=sessions.issue(undefined,false),spectatorIdentity=sessions.issue(undefined,false),profiles=new PlayerProfileStore(path);
  const initialCredits=profiles.getOrCreate(identity.pilotId,'Pilot').credits;profiles.getOrCreate(spectatorIdentity.pilotId,'Spectator');
@@ -37,13 +37,15 @@ test('live M5 API, DFW launch, nine private radar targets, initial ownership, pa
   let sequence=0;const state=()=>socket?.send(JSON.stringify({type:'state',position:welcome.runwaySpawn.position,rotation:{x:0,y:welcome.runwaySpawn.heading,z:0},aircraftType:'trainer',stateSequence:++sequence,velocity:{x:0,y:0,z:0}}));state();interval=setInterval(state,100);
   const assigned=await wait(p=>p.type==='journeyAttempt'&&p.attempt.captureOpponentIds?.length===9);assert.equal(assigned.attempt.status,'APPROACH');assert.equal(assigned.attempt.captureTerritories.length,6);
   const ids=new Set<string>(assigned.attempt.captureOpponentIds);assert.equal(ids.size,9,'all nine authoritative identities are available to the common radar');
-  const owned=assigned.attempt.captureTerritories.filter((t:any)=>t.controllerId);assert.deepEqual(owned.map((t:any)=>t.id),['love-field','trinity-corridor']);assert.equal(assigned.attempt.captureTerritories.filter((t:any)=>!t.controllerId).length,4);
-  assert.equal(owned[0].controllerName,'Patty');assert.equal(owned[1].controllerName,'Nose');
-  assert.deepEqual(owned.map((territory:any)=>territory.ownerColor),mission.ownershipColors.opponents.slice(0,2));
-  for(const [index,id] of [...ids].entries()){const actor=await wait(p=>p.type==='playerState'&&p.playerId===id&&p.health>0);assert.equal(actor.displayName,mission.opponentNames[index]);}
+  const owned=assigned.attempt.captureTerritories.filter((t:any)=>t.controllerId);assert.equal(owned.length,0);assert.equal(assigned.attempt.captureTerritories.filter((t:any)=>!t.controllerId).length,6);
+  assert.ok(assigned.attempt.captureTerritories.every((territory:any)=>!territory.ownerColor));
+  for(const [index,id] of [...ids].entries()){const actor=await wait(p=>p.type==='playerState'&&p.playerId===id&&p.health>0);assert.equal(actor.displayName,mission.opponentNames[index]);assert.deepEqual(actor.position,welcome.runwaySpawn.position,'every opponent shares the player runway departure point');assert.equal(actor.rotation.y,Math.PI);}
+  assert.equal(assigned.attempt.deadlineAt,null,'the departure cinematic does not spend mission time');
+  await sleep(300);assert.equal(profiles.getOrCreate(identity.pilotId,'Pilot').credits,initialCredits);
   spectator=new WebSocket(`ws://127.0.0.1:${port}/?city=dallas&launchMode=free-fly&protocol=${PROTOCOL_VERSION}`,{origin:base,headers:{Cookie:`airport_chaos_session=${spectatorIdentity.cookie}`}});spectator.on('message',b=>publicPackets.push(JSON.parse(String(b))));
   for(let i=0;i<200&&!publicPackets.some(p=>p.type==='welcome');i++)await sleep(25);const publicWelcome=publicPackets.find(p=>p.type==='welcome');assert.ok(publicWelcome);assert.equal(publicWelcome.players.some((p:any)=>ids.has(p.playerId)),false);
   socket.send(JSON.stringify({type:'journeyCountdownComplete',attemptId:attempt.attemptId}));const racing=await wait(p=>p.type==='journeyAttempt'&&p.attempt.status==='RACING');assert.equal(racing.attempt.deadlineAt-racing.attempt.startedAt,600000);
+  for(const id of ids)await wait(p=>p.type==='playerState'&&p.playerId===id&&p.position.y>welcome.runwaySpawn.position.y+100);
   socket.send(JSON.stringify({type:'journeyPause',attemptId:attempt.attemptId}));await wait(p=>p.type==='journeyPauseState'&&p.paused===true);const before=store.get(identity.pilotId,attempt.attemptId)!;await sleep(500);assert.deepEqual(store.get(identity.pilotId,attempt.attemptId)!.captureFlight?.competition?.territories,before.captureFlight?.competition?.territories);assert.equal(before.defenseMs,0);
   assert.equal(publicPackets.some(p=>ids.has(p.playerId)||ids.has(p.ownerId)),false,'M5 actor updates remain private');
   const wrong=await fetch(`${base}/api/journey/dallas/mission-territory-hold-01/abandon`,{method:'POST',headers,body:JSON.stringify({attemptId:attempt.attemptId})});assert.equal(wrong.status,404);

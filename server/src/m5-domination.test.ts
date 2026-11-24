@@ -1,3 +1,4 @@
+import {territoryDeparturePose,territoryDepartureDurationMs,territoryDepartureFleetMs,territoryDeparture} from '../../shared/territory-departure.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
@@ -24,9 +25,9 @@ const compile=(names:string[])=>ts.transpileModule(ast.statements.filter(n=>ts.i
 function setup(){
  const players=new Map<string,any>([['pilot',{pilotId:'pilot',position:{x:0,y:1000,z:0}}]]),spawns:any[]=[];
  const ctx=vm.createContext({...catalog,players,structuredClone,captureCompetitions:new Map(),territoriesForCity,territoryContains,newCaptureCompetition,cityAirports,aircraftFlightEnvelope,maxHealthForAircraft,
-  enforceCaptureAssignments,keepDallasEscortInside:(p:any)=>p,botSafeFloor:()=>1000,botRunwayHeight:()=>120,journeyAceClearance:300,
+  territoryDeparturePose,territoryDepartureDurationMs,enforceCaptureAssignments,sendToPlayer(){},botStateMessage:()=>({}),keepDallasEscortInside:(p:any)=>p,botSafeFloor:()=>1000,botRunwayHeight:()=>120,journeyAceClearance:300,
   removeBot:(id:string)=>players.delete(id),createBot:(_c:any,_d:any,spawn:any)=>{spawns.push(spawn);players.set(spawn.captureOpponent.id,{bot:{journeyAttemptId:spawn.attemptId}});}});
- vm.runInContext(compile(['ensureCaptureCompetition','reviveTerritoryHoldOpponent','hunterNavigationTarget','captureCompetitionSnapshot']),ctx);
+ vm.runInContext(compile(['ensureCaptureCompetition','reviveTerritoryHoldOpponent','hunterNavigationTarget','captureCompetitionSnapshot','completeDominationDepartures']),ctx);
  return {ctx,players,spawns};
 }
 test('M5 is playable after M4 with six exact territories, nine opponents and no hold period',()=>{
@@ -36,11 +37,11 @@ test('M5 is playable after M4 with six exact territories, nine opponents and no 
  assert.equal(mission.timeLimitMs,600000);assert.equal(mission.firstClearCredits,3000);assert.equal(mission.holdDurationMs,0);assert.equal(mission.opponentRespawnMs,90000);assert.equal(mission.opponentCount,9);
  assert.equal(missionFocusForAttempt({missionId:mission.id,status:'RACING'}).showAmbientAIAircraft,false);
 });
-test('only Love Field and Trinity start owned; four guardians seek their own districts and three hunt the pilot',()=>{
+test('all six territories start neutral; six guardians seek their own districts and three hunt the pilot',()=>{
  const {ctx,spawns}=setup(),attempt={attemptId:'a',missionId:mission.id},state=ctx.ensureCaptureCompetition('pilot',attempt);
  assert.equal(spawns.length,9);assert.deepEqual(Array.from(state.opponents,(e:any)=>e.name),mission.opponentNames);assert.equal(new Set(mission.opponentNames).size,9);assert.ok(mission.opponentNames.every(name=>/^\w{1,6}$/.test(name)));assert.equal(state.opponents.filter((e:any)=>e.role==='owner').length,6);assert.equal(state.opponents.filter((e:any)=>e.role==='attacker').length,3);
  assert.ok(state.opponents.every((e:any)=>e.level==='HARD'));
- for(const [index,territory]of state.territories.entries())assert.equal(territory.ownerId,index<2?state.opponents[index].id:undefined);
+ for(const [index,territory]of state.territories.entries())assert.equal(territory.ownerId,undefined);
  assert.deepEqual(Array.from(state.opponents.slice(0,6),(e:any)=>mission.territoryIds[e.goal]),['love-field','trinity-corridor','white-rock','las-colinas','downtown','addison']);
  ctx.ensureCaptureCompetition('pilot',attempt);assert.equal(spawns.length,9);
  // Returning to this attempt restores claims and defeated aircraft without creating replacements early.
@@ -49,6 +50,7 @@ test('only Love Field and Trinity start owned; four guardians seek their own dis
 });
 test('each living owner must be defeated; unassigned guardians can claim their own territory',()=>{
  const {ctx}=setup(),state=ctx.ensureCaptureCompetition('pilot',{attemptId:'a',missionId:mission.id});let now=state.updatedAt;
+ state.territories[0].ownerId=state.opponents[0].id;
  for(let i=0;i<50;i++)advanceCaptureCompetition(state,[{id:'pilot',alive:true,territoryId:'love-field'}],now+=400,true);
  assert.equal(state.territories[0].ownerId,state.opponents[0].id);
  assert.equal(state.territories[0].captureMs,mission.captureDurationMs*.95);
@@ -107,11 +109,11 @@ test('all six guardians defend and recapture their assigned district; all three 
   if(slot<6){assert.equal(saved.goal,slot);pilot.position={...territoriesForCity('dallas').find(t=>t.id===mission.territoryIds[slot])!.center,y:2000};ctx.hunterNavigationTarget(saved.id,enemy,bot,2000);assert.equal(plan.objective,undefined);}
  }
 });
-test('M5 uses shared instructions and a six-stop screenplay with two owners and four unassigned districts',()=>{
+test('M5 uses shared instructions and a six-stop overview with all districts unassigned',()=>{
  const detail=missionJourneyDetails.find(m=>m.id===mission.id)!;assert.equal(detail.title,'CAPTURE 6 TERRITORIES');assert.equal(detail.timeLimit,'10:00');assert.equal(detail.rewardCredits,3000);assert.equal(detail.description,territoryDominationInstructions.join('\n'));assert.doesNotMatch(detail.description,/hold|respawn|aggressive|hunter/i);
  const territories=mission.territoryIds.map(id=>territoriesForCity('dallas').find(t=>t.id===id)!);
  const intro=new MissionCaptureIntroPath(territories[0]!,15000,()=>0,undefined,{player:new THREE.Group(),territories,instructions:territoryDominationInstructions,owners:mission.owners.filter(o=>o.initiallyOwned),showNeutralOwnership:true});
- for(let i=0;i<6;i++){const time=3000+i*2000;assert.equal(intro.territoryAt(time)?.id,mission.territoryIds[i]);if(i<2)assert.ok(intro.text(time).includes(mission.owners[i]!.name));else assert.match(intro.text(time),/UNASSIGNED/);assert.doesNotMatch(intro.text(time),/hold|respawn|aggressive/i);}
+ for(let i=0;i<6;i++){const time=3000+i*2000;assert.equal(intro.territoryAt(time)?.id,mission.territoryIds[i]);assert.match(intro.text(time),/UNASSIGNED/);assert.doesNotMatch(intro.text(time),/hold|respawn|aggressive/i);}
  assert.equal(intro.durationMs,17000);
 });
 
@@ -200,4 +202,23 @@ test('M5 owned borders keep their ownership color during a contest and change wh
  ctx.journeyAttempt.missionId=catalog.journeyDallasCaptureThree01.id;entry.appearance='contested';ctx.applyTerritoryBorderStyle(entry);
  const amber=new THREE.Color('#ffb331');assert.ok(Math.abs(geometry.getAttribute('color').getY(2)-amber.g)<1e-6,'other missions retain existing contested colors');
  geometry.dispose();
+});
+
+test('M5 stages all nine existing actors at the player’s DFW runway and commits cinematic departure poses once at GO',()=>{
+ const {ctx,players,spawns}=setup(),dfw=cityAirports.dallas.find(airport=>airport.id==='dfw')!;
+ const pilot=players.get('pilot');pilot.position={x:dfw.x,y:121.2,z:dfw.z-dfw.runwayLength*.32};
+ const attempt={attemptId:'departures',missionId:mission.id,status:'APPROACH'},state=ctx.ensureCaptureCompetition('pilot',attempt);
+ assert.equal(spawns.length,9);assert.equal(state.departurePending,true);
+ ctx.completeDominationDepartures('pilot',attempt);assert.equal(state.departurePending,true,'the intro cannot start gameplay or commit the fleet early');
+ assert.ok(state.territories.every((territory:any)=>!territory.ownerId&&territory.captureMs===0));
+ for(const enemy of state.opponents){assert.deepEqual({...enemy.position},pilot.position);assert.equal(enemy.rotation.y,Math.PI);assert.equal(enemy.runwayStart,true);assert.equal(Math.hypot(enemy.velocity.x,enemy.velocity.y,enemy.velocity.z),0);}
+ const roles=state.opponents.map((enemy:any)=>({id:enemy.id,role:enemy.role,goal:enemy.goal,health:enemy.health}));
+ ctx.completeDominationDepartures('pilot',{...attempt,status:'RACING'});
+ assert.equal(state.departurePending,false);assert.equal(spawns.length,9,'takeoff reuses the original actors');
+ for(let slot=0;slot<9;slot++){
+  const enemy=state.opponents[slot],pose=territoryDeparturePose(slot,territoryDepartureDurationMs,pilot.position),live=players.get(enemy.id);
+  assert.deepEqual({...enemy.position},pose.position);assert.deepEqual({...live.position},pose.position);assert.equal(enemy.runwayStart,false);assert.equal(live.bot.phase,'cruise');assert.ok(enemy.position.y>pilot.position.y);
+  assert.deepEqual({id:enemy.id,role:enemy.role,goal:enemy.goal,health:enemy.health},roles[slot]);
+ }
+ const live=players.get(state.opponents[0].id);live.position.x+=123;ctx.completeDominationDepartures('pilot',{...attempt,status:'RACING'});assert.equal(live.position.x,state.opponents[0].position.x+123,'repeated GO does not replay or teleport the fleet');
 });

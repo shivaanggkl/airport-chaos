@@ -5452,10 +5452,35 @@ function clearMissionCombatIntroAircraft(): void {
 }
 
 /** Assigned actor packets and attempt updates can arrive in either order. */
+let dominationDepartureHandoff: {attemptId:string;presentation:NonNullable<MissionCaptureIntroPath['departures']>;durationMs:number} | undefined;
+let dominationIntroPreparingId: string | undefined;
 function prepareAssignedMissionIntro(): void {
+  if(dominationDepartureHandoff&&(!journeyMode||journeyAttempt?.attemptId!==dominationDepartureHandoff.attemptId||journeyAttempt.status!=='APPROACH'))dominationDepartureHandoff=undefined;
   if(journeyAttempt?.status!=='APPROACH'||flightLaunchState!=='pending'||missionCombatIntroPath||missionCaptureIntroPath)return;
+  if(journeyAttempt.missionId===journeyDallasTerritoryDomination01.id){void prepareDominationDepartureIntro(journeyAttempt.attemptId);return;}
   if(journeyAttempt.missionId===journeyDallasMostWantedSurvival01.id||journeyAttempt.missionId===journeyDallasAceIntercept01.id||journeyAttempt.missionId===journeyDallasTwinHunters01.id||journeyAttempt.missionId===journeyDallasTerritoryDefense01.id)
     void prepareMissionCombatIntro(journeyAttempt.attemptId,journeyAttempt.missionId);
+}
+
+async function prepareDominationDepartureIntro(attemptId: string): Promise<void> {
+  if(dominationIntroPreparingId===attemptId||journeyAttempt?.attemptId!==attemptId)return;
+  const ids=journeyAttempt.captureOpponentIds;
+  if(!ids||ids.length!==journeyDallasTerritoryDomination01.opponentCount)return;
+  const opponents=ids.map(id=>remotePlayers.get(id));
+  if(opponents.some(opponent=>!opponent))return;
+  dominationIntroPreparingId=attemptId;
+  try{
+    await Promise.all([airplane.userData.assetReady,...opponents.map(opponent=>opponent!.plane.userData.assetReady)]);
+    if(journeyAttempt?.attemptId!==attemptId||journeyAttempt.status!=='APPROACH'||flightLaunchState!=='pending'||missionCaptureIntroPath||opponents.some((opponent,slot)=>remotePlayers.get(ids[slot]!)!==opponent))return;
+    const mission=journeyDallasTerritoryDomination01;
+    const sequence=mission.territoryIds.map(id=>territoryDefinitions.find(item=>item.id===id)!);
+    missionCaptureIntroPath=new MissionCaptureIntroPath(sequence[0]!,mission.captureDurationMs,getTerrainHeight,undefined,{
+      player:airplane,territories:sequence,instructions:territoryDominationInstructions,showNeutralOwnership:true,
+      departures:opponents.map((opponent,slot)=>({plane:opponent!.plane,markers:[opponent!.identityTag,opponent!.hullTag,opponent!.playerProxy],name:mission.opponentNames[slot]!,
+        assignment:slot<6?`TRIES TO CAPTURE ${sequence[slot]!.displayName.toUpperCase()}`:'CHASES YOUR AIRCRAFT'})),
+    });
+    beginFlightLaunchCinematic();
+  } finally {if(dominationIntroPreparingId===attemptId)dominationIntroPreparingId=undefined;}
 }
 
 async function prepareMissionCombatIntro(attemptId: string, missionId: string): Promise<void> {
@@ -5755,6 +5780,7 @@ function completeFlightLaunchCinematic(): void {
   if (flightLaunchState !== 'active') return;
   const wasGoldenGateIntro = Boolean(missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath || missionCoinHuntIntro || missionSharpshooterIntro || missionAirportHopIntro || missionCaptureIntroPath || missionCombatIntroPath);
   flightLaunchState = 'complete';
+  if(missionCaptureIntroPath?.departures&&journeyAttempt)dominationDepartureHandoff={attemptId:journeyAttempt.attemptId,presentation:missionCaptureIntroPath.departures,durationMs:missionCaptureIntroPath.durationMs};
   clearFlightLaunchPresentation();
   runStarted = !missionStartCountdownPending;
   if (missionStartCountdownPending) beginMissionStartCountdown();
@@ -10076,6 +10102,7 @@ function updateRemotePlayers(delta: number): void {
       remote.plane.rotation.set(hunterPose.rotation.x, hunterPose.rotation.y, hunterPose.rotation.z, 'YXZ');
     }
     const hiddenBot = remote.isBot && (
+      journeyAttempt?.missionId === journeyDallasTerritoryDomination01.id && journeyAttempt.status === 'APPROACH' ||
       Boolean(missionCombatIntroPath && missionCombatIntroPath.missionNumber !== 15 &&
         !(missionCombatIntroPath.missionNumber === 20 && missionCombatIntroPath.opponent === remote.plane) && flightLaunchState === 'active') ||
       transportEscortInactive(remote) ||
@@ -12089,8 +12116,17 @@ function animate(): void {
     const wasVisible = airplane.visible;
     // Overview shots show the objective, not a miniature or relocated preview aircraft.
     if (!missionCaptureIntroPath.defense && missionCaptureIntroPath.showsTerritory(performance.now() - flightLaunchStartedAt) && flightLaunchSkipStartedAt === undefined) airplane.visible = false;
+    const departureElapsed=flightLaunchSkipStartedAt===undefined?performance.now()-flightLaunchStartedAt:missionCaptureIntroPath.durationMs;
+    if(missionCaptureIntroPath.departures){
+      if(departureElapsed<missionCaptureIntroPath.durationMs-2200)airplane.visible=false;
+      missionCaptureIntroPath.departures.beginRender(departureElapsed,departureElapsed>=missionCaptureIntroPath.durationMs-2200);
+    }
     try { renderer.render(scene, camera); }
-    finally { airplane.visible = wasVisible; }
+    finally { missionCaptureIntroPath.departures?.endRender(); airplane.visible = wasVisible; }
+  } else if (dominationDepartureHandoff&&journeyAttempt?.attemptId===dominationDepartureHandoff.attemptId&&journeyAttempt.status==='APPROACH') {
+    const handoff=dominationDepartureHandoff;
+    handoff.presentation.beginRender(handoff.durationMs,true);
+    try {renderer.render(scene,camera);} finally {handoff.presentation.endRender();}
   } else if (!renderSkyDuelRunwayIntro()) renderer.render(scene, camera);
   if (stabilityQaTiming) {
     const renderMs = performance.now() - qaRenderStartedAt;
@@ -13565,6 +13601,8 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         missionAirportHopPresentation = new AirportHopIntro(airports, getTerrainHeight, flightGameRoot);
         flightGameRoot.classList.add('airport-hop-intro');
         beginFlightLaunchCinematic();
+      } else if (message.attempt.missionId === journeyDallasTerritoryDomination01.id && message.attempt.status === 'APPROACH') {
+        void prepareDominationDepartureIntro(message.attempt.attemptId);
       } else if (journeyCompetitiveCaptureMission(message.attempt.missionId) && message.attempt.status === 'APPROACH') {
         const sequence=journeyCompetitiveCaptureMission(message.attempt.missionId)!.territoryIds.map(id=>territoryDefinitions.find(item=>item.id===id)!);
         missionCaptureIntroPath=new MissionCaptureIntroPath(sequence[0]!,journeyDallasCaptureThree01.captureDurationMs,getTerrainHeight,undefined,{player:airplane,territories:sequence,instructions:message.attempt.missionId===journeyDallasTerritoryDomination01.id?territoryDominationInstructions:message.attempt.missionId===journeyDallasTerritoryHold01.id?territoryHoldInstructions:captureThreeInstructions,owners:journeyCompetitiveCaptureMission(message.attempt.missionId)!.owners.filter(owner=>owner.initiallyOwned!==false),showNeutralOwnership:message.attempt.missionId===journeyDallasTerritoryDomination01.id});
