@@ -211,7 +211,7 @@ test('M5 stages all nine existing actors at the player’s DFW runway and commit
  assert.equal(spawns.length,9);assert.equal(state.departurePending,true);
  ctx.completeDominationDepartures('pilot',attempt);assert.equal(state.departurePending,true,'the intro cannot start gameplay or commit the fleet early');
  assert.ok(state.territories.every((territory:any)=>!territory.ownerId&&territory.captureMs===0));
- for(const enemy of state.opponents){assert.deepEqual({...enemy.position},pilot.position);assert.equal(enemy.rotation.y,Math.PI);assert.equal(enemy.runwayStart,true);assert.equal(Math.hypot(enemy.velocity.x,enemy.velocity.y,enemy.velocity.z),0);}
+ for(const [slot,enemy] of state.opponents.entries()){assert.deepEqual({...enemy.position},territoryDeparturePose(slot,0,pilot.position).position);assert.equal(enemy.rotation.y,Math.PI);assert.equal(enemy.runwayStart,true);assert.equal(Math.hypot(enemy.velocity.x,enemy.velocity.y,enemy.velocity.z),0);}
  const roles=state.opponents.map((enemy:any)=>({id:enemy.id,role:enemy.role,goal:enemy.goal,health:enemy.health}));
  ctx.completeDominationDepartures('pilot',{...attempt,status:'RACING'});
  assert.equal(state.departurePending,false);assert.equal(spawns.length,9,'takeoff reuses the original actors');

@@ -1,3 +1,4 @@
+import {territoryDeparturePose} from '../../shared/territory-departure.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -39,7 +40,7 @@ test('live M5 API, DFW launch, nine private radar targets, neutral territories a
   const ids=new Set<string>(assigned.attempt.captureOpponentIds);assert.equal(ids.size,9,'all nine authoritative identities are available to the common radar');
   const owned=assigned.attempt.captureTerritories.filter((t:any)=>t.controllerId);assert.equal(owned.length,0);assert.equal(assigned.attempt.captureTerritories.filter((t:any)=>!t.controllerId).length,6);
   assert.ok(assigned.attempt.captureTerritories.every((territory:any)=>!territory.ownerColor));
-  for(const [index,id] of [...ids].entries()){const actor=await wait(p=>p.type==='playerState'&&p.playerId===id&&p.health>0);assert.equal(actor.displayName,mission.opponentNames[index]);assert.deepEqual(actor.position,welcome.runwaySpawn.position,'every opponent shares the player runway departure point');assert.equal(actor.rotation.y,Math.PI);}
+  for(const [index,id] of [...ids].entries()){const actor=await wait(p=>p.type==='playerState'&&p.playerId===id&&p.health>0);assert.equal(actor.displayName,mission.opponentNames[index]);assert.deepEqual(actor.position,territoryDeparturePose(index,0,welcome.runwaySpawn.position).position,'opponents line up ahead of the player on the same DFW runway');assert.equal(actor.rotation.y,Math.PI);}
   assert.equal(assigned.attempt.deadlineAt,null,'the departure cinematic does not spend mission time');
   await sleep(300);assert.equal(profiles.getOrCreate(identity.pilotId,'Pilot').credits,initialCredits);
   spectator=new WebSocket(`ws://127.0.0.1:${port}/?city=dallas&launchMode=free-fly&protocol=${PROTOCOL_VERSION}`,{origin:base,headers:{Cookie:`airport_chaos_session=${spectatorIdentity.cookie}`}});spectator.on('message',b=>publicPackets.push(JSON.parse(String(b))));
