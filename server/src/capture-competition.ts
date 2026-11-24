@@ -7,7 +7,7 @@ export type CaptureOpponent = {
   position: {x:number;y:number;z:number}; rotation: {x:number;y:number;z:number};
   velocity: {x:number;y:number;z:number}; health: number; goal: number; retargetAt?:number; respawnRemainingMs?:number; respawnUpdatedAt?:number; name?:string; role?:'owner'|'attacker'; runwayStart?:boolean; provokedUntil?:number;
 };
-export type CaptureCompetition = { territories: CaptureTerritory[]; opponents: CaptureOpponent[]; updatedAt: number };
+export type CaptureCompetition = { territories: CaptureTerritory[]; opponents: CaptureOpponent[]; updatedAt: number; departurePending?: boolean; departureOrigin?: {x:number;y:number;z:number} };
 
 export function newCaptureCompetition(opponents: CaptureOpponent[], now: number, territoryIds: readonly string[] = mission.territoryIds): CaptureCompetition {
   return { territories: territoryIds.map(id => ({id, captureMs:0, contested:false})), opponents, updatedAt:now };

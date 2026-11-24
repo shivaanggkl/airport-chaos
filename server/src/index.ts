@@ -1,3 +1,4 @@
+import { territoryDeparturePose, territoryDepartureDurationMs } from '../../shared/territory-departure.mjs';
 import { enforceCaptureAssignments, advanceCaptureCompetition, advanceCaptureRespawn, newCaptureCompetition, releaseCaptureActor, type CaptureCompetition, type CaptureOpponent } from './capture-competition.js';
 import { defeatSurvivalHunter, insideSurvivalArea, survivalOutcome, survivalReplacement, survivalSteering, type SurvivalHunter, type SurvivalState } from './most-wanted-survival.js';
 import { aceInterceptDistance, insideAceInterceptAirspace, updateAceIntercept, type AceInterceptState } from './ace-intercept.js';
@@ -4908,6 +4909,7 @@ function ensureCaptureCompetition(playerId: string, attempt: JourneyAttempt): Ca
   let state = captureCompetitions.get(attempt.attemptId);
   if (!state) {
     state = attempt.captureFlight?.competition && structuredClone(attempt.captureFlight.competition);
+    if (state && mission.id === journeyDallasTerritoryDomination01.id && attempt.status === 'APPROACH' && state.departurePending === undefined) state = undefined;
     if(state && (state.opponents.length!==mission.opponentCount || state.opponents.some(enemy=>!enemy.role)))state=undefined;
     if (!state) {
       const opponents = Array.from({length:mission.opponentCount}, (_,slot): CaptureOpponent => {
@@ -4922,6 +4924,15 @@ function ensureCaptureCompetition(playerId: string, attempt: JourneyAttempt): Ca
           health:maxHealthForAircraft(aircraft),goal:slot%mission.territoryIds.length,name:('opponentNames' in mission?mission.opponentNames[slot]:undefined)??mission.owners[slot]?.name??`FIREHAWK HUNTER ${slot-mission.owners.length+1}`,role:slot<mission.owners.length?'owner' as const:'attacker' as const};
       });
       state = newCaptureCompetition(opponents,Date.now(),mission.territoryIds);
+      if (mission.id === journeyDallasTerritoryDomination01.id) {
+        state.departurePending = true;
+        state.departureOrigin = {...pilot.position};
+        for (const [slot, enemy] of opponents.entries()) {
+          const pose = territoryDeparturePose(slot, 0, state.departureOrigin);
+          enemy.position = pose.position; enemy.rotation = pose.rotation; enemy.velocity = pose.velocity;
+          enemy.runwayStart = true;
+        }
+      }
       state.territories.forEach((territory,index)=>{if(mission.owners[index]?.initiallyOwned!==false)territory.ownerId=opponents[index]!.id;});
     }
     // Normalize saved M3 attempts to the current two-territory requirement.
@@ -4957,6 +4968,24 @@ function reviveTerritoryHoldOpponent(playerId:string,pilot:PlayerState,attempt:J
   createBot('dallas',undefined,{attemptId:attempt.attemptId,targetPlayerId:playerId,target:pilot,captureOpponent:enemy,captureSlot:slot});
 }
 
+/** Intro movement is cosmetic; GO commits the same final poses once, before captures or weapons run. */
+function completeDominationDepartures(playerId: string, attempt: JourneyAttempt): void {
+  if (attempt.missionId !== journeyDallasTerritoryDomination01.id || attempt.status !== 'RACING') return;
+  const state = captureCompetitions.get(attempt.attemptId);
+  if (!state?.departurePending || !state.departureOrigin) return;
+  for (const [slot, enemy] of state.opponents.entries()) {
+    if (enemy.health <= 0) continue;
+    const pose = territoryDeparturePose(slot, territoryDepartureDurationMs, state.departureOrigin);
+    enemy.position = pose.position; enemy.rotation = pose.rotation; enemy.velocity = pose.velocity; enemy.runwayStart = false;
+    const live = players.get(enemy.id);
+    if (!live?.bot) continue;
+    live.position = {...pose.position}; live.rotation = {...pose.rotation}; live.velocity = {...pose.velocity};
+    live.bot.phase = 'cruise'; live.bot.speed = Math.hypot(pose.velocity.y, pose.velocity.z);
+    sendToPlayer(playerId, botStateMessage(enemy.id, live, 'playerState'));
+  }
+  state.departurePending = false;
+}
+
 function captureCompetitionSnapshot(playerId: string, attempt: JourneyAttempt) {
   const colors = attempt.missionId === journeyDallasTerritoryDomination01.id ? journeyDallasTerritoryDomination01.ownershipColors : undefined;
   const state = captureCompetitions.get(attempt.attemptId) ?? attempt.captureFlight?.competition;
@@ -4975,6 +5004,7 @@ function updateCompetitiveCapture(playerId: string, player: PlayerState, attempt
   const state = ensureCaptureCompetition(playerId,attempt);
   const mission = journeyCompetitiveCaptureMission(attempt.missionId)!;
   if (!state || pausedJourneyAttempts.has(attempt.attemptId) || attempt.pausedAt !== null) return;
+  if (state.departurePending) completeDominationDepartures(playerId, attempt);
   if (attempt.deadlineAt !== null && now >= attempt.deadlineAt) { failPlayerJourney(playerId,'TIME_UP',now); return; }
   const definitions = territoriesForCity('dallas').filter(item => journeyCompetitiveCaptureMission(attempt.missionId)!.territoryIds.some(candidate=>candidate===item.id));
   const fresh = player.lifeState==='alive' && player.health>0 && hasOpenPlayerSocket(playerId) && player.hasRespawnTransform && !player.portalTransit && now-player.lastAcceptedTransformAt<=800 &&
@@ -10002,6 +10032,7 @@ server.on('connection', (socket, request) => {
               ?? journeyStore.startDoubleThreat(player.pilotId, id!, now)
               ?? journeyStore.startPursuit(player.pilotId, id!, now);
             if (started) {
+              completeDominationDepartures(playerId, started);
               if(started.missionId===journeyDallas15.id){
                 if(started.targetId)provokeJourneyHunter(playerId,player,started.targetId,now);
               }

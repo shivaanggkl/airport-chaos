@@ -118,7 +118,7 @@ test('M5 uses M5 numbering, all six territory rows, and capture progress with no
  c.journeyAttempt.captureTerritories=missions.journeyDallasTerritoryDomination01.territoryIds.map((id,index)=>({id,controllerId:index<2?`enemy-${index}`:undefined,controllerName:index<2?missions.journeyDallasTerritoryDomination01.owners[index].name:undefined,captureProgress:0,contested:false}));
  c.render();assert.equal(rows.length,6);assert.equal(rows.filter(row=>row.statusLabel==='UNASSIGNED').length,4);
  assert.equal(c.journeyHudProgress.hidden,true);assert.equal(c.journeyHudProgress.textContent,'');
- assert.equal(c.journeyHudObjective.textContent,'• Defeat the territory owners\n• Capture all 6 TERRITORIES\n• Own all 6 together to win');
+ assert.equal(c.journeyHudObjective.textContent,'• Capture all 6 TERRITORIES\n• Defend them from rivals\n• Own all 6 together to win');
  c.journeyAttempt.captureMs=7500;c.journeyAttempt.captureTerritories[2].capturingPlayerId='pilot';c.journeyAttempt.captureTerritories[2].captureProgress=50;c.render();
  assert.deepEqual(bars.at(-1),['WHITE ROCK TERRITORY',50,false]);
  c.journeyAttempt.captureTerritories.forEach(t=>{t.controllerId='pilot';t.capturingPlayerId=undefined;t.captureProgress=0;});c.journeyAttempt.captureStage=6;c.journeyAttempt.captureMs=0;c.journeyAttempt.status='COMPLETED';c.render();c.performance.now=()=>4000;c.render();
