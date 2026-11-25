@@ -82,3 +82,17 @@ test('M5’s final capture finishes its shared animation before mission-clear re
  now=3800;ctx.updateMissionClear(.016);assert.equal(stops,1);assert.equal(results,0);
  now=8000;ctx.updateMissionClear(.016);assert.equal(results,1);
 });
+
+test('capture feedback distinguishes a neutral contest from the 95% owner block and clears the message on progress',()=>{
+ const previous=globalThis.document;(globalThis as any).document={createElement:()=>new Element()};
+ try{
+  const root=new Element(),bar=new TerritoryCaptureBar(root as unknown as HTMLElement);
+  bar.show('WHITE ROCK',0,false,false,true);
+  const hint=root.children[1];assert.equal(hint.hidden,false);assert.equal(hint.textContent,'Rival inside. Capture is paused.');
+  bar.show('WHITE ROCK',2,false);assert.equal(hint.hidden,true);
+  bar.show('WHITE ROCK',95,false,true);assert.equal(hint.hidden,false);assert.equal(hint.textContent,'Defeat the owner to finish capturing.');
+  bar.show('WHITE ROCK',50,false,false,true);assert.equal(hint.textContent,'Rival inside. Capture is paused.');
+  bar.show('WHITE ROCK',0,false,false,false,true);assert.equal(hint.hidden,false);assert.equal(hint.textContent,'Rival arrived first. Defeat them to capture.');
+  bar.show('WHITE ROCK',100,true);assert.equal(hint.hidden,true);
+ }finally{globalThis.document=previous;}
+});

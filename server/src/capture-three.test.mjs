@@ -35,10 +35,10 @@ function fixture(unlocked=true){
  store.saveCaptureFlight('pilot',a.attemptId,{position:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},velocity:{x:100,y:0,z:0},health:100,updatedAt:clock,competition});
  return store.advanceTerritoryCapture('pilot',a.attemptId,eligible,clock,reset,competition);},start(){competition=newCaptureCompetition([],clock);const a=store.launch('pilot','trainer',clock,mission.id);store.approach('pilot',a.attemptId);return store.startTerritoryCapture('pilot',a.attemptId,clock);},close(){db.close();rmSync(dir,{recursive:true,force:true});}};
 }
-test('M21 uses only its new slot, authoritative geometry, prescribed spawn and M20 prerequisite',()=>{
- assert.equal(catalog.journeyCatalog.length,30);assert.equal(catalog.journeyMissionSlot(mission.id),21);assert.equal(catalog.journeyMissionSlot(catalog.journeyDallasAceIntercept01.id),20);
+test('territory M3 uses its catalog slot, authoritative geometry, prescribed spawn and M2 prerequisite',()=>{
+ assert.equal(catalog.journeyCatalog.filter(item=>item.id===mission.id).length,1);assert.equal(catalog.journeyMissionSlot(mission.id),21);assert.equal(catalog.journeyMissionSlot(catalog.journeyDallasAceIntercept01.id),20);
  assert.equal(mission.timeLimitMs,360000);assert.equal(mission.firstClearCredits,2250);assert.equal(mission.captureDurationMs,15000);
- assert.deepEqual(mission.territoryIds,['las-colinas','love-field','downtown']);
+ assert.deepEqual(mission.territoryIds,['las-colinas','love-field']);
  assert.deepEqual(mission.territoryIds.map(id=>territories.find(t=>t.id===id).center),[{x:-40500,z:-28050},{x:-15420,z:-23340}]);
  assert.equal(mission.runwayStart,true);assert.equal(mission.startAirportId,'dfw');
  assert.equal(authorizedJourneyAirborneSpawn({missionId:mission.id,status:'APPROACH'},mission,()=>100),undefined);
@@ -49,7 +49,7 @@ test('M21 uses only its new slot, authoritative geometry, prescribed spawn and M
  assert.equal(journeyCaptureTerritoryId(mission.id,3),undefined);assert.equal(missionFocusForAttempt({missionId:mission.id,status:'RACING'}).showAmbientAIAircraft,false);
  const f=fixture(false);try{
   assert.equal(f.store.canAccessMission('pilot',mission.id),false);
-  f.db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)').run('pilot',catalog.journeyDallasAceIntercept01.id,'m20',1);
+  f.db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)').run('pilot',catalog.journeyDallasTerritoryDefense01.id,'m2',1);
   assert.equal(f.store.canAccessMission('pilot',mission.id),true);
  }finally{f.close();}
 });
@@ -96,7 +96,7 @@ test('production coordinator uses only accepted flight inside the current real b
  ctx.pausedJourneyAttempts.add(a.attemptId);const before=f.store.get('pilot',a.attemptId).captureMs;tick();assert.equal(f.store.get('pilot',a.attemptId).captureMs,before);
  const tables=f.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%territor%' AND name NOT LIKE 'journey%'").all();
  for(const {name} of tables)assert.equal(f.db.prepare(`SELECT COUNT(*) AS n FROM "${name}"`).get().n,0,'mission cannot create multiplayer ownership');
- assert.match(source,/if \(missionId === (?:journeyDallasMostWantedSurvival01\.id \|\| missionId === )?journeyDallasCaptureThree01\.id \|\| missionId === journeyDallasTerritoryDefense01\.id/);
+ assert.match(source,/if \(missionId === journeyDallasMostWantedSurvival01\.id \|\| journeyCompetitiveCaptureMission\(missionId\) \|\| missionId === journeyDallasTerritoryDefense01\.id/);
  }finally{f.close();}
 });
 test('pause, durable reconnect, timeout, failure, fresh retry and verified continuation preserve the correct stage',()=>{

@@ -1,3 +1,6 @@
+import vm from 'node:vm';
+import ts from 'typescript';
+import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -56,7 +59,7 @@ test('M5 shows six neutral territories first, a continuous queued departure, the
   }
   for(let slot=0;slot<6;slot++){
    const time=slot*territoryDeparture.overviewMs+100;
-   assert.equal(intro.territoryAt(time)?.id,mission.territoryIds[slot]);assert.match(intro.text(time),/UNASSIGNED/);assert.equal(intro.showsTerritory(time),true);
+   assert.equal(intro.territoryAt(time),undefined);assert.match(intro.text(time),/ALL 6 TERRITORIES START UNOWNED/);assert.equal(intro.showsTerritory(time),true);
   }
   assert.match(intro.text(intro.durationMs-1000),/YOUR TURN/);
   const chase=new THREE.Vector3(player.position.x,player.position.y+12,player.position.z-80),target=player.position.clone(),position=new THREE.Vector3(),lookAt=new THREE.Vector3();
@@ -139,4 +142,43 @@ test('name boxes refreshed by gameplay remain visible in the cinematic without r
   presentation.beginRender(time+200,false,camera,589,1280);assert.equal(current.visible,true);assert.equal(removed.visible,false);
   presentation.endRender();assert.equal(current.visible,false);assert.equal(current.material.opacity,.2);
  }finally{materials.forEach(material=>material.dispose());dispose();}
+});
+
+
+test('M5 holds one wide overview for the same 5.4 seconds with every territory fully in frame',()=>{
+ const {intro,player,dispose}=fixture();try{
+  assert.equal(territoryDepartureFleetStartMs,5400);
+  const territories=mission.territoryIds.map(id=>territoriesForCity('dallas').find(t=>t.id===id)!);
+  for(const aspect of [16/9,19.5/9,4/3]){
+   const camera=new THREE.PerspectiveCamera(58,aspect,.1,1000000),target=new THREE.Vector3(),chase=player.position.clone(),initial=new THREE.Vector3();
+   intro.sample(0,camera.position,target,chase,chase,aspect);initial.copy(camera.position);
+   for(const elapsed of [0,899,900,1800,2700,3600,4500,5399]){
+    intro.sample(elapsed,camera.position,target,chase,chase,aspect);assert.ok(camera.position.equals(initial),'no individual territory cuts');
+    camera.lookAt(target);camera.updateMatrixWorld();
+    for(const territory of territories){
+     for(const x of [territory.bounds.minX,territory.bounds.maxX])for(const z of [territory.bounds.minZ,territory.bounds.maxZ]){
+      const point=new THREE.Vector3(x,120,z).project(camera);assert.ok(Math.abs(point.x)<.9&&Math.abs(point.y)<.9&&Math.abs(point.z)<1,territory.id);
+     }
+    }
+   }
+  }
+ }finally{dispose();}
+});
+
+
+test('wide overview shows all six numbered labels together and removes them before runway shots',()=>{
+ const {intro,player,dispose}=fixture();try{
+  const camera=new THREE.PerspectiveCamera(58,19.5/9,.1,1000000),target=new THREE.Vector3();
+  intro.sample(100,camera.position,target,player.position,player.position,camera.aspect);camera.lookAt(target);camera.updateMatrixWorld();
+  const borders=territoriesForCity('dallas').map(definition=>({definition,title:{textContent:definition.displayName},label:{hidden:true,style:{transform:''},classList:{toggle(){}}}}));
+  const source=readFileSync('client/src/main.ts','utf8'),ast=ts.createSourceFile('main.ts',source,ts.ScriptTarget.Latest,true);
+  const fn=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='updateTerritoryLabels')!;
+  const ctx=vm.createContext({missionCaptureIntroPath:intro,flightLaunchState:'active',flightLaunchSkipStartedAt:undefined,flightLaunchStartedAt:0,performance:{now:()=>100},
+   territoryBorders:borders,territoryDisplayName:(t:any)=>t.displayName,territoryLabelProjection:new THREE.Vector3(),groundPlaneY:()=>120,camera,window:{innerWidth:1280,innerHeight:589},
+   missionFocus:{showUnrelatedTerritoryLabels:false},focusedTerritoryTargetId:()=>null});
+  vm.runInContext(ts.transpileModule(fn.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);
+  ctx.updateTerritoryLabels();assert.equal(borders.filter(b=>!b.label.hidden).length,6);
+  for(const [slot,id]of mission.territoryIds.entries())assert.equal(borders.find(b=>b.definition.id===id)!.title.textContent,String(slot+1));
+  ctx.flightLaunchSkipStartedAt=100;ctx.updateTerritoryLabels();assert.ok(borders.every(b=>b.label.hidden));assert.ok(borders.every(b=>b.title.textContent===b.definition.displayName.toUpperCase()));
+ }finally{dispose();}
 });

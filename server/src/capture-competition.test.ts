@@ -9,7 +9,7 @@ import {newCaptureCompetition,advanceCaptureCompetition,captureCompetitionOwned,
 import {JourneyAttemptStore} from './journey-attempts.ts';
 import {PlayerProfileStore} from './player-profiles.ts';
 import {journeyDallasTerritoryDomination01,journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,journeyDallasCaptureThree01 as mission} from '../../shared/journey-mission.mjs';
-import {territoriesForCity} from '../../shared/city-territories.mjs';
+import {territoriesForCity,territoryContains} from '../../shared/city-territories.mjs';
 import {keepDallasEscortInside} from './journey-hunter-airspace.ts';
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
 import {maxHealthForAircraft} from '../../shared/aircraft-health.mjs';
@@ -185,7 +185,7 @@ test('production M21 capture covers all territory edges and corners at low and h
  const player={cityId:'dallas',pilotId:'pilot',lifeState:'alive',health:100,hasRespawnTransform:true,portalTransit:false,
   lastStateAt:1400,lastAcceptedTransformAt:1400,lastAcceptedPosition:{x:0,y:1000,z:0},velocity:{x:100,y:0,z:0}};
  const attempt={missionId:mission.id,attemptId:'attempt',status:'RACING',pausedAt:null,deadlineAt:1e9,captureFlight:undefined};
- const context=vm.createContext({journeyDallasTerritoryDomination01,journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,journeyDallasCaptureThree01:mission,territoriesForCity,territoryCaptureFlightEligible,
+ const context=vm.createContext({journeyDallasTerritoryDomination01,journeyDallasTerritoryHold01,journeyCompetitiveCaptureMission,journeyDallasCaptureThree01:mission,territoriesForCity,territoryContains,territoryCaptureFlightEligible,
   pausedJourneyAttempts:new Set(),hasOpenPlayerSocket:()=>true,botTerrainHeight:()=>100,
   landingFlightState:new Map([['owner',{airborne:true}]]),players:new Map(),
   ensureCaptureCompetition:()=>state,advanceCaptureCompetition,checkpointJourneyCapture(){},

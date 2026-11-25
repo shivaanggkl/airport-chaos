@@ -18,6 +18,7 @@ export class MissionCaptureIntroPath {
   readonly departures?: TerritoryDepartureIntro;
   private readonly radius: number;
   private readonly sequenceFrames: {territory:CaptureTerritory;focus:THREE.Vector3;radius:number}[];
+  private readonly overviewFrame?: {focus:THREE.Vector3;radius:number};
   private readonly focus: THREE.Vector3;
   private readonly streamingFocus: THREE.Vector3;
 
@@ -33,18 +34,24 @@ export class MissionCaptureIntroPath {
     this.streamingFocus = this.focus.clone();
     this.sequenceFrames=(sequence?.territories??[]).map(territory=>({territory,focus:new THREE.Vector3(territory.center.x,heightAt(territory.center.x,territory.center.z)+450,territory.center.z),
       radius:Math.hypot((territory.bounds.maxX-territory.bounds.minX)/2,(territory.bounds.maxZ-territory.bounds.minZ)/2,1000)}));
+    if(this.departures&&sequence?.territories.length){
+      const minX=Math.min(...sequence.territories.map(t=>t.bounds.minX)),maxX=Math.max(...sequence.territories.map(t=>t.bounds.maxX));
+      const minZ=Math.min(...sequence.territories.map(t=>t.bounds.minZ)),maxZ=Math.max(...sequence.territories.map(t=>t.bounds.maxZ));
+      const x=(minX+maxX)/2,z=(minZ+maxZ)/2;
+      this.overviewFrame={focus:new THREE.Vector3(x,heightAt(x,z)+450,z),radius:Math.hypot((maxX-minX)/2,(maxZ-minZ)/2,1000)};
+    }
   }
 
   private sequenceIndex(elapsed:number):number {
-    if(this.departures)return Math.max(0,Math.min(this.sequenceFrames.length-1,Math.floor(elapsed/territoryDeparture.overviewMs)));
     return Math.max(0,Math.min(this.sequenceFrames.length-1,this.sequenceFrames.length>3?Math.floor((elapsed-3000)/2000):elapsed<6000?0:elapsed<8000?1:2));
   }
 
-  territoryAt(elapsed:number):CaptureTerritory|undefined{return this.sequenceFrames[this.sequenceIndex(elapsed)]?.territory;}
+  territoryAt(elapsed:number):CaptureTerritory|undefined{return this.departures?undefined:this.sequenceFrames[this.sequenceIndex(elapsed)]?.territory;}
 
   text(elapsed: number): string {
     if(this.departures&&elapsed>=territoryDepartureFleetStartMs&&elapsed<territoryDepartureFleetMs)return this.departures.text(elapsed);
     if(this.departures&&elapsed>=this.durationMs-territoryDeparture.handoffMs)return 'YOUR TURN · DFW RUNWAY\nCapture all 6 territories\nOwn all 6 together to win';
+    if(this.departures&&this.showsTerritory(elapsed))return 'ALL 6 TERRITORIES START UNOWNED\n'+(this.sequence!.instructions??captureThreeInstructions).join('\n');
     if(this.sequence){
       const territory=this.territoryAt(elapsed),owner=this.sequence.owners?.find(owner=>owner.territoryId===territory?.id);
       const ownership=territory&&this.showsTerritory(elapsed)&&(owner||this.sequence.showNeutralOwnership)?`${territory.displayName.toUpperCase()} · ${owner?.name??'UNASSIGNED'}\n`:'';
@@ -70,6 +77,13 @@ export class MissionCaptureIntroPath {
     }
     if(this.departures&&elapsed>=this.durationMs-territoryDeparture.handoffMs){
       this.departures.handoff(elapsed-(this.durationMs-territoryDeparture.handoffMs),position,target,chasePosition,chaseTarget);this.streamingFocus.copy(this.sequence!.player.position);return;
+    }
+    if(this.overviewFrame&&this.showsTerritory(elapsed)){
+      const halfFov=Math.atan(Math.tan(THREE.MathUtils.degToRad(29))*Math.min(1,Math.max(.5,aspect)));
+      this.shotSequence(position,target,this.overviewFrame.focus,this.overviewFrame.radius/Math.sin(halfFov)*1.28);
+      // Reserve the bottom of the screen for the common instruction card.
+      position.z+=this.overviewFrame.radius*.22;target.z+=this.overviewFrame.radius*.22;
+      this.streamingFocus.copy(target);return;
     }
     if(this.sequence){
       if(elapsed<3000&&!this.departures){position.copy(chasePosition);target.copy(this.sequence.player.position);this.streamingFocus.copy(this.sequence.player.position);return;}
