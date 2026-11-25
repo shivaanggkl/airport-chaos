@@ -615,7 +615,7 @@ export const journeyDallasTerritoryDomination01 = Object.freeze({
   ...journeyDallasCaptureThree01,
   id: 'journey-dallas-territory-domination-01', name: 'CAPTURE 6 TERRITORIES',
   objective: 'Capture all 6 territories and own them together to win.',
-  timeLimitMs: 600000, firstClearCredits: 3000, holdDurationMs: 0, opponentRespawnMs: 90000, opponentCount: 9,
+  timeLimitMs: 540000, firstClearCredits: 3000, holdDurationMs: 0, opponentRespawnMs: 84000, opponentCount: 9,
   opponentNames: dallasDominationPilotNames,
   ownershipColors: Object.freeze({pilot: '#39d353', opponents: Object.freeze(['#ef5350','#f6a623','#a777ef','#4d8ffa','#f06eaa','#ffd54f'])}),
   territoryIds: Object.freeze(['love-field','trinity-corridor','white-rock','las-colinas','downtown','addison']),

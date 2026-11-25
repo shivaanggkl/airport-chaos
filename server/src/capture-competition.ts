@@ -1,6 +1,6 @@
 import { journeyDallasCaptureThree01 as mission } from '../../shared/journey-mission.mjs';
 
-export type CaptureActor = { id: string; alive: boolean; territoryId?: string };
+export type CaptureActor = { id: string; alive: boolean; territoryId?: string; insideTerritoryId?: string };
 export type CaptureTerritory = { id: string; ownerId?: string; capturingId?: string; captureMs: number; contested: boolean };
 export type CaptureOpponent = {
   id: string; aircraft: 'trainer' | 'fighter' | 'privateJet' | 'cargo'; level: 'EASY' | 'HARD';
@@ -57,8 +57,21 @@ export function advanceCaptureCompetition(state: CaptureCompetition, actors: rea
   // Absence (outside this territory or a transient missing update) is not a defeat.
   for (const actor of actors) if (!actor.alive) releaseCaptureActor(state, actor.id);
   for (const territory of state.territories) {
-    const contenders = actors.filter(actor => actor.alive && actor.territoryId === territory.id && actor.id !== territory.ownerId &&
+    let contenders = actors.filter(actor => actor.alive && actor.territoryId === territory.id && actor.id !== territory.ownerId &&
       (!assignedOwnersOnly || captureAssignmentAllows(state, actor.id, territory.id)));
+    if (assignedOwnersOnly) {
+      // M5: retain a first arrival's attempt until it actually leaves or dies.
+      // Temporary flight ineligibility pauses capture rather than transferring it.
+      const current = actors.find(actor => actor.id === territory.capturingId && actor.alive &&
+        (actor.insideTerritoryId ?? actor.territoryId) === territory.id);
+      if (current && current.territoryId !== territory.id) {
+        territory.contested = Boolean(territory.ownerId);
+        continue;
+      }
+      if (!territory.ownerId && contenders.length > 1) {
+        contenders = [contenders.find(actor => actor.id === current?.id) ?? contenders[0]!];
+      }
+    }
     territory.contested = contenders.length > 1 || Boolean(territory.ownerId && contenders.length);
     // Missing/stalled updates cannot award time or erase accepted progress.
     if (!delta) continue;

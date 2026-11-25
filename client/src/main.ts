@@ -2982,8 +2982,6 @@ function updateTerritoryBorderVisibility(now: number): void {
   territoryBorderRefreshAt = now + (activeBoundaryPulse ? 80 : 500);
   for (const entry of territoryBorders) {
     const { definition, wall } = entry;
-    const displayName = territoryDisplayName(definition).toUpperCase();
-    if (entry.title.textContent !== displayName) entry.title.textContent = displayName;
     const viewPosition = missionCaptureIntroPath && flightLaunchState === 'active' ? camera.position : airplane.position;
     const dx = Math.max(definition.bounds.minX - viewPosition.x, 0, viewPosition.x - definition.bounds.maxX);
     const dz = Math.max(definition.bounds.minZ - viewPosition.z, 0, viewPosition.z - definition.bounds.maxZ);
@@ -3003,6 +3001,22 @@ function updateTerritoryBorderVisibility(now: number): void {
 }
 
 function updateTerritoryLabels(): void {
+  const numberedOverview = missionCaptureIntroPath?.departures && flightLaunchState==='active' && flightLaunchSkipStartedAt===undefined &&
+    missionCaptureIntroPath.showsTerritory(performance.now()-flightLaunchStartedAt) ? missionCaptureIntroPath.sequence!.territories : undefined;
+  for(const entry of territoryBorders){
+    entry.label.classList.toggle('numbered-overview',Boolean(numberedOverview));
+    const number=numberedOverview?.findIndex(t=>t.id===entry.definition.id)??-1;
+    const title=number>=0?String(number+1):territoryDisplayName(entry.definition).toUpperCase();
+    if(entry.title.textContent!==title)entry.title.textContent=title;
+    if(!numberedOverview)continue;
+    if(number<0){entry.label.hidden=true;continue;}
+    const xCenter=(entry.definition.bounds.minX+entry.definition.bounds.maxX)/2,zCenter=(entry.definition.bounds.minZ+entry.definition.bounds.maxZ)/2;
+    territoryLabelProjection.set(xCenter,groundPlaneY(xCenter,zCenter)+450,zCenter).project(camera);
+    entry.label.hidden=territoryLabelProjection.z < -1 || territoryLabelProjection.z > 1;
+    const x=(territoryLabelProjection.x+1)*window.innerWidth*.5,y=(1-territoryLabelProjection.y)*window.innerHeight*.5;
+    entry.label.style.transform=`translate(-50%, -50%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+  }
+  if(numberedOverview)return;
   if (missionFocus?.showUnrelatedTerritoryLabels === false && !focusedTerritoryTargetId()) {
     for (const entry of territoryBorders) entry.label.hidden = true;
     return;
@@ -3171,10 +3185,20 @@ function updateCaptureHud(): void {
   if (captureMission && journeyAttempt) {
     const target = 'territoryIds' in captureMission ? territoryDefinitions.find(item =>
       item.id === focusedTerritoryTargetId()) : undefined;
-    const liveTarget = journeyCompetitiveCaptureMission(captureMission.id) ? territoryDefinitions.find(item => displayedTerritoryState(item.id)?.capturingPlayerId === localPlayerId) : target;
+    const neutralTarget = journeyAttempt.missionId === journeyDallasTerritoryDomination01.id && journeyAttempt.status === 'RACING' && !onGround && !crashed
+      ? territoryDefinitions.find(item => {
+        if (!competitiveMission?.territoryIds.some(id => id === item.id)) return false;
+        const state = displayedTerritoryState(item.id);
+        return !state?.controllerId && (state?.contested || state?.capturingPlayerId && state.capturingPlayerId !== localPlayerId) && territoryContains(item, airplane.position) &&
+          airplane.position.y > getTerrainHeight(airplane.position.x, airplane.position.z);
+      }) : undefined;
+    const liveTarget = (journeyCompetitiveCaptureMission(captureMission.id) ? territoryDefinitions.find(item => displayedTerritoryState(item.id)?.capturingPlayerId === localPlayerId) : target) ?? neutralTarget;
+    const liveState = liveTarget ? displayedTerritoryState(liveTarget.id) : undefined;
+    const blockedByContest = journeyAttempt.missionId === journeyDallasTerritoryDomination01.id && Boolean(liveTarget && !liveState?.controllerId && liveState?.contested);
+    const blockedByRival = journeyAttempt.missionId === journeyDallasTerritoryDomination01.id && Boolean(liveTarget && !liveState?.controllerId && liveState?.capturingPlayerId && liveState.capturingPlayerId !== localPlayerId);
     const name = journeyCompetitiveCaptureMission(captureMission.id) && journeyAttempt.status === 'COMPLETED' ? 'ALL TERRITORIES' : liveTarget ? territoryDisplayName(liveTarget) : captureMissionTerritoryName;
     const captured = captureMission.id !== journeyDallasTerritoryDefense01.id && journeyAttempt.status === 'COMPLETED';
-    const capturing = journeyAttempt.status === 'RACING' && journeyAttempt.captureMs > 0 &&
+    const capturing = journeyAttempt.status === 'RACING' && (journeyAttempt.captureMs > 0 || blockedByContest || blockedByRival) &&
       (captureMission.id !== journeyDallasTerritoryDefense01.id || journeyAttempt.captureMs < captureMission.captureDurationMs);
     const holding = captureMission.id === journeyDallasTerritoryDefense01.id && journeyAttempt.status === 'RACING' &&
       journeyAttempt.captureMs >= captureMission.captureDurationMs;
@@ -3182,7 +3206,8 @@ function updateCaptureHud(): void {
     flightGameRoot.classList.toggle('has-live-territory-status', live);
     if (live) {
       const competitive = journeyCompetitiveCaptureMission(journeyAttempt.missionId);
-      if (competitive && acquired) {
+      const showNewCapture = journeyAttempt.missionId === journeyDallasTerritoryDomination01.id && !competitiveJustOwned && liveTarget && liveTarget.id !== acquired?.id && capturing;
+      if (competitive && acquired && !showNewCapture) {
         missionCaptureBar.show(territoryDisplayName(territoryDefinitions.find(t => t.id === acquired.id)!), 100, true);
         if (competitiveJustOwned) celebrateMissionTerritoryCapture(competitive.territoryIds.findIndex(id => id === acquired.id));
       } else if (competitive && competitive.holdDurationMs>0 && journeyAttempt.status==='RACING' && journeyAttempt.captureStage===competitive.territoryIds.length) {
@@ -3199,10 +3224,12 @@ function updateCaptureHud(): void {
           formatJourneyResultTime(Math.max(0, Math.min(journeyDallasTerritoryDefense01.defenseDurationMs, journeyAttempt.defenseMs ?? 0))),
           formatJourneyResultTime(journeyDallasTerritoryDefense01.defenseDurationMs));
       } else {
-        const state = liveTarget && displayedTerritoryState(liveTarget.id);
+        const state = liveState;
         const progress = competitive && liveTarget ? state?.captureProgress ?? 0 : journeyAttempt.captureMs * 100 / captureMission.captureDurationMs;
         const blocked = !captured && progress >= 95 && state?.capturingPlayerId === localPlayerId && Boolean(state?.controllerId && state.controllerId !== localPlayerId);
-        if (blocked) missionCaptureBar.show(name, progress, captured, true);
+        if (blockedByRival) missionCaptureBar.show(name, 0, captured, false, false, true);
+        else if (blockedByContest) missionCaptureBar.show(name, state?.capturingPlayerId === localPlayerId ? progress : 0, captured, false, true);
+        else if (blocked) missionCaptureBar.show(name, progress, captured, true);
         else missionCaptureBar.show(name, progress, captured);
       }
     } else missionCaptureBar.hide();

@@ -1,5 +1,5 @@
 import { territoryDeparturePose, territoryDepartureDurationMs } from '../../shared/territory-departure.mjs';
-import { enforceCaptureAssignments, advanceCaptureCompetition, advanceCaptureRespawn, newCaptureCompetition, releaseCaptureActor, type CaptureCompetition, type CaptureOpponent } from './capture-competition.js';
+import { enforceCaptureAssignments, advanceCaptureCompetition, advanceCaptureRespawn, newCaptureCompetition, releaseCaptureActor, type CaptureActor, type CaptureCompetition, type CaptureOpponent } from './capture-competition.js';
 import { defeatSurvivalHunter, insideSurvivalArea, survivalOutcome, survivalReplacement, survivalSteering, type SurvivalHunter, type SurvivalState } from './most-wanted-survival.js';
 import { aceInterceptDistance, insideAceInterceptAirspace, updateAceIntercept, type AceInterceptState } from './ace-intercept.js';
 import { dallasCoinTrail } from '../../shared/collectible-trail.mjs';
@@ -5011,7 +5011,9 @@ function updateCompetitiveCapture(playerId: string, player: PlayerState, attempt
     now-player.lastStateAt<=1500 && player.lastAcceptedTransformAt>(player.journeyDefenseRejectedAt??0);
   const eligibleTerritory = (position: Vector3, velocity: Vector3, airborne: boolean) => definitions.find(territory =>
     territoryCaptureFlightEligible(territory,position,botTerrainHeight('dallas',position.x,position.z),Math.hypot(velocity.x,velocity.y,velocity.z),airborne,Infinity))?.id;
-  const actors = [{id:'pilot',alive:player.lifeState==='alive'&&player.health>0,
+  const actors: CaptureActor[] = [{id:'pilot',alive:player.lifeState==='alive'&&player.health>0,
+    insideTerritoryId:landingFlightState.get(playerId)?.airborne===true && player.lastAcceptedPosition.y>botTerrainHeight('dallas',player.lastAcceptedPosition.x,player.lastAcceptedPosition.z)
+      ? definitions.find(territory=>territoryContains(territory,player.lastAcceptedPosition))?.id : undefined,
     territoryId:fresh?eligibleTerritory(player.lastAcceptedPosition,player.velocity,landingFlightState.get(playerId)?.airborne===true):undefined}];
   for (const enemy of state.opponents) {
     const live = players.get(enemy.id);
@@ -5020,7 +5022,9 @@ function updateCompetitiveCapture(playerId: string, player: PlayerState, attempt
       enemy.runwayStart=live.bot?.phase==='taxi'||live.bot?.phase==='takeoff';
       const territoryId=eligibleTerritory(live.position,live.velocity,true);
       const holdSlot=state.opponents.indexOf(enemy);
-      actors.push({id:enemy.id,alive:true,territoryId:enemy.role==='attacker'||enemy.runwayStart||territoryId!==mission.territoryIds[holdSlot]?undefined:territoryId});
+      actors.push({id:enemy.id,alive:true,
+        insideTerritoryId:enemy.role==='owner'&&!enemy.runwayStart&&territoryContains(definitions.find(item=>item.id===mission.territoryIds[holdSlot])!,live.position)?mission.territoryIds[holdSlot]:undefined,
+        territoryId:enemy.role==='attacker'||enemy.runwayStart||territoryId!==mission.territoryIds[holdSlot]?undefined:territoryId});
     } else {
       if(mission){
         if(advanceCaptureRespawn(enemy,now,fresh,mission.opponentRespawnMs)){reviveTerritoryHoldOpponent(playerId,player,attempt,enemy,state.opponents.indexOf(enemy));continue;}

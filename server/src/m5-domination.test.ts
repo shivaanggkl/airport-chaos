@@ -34,7 +34,7 @@ test('M5 is playable after M4 with six exact territories, nine opponents and no 
  const slot=journeyCategorySlot(mission.id)!;assert.equal(slot.categoryId,'territory-missions');assert.equal(slot.categoryNumber,5);assert.equal(slot.implementation,'playable');
  assert.equal(categoryMissionAccess(mission.id,new Set()),false);assert.equal(categoryMissionAccess(mission.id,new Set([catalog.journeyDallasTerritoryHold01.id])),true);
  assert.deepEqual(new Set(mission.territoryIds),new Set(['white-rock','downtown','las-colinas','love-field','trinity-corridor','addison']));
- assert.equal(mission.timeLimitMs,600000);assert.equal(mission.firstClearCredits,3000);assert.equal(mission.holdDurationMs,0);assert.equal(mission.opponentRespawnMs,90000);assert.equal(mission.opponentCount,9);
+ assert.equal(mission.timeLimitMs,540000);assert.equal(mission.firstClearCredits,3000);assert.equal(mission.holdDurationMs,0);assert.equal(mission.opponentRespawnMs,84000);assert.equal(mission.opponentCount,9);
  assert.equal(missionFocusForAttempt({missionId:mission.id,status:'RACING'}).showAmbientAIAircraft,false);
 });
 test('all six territories start neutral; six guardians seek their own districts and three hunt the pilot',()=>{
@@ -85,11 +85,11 @@ test('M5 wins on the final ownership tick, loses progress when a territory is st
   const timed=start();assert.equal(store.advanceTerritoryCapture('pilot',timed.attemptId,true,timed.deadlineAt!,false,state),undefined);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
-test('all nine roles wait a full 90 fresh seconds and return to the DFW runway with their original assignment',()=>{
+test('all nine roles wait a full 84 fresh seconds and return to the DFW runway with their original assignment',()=>{
  const {ctx}=setup(),state=ctx.ensureCaptureCompetition('pilot',{attemptId:'a',missionId:mission.id});
  for(const [slot,enemy]of state.opponents.entries()){
   enemy.health=0;let now=1000;enemy.respawnUpdatedAt=now;
-  for(let i=0;i<224;i++)assert.equal(advanceCaptureRespawn(enemy,now+=400,true,mission.opponentRespawnMs),false);
+  for(let i=0;i<209;i++)assert.equal(advanceCaptureRespawn(enemy,now+=400,true,mission.opponentRespawnMs),false);
   assert.equal(advanceCaptureRespawn(enemy,now+=20000,false,mission.opponentRespawnMs),false);
   assert.equal(advanceCaptureRespawn(enemy,now+=399,true,mission.opponentRespawnMs),false);
   assert.equal(advanceCaptureRespawn(enemy,now+=1,true,mission.opponentRespawnMs),true);
@@ -110,7 +110,7 @@ test('all six guardians defend and recapture their assigned district; all three 
  }
 });
 test('M5 uses shared instructions and a six-stop overview with all districts unassigned',()=>{
- const detail=missionJourneyDetails.find(m=>m.id===mission.id)!;assert.equal(detail.title,'CAPTURE 6 TERRITORIES');assert.equal(detail.timeLimit,'10:00');assert.equal(detail.rewardCredits,3000);assert.equal(detail.description,territoryDominationInstructions.join('\n'));assert.doesNotMatch(detail.description,/hold|respawn|aggressive|hunter/i);
+ const detail=missionJourneyDetails.find(m=>m.id===mission.id)!;assert.equal(detail.title,'CAPTURE 6 TERRITORIES');assert.equal(detail.timeLimit,'9:00');assert.equal(detail.rewardCredits,3000);assert.equal(detail.description,territoryDominationInstructions.join('\n'));assert.doesNotMatch(detail.description,/hold|respawn|aggressive|hunter/i);
  const territories=mission.territoryIds.map(id=>territoriesForCity('dallas').find(t=>t.id===id)!);
  const intro=new MissionCaptureIntroPath(territories[0]!,15000,()=>0,undefined,{player:new THREE.Group(),territories,instructions:territoryDominationInstructions,owners:mission.owners.filter(o=>o.initiallyOwned),showNeutralOwnership:true});
  for(let i=0;i<6;i++){const time=3000+i*2000;assert.equal(intro.territoryAt(time)?.id,mission.territoryIds[i]);assert.match(intro.text(time),/UNASSIGNED/);assert.doesNotMatch(intro.text(time),/hold|respawn|aggressive/i);}
@@ -221,4 +221,35 @@ test('M5 stages all nine existing actors at the player’s DFW runway and commit
   assert.deepEqual({id:enemy.id,role:enemy.role,goal:enemy.goal,health:enemy.health},roles[slot]);
  }
  const live=players.get(state.opponents[0].id);live.position.x+=123;ctx.completeDominationDepartures('pilot',{...attempt,status:'RACING'});assert.equal(live.position.x,state.opponents[0].position.x+123,'repeated GO does not replay or teleport the fleet');
+});
+
+
+test('M5 neutral territories are first come first served for either pilot or assigned guardian',()=>{
+ for(let slot=0;slot<6;slot++)for(const pilotFirst of [true,false]){
+  const {ctx}=setup(),state=ctx.ensureCaptureCompetition('pilot',{attemptId:'race',missionId:mission.id});
+  const territory=state.territories[slot],guardian=state.opponents[slot];
+  const pilot={id:'pilot',alive:true,territoryId:territory.id,insideTerritoryId:territory.id};
+  const rival={id:guardian.id,alive:true,territoryId:territory.id,insideTerritoryId:territory.id};
+  const first=pilotFirst?pilot:rival,second=pilotFirst?rival:pilot;
+  const tick=(actors:any[])=>advanceCaptureCompetition(state,actors,state.updatedAt+100,true,true);
+  tick([first]);assert.equal(territory.capturingId,first.id);
+  for(let i=0;i<29;i++)tick([second,first]);
+  assert.equal(territory.captureMs,3000);assert.equal(territory.contested,false);
+  tick([second,{...first,territoryId:undefined}]);
+  assert.equal(territory.capturingId,first.id);assert.equal(territory.captureMs,3000,'ineligible sample cannot transfer first claim');
+  for(let i=0;i<120;i++)tick([second,first]);
+  assert.equal(territory.ownerId,first.id,`${territory.id}: first arrival wins regardless of actor order`);
+ }
+});
+
+test('M5 neutral first claim passes to the remaining rival only after departure or death',()=>{
+ for(const dies of [false,true]){
+  const {ctx}=setup(),state=ctx.ensureCaptureCompetition('pilot',{attemptId:'race',missionId:mission.id});
+  const territory=state.territories[0],guardian=state.opponents[0];
+  const pilot={id:'pilot',alive:true,territoryId:territory.id,insideTerritoryId:territory.id};
+  const rival={id:guardian.id,alive:true,territoryId:territory.id,insideTerritoryId:territory.id};
+  advanceCaptureCompetition(state,[pilot],state.updatedAt+400,true,true);
+  advanceCaptureCompetition(state,[{...pilot,alive:!dies,territoryId:undefined,insideTerritoryId:undefined},rival],state.updatedAt+400,true,true);
+  assert.equal(territory.capturingId,rival.id);assert.equal(territory.captureMs,400);
+ }
 });

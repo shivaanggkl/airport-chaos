@@ -151,3 +151,32 @@ test('M5 territory rows share player green and switch only the stolen row to its
  c.journeyAttempt.captureTerritories[1].controllerId='enemy-1';c.journeyAttempt.captureTerritories[1].ownerColor=mission.ownershipColors.opponents[1];c.render();
  assert.equal(rows[1].color,mission.ownershipColors.opponents[1]);assert.equal(rows[1].captured,false);assert.equal(rows[0].color,mission.ownershipColors.pilot);assert.equal(rows[2].color,mission.ownershipColors.pilot);
 });
+
+test('M5 explains a rival first claim immediately without presenting rival progress as player progress',()=>{
+ const mission=missions.journeyDallasTerritoryDomination01,{context:c,bars}=fixture(mission);
+ const territory=c.territoryDefinitions.find(t=>t.id==='white-rock');c.airplane.position={...territory.center,y:1000};
+ c.journeyAttempt.captureMs=0;
+ c.journeyAttempt.captureTerritories=mission.territoryIds.map(id=>({id,captureProgress:id===territory.id?40:0,capturingPlayerId:id===territory.id?'rival':undefined,contested:false}));
+ c.render();assert.deepEqual(bars.at(-1),['WHITE ROCK TERRITORY',0,false,false,false,true]);
+ c.journeyAttempt.captureTerritories[2].contested=false;c.journeyAttempt.captureTerritories[2].capturingPlayerId='pilot';c.journeyAttempt.captureTerritories[2].captureProgress=3;c.journeyAttempt.captureMs=450;
+ c.render();assert.deepEqual(bars.at(-1),['WHITE ROCK TERRITORY',3,false]);
+});
+
+test('M5 explains a paused neutral contest but still allows progress against a living territory owner',()=>{
+ const mission=missions.journeyDallasTerritoryDomination01,{context:c,bars}=fixture(mission);
+ const target=c.journeyAttempt.captureTerritories[0];c.airplane.position={...c.territoryDefinitions.find(t=>t.id===target.id).center,y:1000};
+ target.captureProgress=40;target.contested=true;c.journeyAttempt.captureMs=6000;
+ c.render();assert.deepEqual(bars.at(-1),['LOVE FIELD TERRITORY',40,false,false,true]);
+ target.controllerId='rival';c.render();assert.deepEqual(bars.at(-1),['LOVE FIELD TERRITORY',40,false]);
+ target.captureProgress=95;c.render();assert.deepEqual(bars.at(-1),['LOVE FIELD TERRITORY',95,false,true]);
+ c.airplane.position={x:999999,y:1000,z:999999};target.controllerId=undefined;target.capturingPlayerId='rival';c.journeyAttempt.captureMs=0;c.render();assert.equal(bars.at(-1),'hidden','a contest in a territory the player left must not show a capture bar');
+});
+
+test('a capture celebration never hides fresh progress after the player enters the next M5 territory',()=>{
+ const mission=missions.journeyDallasTerritoryDomination01,{context:c,bars}=fixture(mission);
+ c.render();const first=c.journeyAttempt.captureTerritories[0];first.controllerId='pilot';first.capturingPlayerId=undefined;first.captureProgress=0;c.journeyAttempt.captureMs=0;c.render();
+ assert.deepEqual(bars.at(-1),['celebrate',0]);
+ const next=c.journeyAttempt.captureTerritories[2];next.capturingPlayerId='pilot';next.captureProgress=10;c.journeyAttempt.captureMs=1500;c.airplane.position={...c.territoryDefinitions.find(t=>t.id===next.id).center,y:1000};c.performance.now=()=>1300;
+ c.render();assert.deepEqual(bars.at(-1),['WHITE ROCK TERRITORY',10,false]);
+ assert.equal(bars.filter(call=>Array.isArray(call)&&call[0]==='celebrate').length,1,'the confirmed ownership animation still runs once');
+});

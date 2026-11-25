@@ -22,15 +22,16 @@ export class TerritoryCaptureBar {
     this.percent = this.content.querySelector('.live-territory-percent')!;
   }
 
-  show(name: string, progress: number, captured: boolean, blockedByOwner = false): void {
+  show(name: string, progress: number, captured: boolean, blockedByOwner = false, contested = false, rivalFirst = false): void {
     const percent = captured ? 100 : Math.floor(Math.max(0, Math.min(100, progress)));
-    const signature = `${name}:${percent}:${captured}:${blockedByOwner}`;
+    const signature = `${name}:${percent}:${captured}:${blockedByOwner}:${contested}:${rivalFirst}`;
     if (this.root.firstElementChild !== this.content) this.root.replaceChildren(this.content, this.hint);
     this.root.classList.add('is-mission-capture');
     this.root.classList.remove('hidden', 'is-holding');
     if (signature === this.signature) return;
     this.signature = signature;
-    this.hint.hidden = captured || !blockedByOwner;
+    this.hint.hidden = captured || !(blockedByOwner || contested || rivalFirst);
+    this.hint.textContent = rivalFirst ? 'Rival arrived first. Defeat them to capture.' : contested ? 'Rival inside. Capture is paused.' : 'Defeat the owner to finish capturing.';
     this.root.classList.toggle('is-captured', captured);
     this.progress.value = percent;
     this.progress.hidden = captured;
@@ -39,7 +40,7 @@ export class TerritoryCaptureBar {
       this.label.textContent = 'TERRITORY CAPTURED!';
     } else {
       const caption = document.createElement('small');
-      caption.textContent = 'CAPTURING:';
+      caption.textContent = rivalFirst ? 'WAITING:' : contested ? 'CONTESTED:' : 'CAPTURING:';
       const territory = document.createElement('strong');
       territory.textContent = name;
       this.label.replaceChildren(caption, territory);
