@@ -1,4 +1,4 @@
-import {M19_TIMEOUT,M1_TIMEOUT,M2_TIMEOUT,M19_CITY_BLAST_SCALE} from '../../client/src/monster-timeout.ts';
+import {M19_TIMEOUT,M1_TIMEOUT,M2_TIMEOUT,m2DowntownStrikeSites,M19_CITY_BLAST_SCALE} from '../../client/src/monster-timeout.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -10,6 +10,7 @@ import {M23_INTRO as timing,m23IntroText,m23IntroMotion,m23Travel,m23GaitTimes} 
 import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
 import {M19_DOWNTOWN} from '../../client/src/m19-intro.js';
 import {M24_INTRO,m24IntroMotion,m24Travel} from '../../client/src/m24-intro.js';
+import {generateDallasSkyline,inDallasCore} from '../../shared/dallas-skyline.mjs';
 import {DALLAS_WORLD_SCALE} from '../../shared/dallas-world-scale.mjs';
 import {journeyDallas23} from '../../shared/journey-mission.mjs';
 import {pursuitWarlordSpecies as huntingWarlordSpecies} from './pursuit-warlord.js';
@@ -27,7 +28,7 @@ const ground=(wx,wz)=>{
 };
 const buildings=[];loadMonsterDistrictBuildings().query(-8500*DALLAS_WORLD_SCALE,-2500*DALLAS_WORLD_SCALE,-5000*DALLAS_WORLD_SCALE,500*DALLAS_WORLD_SCALE,b=>{buildings.push({x:(b.minX+b.maxX)/2,z:(b.minZ+b.maxZ)/2,halfX:(b.maxX-b.minX)/2,halfZ:(b.maxZ-b.minZ)/2,height:b.top});return false;});
 
-const create=(defender=true)=>new MonsterArrivalView(new THREE.Scene(),ground(journeyDallas23.monster.x,journeyDallas23.monster.z),0,undefined,source,ground,()=>390,model,false,true,true,true,false,defender);
+const create=(defender=true,cityBuildings=[])=>new MonsterArrivalView(new THREE.Scene(),ground(journeyDallas23.monster.x,journeyDallas23.monster.z),0,undefined,source,ground,()=>390,model,false,true,true,true,false,defender,cityBuildings);
 test('M23 short captions and walk/roar/shoot scene boundaries and unsped authored motions',()=>{
  for(const [t,text] of [[0,'Dr. Boss marches toward downtown.'],[8,'His roar shakes Dallas.'],[12,'Fireballs race toward the city!'],[19,'Downtown is next. Stop him!'],[24,'Dallas needs a hero.'],[26.5,'Pilot, defeat Dr. Boss. Save Dallas!'],[28,'']])assert.equal(m23IntroText(t),text);
  for(const [start,end,key] of [[8,8+model.clips.roar.duration,'roar'],[timing.shoot,timing.shoot+model.clips.shoot.duration,'shoot']])for(const t of [start+.01,(start+end)/2,end-.01]){
@@ -221,9 +222,13 @@ test('Both Dr. Boss failures frame their huge blasts, keep the release camera co
  }
 });
 
-test('M2 failure uses twelve city-scale impacts at the actual downtown, clear fog and a stable skyline view',async()=>{
- const view=create(false);await view.ready;view.finish('timeout');
- const downtown=new THREE.Vector3(-2191*DALLAS_WORLD_SCALE,view.targetGroundY+30,-1201*DALLAS_WORLD_SCALE);
+test('M2 failure hits twelve downtown roofs with sixfold blasts, clear fog and a smooth expanding camera',async()=>{
+ const city=generateDallasSkyline().map(b=>({x:b.x*DALLAS_WORLD_SCALE,z:b.z*DALLAS_WORLD_SCALE,height:b.height*DALLAS_WORLD_SCALE,baseY:ground(b.x*DALLAS_WORLD_SCALE,b.z*DALLAS_WORLD_SCALE),halfX:b.width*DALLAS_WORLD_SCALE/2,halfZ:b.depth*DALLAS_WORLD_SCALE/2}));
+ const view=create(false,city);await view.ready;view.finish('timeout');
+ const downtown=new THREE.Vector3(M2_TIMEOUT.downtown.x,ground(M2_TIMEOUT.downtown.x,M2_TIMEOUT.downtown.z)+30,M2_TIMEOUT.downtown.z);
+ assert.equal(M2_TIMEOUT.blastScale,6*6);
+ assert.equal(new Set(view.timeoutVolley.map(r=>`${r.impact.x}:${r.impact.z}`)).size,12);
+ for(const round of view.timeoutVolley){const b=city.find(b=>b.x===round.impact.x&&b.z===round.impact.z);assert(b);assert.equal(round.impact.y,b.baseY+b.height);assert(inDallasCore(b.x/DALLAS_WORLD_SCALE,b.z/DALLAS_WORLD_SCALE));}
  assert(view.endingDestination.equals(downtown),'failure targets the world-scaled city, not raw map coordinates');
  const camera=new THREE.PerspectiveCamera(48,1280/589,1,1000),fog=new THREE.Fog(0x8899aa,7000,15000);
  let sawVolley=false,sawImpacts=false,cityCamera;
@@ -232,14 +237,13 @@ test('M2 failure uses twelve city-scale impacts at the actual downtown, clear fo
   view.update(.05);fog.near=7000;fog.far=15000;view.updateTimeoutCamera(camera,fog);camera.updateMatrixWorld();const t=view.endingElapsed;
   if(t>M19_TIMEOUT.impactAt&&t<M19_TIMEOUT.impactAt+11*M1_TIMEOUT.impactSpacing)assert(!view.damagedDowntown,'city remains intact until the last strike');
   if(t>3.3){
-   assert(camera.position.distanceTo(downtown)<20000,'camera stays close enough to recognize downtown');
+   assert(camera.position.distanceTo(downtown)<(t<M19_TIMEOUT.impactAt?20000:50000),'camera frames the city before revealing the larger blasts');
    assert(fog.near>camera.position.distanceTo(downtown)+5000,'city is not hidden by gameplay fog');
-   if(cityCamera)assert(camera.position.equals(cityCamera),'hold a stable city view during all impacts');
-   cityCamera=camera.position.clone();
+   if(t>=5.8){if(cityCamera)assert(camera.position.equals(cityCamera),'hold the aftermath view');cityCamera=camera.position.clone();}
    const left=new THREE.Vector3(downtown.x-3500,downtown.y,downtown.z).project(camera);
    const right=new THREE.Vector3(downtown.x+3500,downtown.y+1500,downtown.z).project(camera);
    assert(Math.abs(left.x)<1&&Math.abs(left.y)<1&&Math.abs(right.x)<1&&Math.abs(right.y)<1,'downtown buildings fit in the shot');
-   assert(left.distanceTo(right)>.3,'city occupies a readable part of the screen');
+   assert(left.distanceTo(right)>(t<M19_TIMEOUT.impactAt?.3:.12),'city occupies a readable part of the screen');
   }
   if(t>2&&t<3){sawVolley=true;assert.equal(view.pool.filter(shot=>shot.group.visible).length,12);assert(view.timeoutVolley.every(round=>round.shot.group.scale.x===6));}
   if(t>5.1){sawImpacts=true;assert(view.timeoutVolley.every(round=>round.blast.root.visible&&round.blast.scale===M2_TIMEOUT.blastScale&&!round.shot.group.visible));}
@@ -272,3 +276,9 @@ test('M2 approved intro motions stay grounded, frame the running monster, and ha
   view.setIntroTime(null);assert.deepEqual(actor.root.position,origin);assert.equal(actor.root.rotation.y,yaw);assert(view.pool.every(shot=>!shot.group.visible));
  }finally{player.children[0].geometry.dispose();player.children[0].material.dispose();view.dispose();}
 });
+
+ test('M2 downtown roof targeting has twelve distinct city strikes even after a direct resume without intro data',()=>{
+  const sites=m2DowntownStrikeSites([],ground);assert.equal(sites.length,12);
+  assert.equal(new Set(sites.map(p=>`${p.x}:${p.z}`)).size,12);
+  for(const p of sites){assert(inDallasCore(p.x/DALLAS_WORLD_SCALE,p.z/DALLAS_WORLD_SCALE));assert(p.y>ground(p.x,p.z)+300);}
+ });

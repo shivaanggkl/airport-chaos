@@ -19,7 +19,7 @@ test('only M2 doubles its physical size; health, firing and movement speed stay 
  assert.equal(finalWarlordSpecies.scale,model.height*2);
  assert.equal(pursuitWarlordSpecies.height,model.height);
  assert.equal(finalWarlordSpecies.radius,pursuitWarlordSpecies.radius*2);
- assert.equal(finalWarlordSpecies.health,6000);
+ assert.equal(finalWarlordSpecies.health,10000);
  assert.equal(finalWarlordSpecies.movement.run,model.height*model.clips.run.stride/model.clips.run.duration*.42);
  assert.equal(finalWarlordSpecies.abilities[0].count,12);
  assert.equal(finalWarlordSpecies.abilities[0].projectileSpeed,pursuitWarlordSpecies.abilities[0].projectileSpeed);

@@ -31,8 +31,8 @@ const source=loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOff
 const zero={x:0,y:0,z:0};
 const encounter=()=>createFinalWarlordEncounter('m24','p',100000,()=>135,[]);
 test('M24 victory, timeout, replay, mission migration, and first-clear credits remain transactional', () => {
-    assert.equal(journeyDallas19.bossHealth,6000);assert.equal(finalWarlordSpecies.health,6000);
-    const monster=encounter();assert.equal(monster.frame.health,6000);disposeM19(monster);
+    assert.equal(journeyDallas19.bossHealth,10000);assert.equal(finalWarlordSpecies.health,10000);
+    const monster=encounter();assert.equal(monster.frame.health,10000);disposeM19(monster);
     const dir = mkdtempSync(join(tmpdir(), 'apex-ledger-')), path = join(dir, 'profiles.sqlite'), db = new DatabaseSync(path);
     db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('p',0,0)");
     db.close();
