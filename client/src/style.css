@@ -2202,6 +2202,18 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 }
 
 .world-map-card {
+  --ui-text: #14334f;
+  --ui-text-muted: #4c687e;
+  --text-secondary: #526d82;
+  --ui-gold: #143b5d;
+  --ui-bg-strong: #f5faff;
+  --ui-bg-soft: rgb(255 255 255 / 94%);
+  --ui-glass-main: #f1f8fc;
+  --ui-glass-cyan: #fbfdff;
+  --ui-glass-blue: #edf7fe;
+  --ui-border: #c4dce9;
+  --ui-border-strong: #7cafd0;
+  --ui-gradient-selected: linear-gradient(#fff, #e9f5fc);
   display: flex;
   flex-direction: column;
   width: min(1080px, calc(100vw - 48px));
@@ -2209,10 +2221,10 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
   overflow: hidden;
   color: var(--ui-text);
   background: var(--ui-bg-strong);
-  border: 1px solid var(--ui-border-strong);
-  border-radius: 9px;
+  border: 3px solid var(--ui-bright-gold);
+  border-radius: 14px;
   box-shadow: var(--ui-shadow);
-  backdrop-filter: blur(12px);
+  backdrop-filter: none;
   pointer-events: auto;
   font-family: var(--font-body);
 }
@@ -2257,6 +2269,8 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
   font: inherit;
   cursor: pointer;
 }
+
+.world-map-card #osm-attribution { color: #4b6c82; background: rgb(255 255 255 / 90%); }
 
 .world-map-view {
   position: relative;

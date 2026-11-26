@@ -20,7 +20,7 @@ export function journeyMainCompleted(progress: Readonly<Record<string, {
 /** All current Dallas slots, including bonuses, bosses and the two extra pursuits. */
 export function journeyCompletionSummary(progress: Readonly<Record<string, { completed?: boolean }>>): Readonly<{completed: number; total: number}> {
   return {
-    completed: new Set(missionJourneyStages.filter(stage => stage.implementation === 'playable' && progress[stage.missionId]?.completed === true).map(stage => stage.missionId)).size,
+    completed: new Set(missionJourneyStages.filter(stage => stage.implementation === 'playable' && progress[stage.id]?.completed === true).map(stage => stage.id)).size,
     total: missionJourneyStages.length,
   };
 }

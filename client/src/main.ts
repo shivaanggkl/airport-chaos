@@ -84,7 +84,7 @@ import { bindGameplayInfoTap, GameplayInfoCard } from './gameplay-info-card';
 import { bindMissionPanelLayout } from './mission-panel-layout';
 import { SkyDuelUi } from './sky-duel-ui';
 import { TrainingSlides } from './training-slides';
-import { WorldMap, type WorldMapLayer } from './world-map';
+import { WorldMap, worldMapIdentity, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
 import { combatAimBlend, combatShotAimSample } from '../../shared/combat-aim.mjs';
 import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, fireIntervalMs, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, localFiringDirection, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
@@ -188,7 +188,7 @@ const journeyMode = launchMode === 'missions' && cityId === 'dallas' && /^[0-9a-
 type JourneyAttemptState = {
   canContinueAfterAd?: boolean;
   crossfireKills?:number; rearGuardKills?:number; rearGuardThirdId?:string|null; rearGuardFourthId?:string|null; enemyHealths?:number[];
-  attemptId: string; missionId: string; targetId: string | null; secondaryTargetId?: string | null; crossfireHuntersAlive?: number; targetHealth: number; targetEngaged?: boolean; firstContactSupported?: boolean; surpriseAttackSupported?: boolean; ambushWarningAt?: number; ambushRearWarning?: boolean;
+  attemptId: string; missionId: string; bonusSlotId?: string; targetId: string | null; secondaryTargetId?: string | null; crossfireHuntersAlive?: number; targetHealth: number; targetEngaged?: boolean; firstContactSupported?: boolean; surpriseAttackSupported?: boolean; ambushWarningAt?: number; ambushRearWarning?: boolean;
   aiIsolated?: boolean;
   legendaryPhase?: 'GATES' | 'ACE' | 'LANDING' | null;
   doublePhase?: 'TAKEOFF' | 'FIRST_FIGHT' | 'REPAIR' | 'FINAL_FIGHT' | null;
@@ -1587,7 +1587,7 @@ const radarAirportColor = 'rgba(205, 219, 229, 0.62)';
 document.getElementById('radar-legend')!.innerHTML = (['airport', 'ai', 'player'] as const)
   .map(kind => `<span style="color:${kind === 'airport' ? radarAirportColor : visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
 document.getElementById('map-legend')!.innerHTML = (['you', 'player', 'ai', 'mission', 'airport', 'territory', 'event', 'waypoint'] as const)
-  .map(kind => `<span style="color:${visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
+  .map(kind => `<span style="color:${worldMapIdentity[kind].color}">${identityText(kind)}</span>`).join('');
 const acquisitionCircleElement = document.querySelector<HTMLDivElement>('#acquisition-circle')!;
 const targetFeedbackElement = document.querySelector<HTMLDivElement>('#target-feedback')!;
 const targetNameDistanceElement = document.querySelector<HTMLSpanElement>('#target-name-distance')!;
@@ -3826,7 +3826,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   journeyResultElement.classList.toggle('is-failure', !success);
   journeyResultCard.classList.add('game-card-frame');
   journeyResultElement.querySelector<HTMLElement>('.journey-result-status-mark')!.textContent = success ? '✓' : '';
-  const resultSlot = journeyCategorySlot(attempt.missionId);
+  const resultSlot = journeyCategorySlot(attempt.bonusSlotId??attempt.missionId);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = resultSlot?.kind === 'bonus' && resultSlot.categoryId !== 'golden-rings' ? 'BONUS' : resultSlot ? `M${resultSlot.categoryNumber}` : 'MISSION';
   const territoryDetail = resultSlot?.categoryId === 'territory-missions' ? missionJourneyDetails.find(mission => mission.id === resultSlot.missionId) : undefined;
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = territoryDetail?.title ?? journeyCatalog.find(slot => slot.id === attempt.missionId)?.title ?? 'MISSION';

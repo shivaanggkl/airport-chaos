@@ -22,12 +22,12 @@ function fixture(){
  const dir=mkdtempSync(join(tmpdir(),'coins-')),path=join(dir,'profiles.sqlite');
  const profiles=new PlayerProfileStore(path);profiles.getOrCreate('pilot','Pilot');profiles.getOrCreate('other','Other');
  const store=new JourneyAttemptStore(path,true),db=new DatabaseSync(path),now=Date.now();
- const start=()=>{const a=store.launch('pilot','trainer',now,mission.id);store.approach('pilot',a.attemptId,now+1);
+ const start=(slotId?:string)=>{const a=store.launch('pilot','trainer',now,mission.id,slotId);store.approach('pilot',a.attemptId,now+1);
   store.prepareCoinHunt('pilot',a.attemptId,1100);return store.startCoinHunt('pilot',a.attemptId,now+15000)!;};
  return {path,store,db,now,start,close(){db.close();rmSync(dir,{recursive:true,force:true});}};
 }
 test('Golden River: exact anchors, equal arc spacing, single three-bend trail, safe corridor and spawn',()=>{
- assert.equal(journeyCatalog[11]!.id,mission.id);assert.equal(trail.length,1000);
+ assert.equal(journeyCatalog.filter(slot=>slot.id===mission.id).length,1);assert.equal(trail.length,1000);
  const anchors=[[0,12000,-35000],[1/6,23000,-22500],[.5,1000,2500],[5/6,23000,27500],[1,12000,40000]];
  anchors.forEach(([t,x,z])=>{const point=coinCenterline(t!);assert.ok(Math.abs(point.x-x!)<1e-8&&Math.abs(point.z-z!)<1e-8);});
  assert.ok(Math.abs(coinTrailLength-103213.23)<.05);
@@ -194,4 +194,37 @@ test('coin view batches rapid confirmations into five reusable animations, resto
   reduced=true;view.fly(600,400);assert.equal(nodes.filter(n=>n.className==='coin-hunt-flying-credit'&&!n.hidden).length,0);
   view.dispose();assert.equal(scene.children.length,0);assert.ok(header.children[0].removed);assert.ok(canceled>0);
  }finally{Object.assign(globalThis,originals);THREE.TextureLoader.prototype.load=originals.load;}
+});
+
+
+test('each chapter bonus has independent durable completion, collected coins and one-time reward using the same round',()=>{
+ const f=fixture();try{
+  const ids=Array.from({length:5},(_,i)=>`journey-dallas-coin-hunt-0${i+1}`);
+  let paid=0;
+  for(const [index,slot] of ids.entries()){
+   const a=f.start(slot);assert.equal(a.missionId,mission.id);assert.equal(a.bonusSlotId,slot);
+   assert.equal(f.store.launch('pilot','trainer',f.now,mission.id,slot).attemptId,a.attemptId,'refresh resumes the same chapter');
+   assert.throws(()=>f.store.launch('pilot','trainer',f.now,mission.id,ids[(index+1)%5]),/Finish your bonus round first/);
+   f.store.collectCoins('pilot',a.attemptId,p(0),p(2),f.now+16000);
+   const before=f.store.get('pilot',a.attemptId)!.coinHunt!.collected;assert.ok(before>0);
+   const reopened=new JourneyAttemptStore(f.path,true);assert.equal(reopened.get('pilot',a.attemptId)!.bonusSlotId,slot);
+   const settled=reopened.settleCoinHunt('pilot',a.attemptId,f.now+17000)!;assert.equal(settled.firstClearCredits,before);paid+=before;
+   for(const [otherIndex,id]of ids.entries())assert.equal(reopened.progress('pilot',id).completed,otherIndex<=index,`${slot} must not finish ${id}`);
+   assert.equal(reopened.progress('pilot',slot).coinsCollected,before);
+   reopened.settleCoinHunt('pilot',a.attemptId,f.now+18000);
+   const replay=f.start(slot);f.store.collectCoins('pilot',replay.attemptId,p(0),p(3),f.now+16000);assert.equal(f.store.abandon('pilot',replay.attemptId)!.firstClearCredits,0);
+  }
+  assert.equal(f.db.prepare("SELECT sum(amount) AS n FROM wallet_transactions WHERE reason='MISSION_REWARD'").get()!.n,paid);
+  assert.equal(f.db.prepare("SELECT count(*) AS n FROM wallet_transactions WHERE reason='MISSION_REWARD'").get()!.n,5);
+ }finally{f.close();}
+});
+
+test('legacy shared bonus completion stays with chapter one without cloning rewards or completions',()=>{
+ const f=fixture();try{
+  const a=f.start();f.store.abandon('pilot',a.attemptId);
+  f.db.exec('ALTER TABLE journey_attempts DROP COLUMN bonus_slot_id');
+  const reopened=new JourneyAttemptStore(f.path,true);assert.equal(reopened.progress('pilot',mission.id).completed,true);
+  for(let i=2;i<=5;i++)assert.equal(reopened.progress('pilot',`journey-dallas-coin-hunt-0${i}`).completed,false);
+  assert.throws(()=>reopened.launch('pilot','trainer',f.now,mission.id,'journey-dallas-01'),/Invalid bonus round/);
+ }finally{f.close();}
 });

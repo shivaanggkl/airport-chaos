@@ -60,7 +60,7 @@ import {monsterBuildingCoverage,segmentBlockedByBuildings} from './monster-arriv
 import {createStrikingWarlordEncounter} from './striking-warlord.js';
 import {stepM19,disposeM19,permittedM19Damage,type M19Encounter} from './m19-titan.js';
 import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
-import { journeyCategorySlot } from '../../shared/journey-categories.mjs';
+import { journeyCategorySlot, journeyCategorySlots } from '../../shared/journey-categories.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 import { journeyFormationStatus, type FormationStatus } from '../../shared/journey-formation.mjs';
 import { excludesFocusedBotInteraction, missionFocusForAttempt } from '../../shared/mission-focus.mjs';
@@ -2308,7 +2308,11 @@ const httpServer = createServer(async (request, response) => {
     if (requestUrl.pathname === '/api/journey/dallas' && request.method === 'GET') {
       jsonResponse(response, 200, { missionId: journeyDallas01.id,
         eligible: dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
-        ...journeyStore.progress(identity.pilotId), missionCoinHunt01: {
+        ...journeyStore.progress(identity.pilotId),
+        bonusRounds: Object.fromEntries(journeyCategorySlots.filter(slot=>slot.kind==='bonus').map(slot=>[slot.id,{
+          eligible:dallasUnlocked&&journeyStore.canAccessMission(identity.pilotId,slot.id)&&journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          ...journeyStore.progress(identity.pilotId,slot.id),
+        }])), missionCoinHunt01: {
           eligible:dallasUnlocked && journeyStore.canAccessMission(identity.pilotId,journeyDallasCoinHunt01.id) && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId,journeyDallasCoinHunt01.id),
         }, missionSharpshooter05: {
@@ -2433,13 +2437,13 @@ const httpServer = createServer(async (request, response) => {
     if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
     const payload = await readJson(request);
     if (journeyAction?.[2] === 'launch') {
-      if (!payload || Object.keys(payload).length !== 0) { jsonResponse(response, 400, { error: 'Invalid mission launch.' }); return; }
+      if (!payload || Object.keys(payload).some(key=>key!=='bonusSlotId') || ('bonusSlotId' in payload && (journeyAction[1]!=='mission-coin-hunt-01' || typeof payload.bonusSlotId!=='string' || journeyCategorySlot(payload.bonusSlotId)?.kind!=='bonus'))) { jsonResponse(response, 400, { error: 'Invalid mission launch.' }); return; }
       if (!dallasUnlocked) { jsonResponse(response, 403, { error: 'Complete Milwaukee training to unlock Dallas.' }); return; }
       const limit = limitedBy('journey-launch-pilot', identity.pilotId, securityLimits.journeyLaunchPilot);
       if (limit.limited) { rateLimited(response, limit.retryAfterMs); return; }
       if (!journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft)) { jsonResponse(response, 403, { error: 'Aircraft is unavailable.' }); return; }
       const missionId = journeyAction[1] === 'mission-most-wanted-survival-01' ? journeyDallasMostWantedSurvival01.id : journeyAction[1] === 'mission-territory-domination-01' ? journeyDallasTerritoryDomination01.id : journeyAction[1] === 'mission-territory-hold-01' ? journeyDallasTerritoryHold01.id : journeyAction[1] === 'mission-capture-three-01' ? journeyDallasCaptureThree01.id : journeyAction[1] === 'mission-ace-intercept-01' ? journeyDallasAceIntercept01.id : journeyAction[1] === 'mission-territory-defense-01' ? journeyDallasTerritoryDefense01.id : journeyAction[1] === 'mission-twin-hunters-01' ? journeyDallasTwinHunters01.id : journeyAction[1] === 'mission-coin-hunt-01' ? journeyDallasCoinHunt01.id : journeyAction[1] === 'mission-sharpshooter-05' ? journeyDallasSharpshooter05.id : journeyAction[1] === 'mission-sharpshooter-04' ? journeyDallasSharpshooter04.id : journeyAction[1] === 'mission-sharpshooter-03' ? journeyDallasSharpshooter03.id : journeyAction[1] === 'mission-sharpshooter-02' ? journeyDallasSharpshooter02.id : journeyAction[1] === 'mission-sharpshooter-01' ? journeyDallasSharpshooter01.id : journeyAction[1] === 'mission-airport-hop-01' ? journeyDallasAirportHop01.id : journeyAction[1] === 'mission-capture-01' ? journeyDallasCapture01.id : journeyAction[1] === 'mission-25' ? journeyDallas25.id : journeyAction[1] === 'mission-24' ? journeyDallas24.id : journeyAction[1] === 'mission-23' ? journeyDallas23.id : journeyAction[1] === 'mission-22' ? journeyDallas22.id : journeyAction[1] === 'mission-21' ? journeyDallas21.id : journeyAction[1] === 'mission-20' ? journeyDallas20.id : journeyAction[1] === 'mission-19' ? journeyDallas19.id : journeyAction[1] === 'mission-18' ? journeyDallas18.id : journeyAction[1] === 'mission-17' ? journeyDallas17.id : journeyAction[1] === 'mission-16' ? journeyDallas16.id : journeyAction[1] === 'mission-15' ? journeyDallas15.id : journeyAction[1] === 'mission-14' ? journeyDallas14.id : journeyAction[1] === 'mission-13' ? journeyDallas13.id : journeyAction[1] === 'mission-12' ? journeyDallas12.id : journeyAction[1] === 'mission-11' ? journeyDallas11.id : journeyAction[1] === 'mission-10' ? journeyDallas10.id : journeyAction[1] === 'mission-09' ? journeyDallas09.id : journeyAction[1] === 'mission-08' ? journeyDallas08.id : journeyAction[1] === 'mission-07' ? journeyDallas07.id : journeyAction[1] === 'mission-06' ? journeyDallas06.id : journeyAction[1] === 'mission-05' ? journeyDallas05.id : journeyAction[1] === 'mission-04' ? journeyDallas04.id : journeyAction[1] === 'mission-03' ? journeyDallas03.id : journeyAction[1] === 'mission-02' ? journeyDallas02.id : journeyDallas01.id;
-      if (!journeyStore.canAccessMission(identity.pilotId, missionId)) {
+      if (!journeyStore.canAccessMission(identity.pilotId, typeof payload.bonusSlotId==='string'?payload.bonusSlotId:missionId)) {
         jsonResponse(response, 403, { error: journeyMissionOrder.includes(missionId)
           ? 'Complete the preceding mission in this category or meet its Journey unlock requirement.' : 'Mission unavailable.' }); return;
       }
@@ -2447,7 +2451,7 @@ const httpServer = createServer(async (request, response) => {
         jsonResponse(response, 409, { error: 'Finish or leave your current flight mission first.' }); return;
       }
       let attempt: JourneyAttempt;
-      try { attempt = journeyStore.launch(identity.pilotId, journeyProfile.selectedAircraft, Date.now(), missionId); }
+      try { attempt = journeyStore.launch(identity.pilotId, journeyProfile.selectedAircraft, Date.now(), missionId, typeof payload.bonusSlotId==='string'?payload.bonusSlotId:undefined); }
       catch (error) {
         if (error instanceof Error && error.message === 'Finish your bonus round first') {
           jsonResponse(response, 409, { error: error.message }); return;

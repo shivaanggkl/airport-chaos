@@ -1,3 +1,4 @@
+import {journeyCategorySlot} from '../../shared/journey-categories.mjs';
 import { journeyMissionOrder, journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { createMenuCarouselCard, createMenuCarouselArtwork, setMenuCarouselArtwork, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
 import { missionTimePreset } from './mission-time-presets';
@@ -151,8 +152,9 @@ function abandonPendingJourneyLaunch(): void {
 }
 
 type JourneyProgressEntry = { eligible?: boolean; completed?: boolean; coinsCollected?: number; firstAttemptId?: string };
-type JourneyProgressResponse = JourneyProgressEntry & { [key: `mission${string}`]: JourneyProgressEntry | undefined };
+type JourneyProgressResponse = JourneyProgressEntry & { bonusRounds?: Record<string,JourneyProgressEntry>; } & { [key: `mission${string}`]: JourneyProgressEntry | undefined };
 function missionProgress(progress: JourneyProgressResponse, id: string): JourneyProgressEntry | undefined {
+  if(journeyCategorySlot(id)?.kind==='bonus')return progress.bonusRounds?.[id]??(id==='journey-dallas-coin-hunt-01'?progress.missionCoinHunt01:undefined);
   return id === 'journey-dallas-most-wanted-survival-01' ? progress.missionMostWantedSurvival01 : id === 'journey-dallas-territory-domination-01' ? progress.missionTerritoryDomination01 : id === 'journey-dallas-territory-hold-01' ? progress.missionTerritoryHold01 : id === 'journey-dallas-capture-three-01' ? progress.missionCaptureThree01 : id === 'journey-dallas-ace-intercept-01' ? progress.missionAceIntercept01 : id === 'journey-dallas-territory-defense-01' ? progress.missionTerritoryDefense01 : id === 'journey-dallas-twin-hunters-01' ? progress.missionTwinHunters01 : id === 'journey-dallas-coin-hunt-01' ? progress.missionCoinHunt01 : id === 'journey-dallas-sharpshooter-05' ? progress.missionSharpshooter05 : id === 'journey-dallas-sharpshooter-04' ? progress.missionSharpshooter04 : id === 'journey-dallas-sharpshooter-03' ? progress.missionSharpshooter03 : id === 'journey-dallas-sharpshooter-02' ? progress.missionSharpshooter02 : id === 'journey-dallas-sharpshooter-01' ? progress.missionSharpshooter01 : id === 'journey-dallas-airport-hop-01' ? progress.missionAirportHop01 : id === 'journey-dallas-capture-01' ? progress.missionCapture01 : id === 'journey-dallas-01' ? progress : progress[`mission${id.slice(-2)}`];
 }
 let journeyProgressRevision = 0;
@@ -179,7 +181,7 @@ async function refreshJourneyProgress(): Promise<JourneyProgressResponse | undef
     const progress = await response.json() as JourneyProgressResponse;
     if (!current()) return undefined;
     missionJourney.setSignInRequired(false);
-    missionJourney.setProgress(Object.fromEntries(journeyMissionOrder.map(id => [id, missionProgress(progress, id) ?? {}])));
+    missionJourney.setProgress(Object.fromEntries([...new Set([...journeyMissionOrder,...missionJourneyStages.map(stage=>stage.id)])].map(id => [id, missionProgress(progress, id) ?? {}])));
     return progress;
   } catch {
     // A temporary network failure must not replace this pilot's last confirmed progress with zero.
@@ -208,7 +210,7 @@ async function playJourneyMission(): Promise<void> {
       if (progress?.mission14?.definitionVersion !== 1) throw new Error('Mission 8 needs a server update. Please try again later.');
     }
     const response = await apiFetch(apiUrl(`/api/journey/dallas/${mission}/launch`), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(stage.kind==='bonus'?{bonusSlotId:stage.id}:{}),
     });
     if (!response.ok) {
       const failure = await response.json().catch(() => undefined) as { error?: unknown } | undefined;
