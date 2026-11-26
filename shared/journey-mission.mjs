@@ -364,7 +364,7 @@ const baseJourneyDallas22 = Object.freeze({
 const baseJourneyDallas23 = Object.freeze({
   id: 'journey-dallas-23', cityId: 'dallas', name: 'MONSTER PURSUIT',
   chapter: 'LEGENDARY SKIES', firstClearCredits: 3_150, startAirportId: 'love',
-  prepareMs:0,timeLimitMs:120000,bossHealth:2000,monster:baseJourneyDallas20.monster,airborneSpawn:baseJourneyDallas20.airborneSpawn,
+  prepareMs:0,timeLimitMs:120000,bossHealth:3000,monster:baseJourneyDallas20.monster,airborneSpawn:baseJourneyDallas20.airborneSpawn,
   // Compatibility metadata only; no aircraft or repair-heart objectives remain.
   hunterHealth: 200, heartId: 'mission-23-repair-heart', heartRadius: 115,
   hunterTwoDelayMs: 2_500,

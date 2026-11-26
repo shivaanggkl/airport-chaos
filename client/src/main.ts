@@ -1,4 +1,5 @@
 import { bonusRibbonMarkup } from './bonus-badge';
+import {DallasFinale} from './dallas-finale';
 import { aircraftCameraProfile, normalAircraftCameraProfile, cacheAircraftSafetyPoints, fitAircraftChase, requiredChaseDistance } from './chase-camera-framing';
 import { TerritoryCaptureBar, territoryCaptureCelebrationMs } from './territory-capture-bar';
 import { dallasDisplayNames as dallasAirportNames } from '../../shared/dallas-display-names.mjs';
@@ -323,10 +324,11 @@ let flightLaunchWelcomeHandled = false;
 let airborneIntroAwaiting = false;
 let runwayJourneyIntroAwaiting = false;
 let cinematicDirector: CinematicDirector;
+let dallasFinale:DallasFinale|undefined;
 let missionClearStartedAt: number | null = null;
 let missionClearCapturePreludeMs = 0;
 let missionClearAttemptId: string | null = null;
-const launchCinematicBlocksInput = (): boolean => aircraftVictory?.pending === true || flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || skyDuelUi?.blocksFlightInput() === true || airAssaultUi?.blocked() === true || flightDialogOpen();
+const launchCinematicBlocksInput = (): boolean => dallasFinale?.active === true || aircraftVictory?.pending === true || flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || skyDuelUi?.blocksFlightInput() === true || airAssaultUi?.blocked() === true || flightDialogOpen();
 const journeyPreflightActive = (): boolean => journeyMode &&
   (flightLaunchState === 'pending' || flightLaunchState === 'active' ||
     missionStartCountdownPending || missionStartCountdownStartedAt !== null);
@@ -3753,7 +3755,37 @@ function journeyResultMetric(label: string, value: string): HTMLElement {
   return metric;
 }
 
+let dallasFinaleAttemptId:string|null=null;
+let dallasFinaleFinishedAttemptId:string|null=null;
+function presentMonsterResult(result:JourneyAttemptState):void {
+  if(journeyAttempt?.attemptId!==result.attemptId||journeyAttempt.status!==result.status)return;
+  if(result.missionId!==journeyDallas19.id||result.status!=='COMPLETED'||dallasFinaleFinishedAttemptId===result.attemptId){showJourneyResult(result);return;}
+  if(dallasFinaleAttemptId===result.attemptId)return;
+  dallasFinaleAttemptId=result.attemptId;
+  clearHeldActions();mobileInput.reset();boostActive=false;runStarted=false;
+  cinematicDirector.clearPresentation();journeyResultElement.classList.add('hidden');
+  try{
+    dallasFinale=new DallasFinale(renderer,flightGameRoot,type=>createAirplane(type),disposeAirplaneMaterials,()=>{
+      dallasFinale=undefined;dallasFinaleAttemptId=null;dallasFinaleFinishedAttemptId=result.attemptId;
+      if(journeyAttempt?.attemptId===result.attemptId&&journeyAttempt.status==='COMPLETED')showJourneyResult(result);
+    });
+    audioManager.playOnce(`dallas-saved:${result.attemptId}`,'victory',{gain:.65,cooldown:1});
+  }catch(error){
+    dallasFinale?.dispose();dallasFinale=undefined;dallasFinaleAttemptId=null;dallasFinaleFinishedAttemptId=result.attemptId;
+    console.warn('Dallas victory presentation unavailable',error);showJourneyResult(result);
+  }
+}
+function clearDallasFinale():void{
+  dallasFinale?.dispose();dallasFinale=undefined;dallasFinaleAttemptId=null;
+}
+window.addEventListener('pagehide',clearDallasFinale);
+
 function showJourneyResult(attempt: JourneyAttemptState): void {
+  if(dallasFinaleAttemptId===attempt.attemptId)return;
+  if(attempt.missionId===journeyDallas19.id&&attempt.status==='COMPLETED'&&dallasFinaleFinishedAttemptId!==attempt.attemptId){
+    if(!monsterView?.timeoutCinematicActive)presentMonsterResult(attempt);
+    return;
+  }
   if (attempt.status !== 'COMPLETED' && attempt.status !== 'FAILED' && attempt.status !== 'ABANDONED') return;
   if (attempt.status === 'FAILED' && attempt.attemptId === crashSequence?.attemptId) return;
   if (attempt.status === 'COMPLETED' && aircraftVictoryQueue.length && !aircraftVictory?.pending) return;
@@ -11975,6 +12007,7 @@ function animate(): void {
   const realDelta = clock.getDelta();
   const delta = Math.min(realDelta, 0.05);
   audioManager.setScenePaused(journeyPaused||trainingPaused||document.hidden);
+  if(dallasFinale?.active){dallasFinale.update(delta);return;}
   if (journeyPaused || trainingPaused) return;
   updateMissionStartCountdown();
   updateMissionClear(delta);
@@ -12982,6 +13015,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   missionObjectiveGuidance?.dispose();
   skyDuelUi?.dispose();
   airAssaultUi?.dispose();
+  clearDallasFinale();
   monsterView?.dispose(); monsterView = undefined;
   transportView?.dispose();transportView=undefined;transportViewAttemptId='';
   missionIntroSkip.hidden = true;
@@ -13320,6 +13354,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       return;
     }
     const previousAttempt = journeyAttempt;
+    if(dallasFinaleAttemptId&&dallasFinaleAttemptId!==message.attempt.attemptId)clearDallasFinale();
     const previousGate = journeyAttempt?.gateIndex ?? 0;
     const previousTargetId = journeyAttempt?.targetId;
     const previousHealth = journeyAttempt?.targetHealth;
@@ -13686,7 +13721,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       missionObjectiveGuidance?.hide();
       if((message.attempt.missionId===journeyDallas25.id||message.attempt.missionId===journeyDallas20.id||message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id)&&monsterView&&!crashed&&['COMPLETED','FAILED'].includes(message.attempt.status)){
         const result=message.attempt;
-        monsterView.onEndingComplete=()=>{if(journeyAttempt?.attemptId===result.attemptId&&journeyAttempt.status===result.status)showJourneyResult(result);};
+        monsterView.onEndingComplete=()=>presentMonsterResult(result);
         monsterView.finish(result.status==='COMPLETED'?'defeat':'timeout');
       } else if (preserveSharpshooterImpact && (previousAttempt?.status==='RACING'||pendingSharpshooterCompletion?.attemptId===message.attempt.attemptId)) {
         if(missionClearAttemptId!==message.attempt.attemptId)pendingSharpshooterCompletion=message.attempt;
