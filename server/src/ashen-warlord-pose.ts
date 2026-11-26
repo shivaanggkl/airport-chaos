@@ -60,7 +60,8 @@ export function createAshenPose(initialHealth = 2500, stationary = false, striki
             gaitPhase = (gaitPhase + (forward < 0 ? -1 : 1) * distance / model.clips[gait]!.stride! + 1) % 1;
         const a = c.ability;
         let key = 'idle', time = c.time;
-        if (a && a.stage !== 'COOLDOWN') {
+        if(c.roarElapsed!==undefined){key='roar';time=c.roarElapsed;}
+        else if (a && a.stage !== 'COOLDOWN') {
             key = ({ 'fireball-barrage': 'shoot', 'hand-strike': 'punch', 'charging-rampage': 'run' } as Record<string, string>)[a.id] ?? 'idle';
             if (key === 'run') {
                 key = speed > .5 ? gait : 'idle';

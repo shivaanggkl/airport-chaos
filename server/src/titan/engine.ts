@@ -1,3 +1,4 @@
+import {titanProjectileDirection} from '../../../shared/titan-projectiles.mjs';
 import type {AuthoredAnimation} from '../../../shared/titan-animation.mjs';
 import { projectileImpactFraction } from '../../../shared/projectile-collision.mjs';
 import type { TitanPresentation } from '../../../shared/titan-pose.mjs';
@@ -271,6 +272,7 @@ export class TitanEncounter {
         this.id = id;
         this.species = species;
         this.#env = environment;
+        if(species.director?.roarInterval)this.#roarAt=species.director.roarInterval;
         if(species.stationary)this.#roarAt=species.stationary.firstRoarAfter??20;
         if(species.hunting){this.#roarAt=species.hunting.roarInterval;this.#huntRestUntil=species.hunting.restSeconds??1;}
         if(species.anchored){this.#anchorJumpAt=species.anchored.jumpInterval;this.#roarAt=species.anchored.roarInterval;}
@@ -414,6 +416,18 @@ export class TitanEncounter {
     #plan(t: Target | undefined, threats: readonly Threat[]) {
         const profile = difficulties[this.species.level];
         this.#nextDecision = this.#time + (this.species.hunting?.decisionInterval??.2);
+        const roar=this.species.director;
+        if(roar?.roarDuration){
+            if(!this.#active&&(this.#time<this.#roarStarted+roar.roarDuration||this.#time>=this.#roarAt)){
+                this.#goal={...this.#position};this.#stopForAction=true;
+                if(this.#time>=this.#roarAt&&Math.hypot(this.#velocity.x,this.#velocity.z)<.5&&Math.abs(this.#yawVelocity)<.015){
+                    this.#roarStarted=this.#time;this.#roarAt=this.#time+roar.roarInterval!;
+                    this.#emit('animation','roar',this.#position,{ability:'visual-roar'});
+                }
+                return;
+            }
+            if(this.#roarStarted!==-Infinity&&this.#time>=this.#roarStarted+roar.roarDuration){this.#stopForAction=false;this.#idleCompleted=false;}
+        }
         if(this.species.hunting){
             const p=this.species.hunting;
             if(this.#active)return;
@@ -1057,7 +1071,8 @@ export class TitanEncounter {
                     this.#limbs[name] = titanAnchor(this.#position, this.#yaw, { ...rest.position, z: rest.position.z + (side === 'left' ? swing : -swing) });
             }
         }
-        this.#authoredAnimation=this.#env.articulate?.(this.#limbs,this.#feet,{...this.#position,y:this.#position.y-this.#crouch()},this.#yaw,this.#volumeAxes,{running:this.species.hunting?.runSeconds!==undefined&&Math.hypot(this.#velocity.x,this.#velocity.z)>this.species.movement.walk+.5,anchoredMotion:this.species.hunting&&this.#time<this.#roarStarted+this.species.hunting.roarSeconds?{kind:"roar",elapsed:this.#time-this.#roarStarted}:this.species.anchored?(this.#time<this.#anchorJumpStarted+this.species.anchored.jumpSeconds+this.species.anchored.landSeconds?{kind:"jump",elapsed:this.#time-this.#anchorJumpStarted}:this.#time<this.#roarStarted+this.species.anchored.roarSeconds?{kind:"roar",elapsed:this.#time-this.#roarStarted}:undefined):undefined,stationaryPunchElapsed:this.species.stationary?.idlePunchDuration&&this.#time<this.#stationaryPunchStarted+this.species.stationary.idlePunchDuration?this.#time-this.#stationaryPunchStarted:undefined,roarElapsed:this.species.stationary&&this.#time<this.#roarStarted+this.species.stationary.roarDuration?this.#time-this.#roarStarted:undefined,resting:this.#stopForAction||this.#idleCompleted,time:this.#time,health:this.#health,headYaw:this.#headYaw,headPitch:this.#headPitch,gait:this.#gait,velocity:this.#velocity,yawVelocity:this.#yawVelocity,airborne:this.#airborne,ability:a&&timeline?{id:a.definition.id,stage:timeline.stage,progress:timeline.progress,elapsed:this.#time-a.start,active:a.definition.active,warning:a.definition.warning,windup:a.definition.windup,recovery:a.definition.recovery}:null})??undefined;
+        const roarDuration=this.species.stationary?.roarDuration??this.species.director?.roarDuration;
+        this.#authoredAnimation=this.#env.articulate?.(this.#limbs,this.#feet,{...this.#position,y:this.#position.y-this.#crouch()},this.#yaw,this.#volumeAxes,{running:this.species.hunting?.runSeconds!==undefined&&Math.hypot(this.#velocity.x,this.#velocity.z)>this.species.movement.walk+.5,anchoredMotion:this.species.hunting&&this.#time<this.#roarStarted+this.species.hunting.roarSeconds?{kind:"roar",elapsed:this.#time-this.#roarStarted}:this.species.anchored?(this.#time<this.#anchorJumpStarted+this.species.anchored.jumpSeconds+this.species.anchored.landSeconds?{kind:"jump",elapsed:this.#time-this.#anchorJumpStarted}:this.#time<this.#roarStarted+this.species.anchored.roarSeconds?{kind:"roar",elapsed:this.#time-this.#roarStarted}:undefined):undefined,stationaryPunchElapsed:this.species.stationary?.idlePunchDuration&&this.#time<this.#stationaryPunchStarted+this.species.stationary.idlePunchDuration?this.#time-this.#stationaryPunchStarted:undefined,roarElapsed:roarDuration!==undefined&&this.#time<this.#roarStarted+roarDuration?this.#time-this.#roarStarted:undefined,resting:this.#stopForAction||this.#idleCompleted,time:this.#time,health:this.#health,headYaw:this.#headYaw,headPitch:this.#headPitch,gait:this.#gait,velocity:this.#velocity,yawVelocity:this.#yawVelocity,airborne:this.#airborne,ability:a&&timeline?{id:a.definition.id,stage:timeline.stage,progress:timeline.progress,elapsed:this.#time-a.start,active:a.definition.active,warning:a.definition.warning,windup:a.definition.windup,recovery:a.definition.recovery}:null})??undefined;
         this.#updatingPose=false;
         if (dt > 0)
             for (const [name, p] of Object.entries(this.#limbs)) {
@@ -1146,8 +1161,8 @@ export class TitanEncounter {
                 // explicitly simultaneous volleys release together instead.
                 if(!def.simultaneous&&index%burst===0&&this.species.director&&a.lastReleaseAt!==undefined&&this.#time-a.lastReleaseAt+1e-9<def.active/waves)break;
                 a.released++;if(index%burst===0)a.lastReleaseAt=this.#time;
-                const dir = unit(from, point), angle = ((def.burstSize ? index % burst : index) - ((def.burstSize ? burst : count) - 1) / 2) * (def.spread ?? 0), c = Math.cos(angle), s = Math.sin(angle);
-                const shot: Shot = { id: `${this.id}:shot:${a.serial}:${index}`, position: { ...from }, velocity: { x: (dir.x * c + dir.z * s) * speed, y: dir.y * speed, z: (dir.z * c - dir.x * s) * speed }, radius: debris?.radius ?? def.radius, damage: def.damage, life: def.maxRange / speed, ability: def.id, attack: a.serial, live: true };
+                const dir=titanProjectileDirection(unit(from,point),def.burstSize?index%burst:index,def.burstSize?burst:count,def.spread,def.spreadPattern);
+                const shot: Shot = { id: `${this.id}:shot:${a.serial}:${index}`, position: { ...from }, velocity: { x: dir.x * speed, y: dir.y * speed, z: dir.z * speed }, radius: debris?.radius ?? def.radius, damage: def.damage, life: def.maxRange / speed, ability: def.id, attack: a.serial, live: true };
                 if(this.species.director&&!this.#directorShots.has(a.serial))this.#directorShots.set(a.serial,false);
                 const slot = this.#shots.findIndex(v => !v.live);
                 if (slot < 0)
@@ -1417,6 +1432,7 @@ export class TitanEncounter {
         this.#visibleSince = 0;
         this.#lastSeen = 0;
         this.#active = null;
+        if(this.species.director?.roarInterval){this.#roarStarted=-Infinity;this.#roarAt=this.#time+this.species.director.roarInterval;}
         if(this.species.stationary){this.#stationaryPunchStarted=-Infinity;this.#stationaryRestUntil=0;this.#roarStarted=-Infinity;this.#roarAt=this.#time+(this.species.stationary.firstRoarAfter??20);}
         if(this.species.hunting){this.#runApproachUntil=0;this.#pursuitRunUntil=0;this.#pursuitRunAt=this.#time+2;this.#huntRepositionUntil=0;this.#huntRepositionGoal=undefined;this.#huntLastVelocity=undefined;this.#huntRepositionAt=0;this.#huntFocus=undefined;this.#huntRestUntil=this.#time+(this.species.hunting.restSeconds??1);this.#roarStarted=-Infinity;this.#roarAt=this.#time+this.species.hunting.roarInterval;}
         if(this.species.anchored){this.#anchorJumpStarted=-Infinity;this.#anchorJumpAt=this.#time+this.species.anchored.jumpInterval;this.#anchorRestUntil=this.#time+1;this.#anchorTarget=undefined;this.#roarStarted=-Infinity;this.#roarAt=this.#time+this.species.anchored.roarInterval;}

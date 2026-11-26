@@ -18,7 +18,8 @@ test('M1 walks and turns six times faster, shoots six times more often, and fire
  assert.equal(species.movement.acceleration,oldWalk*6/1.5);assert.equal(species.movement.turnRate,.45*6);assert.equal(species.movement.turnAcceleration,.6*6);
  const shot=species.abilities.find(a=>a.mechanism==='projectile');assert(Math.abs(cycle(shot)-(0.9+0.4+1+0.8+9)/6)<1e-9);
  assert.equal(shot.projectileSpeed,3600);assert.equal(shot.count,6);assert.equal(shot.damage,25);assert.equal(shot.cooldown,1.5);
- assert(!species.abilities.some(a=>a.mechanism==='sweep'));assert(species.abilities.every(a=>!a.interruptible));
+ assert.equal(species.movement.chargeSpeed,0);assert(species.abilities.every(a=>a.mechanism==='projectile'));
+ assert.deepEqual(species.animations,['idle','walk','turn','roar','shoot','defeat']);assert.equal(shot.spreadPattern,'cluster');assert(species.abilities.every(a=>!a.interruptible));
  assert(finalWarlordSpecies.abilities.some(a=>a.mechanism==='sweep'));
  assert.equal(finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile').projectileSpeed,1600);
 });
@@ -40,7 +41,7 @@ test('M1 repeatedly releases fast six-ball volleys while moving; hit damage does
   for(let i=1;i<=600;i++){
    const now=100000+i*50;stepM19(e,target,zero,500,now);
    const frame=e.frame;maxSpeed=Math.max(maxSpeed,Math.hypot(frame.velocity.x,frame.velocity.z));
-   assert.notEqual(frame.animation.clip,model.clips.hit.name);assert.notEqual(frame.animation.clip,model.clips.punch.name);
+   assert(['idle','walk','turn','roar','shoot'].some(key=>frame.animation.clip===model.clips[key].name));
    assert(frame.projectiles.length<=32);
    for(const event of e.events.filter(v=>v.type==='release')){
     if(!counts.has(event.attackId))volleys.push(now);
@@ -54,7 +55,7 @@ test('M1 repeatedly releases fast six-ball volleys while moving; hit damage does
     assert.equal(e.engine.snapshot().ability?.eventId,oldId);
    }
   }
-  assert(maxSpeed>1000);assert(volleys.length>=8,`Only ${volleys.length} volleys in 30 seconds: ${JSON.stringify(volleys)} ${JSON.stringify([...counts])}`);
+  assert(maxSpeed>1000);assert(volleys.length>=6,`Only ${volleys.length} volleys in 30 seconds: ${JSON.stringify(volleys)} ${JSON.stringify([...counts])}`);
   assert([...counts.values()].every(count=>count===6),JSON.stringify([...counts]));
  }finally{disposeM19(e);}
 });
@@ -73,5 +74,24 @@ test('a continuously eligible M1 target receives a new volley about every two se
   }
   assert(times.length>=5,JSON.stringify(times));
   for(let i=1;i<times.length;i++)assert(times[i]-times[i-1]>=2000&&times[i]-times[i-1]<=2250,JSON.stringify(times));
+ }finally{disposeM19(e);}
+});
+
+
+test('M1 roars during gameplay, stays still through the roar, and resumes shooting without running or powering up',()=>{
+ const e=create('roar-m1','pilot',0,()=>135,[]),origin={...e.frame.position},yaw=e.frame.yaw;
+ const target=titanAnchor(origin,yaw,{x:0,y:1800,z:6000});let roars=0,roarFrames=0,shotsAfterRoar=0;
+ try{
+  for(let ms=50;ms<=55000;ms+=50){
+   stepM19(e,target,zero,100,ms);const f=e.frame;
+   assert(['idle','walk','turn','roar','shoot'].some(key=>f.animation.clip===model.clips[key].name));
+   for(const event of e.events){
+    if(event.type==='roar')roars++;
+    if(event.type==='release'&&roars>0)shotsAfterRoar++;
+   }
+   if(f.animation.clip===model.clips.roar.name){roarFrames++;assert.equal(f.ability,null);assert(Math.hypot(f.velocity.x,f.velocity.z)<.5);}
+  }
+  assert(roars>=2);assert(roarFrames>50);assert(shotsAfterRoar>=6);
+  assert(finalWarlordSpecies.director.roarInterval===undefined);
  }finally{disposeM19(e);}
 });
