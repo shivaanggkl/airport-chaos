@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,statSync} from 'node:fs';
 import {ImageStorySequence,imageStorySceneAt,IMAGE_STORY_FADE_MS} from '../../client/src/image-story.js';
 import {M19_ORIGIN_STORY as scenes} from '../../client/src/m19-origin-story.js';
+import {M2_DR_BOSS_STORY as sequel} from '../../client/src/m2-dr-boss-story.js';
 class Element {
   constructor(){this.children=[];this.hidden=false;this.textContent='';this.values=new Set();this.style={setProperty(){}};this.classList={add:(...v)=>v.forEach(x=>this.values.add(x)),remove:(...v)=>v.forEach(x=>this.values.delete(x))};}
   append(...children){for(const child of children){child.parent=this;this.children.push(child);}}
@@ -65,7 +66,7 @@ test('first/upcoming decode failures bypass safely; cancellation releases pendin
 test('story precedes the first Dr. Boss mission, shares the launch clock, keeps skip/countdown cleanup, and preserves mobile compositions',()=>{
  const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
  const prepare=main.slice(main.indexOf('async function prepareMonsterMissionIntro'),main.indexOf('function beginFlightLaunchCinematic'));
- assert(prepare.includes('const arrivalIntro=journeyAttempt.missionId===journeyDallas25.id'));assert(prepare.includes('if(arrivalIntro||pursuitIntro){'));assert(prepare.includes('if(!ready){story.dispose();missionImageStory=undefined;}'));
+ assert(prepare.includes('const arrivalIntro=journeyAttempt.missionId===journeyDallas25.id'));assert(prepare.includes('if(arrivalIntro||pursuitIntro||finalIntro){'));assert(prepare.includes('if(!ready){story.dispose();missionImageStory=undefined;}'));
  const render=main.slice(main.indexOf('function applyFlightLaunchCamera'),main.indexOf('function applyFlightLaunchCamera')+7500);
  assert(render.includes('elapsed=Math.max(0,elapsed-m19StoryOffsetMs)'));assert(render.includes('missionImageStory.fadeOut()'));assert(render.includes('missionImageStory.failed'));assert(render.includes('flightLaunchStartedAt=now-m19StoryOffsetMs-cut'));
  assert(render.includes('if(missionImageStory&&!skipped){'),'current Mission 1 must play its prepared story without the obsolete arrival-only gate');
@@ -76,7 +77,7 @@ test('story precedes the first Dr. Boss mission, shares the launch clock, keeps 
  assert(css.includes('aspect-ratio: 16 / 9'));assert(css.includes('object-fit: contain'));assert(css.includes('scale(.975)'));assert(css.includes('scale(1)'));assert(css.includes('transition: opacity 250ms'));assert(css.includes('.image-story-caption'));assert(css.includes('color: #fff'));assert(css.includes('prefers-reduced-motion: reduce'));
 });
 
-test('current Dr. Boss Mission 1 prepares all story images before its pursuit cinematic; Mission 2 stays separate',async()=>{
+test('both Dr. Boss missions prepare their own photo stories before the existing cinematics',async()=>{
  const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
  const prepare=main.slice(main.indexOf('async function prepareMonsterMissionIntro'),main.indexOf('function renderMissionIntroSummary'))
    .replace('(attemptId:string):Promise<void>','(attemptId)').replace('new Promise<void>','new Promise');
@@ -86,12 +87,12 @@ test('current Dr. Boss Mission 1 prepares all story images before its pursuit ci
    reset();const parent=new Element(),cameraCalls=[];
    const view={ready:Promise.resolve(),introRoot:{position:{}},prepareHuntingIntro:(...args)=>cameraCalls.push(args),prepareStationaryIntro:()=>assert.fail('current missions must retain their hunting camera'),setIntroTime(){}};
    let launches=0;
-   const context=vm.createContext({...journeyMissions,monsterView:view,journeyAttempt:{attemptId:'test',missionId,status:'APPROACH'},flightLaunchState:'pending',airplane:{userData:{assetReady:Promise.resolve()}},obstacleBounds:[],flightGameRoot:parent,ImageStorySequence,M19_ORIGIN_STORY:scenes,missionImageStory:undefined,cityWorld:{},audioManager:{playTone(){}},CombatMissionIntroPath:class{constructor(...args){this.args=args;}},beginFlightLaunchCinematic(){launches++;}});
+   const context=vm.createContext({...journeyMissions,monsterView:view,journeyAttempt:{attemptId:'test',missionId,status:'APPROACH'},flightLaunchState:'pending',airplane:{userData:{assetReady:Promise.resolve()}},obstacleBounds:[],flightGameRoot:parent,ImageStorySequence,M19_ORIGIN_STORY:scenes,M2_DR_BOSS_STORY:sequel,missionImageStory:undefined,cityWorld:{},audioManager:{playTone(){}},CombatMissionIntroPath:class{constructor(...args){this.args=args;}},beginFlightLaunchCinematic(){launches++;}});
    await vm.runInContext(prepare+'\nprepareMonsterMissionIntro("test")',context);
    assert.equal(launches,1);assert.equal(cameraCalls.length,1);
    assert.equal(context.missionCombatIntroPath.args[3],false,'story must not change the camera to the old arrival intro');
-   assert.equal(context.missionImageStory?.durationMs,index===0?27000:undefined);
-   if(index===0){assert(context.missionImageStory.update(0));assert.equal(context.missionImageStory.caption.textContent,narration[0]);context.missionImageStory.dispose();}
+   assert.equal(context.missionImageStory?.durationMs,index===0?27000:17000);
+   assert(context.missionImageStory.update(0));assert.equal(context.missionImageStory.caption.textContent,index===0?narration[0]:sequel[0].narration);context.missionImageStory.dispose();
  }
 });
 
@@ -111,5 +112,26 @@ test('restarting Dr. Boss launches the same internal mission and resets the comp
  assert(retry.includes('flightLaunchWelcomeHandled = false'));assert(retry.includes("flightLaunchState = 'pending'"));
  assert(retry.includes('missionStartCountdownPending = true'));
  const prepare=main.slice(main.indexOf('async function prepareMonsterMissionIntro'),main.indexOf('function beginFlightLaunchCinematic'));
- assert(prepare.includes('new ImageStorySequence(flightGameRoot,M19_ORIGIN_STORY)'));
+ assert(prepare.includes('new ImageStorySequence(flightGameRoot,finalIntro?M2_DR_BOSS_STORY:M19_ORIGIN_STORY)'));
+});
+
+
+test('Mission 2 plays the five supplied photos in order with short captions using the shared story renderer',async()=>{
+ reset();assert.equal(sequel.length,5);
+ assert.deepEqual(sequel.map(scene=>scene.narration),[
+  'Defeated, Dr. Boss returned to his lab.',
+  'He drank more of the strange liquid.',
+  'Power surged through his body.',
+  'He became stronger than ever.',
+  'Dr. Boss returned to Dallas to destroy the city.',
+ ]);
+ const parent=new Element(),story=new ImageStorySequence(parent,sequel);assert(await story.prepare());assert.equal(story.durationMs,17000);
+ let elapsed=0;
+ for(const [index,scene] of sequel.entries()){
+  assert.equal(scene.src,`/media/stories/m2-dr-boss-return/${index+1}.jpg`);
+  const data=readFileSync(new URL('../../client/public'+scene.src,import.meta.url));assert.equal(data.readUInt16BE(0),0xffd8);assert(data.length<400000);
+  assert(story.update(elapsed));assert.equal(story.caption.textContent,scene.narration);
+  story.update(elapsed+IMAGE_STORY_FADE_MS);await flush();elapsed+=scene.durationSeconds*1000;
+ }
+ assert.deepEqual(StoryImage.loads,sequel.map(scene=>scene.src));assert.equal(story.update(elapsed),false);story.fadeOut();story.dispose();assert.equal(parent.children.length,0);
 });

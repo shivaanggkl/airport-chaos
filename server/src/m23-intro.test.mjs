@@ -22,13 +22,13 @@ const ground=(wx,wz)=>{
   const at=(a,b)=>data.baseElevation+samples[b*data.width+a]*data.scale;
   return THREE.MathUtils.lerp(THREE.MathUtils.lerp(at(x0,z0),at(x1,z0),x-x0),THREE.MathUtils.lerp(at(x0,z1),at(x1,z1),x-x0),z-z0)*DALLAS_WORLD_SCALE;
 };
-const buildings=loadMonsterDistrictBuildings().filter(b=>b.maxX>-8500*DALLAS_WORLD_SCALE&&b.minX<-2500*DALLAS_WORLD_SCALE&&b.maxZ>-5000*DALLAS_WORLD_SCALE&&b.minZ<500*DALLAS_WORLD_SCALE).map(b=>({x:(b.minX+b.maxX)/2,z:(b.minZ+b.maxZ)/2,halfX:(b.maxX-b.minX)/2,halfZ:(b.maxZ-b.minZ)/2,height:b.top}));
+const buildings=[];loadMonsterDistrictBuildings().query(-8500*DALLAS_WORLD_SCALE,-2500*DALLAS_WORLD_SCALE,-5000*DALLAS_WORLD_SCALE,500*DALLAS_WORLD_SCALE,b=>{buildings.push({x:(b.minX+b.maxX)/2,z:(b.minZ+b.maxZ)/2,halfX:(b.maxX-b.minX)/2,halfZ:(b.maxZ-b.minZ)/2,height:b.top});return false;});
 
 const create=()=>new MonsterArrivalView(new THREE.Scene(),ground(journeyDallas23.monster.x,journeyDallas23.monster.z),0,undefined,source,ground,()=>390,model,false,true,true,true);
 test('M23 exact captions, six scene boundaries and unsped authored motions',()=>{
  for(const [t,text] of [[0,'Dr. Boss is moving again!'],[4,'Now he can RUN!'],[8,"And he's ready to attack!"],[12,"He's still got his energy powers!"],[20,"He's coming after you!"],[24,'Pilot! Stop Dr. Boss before he gets away!'],[26.5,'DEFEAT THE MONSTER'],[28,'']])assert.equal(m23IntroText(t),text);
- for(const [start,end,key] of [[8,timing.turnEnd,'turn'],[9.5,9.5+model.clips.punch.duration,'punch'],[20,20+model.clips.roar.duration,'roar'],[12,timing.shoot,'charge'],[timing.shoot,20,'shoot']])for(const t of [start+.01,(start+end)/2,end-.01]){
-   assert.equal(m23IntroMotion(t).key,key);assert(Math.abs(m23IntroMotion(t).time-(t-start))<1e-9);
+ for(const [start,end,key] of [[8,timing.turnEnd,'turn'],[9.5,12,'idle'],[20,20+model.clips.roar.duration,'roar'],[12,timing.shoot,'charge'],[timing.shoot,20,'shoot']])for(const t of [start+.01,(start+end)/2,end-.01]){
+   assert.equal(m23IntroMotion(t).key,key);if(key!=='idle')assert(Math.abs(m23IntroMotion(t).time-(t-start))<1e-9);
  }
  assert.equal(m23IntroMotion(5).key,'run');assert.equal(m23IntroMotion(7.5).key,'idle');assert(m23IntroMotion(9.4).yawOffset>m23IntroMotion(8).yawOffset);
  for(let t=.4;t<7;t+=.01){const a=m23GaitTimes(t),b=m23GaitTimes(t+.001);assert((b.walk-a.walk)/.001<=1.001);assert((b.run-a.run)/.001<=1.001);assert(b.run>=a.run-1e-9);}
@@ -50,7 +50,7 @@ test('M23 uses a real collision-checked Dallas walk/run/stop/turn, stays grounde
    if(view.pool[0].group.visible){sawShot=true;assert.equal(view.pool[0].id,null);assert(view.pool[0].direction.dot(new THREE.Vector3(0,0,1).applyQuaternion(actor.root.quaternion))>.95);assert.equal(view.pool.filter(shot=>shot.group.visible).length,3);assert(view.pool[0].group.position.y>=view.introShotOrigin.y);}
    assert.equal(actor.frame,null);assert.equal(view.damagedDowntown,false);
  }
- assert.deepEqual([...clips].sort(),['idle','walk','run','turn','roar','punch','charge','shoot'].sort());assert.equal(roars,1);assert.equal(punches,1);assert.equal(casts,1);assert.equal(impacts.filter(t=>t>=7).length,1);assert.equal(impacts.find(t=>t>=7),10.05);assert.equal(shots,1);assert(sawShot);assert(steps>0);
+ assert.deepEqual([...clips].sort(),['idle','walk','run','turn','roar','charge','shoot'].sort());assert.equal(roars,1);assert.equal(punches,0);assert.equal(casts,1);assert.equal(impacts.filter(t=>t>=7).length,0);assert.equal(shots,1);assert(sawShot);assert(steps>0);
  assert(impacts.some(t=>t>=4&&t<7),'authored running footfalls produce audio/dust cues');
  const player=new THREE.Group();player.add(new THREE.Mesh(new THREE.BoxGeometry(20,6,25)));
  const path=new CombatMissionIntroPath(actor.root,player,19,false,false,view.introFistPosition,view.introProjectilePosition,true,false,true,()=>view.introFootstepTime),camera=new THREE.PerspectiveCamera(48,1280/589,1,20000),position=new THREE.Vector3(),target=new THREE.Vector3();
@@ -74,12 +74,12 @@ test('M23 camera hands off to the actual Love Field plane at 28s and preserves M
  assert.equal(new CombatMissionIntroPath(root,player,19,true).durationMs,20000);assert.equal(new CombatMissionIntroPath(root,player,19,false,true).durationMs,28000);assert.equal(new CombatMissionIntroPath(root,player,19).durationMs,12000);
  for(const group of [root,player]){group.children[0].geometry.dispose();group.children[0].material.dispose();}
 });
-test('M23 remains EASY with its own nine motions, Love Field selection, and existing post-cinematic countdown',()=>{
+test('M23 remains EASY without punching, Love Field selection, and existing post-cinematic countdown',()=>{
  assert.equal(journeyDallas23.startAirportId,'love');assert.equal(journeyDallas23.bossHealth,2000);assert.equal(journeyDallas23.firstClearCredits,3150);assert.equal(huntingWarlordSpecies.level,'EASY');
- assert.equal(huntingWarlordSpecies.abilities.find(a=>a.id==='hand-strike').damage,15);assert.equal(huntingWarlordSpecies.abilities.find(a=>a.id==='hand-strike').cooldown,4);assert.equal(huntingWarlordSpecies.abilities.find(a=>a.id==='fireball-barrage').damage,25);assert.equal(huntingWarlordSpecies.abilities.find(a=>a.id==='fireball-barrage').cooldown,8);
- const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');assert(main.includes('const pursuitIntro=journeyAttempt.missionId===journeyDallas23.id'));assert(main.includes('if(pursuitIntro)view.prepareHuntingIntro(obstacleBounds,false,true)'));assert(main.includes('if(journeyAttempt.missionId===journeyDallas23.id)clearFlightLaunchPresentation()'));
+ assert(!huntingWarlordSpecies.abilities.some(a=>a.id==='hand-strike'));assert.equal(huntingWarlordSpecies.abilities.find(a=>a.id==='fireball-barrage').damage,25);assert.equal(huntingWarlordSpecies.abilities.find(a=>a.id==='fireball-barrage').cooldown,1.5);
+ const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');assert(main.includes('const pursuitIntro=journeyAttempt.missionId===journeyDallas23.id'));assert(main.includes('if(pursuitIntro)view.prepareHuntingIntro(obstacleBounds,false,true)'));assert(main.includes('clearFlightLaunchPresentation();'));
  const complete=main.slice(main.indexOf('function completeFlightLaunchCinematic'),main.indexOf('function abortFlightLaunchCinematic'));assert(complete.includes('clearFlightLaunchPresentation()'));assert(complete.includes('beginMissionStartCountdown()'));
- const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8');const spawn=server.slice(server.indexOf('const spawnAirportId = soloExploreMode'),server.indexOf('const airborneSpawn = authorizedJourneyAirborneSpawn'));
+ const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8');const spawn=server.slice(server.indexOf('const spawnAirportId ='),server.indexOf('const airborneSpawn = authorizedJourneyAirborneSpawn'));
  assert(spawn.includes('journeyDallas23.id'));
 });
 

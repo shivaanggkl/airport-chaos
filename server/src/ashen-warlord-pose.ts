@@ -7,7 +7,7 @@ import type { Environment, AuthoredPoseContext } from './titan/engine.js';
 const asset = readTitanAnimationAsset(readFileSync(new URL('../../client/public/assets/models/monsters/ashen-warlord.glb', import.meta.url)));
 const H = model.height, clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 /** One sampler/transition state per encounter. All bone motion comes from supplied animation tracks. */
-export function createAshenPose(initialHealth = 2500, stationary = false, striking = false, hunting = false, walking = false): Environment['articulate'] {
+export function createAshenPose(initialHealth = 2500, stationary = false, striking = false, hunting = false, walking = false, flinch = true): Environment['articulate'] {
     const sampler = new TitanAnimationSampler(asset);
     const coreMatrix = new Float64Array(16);
     let old: AuthoredAnimation | undefined, transition: AuthoredAnimation | undefined, transitionAt = 0, lastTime = 0, gaitPhase = 0, turnTime = 0, lastRoot: {
@@ -52,7 +52,7 @@ export function createAshenPose(initialHealth = 2500, stationary = false, striki
         const dt = clamp(c.time - lastTime, 0, .1), distance = lastRoot ? Math.hypot(root.x - lastRoot.x, root.z - lastRoot.z) / H : 0;
         lastRoot = { x: root.x, z: root.z };
         lastTime = c.time;
-        if (c.health < lastHealth && c.time - hitAt > 1.2 && (!c.ability || c.ability.stage === 'RECOVERY'))
+        if (flinch && c.health < lastHealth && c.time - hitAt > 1.2 && (!c.ability || c.ability.stage === 'RECOVERY'))
             hitAt = c.time;
         lastHealth = c.health;
         const speed = Math.hypot(c.velocity.x, c.velocity.z), forward = c.velocity.x * Math.sin(yaw) + c.velocity.z * Math.cos(yaw), gait = walking && c.ability?.id!=='charging-rampage' ? 'walk' : 'run';
@@ -72,7 +72,7 @@ export function createAshenPose(initialHealth = 2500, stationary = false, striki
                 time = w[i]! + (w[i + 1]! - w[i]!) * a.progress;
             }
         }
-        else if (c.time - hitAt < model.clips.hit!.duration) {
+        else if (flinch && c.time - hitAt < model.clips.hit!.duration) {
             key = 'hit';
             time = c.time - hitAt;
         }

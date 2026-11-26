@@ -7196,7 +7196,7 @@ html.custom-control-layout #game-root #radar-panel {
 .image-story-image.is-current { opacity: 1; }
 .image-story-image.is-active { animation: image-story-zoom var(--story-scene-duration) linear both; }
 .image-story-caption, #game-root .flight-launch-title.is-story-continuation { box-sizing: border-box; position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; margin: 0; padding: clamp(34px, 8vh, 80px) max(24px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)); color: #fff; background: linear-gradient(transparent, rgb(0 0 0 / 82%)); text-align: center; font: 700 clamp(17px, 2.1vw, 30px)/1.35 var(--font-body); text-wrap: pretty; text-shadow: 0 2px 4px #000; }
-/* Continue Dr. Boss Mission 1 in the same subtitle frame as its image story. */
+/* Continue both Dr. Boss missions in the same subtitle frame as their image stories. */
 #game-root .flight-launch-title.is-story-continuation { z-index: 24; top: auto; bottom: max(0px, calc((100dvh - 56.25vw) / 2)); left: 50%; right: auto; width: min(100vw, 177.777778dvh); max-width: none; display: block; border: 0; border-radius: 0; box-shadow: none; letter-spacing: normal; white-space: normal; transform: translateX(-50%); }
 @keyframes image-story-zoom { from { transform: scale(.975); } to { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .image-story-image.is-active { animation: none; transform: none; } .image-story-image, .image-story-sequence { transition: none; } }

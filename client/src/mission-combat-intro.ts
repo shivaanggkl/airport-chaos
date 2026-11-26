@@ -134,7 +134,7 @@ export class CombatMissionIntroPath {
     }
     const search=THREE.MathUtils.smoothstep(t,4,7.5),roar=THREE.MathUtils.smoothstep(t,timing.roar-.3,timing.roar+1)*(1-THREE.MathUtils.smoothstep(t,timing.roar+3.8,timing.roar+4.4)),cast=THREE.MathUtils.smoothstep(t,timing.cast,this.showdownIntro||this.pursuitIntro?timing.shoot:21.4);
     let radius=THREE.MathUtils.lerp(1.65,1.2,search);radius=THREE.MathUtils.lerp(radius,.95,roar);radius=THREE.MathUtils.lerp(radius,1.05,cast);
-    const punch=(this.showdownIntro||this.pursuitIntro)&&t>=8&&t<12;
+    const punch=(this.showdownIntro||this.pursuitIntro&&this.finalIntro)&&t>=8&&t<12;
     if(this.showdownIntro||this.pursuitIntro){radius=punch?1.25:t>=20?.85:t>=12?THREE.MathUtils.lerp(.95,1.4,THREE.MathUtils.smoothstep(t,timing.release-.3,timing.release)):radius;}
     if(this.pursuitIntro&&t>=timing.cast&&t<(this.finalIntro?24:20))radius=THREE.MathUtils.lerp(THREE.MathUtils.lerp(1.25,.95,cast),1.4,THREE.MathUtils.smoothstep(t,timing.release-.3,timing.release));
     if(this.finalIntro&&t>=12&&t<16)radius=.85;
@@ -147,7 +147,7 @@ export class CombatMissionIntroPath {
       position.copy(root.position).add(this.offset);target.copy(root.position);target.y+=h*.52;
       const age=t-(this.introFootstep?.()??-Infinity);if(age>=0&&age<.2){const shake=Math.sin(age*70)*Math.exp(-age*18)*h*.0015*run;position.y+=shake;}
     }
-    if(t>=timing.punch&&t<timing.punch+4&&this.introFist)target.lerp(this.introFist,.35*Math.sin(Math.PI*(t-timing.punch)/4));
+    if((!this.pursuitIntro||this.finalIntro)&&t>=timing.punch&&t<timing.punch+4&&this.introFist)target.lerp(this.introFist,.35*Math.sin(Math.PI*(t-timing.punch)/4));
     if(t>=timing.roar&&t<timing.roar+3.625){const weight=Math.sin(Math.PI*(t-timing.roar)/3.625);position.x+=Math.sin(t*31)*h*.0018*weight;position.y+=Math.sin(t*37)*h*.001*weight;}
     if(t>=timing.release&&(!(this.showdownIntro||this.pursuitIntro)||t<(this.finalIntro?24:20))&&this.introShot){const weight=THREE.MathUtils.smoothstep(t,timing.release,timing.release+.4);target.lerp(this.introShot,weight);this.shotPosition.copy(this.introShot).add(this.offset);position.lerp(this.shotPosition,weight*.7);}
   }

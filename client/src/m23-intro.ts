@@ -25,14 +25,13 @@ export function m23Travel(t:number,phase=0):number {
   const gait=m23GaitTimes(t,phase);
   return m23GaitDistance('walk',gait.walk)-m23GaitDistance('walk',phase)+m23GaitDistance('run',gait.run);
 }
-/** Planted authored turn and complete punch, followed by the existing full cast/release/roar sequence. */
+/** Planted authored turn followed by the existing full cast/release/roar sequence. */
 export function m23IntroMotion(t:number,phase=0):ReturnType<typeof m22IntroMotion>{
   const motion=m22IntroMotion(t,phase),gait=m23GaitTimes(t,phase);
   let key='idle',time=t;
   if(t>=.35&&t<4){key='walk';time=gait.walk;}
   else if(t>=4&&t<7){key='run';time=gait.run;}
   else if(t>=8&&t<9.4){key='turn';time=t-8;}
-  else if(t>=9.5&&t<9.5+model.clips.punch!.duration){key='punch';time=t-9.5;}
   else if(t>=12){key=motion.key;time=motion.time;}
   const yawOffset=M22_INTRO.turnYaw*Math.max(0,Math.min(1.4,t-8))/model.clips.turn!.duration;
   const lookUp=smooth((t-1)/1.5)*(1-smooth((t-7)/1))+smooth((t-11.5)/.5)*(1-smooth((t-19.6)/.4));
