@@ -28,14 +28,14 @@ const buildings=[];loadMonsterDistrictBuildings().query(-8500*DALLAS_WORLD_SCALE
 const create=()=>new MonsterArrivalView(new THREE.Scene(),ground(journeyDallas19.monster.x,journeyDallas19.monster.z),0,undefined,source,ground,()=>390,model,false,true,true,true);
 test('M24 exact captions, seven scene boundaries and unsped authored motions',()=>{
  for(const [t,text] of [[0,'Dr. Boss is back for one final battle!'],[4,"He's faster than ever!"],[8,'And stronger than ever!'],[12,"He won't give up!"],[16,'His energy attack is coming!'],[20,'This is your final chance to save Dallas!'],[24,"Pilot! It's time to finish this!"],[26.5,'DEFEAT THE MONSTER'],[28,'']])assert.equal(m24IntroText(t),text);
- for(const [start,end,key] of [[8,timing.turnEnd,'turn'],[12,12+model.clips.roar.duration,'roar'],[timing.shoot,timing.monsterEnd,'shoot']])for(const t of [start+.01,(start+end)/2,end-.01]){
+ for(const [start,end,key] of [[timing.roar,timing.roar+model.clips.roar.duration,'roar'],[timing.shoot,timing.monsterEnd,'shoot']])for(const t of [start+.01,(start+end)/2,end-.01]){
    assert.equal(m24IntroMotion(t).key,key);assert(Math.abs(m24IntroMotion(t).time-(t-start))<1e-9);
  }
- assert.equal(m24IntroMotion(5).key,'run');assert.equal(m24IntroMotion(7.5).key,'idle');assert(m24IntroMotion(9.4).yawOffset>m24IntroMotion(8).yawOffset);
+ assert.equal(m24IntroMotion(5).key,'walk');assert.equal(m24IntroMotion(7.5).key,'idle');assert.equal(m24IntroMotion(9.4).yawOffset,0);
  for(let t=.4;t<7;t+=.01){const a=m24GaitTimes(t),b=m24GaitTimes(t+.001);assert((b.walk-a.walk)/.001<=1.001);assert((b.run-a.run)/.001<=1.001);assert(b.run>=a.run-1e-9);}
  assert(m24IntroMotion(5.5).lookUp>.9);assert.equal(m24IntroMotion(24).key,'idle');assert.equal(timing.duration,28);
 });
-test('M24 uses a real collision-checked Dallas run/stop/turn, stays grounded, and releases one harmless hand-origin six-fireball volley',async()=>{
+test('M24 uses a real collision-checked Dallas walk/roar/shoot, stays grounded, and releases one harmless hand-origin six-fireball volley',async()=>{
  const view=create();await view.ready;const actor=view.creature,origin=actor.root.position.clone(),yaw=actor.root.rotation.y;
  let roars=0,shots=0,steps=0,punches=0,casts=0;const impacts=[];view.onCasting=()=>casts++;view.onWarning=()=>punches++;view.onRoar=()=>roars++;view.onProjectile=()=>shots++;view.onFootfall=()=>{steps++;impacts.push(view.introTime);};
  view.prepareHuntingIntro(buildings,false,true,true);const intro=actor.strikingIntro,start=actor.root.position.clone();assert(start.distanceTo(origin)>250);
@@ -51,11 +51,11 @@ test('M24 uses a real collision-checked Dallas run/stop/turn, stays grounded, an
    if(view.pool[0].group.visible){sawShot=true;assert.equal(view.pool[0].id,null);assert(view.pool[0].direction.dot(new THREE.Vector3(0,0,1).applyQuaternion(actor.root.quaternion))>.9);assert.equal(view.pool.filter(shot=>shot.group.visible).length,6);assert(view.pool[0].group.position.y>=view.introShotOrigin.y);}
    assert.equal(actor.frame,null);assert.equal(view.damagedDowntown,false);
  }
- assert.deepEqual([...clips].sort(),['idle','run','turn','roar','shoot'].sort());assert.equal(roars,1);assert.equal(punches,0);assert.equal(casts,1);assert.equal(impacts.filter(t=>t>=7).length,0);assert.equal(shots,1);assert(sawShot);assert(steps>0);
- assert(impacts.some(t=>t>=4&&t<7),'authored running footfalls produce audio/dust cues');
+ assert.deepEqual([...clips].sort(),['idle','walk','roar','shoot'].sort());assert.equal(roars,1);assert.equal(punches,0);assert.equal(casts,1);assert.equal(impacts.filter(t=>t>=7).length,0);assert.equal(shots,1);assert(sawShot);assert(steps>0);
+ assert(impacts.some(t=>t>=4&&t<7),'authored walking footfalls produce audio/dust cues');
  const player=new THREE.Group();player.add(new THREE.Mesh(new THREE.BoxGeometry(20,6,25)));
  const path=new CombatMissionIntroPath(actor.root,player,19,false,false,view.introFistPosition,view.introProjectilePosition,true,false,true,()=>view.introFootstepTime,true),camera=new THREE.PerspectiveCamera(48,1280/589,1,20000),position=new THREE.Vector3(),target=new THREE.Vector3();
- for(const t of [2,5,6.5]){view.setIntroTime(t);view.update(.025);path.sample(t*1000,position,target,new THREE.Vector3(),new THREE.Vector3());camera.position.copy(position);camera.lookAt(target);camera.updateMatrixWorld();const box=new THREE.Box3().setFromObject(actor.root,true);for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const screen=new THREE.Vector3(x,y,z).project(camera);assert(Math.abs(screen.x)<1&&Math.abs(screen.y)<1,'full walking/running monster stays framed');}}
+ for(const t of [2,5,6.5]){view.setIntroTime(t);view.update(.025);path.sample(t*1000,position,target,new THREE.Vector3(),new THREE.Vector3());camera.position.copy(position);camera.lookAt(target);camera.updateMatrixWorld();const box=new THREE.Box3().setFromObject(actor.root,true);for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const screen=new THREE.Vector3(x,y,z).project(camera);assert(Math.abs(screen.x)<1&&Math.abs(screen.y)<1,'full walking monster stays framed');}}
  player.children[0].geometry.dispose();player.children[0].material.dispose();
  assert.equal(actor.actions.get(model.clips.defeat.name).enabled,false);view.setIntroTime(null);assert.deepEqual(actor.root.position,origin);assert.equal(actor.root.rotation.y,yaw);assert.equal(actor.strikingIntro,undefined);
  assert(!view.mouthFire.visible);assert(!view.castingHand.visible);assert(view.pool.slice(0,6).every(shot=>!shot.group.visible));view.dispose();assert.equal(view.scene.children.length,0);
