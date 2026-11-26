@@ -25,11 +25,13 @@ const source=loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOff
 const zero={x:0,y:0,z:0};
 const encounter=()=>createPursuitWarlordEncounter('m23','p',100000,()=>135,[]);
 test('M23 victory, timeout, replay, mission migration, and first-clear credits remain transactional', () => {
+    assert.equal(journeyDallas23.bossHealth,2000);assert.equal(pursuitWarlordSpecies.health,2000);
+    const monster=encounter();assert.equal(monster.frame.health,2000);disposeM19(monster);
     const dir = mkdtempSync(join(tmpdir(), 'apex-ledger-')), path = join(dir, 'profiles.sqlite'), db = new DatabaseSync(path);
     db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('p',0,0)");
     db.close();
     try {
-        const store = new JourneyAttemptStore(path, true), win = now => { let a = store.launch('p', 'trainer', now, journeyDallas23.id); store.approach('p', a.attemptId, now + 1); assert.equal(store.startTimedGateClock('p', a.attemptId, now + 2), undefined); a = store.startMonsterArrival('p', a.attemptId, now + 3); assert.equal(a.deadlineAt, now + 3 + journeyDallas23.timeLimitMs); assert.equal(store.acceptGate('p', a.attemptId, 0, now + 4), undefined); for (let i = 0; i < 40; i++)
+        const store = new JourneyAttemptStore(path, true), win = now => { let a = store.launch('p', 'trainer', now, journeyDallas23.id); store.approach('p', a.attemptId, now + 1); assert.equal(store.startTimedGateClock('p', a.attemptId, now + 2), undefined); a = store.startMonsterArrival('p', a.attemptId, now + 3); assert.equal(a.deadlineAt, now + 3 + journeyDallas23.timeLimitMs); assert.equal(store.acceptGate('p', a.attemptId, 0, now + 4), undefined); for (let i = 0; i < journeyDallas23.bossHealth / 25; i++)
             a = store.hitMonster('p', a.attemptId, now + 200 + i * 250, 25); assert.equal(a.status, 'COMPLETED'); assert.equal(a.monsterHealth, 0); assert.equal(store.hitMonster('p', a.attemptId, now + 31000, 25), undefined); return a; };
         assert.equal(new JourneyAttemptStore(path, false).canAccessMission('p', 'journey-dallas-19'), false);
         assert.equal(win(1000).firstClearCredits, 3150);
@@ -141,7 +143,7 @@ test('retired aircraft and heart events cannot advance M23; pause, migration, re
  const db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('p',0,0)");
  try{
   const store=new JourneyAttemptStore(path,true),a=store.launch('p','trainer',1000,journeyDallas23.id);
-  assert.equal(a.targetId,null);assert.equal(a.secondaryTargetId,null);assert.equal(a.monsterHealth,1000);
+  assert.equal(a.targetId,null);assert.equal(a.secondaryTargetId,null);assert.equal(a.monsterHealth,2000);
   assert.equal(store.assignDoubleHunter('p',a.attemptId,'fake',1,50000),undefined);
   assert.equal(store.defeatDoubleFirst('p',a.attemptId,'fake',{x:0,y:0,z:0}),undefined);
   assert.equal(store.collectDoubleHeart('p',a.attemptId,journeyDallas23.heartId,50000),undefined);
@@ -155,8 +157,8 @@ test('retired aircraft and heart events cannot advance M23; pause, migration, re
   const started=reopened.startMonsterArrival('p',retry.attemptId,60002);
   reopened.pause('p',retry.attemptId,60003);const resumed=reopened.resume('p',retry.attemptId,61003);
   assert.equal(resumed.pausedMs,1000);assert.equal(resumed.attempt.deadlineAt,started.deadlineAt+1000);
-  assert.equal(resumed.attempt.monsterHealth,1000);
-  const won=reopened.hitMonster('p',retry.attemptId,61004,1000);assert.equal(won.status,'COMPLETED');assert.equal(won.firstClearCredits,0);
+  assert.equal(resumed.attempt.monsterHealth,2000);
+  const won=reopened.hitMonster('p',retry.attemptId,61004,journeyDallas23.bossHealth);assert.equal(won.status,'COMPLETED');assert.equal(won.firstClearCredits,0);
   assert.equal(db.prepare("SELECT credits FROM player_profiles WHERE pilot_id='p'").get().credits,0);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
 });

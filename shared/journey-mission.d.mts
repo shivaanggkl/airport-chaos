@@ -142,7 +142,7 @@ export const journeyDallas18: Readonly<{
 }>;
 export const journeyDallas19: Readonly<{
   id: 'journey-dallas-19'; cityId: 'dallas'; name: 'FINAL MONSTER BATTLE'; chapter: 'LEGENDARY SKIES';
-  firstClearCredits: 4000; startAirportId:'love'; runwayStart:true; prepareMs: 0; timeLimitMs: 360000; bossHealth: 1500;
+  firstClearCredits: 4000; startAirportId:'love'; runwayStart:true; prepareMs: 0; timeLimitMs: 360000; bossHealth: 3000;
   monster: Readonly<{ x: number; z: number; height: number }>;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
 }>;
@@ -168,7 +168,7 @@ export const journeyDallas22: Readonly<{
 }>;
 export const journeyDallas23: Readonly<{
   id: 'journey-dallas-23'; cityId: 'dallas'; name: 'MONSTER PURSUIT'; chapter: 'LEGENDARY SKIES';
-  prepareMs:0;timeLimitMs:360000;bossHealth:1000;monster:typeof journeyDallas20.monster;airborneSpawn:typeof journeyDallas20.airborneSpawn;
+  prepareMs:0;timeLimitMs:360000;bossHealth:2000;monster:typeof journeyDallas20.monster;airborneSpawn:typeof journeyDallas20.airborneSpawn;
   firstClearCredits: 3150; startAirportId: 'love'; hunterHealth: 200;
   heartId: 'mission-23-repair-heart'; heartRadius: 115; hunterTwoDelayMs: 2500;
 }>;

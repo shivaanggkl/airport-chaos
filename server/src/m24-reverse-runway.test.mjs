@@ -26,7 +26,7 @@ test('M24 mirrors the runway start without changing runway dimensions or other s
  assert.deepEqual({...ctx.expectedInitialTransform('milwaukee',0,{x:1,y:2,z:3},'central',true)},{x:1,y:2,z:3});
 });
 
-test('M24 and Chapter 3 battles get the authoritative reversed runway welcome pose',()=>{
+test('both Dr. Boss missions get the authoritative reversed runway welcome pose',()=>{
  const start=source.indexOf('  const reverseRunway = journeyUsesReverseRunway(journeyAttempt?.missionId);');
  const end=source.indexOf('\n\n',start);
  const ctx=vm.createContext({...missions,journeyCategorySlot,cityAirports,dallasAirportElevations:elevations,cityId:'dallas',spawnSlot:0,spawnPosition:{x:0,y:0,z:45},spawnAirportId:'love',airborneSpawn:undefined});
@@ -34,8 +34,9 @@ test('M24 and Chapter 3 battles get the authoritative reversed runway welcome po
  for(const mission of [missions.journeyDallas25,missions.journeyDallas20,missions.journeyDallas21,missions.journeyDallas22,missions.journeyDallas23,missions.journeyDallas19]){
   const local={...ctx,expectedInitialTransform:ctx.expectedInitialTransform,journeyAttempt:{missionId:mission.id}};
   vm.runInNewContext(compile(source.slice(start,end)+'\nresult={reverseRunway,initialAcceptedPosition,initialHeading};'),local);
-  assert.equal(local.result.reverseRunway,mission.id===missions.journeyDallas19.id);
-  assert.equal(local.result.initialHeading,mission.id===missions.journeyDallas19.id?Math.PI:0);
+  const reversed=mission.id===missions.journeyDallas19.id||mission.id===missions.journeyDallas23.id;
+  assert.equal(local.result.reverseRunway,reversed);
+  assert.equal(local.result.initialHeading,reversed?Math.PI:0);
  }
  assert.match(source,/runwaySpawn: \{ position: initialAcceptedPosition, heading: initialHeading \}/);
  const client=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
@@ -46,18 +47,21 @@ test('M24 and Chapter 3 battles get the authoritative reversed runway welcome po
  vm.runInNewContext(branch,pose);assert.equal(pose.heading,Math.PI);assert.equal(pose.airplane.rotation.y,Math.PI);assert.equal(pose.spawnPosition.z,love.z-2592);
 });
 
-test('M24 retry/equip recovery uses the same reversed runway direction and keeps occupied-slot checks',()=>{
+test('Dr. Boss retry/equip recovery uses the same reversed runway direction and keeps occupied-slot checks',()=>{
  const attempt={missionId:missions.journeyDallas19.id,status:'APPROACH'};
  const ctx=vm.createContext({...missions,journeyCategorySlot,cityAirports,dallasAirportElevations:elevations,
   playerJourneyAttempts:new Map([['pilot','attempt']]),journeyStore:{activeSnapshot:()=>attempt},players:new Map(),
   nearestCityAirport:()=>undefined,respawnClearance:60,combatTransformFreshMs:5000});
  vm.runInContext(compile(fn('journeyUsesReverseRunway')+fn('safeRespawnTransform')),ctx);
  const player={pilotId:'pilot',cityId:'dallas',position:{x:0,y:135,z:0},rotation:{y:0},spawnSlot:0};
- const reversed=ctx.safeRespawnTransform('pilot',player,10000);
- assert.equal(reversed.heading,Math.PI);assert(reversed.position.z<love.z);assert.equal(reversed.position.y,135);
- ctx.players.set('other',{...player,entityType:'player',lifeState:'alive',hasRespawnTransform:true,lastStateAt:10000,position:reversed.position});
- const alternate=ctx.safeRespawnTransform('pilot',player,10000);
- assert.equal(alternate.heading,Math.PI);assert(Math.abs(alternate.position.z-reversed.position.z)>=60);
+ for(const missionId of [missions.journeyDallas19.id,missions.journeyDallas23.id])for(const status of ['APPROACH','RACING']){
+  attempt.missionId=missionId;attempt.status=status;ctx.players.clear();
+  const reversed=ctx.safeRespawnTransform('pilot',player,10000);
+  assert.equal(reversed.heading,Math.PI);assert(reversed.position.z<love.z);assert.equal(reversed.position.y,135);
+  ctx.players.set('other',{...player,entityType:'player',lifeState:'alive',hasRespawnTransform:true,lastStateAt:10000,position:reversed.position});
+  const alternate=ctx.safeRespawnTransform('pilot',player,10000);
+  assert.equal(alternate.heading,Math.PI);assert(Math.abs(alternate.position.z-reversed.position.z)>=60);
+ }
  attempt.missionId=missions.journeyDallas22.id;
  assert.equal(ctx.safeRespawnTransform('pilot',player,10000).heading,0);
 });

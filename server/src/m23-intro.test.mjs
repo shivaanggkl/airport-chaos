@@ -75,7 +75,7 @@ test('M23 camera hands off to the actual Love Field plane at 28s and preserves M
  for(const group of [root,player]){group.children[0].geometry.dispose();group.children[0].material.dispose();}
 });
 test('M23 remains EASY with its own nine motions, Love Field selection, and existing post-cinematic countdown',()=>{
- assert.equal(journeyDallas23.startAirportId,'love');assert.equal(journeyDallas23.bossHealth,1000);assert.equal(journeyDallas23.firstClearCredits,3150);assert.equal(huntingWarlordSpecies.level,'EASY');
+ assert.equal(journeyDallas23.startAirportId,'love');assert.equal(journeyDallas23.bossHealth,2000);assert.equal(journeyDallas23.firstClearCredits,3150);assert.equal(huntingWarlordSpecies.level,'EASY');
  assert.equal(huntingWarlordSpecies.abilities.find(a=>a.id==='hand-strike').damage,15);assert.equal(huntingWarlordSpecies.abilities.find(a=>a.id==='hand-strike').cooldown,4);assert.equal(huntingWarlordSpecies.abilities.find(a=>a.id==='fireball-barrage').damage,25);assert.equal(huntingWarlordSpecies.abilities.find(a=>a.id==='fireball-barrage').cooldown,8);
  const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');assert(main.includes('const pursuitIntro=journeyAttempt.missionId===journeyDallas23.id'));assert(main.includes('if(pursuitIntro)view.prepareHuntingIntro(obstacleBounds,false,true)'));assert(main.includes('if(journeyAttempt.missionId===journeyDallas23.id)clearFlightLaunchPresentation()'));
  const complete=main.slice(main.indexOf('function completeFlightLaunchCinematic'),main.indexOf('function abortFlightLaunchCinematic'));assert(complete.includes('clearFlightLaunchPresentation()'));assert(complete.includes('beginMissionStartCountdown()'));
