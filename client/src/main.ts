@@ -12046,7 +12046,7 @@ function animate(): void {
   updateCamera(delta);
   airAssaultUi?.update(camera,airplane);
   transportView?.updateDefeatCamera(camera,delta,airplane,chaseCameraPosition,chaseLookTarget);
-  if((journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas20.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id||journeyAttempt?.missionId===journeyDallas19.id)&&monsterView?.timeoutCinematicActive)monsterView.updateTimeoutCamera(camera);
+  if((journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas20.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id||journeyAttempt?.missionId===journeyDallas19.id)&&monsterView?.timeoutCinematicActive)monsterView.updateTimeoutCamera(camera,scene.fog instanceof THREE.Fog?scene.fog:undefined);
   portalVisuals?.update(delta,camera,airplane.position,portalInTransit);
   if (crashSequence) {
     const sequence = crashSequence;

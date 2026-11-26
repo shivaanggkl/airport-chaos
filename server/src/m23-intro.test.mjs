@@ -1,4 +1,4 @@
-import {M19_TIMEOUT,M1_TIMEOUT,M19_CITY_BLAST_SCALE} from '../../client/src/monster-timeout.ts';
+import {M19_TIMEOUT,M1_TIMEOUT,M2_TIMEOUT,M19_CITY_BLAST_SCALE} from '../../client/src/monster-timeout.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -214,19 +214,34 @@ test('Both Dr. Boss failures frame their huge blasts, keep the release camera co
    }
   }
  }
- assert(releaseStep<200,'capturing the firing hand must not jolt the camera');
+ assert(releaseStep<(defender?200:1200),'capturing the firing hand must not jolt the camera');
  assert.equal(strikeTimes.length,defender?6:12);for(let i=1;i<strikeTimes.length;i++)assert(strikeTimes[i]-strikeTimes[i-1]>=.099,'impacts are readable individual beats');
  assert.equal(view.timeoutBlackoutOpacity,1);view.dispose();assert.equal(view.scene.children.length,0);
  }
 });
 
-test('M2 failure uses twelve fireballs and twelve huge M1-sized downtown blasts',async()=>{
+test('M2 failure uses twelve city-scale impacts at the actual downtown, clear fog and a stable skyline view',async()=>{
  const view=create();await view.ready;view.finish('timeout');
- let sawVolley=false,sawImpacts=false;
+ const downtown=new THREE.Vector3(-2191*DALLAS_WORLD_SCALE,view.targetGroundY+30,-1201*DALLAS_WORLD_SCALE);
+ assert(view.endingDestination.equals(downtown),'failure targets the world-scaled city, not raw map coordinates');
+ const camera=new THREE.PerspectiveCamera(48,1280/589,1,1000),fog=new THREE.Fog(0x8899aa,7000,15000);
+ let sawVolley=false,sawImpacts=false,cityCamera;
+
  for(let i=0;i<120;i++){
-  view.update(.05);const t=view.endingElapsed;
+  view.update(.05);fog.near=7000;fog.far=15000;view.updateTimeoutCamera(camera,fog);camera.updateMatrixWorld();const t=view.endingElapsed;
+  if(t>M19_TIMEOUT.impactAt&&t<M19_TIMEOUT.impactAt+11*M1_TIMEOUT.impactSpacing)assert(!view.damagedDowntown,'city remains intact until the last strike');
+  if(t>3.3){
+   assert(camera.position.distanceTo(downtown)<20000,'camera stays close enough to recognize downtown');
+   assert(fog.near>camera.position.distanceTo(downtown)+5000,'city is not hidden by gameplay fog');
+   if(cityCamera)assert(camera.position.equals(cityCamera),'hold a stable city view during all impacts');
+   cityCamera=camera.position.clone();
+   const left=new THREE.Vector3(downtown.x-3500,downtown.y,downtown.z).project(camera);
+   const right=new THREE.Vector3(downtown.x+3500,downtown.y+1500,downtown.z).project(camera);
+   assert(Math.abs(left.x)<1&&Math.abs(left.y)<1&&Math.abs(right.x)<1&&Math.abs(right.y)<1,'downtown buildings fit in the shot');
+   assert(left.distanceTo(right)>.3,'city occupies a readable part of the screen');
+  }
   if(t>2&&t<3){sawVolley=true;assert.equal(view.pool.filter(shot=>shot.group.visible).length,12);assert(view.timeoutVolley.every(round=>round.shot.group.scale.x===6));}
-  if(t>5.1){sawImpacts=true;assert(view.timeoutVolley.every(round=>round.blast.root.visible&&round.blast.scale===M19_CITY_BLAST_SCALE*6&&!round.shot.group.visible));}
+  if(t>5.1){sawImpacts=true;assert(view.timeoutVolley.every(round=>round.blast.root.visible&&round.blast.scale===M2_TIMEOUT.blastScale&&!round.shot.group.visible));}
  }
  assert(sawVolley&&sawImpacts);view.dispose();assert.equal(view.scene.children.length,0);
 });
