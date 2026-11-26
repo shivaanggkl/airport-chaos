@@ -9,7 +9,7 @@ import {stepM19,disposeM19,permittedM19Damage} from './m19-titan.js';
 import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
 const zero={x:0,y:0,z:0};
-for(const [mission,create] of [[20,createStrikingWarlordEncounter],[21,createHuntingWarlordEncounter],[22,createShowdownWarlordEncounter],[23,createPursuitWarlordEncounter],[24,createFinalWarlordEncounter]])test(`M${mission} releases three distinct fireballs together from one authored throw`,()=>{
+for(const [mission,create] of [[20,createStrikingWarlordEncounter],[21,createHuntingWarlordEncounter],[22,createShowdownWarlordEncounter],[23,createPursuitWarlordEncounter],[24,createFinalWarlordEncounter]])test(`M${mission} releases its distinct fireballs together from one authored throw`,()=>{
  const e=create('volley','pilot',0,()=>135,[]),yaw=e.frame.yaw;
  const target={x:e.frame.position.x+Math.sin(yaw)*4000,y:e.frame.position.y+1400,z:e.frame.position.z+Math.cos(yaw)*4000};
  let releasedAt;
@@ -22,12 +22,12 @@ for(const [mission,create] of [[20,createStrikingWarlordEncounter],[21,createHun
     if(ms-releasedAt>=500)break;
    }else if(releases.length){
     releasedAt=ms;
-    assert.equal(releases.length,3,'all rounds must release on the same server step');
+    assert.equal(releases.length,mission===23?6:3,'all rounds must release on the same server step');
     assert.equal(e.frame.animation.clip,model.clips.shoot.name);
-    assert.equal(e.frame.projectiles.length,3);
-    assert.equal(new Set(e.frame.projectiles.map(p=>p.id)).size,3);
-    assert.equal(new Set(e.frame.projectiles.map(p=>JSON.stringify(p.velocity))).size,3,'slight spread keeps the fireballs visually separate');
-    for(const event of releases)assert.deepEqual(event.position,releases[0].position,'all three originate from the same hand release');
+    assert.equal(e.frame.projectiles.length,mission===23?6:3);
+    assert.equal(new Set(e.frame.projectiles.map(p=>p.id)).size,mission===23?6:3);
+    assert.equal(new Set(e.frame.projectiles.map(p=>JSON.stringify(p.velocity))).size,mission===23?6:3,'slight spread keeps the fireballs visually separate');
+    for(const event of releases)assert.deepEqual(event.position,releases[0].position,'all rounds originate from the same hand release');
    }
   }
   assert(releasedAt!==undefined,'monster must actually release a volley');
@@ -81,7 +81,7 @@ test('M20 release predicts a newly changed aircraft velocity and launches from t
 test('M20 tuning preserves warnings, cooldown, three-shot volleys, and other monster fireball speeds',()=>{
  const shot=s=>s.abilities.find(a=>a.id==='fireball-barrage'),fireball=shot(strikingWarlordSpecies);
  assert.equal(fireball.damage,25);assert.equal(fireball.projectileSpeed,6000);assert.equal(fireball.cooldown,8);assert.equal(fireball.count,3);assert.equal(fireball.simultaneous,true);assert(fireball.warning+fireball.windup>6);
- for(const [species,damage,speed] of [[huntingWarlordSpecies,25,1400],[showdownWarlordSpecies,25,1400],[pursuitWarlordSpecies,25,1200],[finalWarlordSpecies,25,1400]]){
+ for(const [species,damage,speed] of [[huntingWarlordSpecies,25,1400],[showdownWarlordSpecies,25,1400],[pursuitWarlordSpecies,25,3600],[finalWarlordSpecies,25,1600]]){
   assert.equal(shot(species).damage,damage);assert.equal(shot(species).projectileSpeed,speed);
  }
 });

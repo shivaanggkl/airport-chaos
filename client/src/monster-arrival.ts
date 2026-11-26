@@ -174,8 +174,8 @@ export class MonsterArrivalView {
     const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!,shotCount=3;
     actor.handPosition('left',this.introFistWorld);
     if(!this.huntingIntroEnabled&&t>=M20_INTRO.land&&!this.introLanded){this.introLanded=true;this.particles.emit(actor.root.position.x,actor.root.position.y,actor.root.position.z,true,14,95,1.5);this.onFootfall?.();}
-    if(this.huntingIntroEnabled&&t>=timing.punch&&!this.introPunchWarned){this.introPunchWarned=true;this.onWarning?.();}
-    if((this.showdownIntroEnabled||this.pursuitIntroEnabled)&&t>=timing.punch+.55&&!this.introPunchImpact){this.introPunchImpact=true;this.onFootfall?.();}
+    if(this.huntingIntroEnabled&&(!this.pursuitIntroEnabled||this.finalIntroEnabled)&&t>=timing.punch&&!this.introPunchWarned){this.introPunchWarned=true;this.onWarning?.();}
+    if((this.showdownIntroEnabled||this.pursuitIntroEnabled&&this.finalIntroEnabled)&&t>=timing.punch+.55&&!this.introPunchImpact){this.introPunchImpact=true;this.onFootfall?.();}
     if(t>=timing.roar&&!this.introRoared){this.introRoared=true;this.onRoar?.();}
     if((this.showdownIntroEnabled||this.pursuitIntroEnabled)&&t>=timing.cast&&!this.introCastingSound){this.introCastingSound=true;this.onCasting?.();}
     const casting=t>=timing.cast&&t<timing.release;
