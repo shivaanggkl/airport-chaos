@@ -728,6 +728,7 @@ test('the aim circle and muzzle ray agree through level flight, bank recovery, c
       assert.ok(Math.abs((1 - point.y) * 450 - runtime.lockCircleCenterY) < 1e-8);
     },
   };
+  Object.assign(runtime, {missionSharpshooterIntro: false, sharpshooterAimPosition: () => undefined});
   const attitudes = [[0, 0], [0, -.8], [0, .8], [0, .2], [0, 0], [-.3, 0], [.3, 0]] as const;
   const aircraft = ['trainer', 'cargo', 'privateJet', 'fighter'] as const;
   for (const [index, [pitch, bank]] of attitudes.entries()) {
@@ -799,4 +800,65 @@ test('muzzle and locked aircraft contact flashes keep their size while ordinary 
   assert.ok(impactFlashes[0]!.mesh.position.distanceTo(new THREE.Vector3(12, 2, -18.96)) < 1e-8,
     'the flash sits just in front of the hull and follows the moving aircraft');
   c.muzzleFlashGeometry.dispose(); c.impactFlashGeometry.dispose();
+});
+
+test('distant rounds shrink on screen instead of retaining an oversized 12-pixel footprint', () => {
+  for (const height of [390, 589, 1080]) {
+    const camera = new THREE.PerspectiveCamera(58, 16 / 9, .1, 20000);
+    camera.updateMatrixWorld();
+    let previousPixels = Infinity;
+    for (const depth of [100, 500, 1500, 3600, 9000]) {
+      const diameter = roundDiameter(new THREE.Vector3(0, 0, -depth), camera, height);
+      const pixels = diameter * camera.projectionMatrix.elements[5]! * height / (2 * depth);
+      assert(diameter <= 12, 'world size stays bounded at every distance');
+      assert(pixels <= 12 + 1e-9);assert(pixels <= previousPixels + 1e-9);
+      if (depth >= 3600) assert(pixels < 4, 'distant rounds no longer obscure the monster');
+      previousPixels = pixels;
+    }
+  }
+});
+
+test('confirmed monster hits clear visual offsets, follow the visible hull, and remove the bullet after one impact frame', () => {
+  let removal: ts.IfStatement | undefined;
+  function visit(node: ts.Node): void {
+    if (ts.isIfStatement(node) && node.expression.getText(ast) === "message.type === 'projectileRemove'") removal = node;
+    else ts.forEachChild(node, visit);
+  }
+  visit(ast);assert(removal);
+  const handler = ts.transpileModule(`(function(){${removal.thenStatement.getText(ast)}})()`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  for (const missionId of ['journey-dallas-23', 'journey-dallas-19', 'journey-dallas-25']) {
+    const { context, predicted } = fixture();
+    predicted.mesh.position.set(0, 0, -1200);
+    const core = predicted.mesh.children[0] as THREE.Mesh;core.position.set(35, 0, 0);
+    predicted.direction.set(0, 0, -1);
+    const projectile = Object.assign(predicted, { speed: 1000 });
+    const clientProjectiles = new Map([['monster-shot', projectile]]);
+    const surface = new THREE.Vector3(10, 0, -1500), hits: Array<{position: THREE.Vector3; smoke: boolean}> = [];
+    let accept = true, effects = 0;
+    const view = {
+      introRoot: new THREE.Group(), queueBulletImpact: () => accept,
+      bulletImpactPosition: () => surface.clone(),
+      showBulletImpact: (hit: {position: THREE.Vector3}, smoke: boolean) => hits.push({position: hit.position.clone(), smoke}),
+    };
+    const runtime = {...context, projectileMaterial, projectileImpactPoint: new THREE.Vector3(),
+      clientProjectiles, aimQaRay: null, monsterView: view, journeyAttempt: {attemptId: 'a', missionId},
+      journeyDallas25: {id: 'journey-dallas-25'}, isMonsterJourneyMission: () => true,
+      message: {type: 'projectileRemove', projectileId: 'monster-shot', monsterImpact: {attemptId: 'a', sequence: 1, position: surface.clone(), bodyPosition: new THREE.Vector3(), yaw: 0}},
+      removeClientProjectile: (id: string) => clientProjectiles.delete(id), playProjectileHit: () => effects++,
+    };
+    runInNewContext(`${code('finishMonsterProjectileAtImpact')}\n${handler}`, runtime);
+    assert.deepEqual(core.position.toArray(), [0, 0, 0], 'old reticle offset is cleared');
+    runInNewContext(`${code('updateProjectiles')}\nupdateProjectiles(.06);`, runtime);
+    assert.equal(hits.length, 0);
+    surface.x += 20;
+    runInNewContext(`${code('updateProjectiles')}\nupdateProjectiles(.06);`, runtime);
+    assert.equal(hits.length, 1);assert(hits[0]!.position.equals(surface));assert(projectile.mesh.position.equals(surface));
+    assert.equal(hits[0]!.smoke, missionId !== 'journey-dallas-25', 'moving monsters keep their existing smoke');
+    assert.equal(effects, missionId === 'journey-dallas-25' ? 1 : 0);
+    runInNewContext(`${code('updateProjectiles')}\nupdateProjectiles(.016);`, runtime);
+    assert.equal(clientProjectiles.size, 0);assert.equal(hits.length, 1);
+    clientProjectiles.set('monster-shot', projectile);accept = false;
+    runInNewContext(handler, runtime);
+    assert.equal(clientProjectiles.size, 0, 'an already-presented hit still removes its confirmed bullet');
+  }
 });
