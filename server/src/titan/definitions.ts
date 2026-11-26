@@ -35,6 +35,8 @@ export type Ability = TitanTiming & {
     burstSize?: number;
     spread?: number;
     spreadPattern?: 'fan' | 'cluster';
+    /** Aim large rounds above the ground so a grounded aircraft is reached before terrain. */
+    groundClearanceAim?: boolean;
     tracking?: number;
     directional?: boolean;
     horizontalCone?: boolean;
