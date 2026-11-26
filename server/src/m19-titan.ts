@@ -110,10 +110,10 @@ export type M19Encounter = {
     projectileIds: Set<string>;
     destroyedSites: Set<number>;
 };
-export function createM19Encounter(attemptId: string, playerId: string, startedAt: number, ground: (x: number, z: number) => number, buildings: DistrictBuildings, health = 2500, species = m19Species,binding?:{geometry:Pick<typeof monsterGeometry,'footX'|'footZ'|'spheres'>;spawn:{x:number;z:number};environmentDamage:boolean;articulate?:Environment['articulate'];bounds?:Environment['bounds'];navigation?:Environment['navigation']}): M19Encounter {
+export function createM19Encounter(attemptId: string, playerId: string, startedAt: number, ground: (x: number, z: number) => number, buildings: DistrictBuildings, health = 2500, species = m19Species,binding?:{geometry:Pick<typeof monsterGeometry,'footX'|'footZ'|'spheres'>;spawn:{x:number;z:number};environmentDamage:boolean;articulate?:Environment['articulate'];bounds?:Environment['bounds'];navigation?:Environment['navigation'];roamBoundary?:Environment['roamBoundary']}): M19Encounter {
     const geometry=binding?.geometry??monsterGeometry,joints=species.joints,spawn=binding?.spawn??journeyDallas19.monster;
     const probe: Pick<Legacy, 'x' | 'z' | 'motionCell' | 'motionSource' | 'motionBuildings'> = { x: spawn.x, z: spawn.z }, debris = new Set<string>(), poseCache = new Map<string, boolean>();
-    const env: Environment = { authoredPose:!!binding?.articulate,navigation:binding?.navigation,navigationProbe: 80, bounds: binding?.bounds??monsterArena, ground,
+    const env: Environment = { authoredPose:!!binding?.articulate,navigation:binding?.navigation,roamBoundary:binding?.roamBoundary,navigationProbe: 80, bounds: binding?.bounds??monsterArena, ground,
         traversable: () => true,
         articulate: (limbs, feet, root, yaw, axes,context) => {
             if(binding?.articulate)return binding.articulate(limbs,feet,root,yaw,axes,context);

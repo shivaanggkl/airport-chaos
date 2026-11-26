@@ -1,3 +1,8 @@
+import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
+import * as missions from '../../shared/journey-mission.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pursuitWarlordSpecies as species,createPursuitWarlordEncounter as create} from './pursuit-warlord.js';
@@ -94,4 +99,34 @@ test('M1 roars during gameplay, stays still through the roar, and resumes shooti
   assert(roars>=2);assert(roarFrames>50);assert(shotsAfterRoar>=6);
   assert(finalWarlordSpecies.director.roarInterval===undefined);
  }finally{disposeM19(e);}
+});
+
+test('M1 stays inside the invisible 24 km downtown area, brakes naturally, and reengages when the pilot returns',()=>{
+ const area=pursuitWarlord.downtown;
+ for(const side of [-1,1]){
+  const e=create(`downtown-${side}`,'pilot',0,()=>135,[]),origin={...e.frame.position};let maxRadius=0,settled=0;
+  try{
+   for(let ms=50;ms<=210000;ms+=50){
+    const target=ms<150000?{x:area.x+side*80000,y:3000,z:area.z+side*60000}:{x:area.x,y:2000,z:area.z};
+    const before={...e.frame.position};stepM19(e,target,zero,100,ms);const f=e.frame;
+    const radius=Math.hypot(f.position.x-area.x,f.position.z-area.z);maxRadius=Math.max(maxRadius,radius);
+    assert(radius<area.radius-species.radius,'entire monster remains inside its area');
+    assert(Math.hypot(f.position.x-before.x,f.position.z-before.z)<=species.movement.run*.051,'movement never teleports');
+    if(ms>120000&&ms<150000&&Math.hypot(f.velocity.x,f.velocity.z)<.1){settled++;assert.notEqual(f.animation.clip,model.clips.walk.name,'stopped monster must not walk in place');}
+   }
+   assert(maxRadius>17000);assert(settled>30);assert(Math.hypot(e.frame.position.x-area.x,e.frame.position.z-area.z)<maxRadius-3000,'returns toward downtown');
+   assert(Math.hypot(e.frame.position.x-origin.x,e.frame.position.z-origin.z)>1000);
+  }finally{disposeM19(e);}
+ }
+});
+
+test('M1 updates on the runway from mission start, while pause, countdown and M2 runway gating stay intact',()=>{
+ const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
+ const fn=source.slice(source.indexOf('function updateMonsterEncounters('),source.indexOf('function applyTransportHit('));
+ const code=ts.transpileModule(fn,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ for(const [mission,status,paused,expected] of [[missions.journeyDallas23,'RACING',false,1],[missions.journeyDallas23,'APPROACH',false,0],[missions.journeyDallas23,'RACING',true,0],[missions.journeyDallas19,'RACING',false,0]]){
+  let steps=0;const encounter={attemptId:'a',playerId:'pilot',projectileIds:new Set(),events:[],lastBroadcastAt:1000};
+  const context=vm.createContext({...missions,monsterEncounters:new Map([['a',encounter]]),pausedJourneyAttempts:new Set(paused?['a']:[]),players:new Map([['pilot',{pilotId:'p',position:{x:0,y:0,z:0},velocity:zero,aircraftType:'trainer'}]]),journeyStore:{activeSnapshot:()=>({missionId:mission.id,status,deadlineAt:2000})},playerJourneyRunwayPrep:new Set(['pilot']),aircraftHitRadii:{trainer:10},stepM19:()=>steps++});
+  vm.runInContext(code+';updateMonsterEncounters(1000)',context);assert.equal(steps,expected);
+ }
 });

@@ -20,5 +20,5 @@ export const pursuitWarlordSpecies=new SpeciesRegistry().register({...base,
 export function createPursuitWarlordEncounter(id:string,playerId:string,started:number,ground:(x:number,z:number)=>number,buildings:DistrictBuildings,health:number=journeyDallas23.bossHealth){
  const halfSize=Number(cityRegistry.dallas.worldSize)/2;
  return createM19Encounter(id,playerId,started,ground,buildings,health,pursuitWarlordSpecies,
- {geometry,spawn:journeyDallas23.monster,environmentDamage:false,navigation:'city-bounds',bounds:{minX:-halfSize,maxX:halfSize,minZ:-halfSize,maxZ:halfSize},articulate:createAshenPose(health,false,false,false,true,false)});
+ {geometry,spawn:journeyDallas23.monster,environmentDamage:false,navigation:'city-bounds',roamBoundary:pursuitWarlord.downtown,bounds:{minX:-halfSize,maxX:halfSize,minZ:-halfSize,maxZ:halfSize},articulate:createAshenPose(health,false,false,false,true,false)});
 }
