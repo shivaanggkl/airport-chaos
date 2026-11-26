@@ -77,14 +77,14 @@ export class AshenWarlordModel {
         const saved=this.root.position.clone(),yaw=this.root.rotation.y,city=M2_TIMEOUT.downtown;
         const outward=Math.atan2(saved.x-city.x,saved.z-city.z),clip=model.clips.walk!;
         // Every candidate approaches the skyline head-on; never choose a clear path away from town.
-        for(const radius of [8500,10500,12500])for(const angle of [0,-.25,.25,-.5,.5,-.8,.8])for(const phase of [0,.5,.75]){
+        for(const radius of M24_INTRO.firingDistances)for(const angle of [0,-.25,.25,-.5,.5,-.8,.8])for(const phase of [0,.5,.75]){
             const heading=outward+angle,position=new THREE.Vector3(city.x+Math.sin(heading)*radius,saved.y,city.z+Math.cos(heading)*radius);
             position.y=this.groundAt?.(position.x,position.z)??saved.y;
             const direction=Math.atan2(city.x-position.x,city.z-position.z);
             const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<this.height*6+Math.hypot(o.halfX,o.halfZ));
             this.strikingIntro={position,returnPosition:saved,yaw,walk:{startTime:clip.duration*phase,distance:this.height/model.height*m24Travel(M24_INTRO.runEnd,clip.duration*phase),yaw:direction,showdown:false,pursuit:true,final:true},transitionAt:0};
             let clear=true;
-            for(let step=0;step<=128&&clear;step++){this.applyStrikingIntro(step/8);if(this.introPoseObstructed(nearby))clear=false;}
+            for(let step=0;step<=192&&clear;step++){this.applyStrikingIntro(step/8);if(this.introPoseObstructed(nearby))clear=false;}
             if(clear){this.strikingIntro.last=undefined;this.strikingIntro.previous=undefined;this.strikingIntro.transitionAt=0;this.introTime=0;this.applyStrikingIntro(0);this.grounded=[false,false];return;}
         }
         this.setIntroTime(null);throw Error('M24 downtown approach is obstructed');
