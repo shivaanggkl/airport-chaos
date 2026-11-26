@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import {advertisingPackage, advertisingWaitlistConsent, type AdvertisingPackageId} from '../../shared/advertising-packages.mjs';
 
 export const sponsorshipInterests = ['HUB', 'DALLAS', 'CITY_PARTNER', 'UNSURE'] as const;
 export type SponsorshipInterest = typeof sponsorshipInterests[number];
@@ -11,8 +12,11 @@ export type SponsorshipInquiry = {
   id: string; companyName: string; contactName: string | null; workEmail: string;
   website: string | null; interest: SponsorshipInterest; message: string;
   createdAt: string; status: InquiryStatus;
+  requestKind: 'INQUIRY' | 'WAITLIST'; packageId: AdvertisingPackageId | null;
+  emailConsent: boolean | null; consentedAt: string | null; consentText: string | null;
 };
-export type ValidInquiry = Omit<SponsorshipInquiry, 'id' | 'createdAt' | 'status'>;
+export type ValidInquiry = Omit<SponsorshipInquiry, 'id' | 'createdAt' | 'status' | 'requestKind' | 'packageId' | 'emailConsent' | 'consentedAt' | 'consentText'> &
+  ({requestKind?: 'INQUIRY'; packageId?: never; emailConsent?: never} | {requestKind: 'WAITLIST'; packageId: AdvertisingPackageId; emailConsent: true});
 
 export function validWebsite(value: string): string | undefined {
   if (value.length > 300 || /[\u0000-\u001f\u007f]/.test(value)) return;
@@ -29,26 +33,33 @@ export function validWebsite(value: string): string | undefined {
 
 export function validateSponsorshipInquiry(input: unknown): ValidInquiry | undefined {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return;
-  const fields = Object.keys(input);
-  if (fields.some(field => !['companyName', 'contactName', 'workEmail', 'website', 'interest', 'message'].includes(field))) return;
   const value = input as Record<string, unknown>;
+  const waitlist = value.requestKind === 'WAITLIST';
+  const allowed = waitlist
+    ? ['requestKind','packageId','emailConsent','companyName','contactName','workEmail','website','message']
+    : ['companyName','contactName','workEmail','website','interest','message'];
+  if (Object.keys(value).some(field => !allowed.includes(field))) return;
+  const selectedPackage = waitlist ? advertisingPackage(value.packageId) : undefined;
+  if (waitlist && (!selectedPackage || value.emailConsent !== true)) return;
   if (typeof value.companyName !== 'string' || typeof value.workEmail !== 'string' ||
-    typeof value.message !== 'string' || typeof value.interest !== 'string' ||
+    (waitlist ? value.message != null && typeof value.message !== 'string' : typeof value.message !== 'string' || typeof value.interest !== 'string') ||
     (value.contactName != null && typeof value.contactName !== 'string') ||
     (value.website != null && typeof value.website !== 'string')) return;
   const companyName = value.companyName.trim();
   const contactName = typeof value.contactName === 'string' ? value.contactName.trim() : '';
   const workEmail = value.workEmail.trim().toLowerCase();
   const websiteInput = typeof value.website === 'string' ? value.website.trim() : '';
-  const message = value.message.trim();
+  const message = typeof value.message === 'string' ? value.message.trim() : '';
   if (companyName.length < 2 || companyName.length > 100 || contactName.length > 100 ||
     /[\u0000-\u001f\u007f]/.test(companyName + contactName + workEmail) || /[\u0000\u007f]/.test(message) ||
     workEmail.length > 254 || !/^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i.test(workEmail) ||
-    message.length < 10 || message.length > 1_000 ||
-    !sponsorshipInterests.includes(value.interest as SponsorshipInterest)) return;
+    (!waitlist && message.length < 10) || message.length > 1_000 ||
+    (!waitlist && !sponsorshipInterests.includes(value.interest as SponsorshipInterest))) return;
   const website = websiteInput ? validWebsite(websiteInput) : null;
   if (websiteInput && !website) return;
-  return { companyName, contactName: contactName || null, workEmail, website: website ?? null, interest: value.interest as SponsorshipInterest, message };
+  const business = {companyName, contactName: contactName || null, workEmail, website: website ?? null, message};
+  return selectedPackage ? {...business, interest:selectedPackage.interest, requestKind:'WAITLIST', packageId:selectedPackage.id, emailConsent:true}
+    : {...business, interest:value.interest as SponsorshipInterest};
 }
 
 export class SponsorshipInquiryStore {
@@ -67,9 +78,25 @@ export class SponsorshipInquiryStore {
     );
     CREATE INDEX IF NOT EXISTS sponsorship_inquiries_recent ON sponsorship_inquiries(created_at DESC);
     CREATE INDEX IF NOT EXISTS sponsorship_inquiries_email_recent ON sponsorship_inquiries(work_email, created_at DESC);`);
+    // Additive migration: historical inquiries retain their original fields and
+    // have no inferred consent. Existing operators keep using this same table.
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const columns = new Set((this.db.prepare('PRAGMA table_info(sponsorship_inquiries)').all() as {name:string}[]).map(column => column.name));
+      for (const [name, definition] of Object.entries({
+        request_kind: "TEXT NOT NULL DEFAULT 'INQUIRY' CHECK(request_kind IN ('INQUIRY','WAITLIST'))",
+        package_id: "TEXT CHECK(package_id IN ('HUB_SPOTLIGHT','DALLAS_NETWORK'))",
+        email_consent: 'INTEGER CHECK(email_consent IN (0,1))', consented_at: 'TEXT', consent_text: 'TEXT',
+      })) if (!columns.has(name)) this.db.exec(`ALTER TABLE sponsorship_inquiries ADD COLUMN ${name} ${definition}`);
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); this.db.close(); throw error; }
+
   }
 
   create(input: ValidInquiry, now = new Date()): { id: string; received: true } | { limited: true; retryAfterMs: number } {
+    const waitlist = input.requestKind === 'WAITLIST';
+    const selectedPackage = waitlist ? advertisingPackage(input.packageId) : undefined;
+    if (waitlist && (!selectedPackage || input.emailConsent !== true)) throw new Error('Invalid waitlist consent or package');
     const cutoff = new Date(now.getTime() - 60 * 60_000).toISOString();
     this.db.exec('BEGIN IMMEDIATE');
     try {
@@ -81,9 +108,10 @@ export class SponsorshipInquiryStore {
       }
       const id = randomUUID();
       this.db.prepare(`INSERT INTO sponsorship_inquiries
-        (id,company_name,contact_name,work_email,website,interest,message,created_at,status)
-        VALUES (?,?,?,?,?,?,?,?,'NEW')`).run(id, input.companyName, input.contactName,
-        input.workEmail, input.website, input.interest, input.message, now.toISOString());
+        (id,company_name,contact_name,work_email,website,interest,message,created_at,status,request_kind,package_id,email_consent,consented_at,consent_text)
+        VALUES (?,?,?,?,?,?,?,?,'NEW',?,?,?,?,?)`).run(id, input.companyName, input.contactName,
+        input.workEmail, input.website, selectedPackage?.interest ?? input.interest, input.message, now.toISOString(),
+        waitlist ? 'WAITLIST' : 'INQUIRY', selectedPackage?.id ?? null, waitlist ? 1 : null, waitlist ? now.toISOString() : null, waitlist ? advertisingWaitlistConsent : null);
       this.db.exec('COMMIT');
       return { id, received: true };
     } catch (error) {
@@ -93,15 +121,19 @@ export class SponsorshipInquiryStore {
   }
 
   list(limit = 25): SponsorshipInquiry[] {
-    return this.db.prepare(`SELECT id,company_name AS companyName,contact_name AS contactName,
-      work_email AS workEmail,website,interest,message,created_at AS createdAt,status
-      FROM sponsorship_inquiries ORDER BY created_at DESC LIMIT ?`).all(Math.max(1, Math.min(100, limit))) as SponsorshipInquiry[];
+    const rows = this.db.prepare(`SELECT id,company_name AS companyName,contact_name AS contactName,
+      work_email AS workEmail,website,interest,message,created_at AS createdAt,status,request_kind AS requestKind,package_id AS packageId,
+      email_consent AS emailConsent,consented_at AS consentedAt,consent_text AS consentText
+      FROM sponsorship_inquiries ORDER BY created_at DESC LIMIT ?`).all(Math.max(1, Math.min(100, limit))) as (Omit<SponsorshipInquiry,'emailConsent'> & {emailConsent:number|null})[];
+    return rows.map(row => ({...row,emailConsent:row.emailConsent === null ? null : row.emailConsent === 1}));
   }
 
   get(id: string): SponsorshipInquiry | undefined {
-    return this.db.prepare(`SELECT id,company_name AS companyName,contact_name AS contactName,
-      work_email AS workEmail,website,interest,message,created_at AS createdAt,status
-      FROM sponsorship_inquiries WHERE id = ?`).get(id) as SponsorshipInquiry | undefined;
+    const row = this.db.prepare(`SELECT id,company_name AS companyName,contact_name AS contactName,
+      work_email AS workEmail,website,interest,message,created_at AS createdAt,status,request_kind AS requestKind,package_id AS packageId,
+      email_consent AS emailConsent,consented_at AS consentedAt,consent_text AS consentText
+      FROM sponsorship_inquiries WHERE id = ?`).get(id) as (Omit<SponsorshipInquiry,'emailConsent'> & {emailConsent:number|null}) | undefined;
+    return row ? {...row,emailConsent:row.emailConsent === null ? null : row.emailConsent === 1} : undefined;
   }
 
   updateStatus(id: string, status: Exclude<InquiryStatus, 'NEW'>): boolean {

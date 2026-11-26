@@ -1,10 +1,10 @@
 import './advertise-page.css';
+import {advertisingPackages, advertisingWaitlistConsent, type AdvertisingPackageId} from '../../shared/advertising-packages.mjs';
 import {createContextPageTitle} from './context-page-shell';
 import { getSponsorCatalog, sponsorshipApi, type PublicSponsor } from './sponsorship-catalog';
 import { recordSponsorMeasurement, setSponsorMeasurementCatalog } from './sponsorship-measurement';
 
 export type BusinessRoute = 'advertise' | 'sponsors' | 'details';
-type Interest = 'HUB' | 'DALLAS' | 'CITY_PARTNER' | 'UNSURE';
 type Options = { route: BusinessRoute; sponsorId?: string; detailIntentSource?: 'HUB'; onNavigate: (route: BusinessRoute, sponsorId?: string) => void; onClose: () => void; embeddedHeader?: boolean; onRouteChange?: (route: BusinessRoute) => void };
 const email = 'support@vadensoftware.com';
 const apiBase = import.meta.env.DEV ? 'http://localhost:8091' :
@@ -26,46 +26,57 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
       <section class="adp-hero adp-panel" aria-labelledby="adp-title">
         <div class="adp-hero-copy"><h1 id="adp-title">ADVERTISE IN AIRPORT CHAOS</h1>
           <p>Put your brand where players fly.</p>
-          <button class="adp-button context-action context-action--gold" type="button" data-to-form>REQUEST SPONSORSHIP</button>
+          <button class="adp-button context-action context-action--gold" type="button" data-to-form>JOIN WAITLIST</button>
         </div><img class="adp-hero-image" src="/media/advertise/dfw-terminal.jpg" alt="Real Airport Chaos gameplay near Dallas DFW Airport" width="1280" height="720" fetchpriority="high" />
       </section>
       <section id="opportunities" class="adp-section" aria-labelledby="adp-opportunities-title">
-        <h2 id="adp-opportunities-title">ADVERTISING OPPORTUNITIES</h2>
-        <p class="adp-availability">Inquiry opportunities only. Placements are subject to review and availability.</p>
+        <h2 id="adp-opportunities-title">ADVERTISING PACKAGES</h2>
+        <p class="adp-availability">Planned introductory prices, subject to change before launch. Packages cannot be purchased or reserved yet.</p>
         <div class="adp-cards">
-          <article class="adp-card adp-panel"><img src="/media/advertise/hub.jpg" alt="The Airport Chaos Pilot Hub" loading="lazy" width="1280" height="720" /><div><h3>HUB SPOTLIGHT</h3><p>Show your brand on the Airport Chaos Pilot Hub.</p><button class="adp-button context-action context-action--gold" type="button" data-interest="HUB" aria-label="Inquire about Hub Spotlight">INQUIRE</button></div></article>
-          <article class="adp-card adp-panel"><img src="/media/advertise/love-field.jpg" alt="Real Dallas gameplay near Love Field" loading="lazy" width="1280" height="720" /><div><h3>DALLAS ADVERTISING</h3><p>Feature your brand at selected locations in Dallas.</p><button class="adp-button context-action context-action--gold" type="button" data-interest="DALLAS" aria-label="Inquire about Dallas Advertising">INQUIRE</button></div></article>
-          <article class="adp-card adp-panel"><div class="adp-combo"><img src="/media/advertise/hub.jpg" alt="Pilot Hub partnership opportunity" loading="lazy" width="1280" height="720" /><img src="/media/advertise/dfw-terminal.jpg" alt="Dallas city partnership opportunity" loading="lazy" width="1280" height="720" /></div><div><h3>CITY PARTNER</h3><p>Explore a custom partnership across the Hub and city.</p><button class="adp-button context-action context-action--gold" type="button" data-interest="CITY_PARTNER" aria-label="Inquire about City Partner">INQUIRE</button></div></article>
+          ${advertisingPackages.map((item, index) => `<article class="adp-card adp-panel">
+            <img src="/media/advertise/${index === 0 ? 'hub' : 'love-field'}.jpg" alt="${index === 0 ? 'The real Airport Chaos Pilot Hub' : 'Real Dallas advertising near Love Field'}" loading="lazy" width="1280" height="720" />
+            <div><span class="adp-package-status">COMING SOON</span><h3>${item.name.toUpperCase()}</h3>
+              <p class="adp-package-price"><strong>$${item.plannedUsd}</strong> / ${item.durationDays} days <small>Planned introductory price</small></p>
+              <p>${index === 0 ? 'Show your brand in the Airport Chaos Pilot Hub.' : 'Get your brand seen across selected advertising locations in Dallas.'}</p>
+              <p class="adp-package-coverage"><strong>Planned coverage:</strong> ${index === 0 ? 'One exclusive sponsorship banner in the Pilot Hub.' : 'Selected advertising placements throughout Dallas, subject to final package definition and approval.'}</p>
+              <button class="adp-button context-action context-action--gold" type="button" data-package="${item.id}" aria-label="Join the ${item.name} waitlist">JOIN WAITLIST</button>
+            </div></article>`).join('')}
+        </div>
+        <div class="adp-network adp-panel" aria-labelledby="adp-network-title"><h3 id="adp-network-title">WHERE YOUR BRAND COULD APPEAR</h3>
+          <div class="adp-network-content"><figure><img src="/media/advertise/dallas-highway.png" alt="Existing Airport Chaos highway billboard near the DFW north arrival route" loading="lazy" width="1280" height="720" /><figcaption>Real game view · Dallas highway billboard</figcaption></figure>
+            <ul class="adp-formats"><li><strong>Airport signs</strong><span>Airport-area signage.</span></li><li><strong>Highway billboards</strong><span>Signs along city roads.</span></li><li><strong>Rooftop billboards</strong><span>Signs above buildings.</span></li><li><strong>Building advertisements</strong><span>Advertising on building surfaces.</span></li><li><strong>Floating sky banners</strong><span>Airborne advertising displays.</span></li><li><strong>Advertising blimps</strong><span>Advertising on city blimps.</span></li></ul>
+          </div><p class="adp-network-note">Potential future opportunities only. Final coverage requires location-specific QA and approval. No Dallas placements have commercial authorization.</p>
         </div>
       </section>
       <section class="adp-section" aria-labelledby="adp-how-title"><h2 id="adp-how-title">HOW IT WORKS</h2>
         <ol class="adp-steps">
-          <li class="adp-panel"><h3>CHOOSE</h3><p>Select an advertising option.</p></li>
-          <li class="adp-panel"><h3>CONTACT</h3><p>Send your business details.</p></li>
-          <li class="adp-panel"><h3>REVIEW</h3><p>We review your request and available placements.</p></li>
-          <li class="adp-panel"><h3>LAUNCH</h3><p>Your advertisement goes live after agreement and approval.</p></li>
+          <li class="adp-panel"><h3>CHOOSE</h3><p>Select an advertising package.</p></li>
+          <li class="adp-panel"><h3>JOIN</h3><p>Join the free waitlist.</p></li>
+          <li class="adp-panel"><h3>GET NOTIFIED</h3><p>We’ll email you when advertising opens.</p></li>
+          <li class="adp-panel"><h3>ADVERTISE</h3><p>Purchase a package when available, subject to approval.</p></li>
         </ol>
       </section>
       <section id="request-sponsorship" class="adp-section adp-inquiry adp-panel" aria-labelledby="adp-inquiry-title">
-        <h2 id="adp-inquiry-title" tabindex="-1">REQUEST SPONSORSHIP</h2>
-        <p>Tell us about your business and the advertising opportunities you’re interested in.</p>
+        <h2 id="adp-inquiry-title" tabindex="-1">JOIN ADVERTISING WAITLIST</h2>
+        <p>Join the free waitlist for your selected package. Joining does not reserve a placement or guarantee acceptance.</p>
         <form data-form novalidate><div class="adp-form-grid">
+          <label class="adp-wide">Advertising Package <span aria-hidden="true">*</span><select name="packageId" required><option value="" disabled selected>Select a package</option>${advertisingPackages.map(item => `<option value="${item.id}">${item.name}</option>`).join('')}</select></label>
           <label>Company Name <span aria-hidden="true">*</span><input name="companyName" autocomplete="organization" required minlength="2" maxlength="100" /></label>
-          <label>Contact Name <small>Optional</small><input name="contactName" autocomplete="name" maxlength="100" /></label>
           <label>Work Email <span aria-hidden="true">*</span><input name="workEmail" type="email" autocomplete="email" required maxlength="254" /></label>
+          <label>Contact Name <small>Optional</small><input name="contactName" autocomplete="name" maxlength="100" /></label>
           <label>Website <small>Optional · HTTPS only</small><input name="website" type="url" inputmode="url" maxlength="300" placeholder="https://example.com" /></label>
-          <label class="adp-wide">Advertising Interest <span aria-hidden="true">*</span><select name="interest" required><option value="HUB">Hub Spotlight</option><option value="DALLAS">Dallas Advertising</option><option value="CITY_PARTNER">City Partner</option><option value="UNSURE" selected>Not Sure Yet</option></select></label>
-          <label class="adp-wide">Message <span aria-hidden="true">*</span><textarea name="message" required minlength="10" maxlength="1000" rows="4" placeholder="Tell us about your business and what you have in mind."></textarea></label></div>
-          <p class="adp-privacy-note">We use your business details to review and respond to this inquiry. <a href="/privacy">Privacy Notice</a></p>
-          <p class="adp-form-status" role="status" aria-live="polite" data-status>Checking online inquiry availability…</p>
-          <button class="adp-button context-action context-action--gold adp-submit" type="submit" disabled data-submit>REQUEST SPONSORSHIP</button><button class="adp-retry" type="button" data-retry hidden>TRY AGAIN</button>
+          <label class="adp-wide">Message <small>Optional</small><textarea name="message" maxlength="1000" rows="4" placeholder="Anything you’d like us to know?"></textarea></label></div>
+          <label class="adp-consent"><input type="checkbox" name="emailConsent" required /><span>${advertisingWaitlistConsent}</span></label>
+          <p class="adp-privacy-note">Consent is only for availability updates about your selected package. <a href="/privacy">Privacy Notice</a></p>
+          <p class="adp-form-status" role="status" aria-live="polite" data-status>Checking waitlist availability…</p>
+          <button class="adp-button context-action context-action--gold adp-submit" type="submit" disabled data-submit>JOIN WAITLIST</button><button class="adp-retry" type="button" data-retry hidden>TRY AGAIN</button>
         </form>
         <div class="adp-fallback"><a class="adp-button context-action context-action--gold" href="mailto:${email}?subject=Airport%20Chaos%20Sponsorship">EMAIL US</a><button type="button" data-copy>COPY EMAIL</button></div>
         <aside class="adp-sponsors-teaser" aria-labelledby="adp-sponsors-title" data-approved-sponsors hidden><h3 id="adp-sponsors-title">SPONSORS</h3><div data-approved-list></div><button class="adp-button context-action context-action--gold" type="button" data-sponsors>VIEW OUR SPONSORS</button></aside>
       </section>
       <footer class="adp-footer"><nav aria-label="Business page links"><a href="/privacy">Privacy Notice</a><a href="/terms">Terms</a><a href="mailto:${email}?subject=Airport%20Chaos%20Sponsorship">Contact Us</a></nav><small>© Airport Chaos · Vaden Software</small></footer>
     </main>
-    <main class="adp-directory" data-sponsors-view hidden><section class="adp-directory-panel"><span class="adp-eyebrow">AIRPORT CHAOS PARTNERS</span><h1>OUR SPONSORS</h1><div data-sponsor-list><p>Sponsors will appear here soon.</p></div><button class="adp-button context-action context-action--gold" type="button" data-become>BECOME A SPONSOR</button></section></main>
+    <main class="adp-directory" data-sponsors-view hidden><section class="adp-directory-panel"><span class="adp-eyebrow">AIRPORT CHAOS PARTNERS</span><h1>OUR SPONSORS</h1><div data-sponsor-list><p>Sponsors will appear here soon.</p></div><button class="adp-button context-action context-action--gold" type="button" data-become>JOIN WAITLIST</button></section></main>
     <main class="adp-directory" data-details-view hidden><section class="adp-directory-panel adp-sponsor-details"><span class="adp-eyebrow">SPONSORED</span><img data-detail-logo alt="" hidden /><h1 data-detail-name>Checking sponsor…</h1><p data-detail-description></p><a class="adp-button context-action context-action--blue" data-detail-website hidden target="_blank" rel="noopener noreferrer">VISIT WEBSITE</a><button class="adp-button context-action context-action--blue" type="button" data-report-toggle hidden>REPORT SPONSOR AD</button><form data-report-form hidden><label>Reason<select name="reason" required><option value="INAPPROPRIATE">Inappropriate content</option><option value="MISLEADING">Misleading advertisement</option><option value="OFFENSIVE">Offensive content</option><option value="SUSPICIOUS_WEBSITE">Broken or suspicious website</option><option value="OTHER">Other concern</option></select></label><label>Optional details<textarea name="description" maxlength="300" rows="3"></textarea></label><button class="adp-button context-action context-action--gold" type="submit">SEND REPORT</button><p data-report-status role="status" aria-live="polite"></p></form><button class="adp-button context-action context-action--blue" type="button" data-detail-back>CLOSE DETAILS</button></section></main>`;
 
   root.dataset.header = options.embeddedHeader ? 'shared' : 'public';
@@ -88,7 +99,8 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
   const status = root.querySelector<HTMLElement>('[data-status]')!;
   const submit = root.querySelector<HTMLButtonElement>('[data-submit]')!;
   const retry = root.querySelector<HTMLButtonElement>('[data-retry]')!;
-  const interest = form.elements.namedItem('interest') as HTMLSelectElement;
+  const packageSelect = form.elements.namedItem('packageId') as HTMLSelectElement;
+  const emailConsent = form.elements.namedItem('emailConsent') as HTMLInputElement;
   let route = options.route;
   let selectedSponsor: PublicSponsor | undefined;
   let detailReturnSponsorId: string | undefined;
@@ -99,9 +111,9 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
   let available = false;
   let sending = false;
   const setStatus = (message: string, state = 'ready') => { status.textContent = message; status.dataset.state = state; retry.hidden = state !== 'error' || !available; };
-  const toForm = (selected?: Interest) => {
+  const toForm = (selected?: AdvertisingPackageId) => {
     if (route !== 'advertise') { options.onNavigate('advertise'); route = 'advertise'; setRoute('advertise'); }
-    if (selected) interest.value = selected;
+    if (selected) packageSelect.value = selected;
     root.querySelector('#request-sponsorship')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     root.querySelector<HTMLElement>('#adp-inquiry-title')?.focus({ preventScroll: true });
   };
@@ -189,7 +201,7 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
     if (next === 'details') void showDetails(sponsorId, generation);
   };
   root.querySelectorAll<HTMLElement>('[data-to-form]').forEach(button => button.addEventListener('click', () => toForm()));
-  root.querySelectorAll<HTMLButtonElement>('[data-interest]').forEach(button => button.addEventListener('click', () => toForm(button.dataset.interest as Interest)));
+  root.querySelectorAll<HTMLButtonElement>('[data-package]').forEach(button => button.addEventListener('click', () => toForm(button.dataset.package as AdvertisingPackageId)));
   root.querySelector<HTMLElement>('[data-sponsors]')!.addEventListener('click', () => options.onNavigate('sponsors'));
   root.querySelector<HTMLElement>('[data-become]')!.addEventListener('click', () => toForm());
   root.querySelector<HTMLElement>('[data-detail-back]')!.addEventListener('click', () => options.onClose());
@@ -247,26 +259,26 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
       setStatus('Please check the required fields and use an HTTPS website address.', 'error');
       form.reportValidity(); return;
     }
-    sending = true; submit.disabled = true; submit.textContent = 'SENDING…'; setStatus('Submitting your request…', 'submitting');
-    const body = JSON.stringify(Object.fromEntries(fields.entries()));
+    sending = true; submit.disabled = true; submit.textContent = 'SENDING…'; setStatus('Joining the waitlist…', 'submitting');
+    const body = JSON.stringify({...Object.fromEntries(fields.entries()), requestKind:'WAITLIST', emailConsent:emailConsent.checked});
     try {
       const response = await fetch(api('/api/sponsorship/inquiries'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(12_000) });
       if (response.status === 201) {
         const result = await response.json() as { requestId?: string; status?: string };
         if (result.status !== 'RECEIVED' || !result.requestId) throw new Error('Unconfirmed inquiry response');
-        setStatus('Request received. Our team will review it and contact you by email.', 'success'); form.reset();
+        setStatus('You’re on the waitlist. We’ll contact you when advertising opens.', 'success'); form.reset();
       }
       else if (response.status === 429) setStatus('Too many requests right now. Please try later or email us.', 'rate-limited');
-      else if (response.status === 503) { available = false; setStatus('Online submissions are temporarily unavailable. Please email us.', 'error'); }
-      else setStatus('Your request was not received. Please check the form and try again.', 'error');
-    } catch { setStatus('Your request was not received. Please try again or email us.', 'error'); }
-    finally { sending = false; submit.disabled = !available; submit.textContent = 'REQUEST SPONSORSHIP'; }
+      else if (response.status === 503) { available = false; setStatus('Online waitlist signup is currently unavailable. Please email us.', 'error'); }
+      else setStatus('Your waitlist request was not received. Please check the form and try again.', 'error');
+    } catch { setStatus('Your waitlist request was not received. Please try again or email us.', 'error'); }
+    finally { sending = false; submit.disabled = !available; submit.textContent = 'JOIN WAITLIST'; }
   });
 
   void fetch(api('/api/sponsorship/inquiries'), { credentials: 'include' })
     .then(async response => response.ok ? (await response.json() as { available?: boolean }).available === true : false)
-    .then(enabled => { available = enabled; submit.disabled = !enabled; setStatus(enabled ? 'All fields marked * are required.' : 'Online submissions are temporarily unavailable. Please email us.', enabled ? 'ready' : 'error'); })
-    .catch(() => setStatus('Online submissions are temporarily unavailable. Please email us.', 'error'));
+    .then(enabled => { available = enabled; submit.disabled = !enabled; setStatus(enabled ? 'All fields marked * are required.' : 'Online waitlist signup is currently unavailable. Please email us.', enabled ? 'ready' : 'error'); })
+    .catch(() => setStatus('Online waitlist signup is currently unavailable. Please email us.', 'error'));
   setRoute(route, options.sponsorId);
   return { setRoute, destroy: () => { if (validityTimer) clearTimeout(validityTimer); document.removeEventListener('visibilitychange', onForeground); routeGeneration += 1; document.title = originalTitle; root.replaceChildren(); delete root.dataset.header; root.classList.remove('advertise-app'); } };
 }

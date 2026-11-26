@@ -40,11 +40,9 @@ body:has(> #advertise-root) { margin: 0; }
 .adp-section > h2 { margin: 0 0 14px; font: 900 var(--menu-section-title-size)/1.15 var(--font-body); }
 .adp-section:not(.adp-panel) > h2 { color: var(--ui-bright-gold); text-shadow: 0 2px 3px #071d49; }
 .adp-availability { width: fit-content; margin: 0 0 16px; padding: 6px 12px; color: var(--menu-card-ink); background: #f5fcff; border-radius: 8px; font-size: 14px; }
-.adp-cards { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
+.adp-cards { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
 .adp-card { display: flex; flex-direction: column; overflow: hidden; }
-.adp-card > img,.adp-combo { width: 100%; height: auto; aspect-ratio: 16/9; object-fit: cover; display: block; background: #dceffc; }
-.adp-combo { display: flex; overflow: hidden; }
-.adp-combo img { width: 50%; min-width: 0; height: 100%; object-fit: cover; }
+.adp-card > img { width: 100%; height: auto; aspect-ratio: 16/9; object-fit: cover; display: block; background: #dceffc; }
 .adp-card > div:last-child { padding: 18px; display: flex; flex-direction: column; flex: 1; align-items: stretch; }
 .adp-card h3 { margin: 0 0 10px; font-size: clamp(18px,1.9vw,23px); }
 .adp-card p { margin: 0 0 18px; color: var(--menu-panel-muted); }
@@ -128,3 +126,25 @@ body:has(.advertise-overlay):not(:has(.sky-token-overlay:not([hidden]))) .app-sh
 }
 @media (max-width: 360px) { .adp-steps { grid-template-columns: minmax(0,1fr); } }
 @media (prefers-reduced-motion: reduce) { .advertise-app { scroll-behavior: auto; } }
+
+/* Planned packages and potential formats; no checkout or reservation controls. */
+.adp-package-status { align-self: flex-start; margin-bottom: 10px; padding: 5px 10px; border-radius: 7px; background: var(--ui-bright-gold); font: 900 13px/1.2 var(--font-display); }
+.adp-card .adp-package-price { color: var(--menu-card-ink); margin-bottom: 14px; }
+.adp-package-price strong { font: 900 clamp(28px,3vw,38px)/1.1 var(--font-display); }
+.adp-package-price small { display: block; margin-top: 4px; color: var(--menu-panel-muted); font-size: 13px; }
+.adp-card .adp-package-coverage { font-size: 14px; }
+.adp-network { margin-top: 22px; padding: 20px; }
+.adp-network > h3 { margin: 0 0 16px; font-size: var(--menu-section-title-size); }
+.adp-network-content { display: grid; grid-template-columns: .9fr 1.1fr; gap: 20px; align-items: start; }
+.adp-network figure { margin: 0; min-width: 0; }
+.adp-network img { display: block; width: 100%; height: auto; aspect-ratio: 16/9; object-fit: cover; border-radius: 9px; }
+.adp-network figcaption { margin-top: 6px; color: var(--menu-panel-muted); font-size: 12px; }
+.adp-formats { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
+.adp-formats li { min-width: 0; }
+.adp-formats strong,.adp-formats span { display: block; overflow-wrap: anywhere; }
+.adp-formats strong { font-size: 15px; }
+.adp-formats span,.adp-network-note { color: var(--menu-panel-muted); font-size: 13px; }
+.adp-network-note { margin: 16px 0 0; }
+.adp-consent { display: flex; align-items: flex-start; gap: 12px; min-height: 44px; margin-top: 20px; font-size: 15px; cursor: pointer; }
+.adp-consent input { width: 22px; height: 22px; min-height: 22px; flex: 0 0 22px; margin: 2px 0 0; padding: 0; box-shadow: none; accent-color: #075e97; }
+@media (max-width: 700px) { .adp-cards,.adp-network-content { grid-template-columns: minmax(0,1fr); } }

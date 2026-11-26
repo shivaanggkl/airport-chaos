@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { SponsorshipInquiryStore, validateSponsorshipInquiry } from './sponsorship-inquiries.js';
+import {advertisingWaitlistConsent} from '../../shared/advertising-packages.mjs';
 
 const valid = {
   companyName: 'Example Flight Co', contactName: 'Test Operator', workEmail: 'pilot@example.com',
@@ -145,4 +146,67 @@ test('public API enforces gate, origin, validation, cap, rate and durable respon
       assert.equal(JSON.stringify(await response.json()).includes('failure@example.com'), false);
     });
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+const waitlist = {requestKind:'WAITLIST',packageId:'HUB_SPOTLIGHT',emailConsent:true,companyName:'Waitlist Company',workEmail:'waitlist@example.com'};
+
+test('waitlist permits only the two canonical packages, explicit consent and valid business fields',()=>{
+  const hub=validateSponsorshipInquiry(waitlist)!;
+  assert.equal(hub.interest,'HUB');assert.equal(hub.message,'');
+  const dallas=validateSponsorshipInquiry({...waitlist,packageId:'DALLAS_NETWORK',message:'Hi'})!;
+  assert.equal(dallas.interest,'DALLAS');assert.equal(dallas.message,'Hi');
+  for(const patch of [{packageId:'CITY_PARTNER'},{packageId:'HUB'},{packageId:199},{packageId:{id:'HUB_SPOTLIGHT'}},
+    {emailConsent:false},{emailConsent:undefined},{emailConsent:'true'},{companyName:'x'},{workEmail:'invalid'},
+    {website:'http://example.com'},{website:'https://localhost'},{website:'https://127.0.0.1'},
+    {message:1},{message:'x'.repeat(1001)},{price:1},{durationDays:365},{interest:'DALLAS'},
+    {consentedAt:'2000-01-01T00:00:00.000Z'},{consentText:'Different consent'},{requestKind:'PURCHASE'}])
+      assert.equal(validateSponsorshipInquiry({...waitlist,...patch}),undefined,JSON.stringify(patch));
+});
+
+test('additive migration preserves historical inquiries and stores server consent for operators',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'airport-waitlist-migrate-')),db=join(dir,'test.sqlite');
+  try {
+    const legacy=new DatabaseSync(db);
+    legacy.exec(`CREATE TABLE sponsorship_inquiries (id TEXT PRIMARY KEY,company_name TEXT NOT NULL,contact_name TEXT,work_email TEXT NOT NULL,website TEXT,interest TEXT NOT NULL CHECK(interest IN ('HUB','DALLAS','CITY_PARTNER','UNSURE')),message TEXT NOT NULL,created_at TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'NEW');
+      INSERT INTO sponsorship_inquiries VALUES ('historical','Old Company',NULL,'old@example.com',NULL,'CITY_PARTNER','Historical request','2026-01-01T00:00:00.000Z','CONTACTED');`);
+    legacy.close();
+    const store=new SponsorshipInquiryStore(db),old=store.get('historical')!;
+    assert.equal(old.interest,'CITY_PARTNER');assert.equal(old.status,'CONTACTED');assert.equal(old.message,'Historical request');
+    assert.equal(old.requestKind,'INQUIRY');assert.equal(old.packageId,null);assert.equal(old.emailConsent,null);assert.equal(old.consentedAt,null);assert.equal(old.consentText,null);
+    const now=new Date('2026-11-25T12:00:00.000Z'),created=store.create(validateSponsorshipInquiry(waitlist)!,now);
+    assert.ok('id' in created);const saved=store.get(created.id)!;
+    assert.equal(saved.requestKind,'WAITLIST');assert.equal(saved.packageId,'HUB_SPOTLIGHT');assert.equal(saved.emailConsent,true);
+    assert.equal(saved.consentedAt,now.toISOString());assert.equal(saved.consentText,advertisingWaitlistConsent);
+    assert.ok('limited' in store.create(validateSponsorshipInquiry({...waitlist,packageId:'DALLAS_NETWORK'})!,now));
+    assert.equal(store.updateStatus(created.id,'CONTACTED'),true);store.close();
+    const reopened=new SponsorshipInquiryStore(db);assert.equal(reopened.list().length,2);assert.equal(reopened.get(created.id)?.status,'CONTACTED');assert.equal(reopened.get(created.id)?.emailConsent,true);reopened.close();
+    const view=awaitOperator(db,'view',created.id);assert.equal(JSON.parse(view).packageId,'HUB_SPOTLIGHT');assert.equal(JSON.parse(view).consentText,advertisingWaitlistConsent);
+    assert.match(awaitOperator(db,'list'),/WAITLIST/);
+  } finally {rmSync(dir,{recursive:true,force:true});}
+});
+function awaitOperator(db:string,...args:string[]):string {
+  const result=spawnSync(process.execPath,['--import','tsx','server/src/sponsorship-inquiries-cli.ts',...args],{env:{...process.env,AIRPORT_CHAOS_PROFILE_DB:db},encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);return result.stdout;
+}
+
+test('waitlist API keeps the collection gate, validation and rate limits and confirms durable storage only',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'airport-waitlist-api-')),db=join(dir,'test.sqlite');
+  try {
+    await runServer(db,false,async origin=>{assert.equal((await post(origin,waitlist)).status,503);});
+    await runServer(db,true,async origin=>{
+      assert.equal((await post(origin,{...waitlist,emailConsent:false})).status,400);
+      assert.equal((await post(origin,{...waitlist,packageId:'CITY_PARTNER'})).status,400);
+      assert.equal((await post(origin,{...waitlist,price:1})).status,400);
+      assert.equal((await post(origin,waitlist,{Origin:'https://evil.example'})).status,403);
+      const response=await post(origin,waitlist);assert.equal(response.status,201);
+      const result=await response.json() as {requestId:string;status:string};assert.equal(result.status,'RECEIVED');
+      const store=new SponsorshipInquiryStore(db);assert.equal(store.get(result.requestId)?.packageId,'HUB_SPOTLIGHT');assert.equal(store.get(result.requestId)?.emailConsent,true);store.close();
+      assert.equal((await post(origin,waitlist)).status,429);
+      assert.equal((await post(origin,{...waitlist,packageId:'DALLAS_NETWORK',workEmail:'dallas@example.com'})).status,201);
+      assert.equal((await post(origin,{...waitlist,workEmail:'third@example.com'})).status,429);
+    });
+    const broken=new DatabaseSync(db);broken.exec("CREATE TRIGGER waitlist_write_fail BEFORE INSERT ON sponsorship_inquiries BEGIN SELECT RAISE(FAIL,'storage unavailable'); END;");broken.close();
+    await runServer(db,true,async origin=>{assert.equal((await post(origin,{...waitlist,workEmail:'failure@example.com'})).status,503);});
+    const store=new SponsorshipInquiryStore(db);assert.equal(store.list().length,2);store.close();
+  } finally {rmSync(dir,{recursive:true,force:true});}
 });
