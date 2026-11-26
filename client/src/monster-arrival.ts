@@ -1,3 +1,5 @@
+import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
+import {M19_DOWNTOWN} from './m19-intro';
 import {titanProjectileDirection} from '../../shared/titan-projectiles.mjs';
 import {M24_INTRO} from './m24-intro';
 import {M23_INTRO} from './m23-intro';
@@ -143,6 +145,7 @@ export class MonsterArrivalView {
   private introLanded=false;
   private introRoared=false;
   private introReleased=false;
+  private readonly introShotDestination=new THREE.Vector3();
   private readonly introShotOrigin=new THREE.Vector3();
   private readonly introFistWorld=new THREE.Vector3();
   get introFistPosition():THREE.Vector3{return this.introFistWorld;}
@@ -156,6 +159,12 @@ export class MonsterArrivalView {
     if(!this.hunting||this.pursuit!==pursuit||this.state)return;
     (this.creature as AshenWarlordModel).prepareHuntingIntro(obstacles,showdown,pursuit,final);
     this.finalIntroEnabled=final;
+    if(pursuit&&!final){
+      let roof=this.targetGroundY;
+      for(const obstacle of obstacles)if(Math.hypot(obstacle.x-M19_DOWNTOWN.x,obstacle.z-M19_DOWNTOWN.z)<6000)roof=Math.max(roof,obstacle.height+(obstacle.baseY??0));
+      const distance=Math.hypot((this.creature as AshenWarlordModel).root.position.x-M19_DOWNTOWN.x,(this.creature as AshenWarlordModel).root.position.z-M19_DOWNTOWN.z);
+      this.introShotDestination.set(M19_DOWNTOWN.x,roof+600+distance*Math.tan(pursuitWarlord.fireball.spread),M19_DOWNTOWN.z);
+    }
     this.pursuitIntroEnabled=pursuit;this.introFootstepTime=-Infinity;
     this.showdownIntroEnabled=showdown;this.introPunchImpact=false;this.introCastingSound=false;
     this.strikingIntroEnabled=true;this.huntingIntroEnabled=true;this.introPunchWarned=false;this.introLanded=false;this.introRoared=false;this.introReleased=false;
@@ -189,13 +198,13 @@ export class MonsterArrivalView {
       // M20–M24 demonstrations follow the firing pose, not a world-up ray.
       // Capture the world direction once so camera tracking cannot steer it.
       shot.direction.set(0,.18,1).applyQuaternion(actor.root.quaternion).normalize();
+      if(cluster)shot.direction.copy(this.introShotDestination).sub(this.introShotOrigin).normalize();
       for(let i=0;i<shotCount;i++){
         const visual=this.pool[i]!;
         visual.id=null;visual.spawnPending=false;
-        // Keep slot zero centered for the existing camera-follow path. The
-        // outer rounds use the same ±0.03-radian spread as M20–M24 combat.
+        // M1 uses its shared combat spread; other monster demonstrations stay unchanged.
         if(cluster){
-          const direction=titanProjectileDirection(shot.direction,i,shotCount,.03,'cluster');
+          const direction=titanProjectileDirection(shot.direction,i,shotCount,pursuitWarlord.fireball.spread,'cluster');
           visual.direction.set(direction.x,direction.y,direction.z);
         }else if(i>0){
           const angle=i===1?-.03:.03,c=Math.cos(angle),s=Math.sin(angle),d=shot.direction;
@@ -210,8 +219,8 @@ export class MonsterArrivalView {
     const age=t-timing.release;
     for(let i=0;i<shotCount;i++){
       const visual=this.pool[i]!;
-      visual.group.visible=this.introReleased&&age>=0&&age<1.2;
-      if(visual.group.visible){visual.group.position.copy(this.introShotOrigin).addScaledVector(visual.direction,age*ashenWarlordHeight*.9);visual.group.scale.setScalar(1-THREE.MathUtils.smoothstep(age,1,1.2));}
+      visual.group.visible=this.introReleased&&age>=0&&age<(cluster?timing.runway-timing.release:1.2);
+      if(visual.group.visible){visual.group.position.copy(this.introShotOrigin).addScaledVector(visual.direction,age*(cluster?pursuitWarlord.fireball.speed:ashenWarlordHeight*.9));visual.group.scale.setScalar(cluster?pursuitWarlord.fireball.scale:1-THREE.MathUtils.smoothstep(age,1,1.2));}
     }
   }
   private readonly scene: THREE.Scene;
@@ -340,7 +349,8 @@ export class MonsterArrivalView {
         visual.spawnPending=!state.titan;
         this.onProjectile?.();if(!state.titan)this.creature.release();released=true;
       }
-      const debris=state.titan?.projectiles.find(p=>p.id===shot.id)?.ability==='debris-throw';
+      const projectile=state.titan?.projectiles.find(p=>p.id===shot.id),debris=projectile?.ability==='debris-throw';
+      visual.group.scale.setScalar(this.pursuit&&!debris?Math.max(1,(projectile?.radius??24)/24):1);
       visual.group.children[0]!.visible=!debris;visual.group.children[1]!.visible=!debris;if(visual.group.children[2])visual.group.children[2]!.visible=!!debris;
       visual.target.set(shot.x,shot.y,shot.z);
       visual.direction.set(shot.dx??0,shot.dy??0,shot.dz??-1).normalize();visual.speed=shot.speed??0;

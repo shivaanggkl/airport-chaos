@@ -1,3 +1,4 @@
+import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
 import {M24_INTRO} from './m24-intro';
 import {M23_INTRO} from './m23-intro';
 import {M22_INTRO} from './m22-intro';
@@ -117,7 +118,30 @@ export class CombatMissionIntroPath {
     const handoff=THREE.MathUtils.smoothstep(elapsed,8000,10000);
     position.lerp(chasePosition,handoff);target.lerp(chaseTarget,handoff);
   }
+  private samplePursuit(elapsed:number,position:THREE.Vector3,target:THREE.Vector3,chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {
+    const t=elapsed/1000,h=this.opponentHeight,root=this.opponent;
+    if(t>=M23_INTRO.runway){
+      const orbit=THREE.MathUtils.smoothstep(t,M23_INTRO.runway,M23_INTRO.handoff),angle=THREE.MathUtils.lerp(1.4,.2,orbit);
+      this.offset.set(Math.sin(angle)*this.playerRadius,this.playerRadius*.3,Math.cos(angle)*this.playerRadius).applyAxisAngle(THREE.Object3D.DEFAULT_UP,this.player.rotation.y);
+      position.copy(this.player.position).add(this.offset);target.copy(this.player.position);
+      const blend=THREE.MathUtils.smoothstep(t,M23_INTRO.handoff,M23_INTRO.duration);
+      position.lerp(chasePosition,blend);target.lerp(chaseTarget,blend);return;
+    }
+    if(t>=M23_INTRO.release&&this.introShot){
+      // Follow the harmless volley across downtown, widening for its expanding ring.
+      const age=t-M23_INTRO.release,radius=Math.max(h*1.6,age*pursuitWarlord.fireball.speed*Math.tan(pursuitWarlord.fireball.spread)*3.8);
+      this.offset.copy(this.downtown).sub(root.position);this.offset.y=0;this.offset.normalize();
+      position.copy(this.introShot);position.x+=(-this.offset.x+this.offset.z*.4)*radius;
+      position.z+=(-this.offset.z-this.offset.x*.4)*radius;position.y+=radius*.45;
+      target.copy(this.introShot);return;
+    }
+    // Over-shoulder approach keeps downtown ahead; the roar gets a closer front view.
+    const roar=t>=M23_INTRO.roar&&t<M23_INTRO.shoot,angle=roar?.45:2.65,radius=h*(roar?1.3:2.3);
+    this.offset.set(Math.sin(angle)*radius,h*(roar?.7:1.05),Math.cos(angle)*radius).applyAxisAngle(THREE.Object3D.DEFAULT_UP,root.rotation.y);
+    position.copy(root.position).add(this.offset);target.copy(root.position);target.y+=h*.6;
+  }
   private sampleHunting(elapsed:number,position:THREE.Vector3,target:THREE.Vector3,chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {
+    if(this.pursuitIntro&&!this.finalIntro){this.samplePursuit(elapsed,position,target,chasePosition,chaseTarget);return;}
     const t=elapsed/1000,h=this.opponentHeight,root=this.opponent;
     const timing=this.finalIntro?M24_INTRO:this.pursuitIntro?M23_INTRO:this.showdownIntro?M22_INTRO:M21_INTRO;
     if(t>=timing.runway){
@@ -210,6 +234,7 @@ export class CombatMissionIntroPath {
   streamingPosition(elapsed: number): THREE.Vector3 {
     if(this.missionNumber===20)return elapsed<3000||elapsed>=5000&&elapsed<8000?this.opponent.position:this.player.position;
     if(this.missionNumber===15)return elapsed<2500?this.opponent.position:elapsed<5500?this.secondOpponent!.position:this.player.position;
+    if(this.pursuitIntro&&!this.finalIntro)return elapsed<M23_INTRO.release*1000?this.opponent.position:elapsed<M23_INTRO.runway*1000?(this.introShot??this.downtown):this.player.position;
     if(this.finalIntro)return elapsed<28000?this.opponent.position:this.player.position;
     if(this.huntingIntro)return elapsed<24000?this.opponent.position:this.player.position;
     if(this.strikingIntro)return elapsed<23000?this.opponent.position:this.player.position;
