@@ -5736,8 +5736,7 @@ function beginFlightLaunchCinematic(): void {
     if(missionCombatIntroPath?.huntingIntro)flightLaunchTitle.textContent=missionCombatIntroPath.finalIntro?m24IntroText(0):missionCombatIntroPath.pursuitIntro?m23IntroText(0):missionCombatIntroPath.showdownIntro?m22IntroText(0):m21IntroText(0);
     if(missionCombatIntroPath?.pursuitIntro || missionCombatIntroPath?.finalIntro){
       flightLaunchTitle.classList.remove('is-monster-arrival');
-      if(missionCombatIntroPath?.pursuitIntro&&!missionCombatIntroPath.finalIntro)flightLaunchTitle.textContent=m23IntroText(0);
-      else setMissionInstructions(flightLaunchTitle,missionJourneyDetails.find(mission=>mission.id===journeyAttempt?.missionId)!.description);
+      flightLaunchTitle.textContent=missionCombatIntroPath.finalIntro?m24IntroText(0):m23IntroText(0);
     }
     flightGameRoot.classList.add('golden-gates-intro');
   }
@@ -5969,8 +5968,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     } else if(missionCombatIntroPath?.missionNumber===19){
       if(!skipped||!(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro))monsterView?.setIntroTime(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro?elapsed/1000:elapsed<6000?elapsed/1000:null);
       if(missionCombatIntroPath.pursuitIntro || missionCombatIntroPath.finalIntro){
-        if(missionCombatIntroPath.pursuitIntro&&!missionCombatIntroPath.finalIntro)flightLaunchTitle.textContent=m23IntroText(elapsed/1000);
-        else setMissionInstructions(flightLaunchTitle,missionJourneyDetails.find(mission=>mission.id===journeyAttempt?.missionId)!.description);
+        flightLaunchTitle.textContent=missionCombatIntroPath.finalIntro?m24IntroText(elapsed/1000):m23IntroText(elapsed/1000);
         if(flightLaunchSkipStartedAt===undefined)flightLaunchTitle.classList.add('is-visible');
       } else if(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro){
         const text=missionCombatIntroPath.huntingIntro?(missionCombatIntroPath.finalIntro?m24IntroText(elapsed/1000):missionCombatIntroPath.pursuitIntro?m23IntroText(elapsed/1000):missionCombatIntroPath.showdownIntro?m22IntroText(elapsed/1000):m21IntroText(elapsed/1000)):missionCombatIntroPath.strikingIntro?m20IntroText(elapsed/1000):m19IntroText(elapsed/1000);

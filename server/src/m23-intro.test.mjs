@@ -129,7 +129,7 @@ test('M23 six-fireball demonstration follows its visible hand and stays in frame
 
 
 test('M2 intro uses only Run, Roar, Shoot and brief Idle transitions with M1-sized spread fireballs',async()=>{
- assert.equal(m24IntroMotion(2).key,'run');assert.equal(m24IntroMotion(5).key,'run');assert.equal(m24IntroMotion(8).key,'roar');assert.equal(m24IntroMotion(12).key,'shoot');
+ assert.equal(m24IntroMotion(2).key,'roar');assert.equal(m24IntroMotion(5).key,'run');assert.equal(m24IntroMotion(8).key,'run');assert.equal(m24IntroMotion(12).key,'shoot');
  assert.equal(M24_INTRO.shoot,12);
  for(let t=0;t<28;t+=.05)assert(['idle','run','roar','shoot'].includes(m24IntroMotion(t).key));
  assert.equal(M24_INTRO.release,M24_INTRO.shoot+1.3);
@@ -144,13 +144,15 @@ test('M2 intro uses only Run, Roar, Shoot and brief Idle transitions with M1-siz
   view.setIntroTime(M24_INTRO.release);view.update(.01);
   assert.equal(view.pool.filter(shot=>shot.group.visible).length,12);
   const rounds=view.pool.slice(0,12),origin=view.introShotOrigin.clone();
+  const facing=new THREE.Vector3(Math.sin(view.creature.root.rotation.y),0,Math.cos(view.creature.root.rotation.y));
+  for(const round of rounds)assert(round.direction.dot(facing)>.75,'every fireball flies forward toward downtown');
   for(const round of rounds)assert.equal(round.group.scale.x,6);
   view.setIntroTime(M24_INTRO.release+.5);view.update(.01);
   for(const round of rounds)assert(Math.abs(round.group.position.distanceTo(origin)-900)<.001);
   assert(rounds[1].direction.distanceTo(rounds[2].direction)>0,'fireballs follow separate paths');
   assert(view.introBlasts[1].position.distanceTo(view.introBlasts[2].position)>500,'impact spread stays clearly separated');
   assert.equal(view.introBlasts.length,12);
-  assert(view.introBlasts.every(impact=>Math.hypot(impact.position.x-M19_DOWNTOWN.x,impact.position.z-M19_DOWNTOWN.z)>=1700&&Math.hypot(impact.position.x-M19_DOWNTOWN.x,impact.position.z-M19_DOWNTOWN.z)<=5500));
+  assert(view.introBlasts.every(impact=>Math.hypot(impact.position.x-M2_TIMEOUT.downtown.x,impact.position.z-M2_TIMEOUT.downtown.z)>=1700&&Math.hypot(impact.position.x-M2_TIMEOUT.downtown.x,impact.position.z-M2_TIMEOUT.downtown.z)<=5500));
   view.setIntroTime(23);view.update(.05);
   assert(view.introBlasts.every(impact=>impact.played),'all twelve fireballs create impacts near downtown');
   assert.equal(view.damagedDowntown,false,'the intro does not destroy the actual mission city');
@@ -268,7 +270,7 @@ test('M2 approved intro motions stay grounded, frame the running monster, and ha
    if([2,5,6.5].includes(t)){
     path.sample(t*1000,position,target,chase,look);camera.position.copy(position);camera.lookAt(target);camera.updateMatrixWorld();
     const box=new THREE.Box3().setFromObject(actor.root,true);
-    for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const point=new THREE.Vector3(x,y,z).project(camera);assert(Math.abs(point.x)<1&&Math.abs(point.y)<1,'running monster remains framed');}
+    for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const point=new THREE.Vector3(x,y,z).project(camera);assert(Math.abs(point.x)<1&&Math.abs(point.y)<1,`monster remains framed at ${t}s`);}
    }
   }
   assert.equal(punchSounds,0);assert.equal(roars,1);assert.equal(path.durationMs,28000);assert.equal(path.streamingPosition(24000),player.position);
@@ -281,4 +283,26 @@ test('M2 approved intro motions stay grounded, frame the running monster, and ha
   const sites=m2DowntownStrikeSites([],ground);assert.equal(sites.length,12);
   assert.equal(new Set(sites.map(p=>`${p.x}:${p.z}`)).size,12);
   for(const p of sites){assert(inDallasCore(p.x/DALLAS_WORLD_SCALE,p.z/DALLAS_WORLD_SCALE));assert(p.y>ground(p.x,p.z)+300);}
+ });
+
+ test('M2 roars at a distance, runs closer to downtown, and fires without turning sideways',async()=>{
+  const view=create(false);await view.ready;const saved=view.creature.root.position.clone();
+  try{
+   view.prepareHuntingIntro(buildings,false,true,true);
+   const actor=view.creature,city=M2_TIMEOUT.downtown,yaw=actor.root.rotation.y;
+   let previous=Infinity,startDistance=0;
+   for(let i=0;i<=300;i++){
+    const t=i*.05;view.setIntroTime(t);view.update(.05);
+    const distance=Math.hypot(actor.root.position.x-city.x,actor.root.position.z-city.z);
+    if(i===0)startDistance=distance;
+    if(t<M24_INTRO.run)assert(Math.abs(distance-startDistance)<.001,'roar stays in one spot');
+    assert(distance<=previous+.001,'running always approaches the city');previous=distance;
+    assert.equal(actor.root.rotation.y,yaw,'running and shooting share the same facing');
+    const heading=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+    const toward=new THREE.Vector3(city.x-actor.root.position.x,0,city.z-actor.root.position.z).normalize();
+    assert(heading.dot(toward)>.999,'monster faces downtown');
+   }
+   assert(startDistance-previous>1000,'the approach covers real distance');
+   view.setIntroTime(null);assert(actor.root.position.equals(saved),'skip/retry restores the gameplay spawn');
+  }finally{view.dispose();}
  });

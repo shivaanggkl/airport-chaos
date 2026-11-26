@@ -10,7 +10,6 @@ import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
 import {DALLAS_WORLD_SCALE} from '../../shared/dallas-world-scale.mjs';
 import {journeyDallas19,journeyDallas25,journeyMissionSlot} from '../../shared/journey-mission.mjs';
 import {finalWarlordSpecies as huntingWarlordSpecies} from './final-warlord.js';
-import {m23GaitTimes as m24GaitTimes} from '../../client/src/m23-intro.js';
 import {loadMonsterDistrictBuildings} from './monster-arrival.js';
 const bytes=readFileSync(new URL('../../client/public/assets/models/monsters/ashen-warlord.glb',import.meta.url));
 const loader=new GLTFLoader();loader.register(()=>({name:'HEADLESS_TEXTURES',loadTexture:async()=>new THREE.Texture()}));
@@ -26,16 +25,17 @@ const ground=(wx,wz)=>{
 const buildings=[];loadMonsterDistrictBuildings().query(-8500*DALLAS_WORLD_SCALE,-2500*DALLAS_WORLD_SCALE,-5000*DALLAS_WORLD_SCALE,500*DALLAS_WORLD_SCALE,b=>{buildings.push({x:(b.minX+b.maxX)/2,z:(b.minZ+b.maxZ)/2,halfX:(b.maxX-b.minX)/2,halfZ:(b.maxZ-b.minZ)/2,height:b.top});return false;});
 
 const create=()=>new MonsterArrivalView(new THREE.Scene(),ground(journeyDallas19.monster.x,journeyDallas19.monster.z),0,undefined,source,ground,()=>390,model,false,true,true,true);
-test('M24 exact captions, seven scene boundaries and unsped authored motions',()=>{
- for(const [t,text] of [[0,'Dr. Boss is back for one final battle!'],[4,"He's faster than ever!"],[8,'And stronger than ever!'],[12,"He won't give up!"],[16,'His energy attack is coming!'],[20,'This is your final chance to save Dallas!'],[24,"Pilot! It's time to finish this!"],[26.5,'DEFEAT THE MONSTER'],[28,'']])assert.equal(m24IntroText(t),text);
- for(const [start,end,key] of [[timing.roar,timing.roar+model.clips.roar.duration,'roar'],[timing.shoot,timing.monsterEnd,'shoot']])for(const t of [start+.01,(start+end)/2,end-.01]){
-   assert.equal(m24IntroMotion(t).key,key);assert(Math.abs(m24IntroMotion(t).time-(t-start))<1e-9);
+test('M24 captions match roar, approach, firing and hero scenes with normal authored motions',()=>{
+ for(const [t,text] of [[0,'His roar shakes Dallas.'],[4,'Dr. Boss charges toward downtown!'],[12,'Fireballs strike near downtown!'],[20,'Downtown is next. Stop him!'],[24,'Pilot, defeat Dr. Boss. Save Dallas!'],[28,'']])assert.equal(m24IntroText(t),text);
+ for(const [start,end,key] of [[timing.roar,timing.roar+model.clips.roar.duration,'roar'],[timing.shoot,timing.shoot+model.clips.shoot.duration,'shoot']])for(const t of [start+.01,(start+end)/2,end-.01]){
+  assert.equal(m24IntroMotion(t).key,key);assert(Math.abs(m24IntroMotion(t).time-(t-start))<1e-9);
  }
- assert.equal(m24IntroMotion(5).key,'run');assert.equal(m24IntroMotion(7.5).key,'idle');assert.equal(m24IntroMotion(9.4).yawOffset,0);
- for(let t=.4;t<7;t+=.01){const a=m24GaitTimes(t),b=m24GaitTimes(t+.001);assert((b.walk-a.walk)/.001<=1.001);assert((b.run-a.run)/.001<=1.001);assert(b.run>=a.run-1e-9);}
- assert(m24IntroMotion(5.5).lookUp>.9);assert.equal(m24IntroMotion(24).key,'idle');assert.equal(timing.duration,28);
+ assert.equal(m24IntroMotion(2).key,'roar');assert.equal(m24IntroMotion(5).key,'run');assert.equal(m24IntroMotion(9).key,'run');
+ for(let t=0;t<28;t+=.1){assert.equal(m24IntroMotion(t).yawOffset,0);assert(m24Travel(t+.01)>=m24Travel(t)-1e-9);}
+ assert.equal(m24Travel(3.9),0);assert.equal(m24Travel(12),m24Travel(timing.runEnd));
+ assert.equal(m24IntroMotion(24).key,'idle');assert.equal(timing.duration,28);
 });
-test('M24 uses a real collision-checked Dallas run/roar/shoot, stays grounded, and releases one harmless hand-origin twelve-fireball volley',async()=>{
+test('M24 uses a real collision-checked Dallas roar/run/shoot, stays grounded, and releases one harmless hand-origin twelve-fireball volley',async()=>{
  const view=create();await view.ready;const actor=view.creature,origin=actor.root.position.clone(),yaw=actor.root.rotation.y;
  let roars=0,shots=0,steps=0,punches=0,casts=0;const impacts=[];view.onCasting=()=>casts++;view.onWarning=()=>punches++;view.onRoar=()=>roars++;view.onProjectile=()=>shots++;view.onFootfall=()=>{steps++;impacts.push(view.introTime);};
  view.prepareHuntingIntro(buildings,false,true,true);const intro=actor.strikingIntro,start=actor.root.position.clone();assert(start.distanceTo(origin)>250);
@@ -43,16 +43,16 @@ test('M24 uses a real collision-checked Dallas run/roar/shoot, stays grounded, a
  for(let frame=0;frame<=1280;frame++){
    const t=frame/40;view.setIntroTime(t);view.update(.025);const motion=m24IntroMotion(t,intro.walk.startTime);clips.add(motion.key);
    assert.equal(motion.height,0);assert(actor.root.position.distanceTo(previous)<150,'walking has no teleports');previous.copy(actor.root.position);
-   if(t<7){const distance=m24Travel(t,intro.walk.startTime);assert(Math.abs(Math.hypot(actor.root.position.x-start.x,actor.root.position.z-start.z)-distance)<.001);}
-   else assert(Math.hypot(actor.root.position.x-origin.x,actor.root.position.z-origin.z)<1e-6);
+   if(t<timing.runEnd){const distance=2*m24Travel(t,intro.walk.startTime);assert(Math.abs(Math.hypot(actor.root.position.x-start.x,actor.root.position.z-start.z)-distance)<.001);}
+   else assert(Math.hypot(actor.root.position.x-intro.position.x,actor.root.position.z-intro.position.z)<1e-6);
    let low=Infinity;const p=new THREE.Vector3();for(const v of model.support){actor.mesh.getVertexPosition(v.index,p);actor.mesh.localToWorld(p);low=Math.min(low,p.y-ground(p.x,p.z));}assert(Math.abs(low)<.01,'feet remain grounded on actual terrain');
    assert(actor.actions.get(model.clips[motion.key].name).enabled);
    if(t<timing.release)assert.equal(shots,0);
    if(view.pool[0].group.visible){sawShot=true;assert.equal(view.pool[0].id,null);assert(view.pool.filter(shot=>shot.group.visible).length>=1);}
    assert.equal(actor.frame,null);assert.equal(view.damagedDowntown,false);
  }
- assert.deepEqual([...clips].sort(),['idle','run','roar','shoot'].sort());assert.equal(roars,1);assert.equal(punches,0);assert.equal(casts,1);assert.equal(impacts.filter(t=>t>=7).length,0);assert.equal(shots,1);assert(sawShot);assert(steps>0);
- assert(impacts.some(t=>t>=4&&t<7),'authored running footfalls produce audio/dust cues');
+ assert.deepEqual([...clips].sort(),['idle','run','roar','shoot'].sort());assert.equal(roars,1);assert.equal(punches,0);assert.equal(casts,1);assert.equal(impacts.filter(t=>t>=timing.runEnd).length,0);assert.equal(shots,1);assert(sawShot);assert(steps>0);
+ assert(impacts.some(t=>t>=timing.run&&t<timing.runEnd),'authored running footfalls produce audio/dust cues');
  const player=new THREE.Group();player.add(new THREE.Mesh(new THREE.BoxGeometry(20,6,25)));
  const path=new CombatMissionIntroPath(actor.root,player,19,false,false,view.introFistPosition,view.introProjectilePosition,true,false,true,()=>view.introFootstepTime,true),camera=new THREE.PerspectiveCamera(48,1280/589,1,20000),position=new THREE.Vector3(),target=new THREE.Vector3();
  for(const t of [2,5,6.5]){view.setIntroTime(t);view.update(.025);path.sample(t*1000,position,target,new THREE.Vector3(),new THREE.Vector3());camera.position.copy(position);camera.lookAt(target);camera.updateMatrixWorld();const box=new THREE.Box3().setFromObject(actor.root,true);for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const screen=new THREE.Vector3(x,y,z).project(camera);assert(Math.abs(screen.x)<1&&Math.abs(screen.y)<1,'full running monster stays framed');}}
