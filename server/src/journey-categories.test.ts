@@ -25,7 +25,7 @@ test('32 display slots and two pursuits exclude the retired Airport & Cargo chap
   assert.equal(journeyCategorySlots.length, 32);
   assert.equal(journeyPursuitSlots.length, 2);
   assert.equal(journeyMainMissionIds.length, 25);
-  assert.equal(journeyPlayableMainIds.length, 24);
+  assert.equal(journeyPlayableMainIds.length, 25);
   assert.deepEqual(journeyCategories.map(group => group.missionIds.length), [6,6,6,6,6]);
   const all = [...journeyCategorySlots, ...journeyPursuitSlots];
   assert.equal(new Set(all.map(slot => slot.id)).size, 34);
@@ -108,6 +108,8 @@ test('bonuses count unique main clears; pursuits and bosses have their explicit 
   assert.equal(access('journey-dallas-coin-hunt-02'), false);
   completed.add(rings[4]!);
   assert.equal(access('journey-dallas-coin-hunt-01'), true);
+  assert.equal(access('journey-dallas-coin-hunt-02'), false);
+  for(const id of journeyCategories.find(group=>group.id==='shooting-targets')!.missionIds.slice(0,5))completed.add(id);
   assert.equal(access('journey-dallas-coin-hunt-02'), true);
   assert.equal(categoryMissionAccess('journey-dallas-15', new Set()), false);
   assert.equal(categoryMissionAccess('journey-dallas-15', new Set(['journey-dallas-twin-hunters-01'])), true);

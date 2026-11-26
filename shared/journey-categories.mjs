@@ -18,7 +18,7 @@ export const journeyDisplayGroups = Object.freeze([
 ].map(group => Object.freeze(group)));
 function slots(groups) {
   return groups.flatMap(group => group.missionIds.map((id, index) => {
-    // All bonus entries launch the same authoritative coin-hunt round.
+    // Bonus slots reuse one gameplay definition but keep their own progression identity.
     const missionId = id === 'journey-dallas-coin-hunt-02' || id === 'journey-dallas-coin-hunt-03' || id === 'journey-dallas-coin-hunt-04' || id === 'journey-dallas-coin-hunt-05' ? 'journey-dallas-coin-hunt-01' : id;
     return Object.freeze({
       id, missionId, categoryId: group.id, categoryNumber: index + 1,
@@ -38,7 +38,7 @@ export function categoryMissionAccess(missionId, completed) {
   const slot = slotById.get(missionId);
   if (!slot || slot.implementation !== 'playable')
     return false;
-  if (slot.missionId !== slot.id) return categoryMissionAccess(slot.missionId, completed);
+  if (slot.missionId !== slot.id && slot.kind !== 'bonus') return categoryMissionAccess(slot.missionId, completed);
   if (completed.has(missionId))
     return true;
   if (slot.kind === 'main') {

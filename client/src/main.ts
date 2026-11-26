@@ -188,7 +188,7 @@ const journeyMode = launchMode === 'missions' && cityId === 'dallas' && /^[0-9a-
 type JourneyAttemptState = {
   canContinueAfterAd?: boolean;
   crossfireKills?:number; rearGuardKills?:number; rearGuardThirdId?:string|null; rearGuardFourthId?:string|null; enemyHealths?:number[];
-  attemptId: string; missionId: string; targetId: string | null; secondaryTargetId?: string | null; crossfireHuntersAlive?: number; targetHealth: number; targetEngaged?: boolean; firstContactSupported?: boolean; surpriseAttackSupported?: boolean; ambushWarningAt?: number; ambushRearWarning?: boolean;
+  attemptId: string; missionId: string; bonusSlotId?: string; targetId: string | null; secondaryTargetId?: string | null; crossfireHuntersAlive?: number; targetHealth: number; targetEngaged?: boolean; firstContactSupported?: boolean; surpriseAttackSupported?: boolean; ambushWarningAt?: number; ambushRearWarning?: boolean;
   aiIsolated?: boolean;
   legendaryPhase?: 'GATES' | 'ACE' | 'LANDING' | null;
   doublePhase?: 'TAKEOFF' | 'FIRST_FIGHT' | 'REPAIR' | 'FINAL_FIGHT' | null;
@@ -3826,7 +3826,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   journeyResultElement.classList.toggle('is-failure', !success);
   journeyResultCard.classList.add('game-card-frame');
   journeyResultElement.querySelector<HTMLElement>('.journey-result-status-mark')!.textContent = success ? '✓' : '';
-  const resultSlot = journeyCategorySlot(attempt.missionId);
+  const resultSlot = journeyCategorySlot(attempt.bonusSlotId??attempt.missionId);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = resultSlot?.kind === 'bonus' && resultSlot.categoryId !== 'golden-rings' ? 'BONUS' : resultSlot ? `M${resultSlot.categoryNumber}` : 'MISSION';
   const territoryDetail = resultSlot?.categoryId === 'territory-missions' ? missionJourneyDetails.find(mission => mission.id === resultSlot.missionId) : undefined;
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = territoryDetail?.title ?? journeyCatalog.find(slot => slot.id === attempt.missionId)?.title ?? 'MISSION';

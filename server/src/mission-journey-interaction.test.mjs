@@ -105,7 +105,7 @@ test('actual category rendering, node selection and launch guards use live stabl
   assert.equal(bossButtons[0].style.top, bossButtons[1].style.top);
 
   for (const stage of missionJourneyStages.filter(stage => stage.implementation === 'playable')) {
-    f.journey.setProgress({[stage.missionId]:{eligible:true}});
+    f.journey.setProgress({[stage.id]:{eligible:true}});
     f.button(stage.id).emit('click');
     const card = missionJourneyDetails.find(card => card.id === stage.missionId);
     assert.equal(f.root.querySelector('[data-mission-bonus]').hidden, stage.kind !== 'bonus');
@@ -117,11 +117,9 @@ test('actual category rendering, node selection and launch guards use live stabl
     assert.equal(f.play.disabled, false);
   }
   f.play.emit('click'); assert.equal(f.launches, 1);
-  f.button('placeholder-dallas-territory-missions-5').emit('click');
+  f.journey.setProgress({});f.button('journey-dallas-territory-domination-01').emit('click');
   assert.equal(f.play.disabled, true);
-  assert.equal(f.root.querySelector('[data-mission-title]').textContent, 'COMING SOON');
-  assert.equal(f.root.querySelector('[data-mission-objective]').textContent, '');
-  assert.equal(f.root.querySelector('[data-mission-time-value]').textContent, '—');
+  assert.equal(f.root.querySelector('[data-mission-title]').textContent, 'CAPTURE 6 TERRITORIES');
   f.play.emit('click'); assert.equal(f.launches, 1);
   f.journey.setCityLocked(true); f.button('journey-dallas-01').emit('click');
   assert.equal(f.play.disabled, true);
@@ -169,16 +167,17 @@ test('the shared header keeps the Dallas mission title when progress changes', (
   assert.equal(header.querySelector('[data-journey-progress]'), null);
 });
 
-test('all five bonus entries share details, progress and the authoritative coin-hunt launch', async () => {
+test('all five bonus entries share gameplay while retaining individual completion and launch identity', async () => {
   const bonuses = missionJourneyStages.filter(stage => stage.kind === 'bonus' && stage.implementation === 'playable');
   assert.equal(bonuses.length, 5);
   assert.equal(new Set(bonuses.map(stage => stage.id)).size, 5);
   assert.ok(bonuses.every(stage => stage.implementation === 'playable' && stage.missionId === 'journey-dallas-coin-hunt-01'));
   const f = fixture();
-  f.journey.setProgress({'journey-dallas-coin-hunt-01':{eligible:true,completed:true,coinsCollected:25}});
+  f.journey.setProgress(Object.fromEntries(bonuses.map((stage,index)=>[stage.id,{eligible:true,completed:index===0,coinsCollected:index===0?25:undefined}])));
   for (const stage of bonuses) {
     f.button(stage.id).emit('click');
     assert.equal(f.play.disabled, false);
+    assert.equal(f.button(stage.id).classList.contains('is-completed'),stage.id===bonuses[0].id);
     assert.equal(f.root.querySelector('[data-mission-title]').textContent, 'COLLECT COINS');
   }
   assert.deepEqual(journeyCompletionSummary({'journey-dallas-coin-hunt-01':{completed:true}}),{completed:1,total:34});
@@ -190,12 +189,12 @@ test('all five bonus entries share details, progress and the authoritative coin-
     const requests=[];
     const context=vm.createContext({journeyLaunchPending:false,dallasUnlocked:()=>true,missionJourneyStages,
       missionJourney:{selectedMissionId:stage.id},pendingAircraftSelection:undefined,journeyAttemptMission:'mission-01',
-      apiUrl:path=>path,apiFetch:async path=>{requests.push(path);return {ok:true,json:async()=>({attempt:{attemptId:'same-bonus'}})};},
+      apiUrl:path=>path,apiFetch:async (path,options)=>{requests.push([path,JSON.parse(options.body)]);return {ok:true,json:async()=>({attempt:{attemptId:'same-bonus'}})};},
       cities:[{id:'dallas',status:'available'}],citySelector:{hidden:false},enterCity:async()=>{},
       journeyMissionSlot:id=>{assert.equal(id,'journey-dallas-coin-hunt-01');return {};},missionTimePreset:()=> 'Day',
     });
     vm.runInContext(compiled,context);await context.playJourneyMission();
-    assert.deepEqual(requests,['/api/journey/dallas/mission-coin-hunt-01/launch']);
+    assert.deepEqual(requests,[['/api/journey/dallas/mission-coin-hunt-01/launch',{bonusSlotId:stage.id}]]);
     assert.equal(context.journeyAttemptMission,'mission-coin-hunt-01');
   }
 });
@@ -219,7 +218,7 @@ test('Plane Battles, every playable Territory mission, and every bonus intro sha
     assert.deepEqual(title.children.slice(1).map(line=>line.textContent),detail.description.split('\n'));
   }
   const territories=missionJourneyStages.filter(stage=>stage.categoryId==='territory-missions'&&stage.kind==='main'&&stage.implementation==='playable');
-  assert.equal(territories.length,4);
+  assert.equal(territories.length,5);
   for(const stage of territories){
     context.journeyAttempt={missionId:stage.missionId};context.renderMissionIntroSummary();
     const detail=missionJourneyDetails.find(mission=>mission.id===stage.missionId);

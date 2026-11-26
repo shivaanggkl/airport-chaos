@@ -193,7 +193,7 @@ export class MissionJourney {
     section.classList.toggle('is-boss-group', stages[0]?.kind === 'boss');
     label.addEventListener('click', event => {
       if ((event.target as HTMLElement).closest('button')) return;
-      const stage = stages.find(stage => this.progress[stage.missionId]?.eligible && !this.progress[stage.missionId]?.completed) ?? stages[0];
+      const stage = stages.find(stage => this.progress[stage.id]?.eligible && !this.progress[stage.id]?.completed) ?? stages[0];
       if (stage) this.select(stage.number, true);
     });
     section.append(label, row);
@@ -215,10 +215,10 @@ export class MissionJourney {
   setSignInRequired(required: boolean): void { this.signInRequired = required; this.renderProgress(); }
   setCityLocked(locked: boolean): void { this.cityLocked = locked; this.renderProgress(); }
   setProgress(progress: Progress): void { this.progress = progress; this.renderProgress(); }
-  private completedStages(): readonly boolean[] { return missionJourneyStages.map(stage => !this.cityLocked && this.progress[stage.missionId]?.completed === true); }
+  private completedStages(): readonly boolean[] { return missionJourneyStages.map(stage => !this.cityLocked && this.progress[stage.id]?.completed === true); }
   private renderProgress(): void {
     const completed = this.completedStages();
-    const state = missionJourneyStatuses(completed, missionJourneyStages.map(stage => !this.cityLocked && this.progress[stage.missionId]?.eligible === true), !this.cityLocked && this.signInRequired);
+    const state = missionJourneyStatuses(completed, missionJourneyStages.map(stage => !this.cityLocked && this.progress[stage.id]?.eligible === true), !this.cityLocked && this.signInRequired);
     this.currentMission = state.currentMission;
     if (!this.userSelected)
       this.selectedStage = this.currentMission || 1;
@@ -301,7 +301,7 @@ export class MissionJourney {
   closePanel(): void { }
   celebrateCompletion(number: number, collectCredits?: (source: DOMRect) => number): void {
     const stage = missionJourneyStages[number - 1];
-    if (!stage || !this.progress[stage.missionId]?.completed || !this.isOpen)
+    if (!stage || !this.progress[stage.id]?.completed || !this.isOpen)
       return;
     this.userSelected = true;
     this.specialOpen = stage.kind === 'special';
@@ -316,7 +316,7 @@ export class MissionJourney {
     this.celebrationTimer = window.setTimeout(() => {
       button.classList.remove('is-newly-completed');
       const next = missionJourneyStages.find(next => next.categoryId === stage.categoryId &&
-        next.categoryNumber > stage.categoryNumber && this.progress[next.missionId]?.eligible && next.implementation === 'playable');
+        next.categoryNumber > stage.categoryNumber && this.progress[next.id]?.eligible && next.implementation === 'playable');
       if (next) {
         this.select(next.number);
         this.revealMission(next.number, true);
@@ -328,8 +328,8 @@ export class MissionJourney {
   private renderDetails(): void {
     const stage = missionJourneyStages[this.selectedStage - 1]!;
     const card = missionJourneyDetails.find(card => card.id === stage.missionId);
-    const completed = !this.cityLocked && this.progress[stage.missionId]?.completed === true;
-    const eligible = !this.cityLocked && this.progress[stage.missionId]?.eligible === true;
+    const completed = !this.cityLocked && this.progress[stage.id]?.completed === true;
+    const eligible = !this.cityLocked && this.progress[stage.id]?.eligible === true;
     const signInRequired = !this.cityLocked && this.signInRequired && stage.kind === 'main' && stage.categoryNumber === 1;
     const placeholder = stage.implementation === 'placeholder';
     this.detail.classList.remove('is-placeholder');
@@ -355,7 +355,7 @@ export class MissionJourney {
     reward.hidden = false;
     this.detail.querySelector<HTMLElement>('[data-mission-time]')!.hidden = false;
     const coinHunt = stage.missionId === 'journey-dallas-coin-hunt-01';
-    const collected = completed && coinHunt ? this.progress[stage.missionId]?.coinsCollected : undefined;
+    const collected = completed && coinHunt ? this.progress[stage.id]?.coinsCollected : undefined;
     const rewardLabel = placeholder ? 'REWARD' : coinHunt ? completed ? collected === undefined ? 'REPLAY REWARD' : 'CREDITS COLLECTED' : 'UP TO' : completed ? 'REWARD CLAIMED' : 'REWARD';
     const rewardAmount = placeholder ? '—' : (coinHunt && completed ? collected ?? 0 : card!.rewardCredits).toLocaleString();
     this.detail.querySelector<HTMLElement>('[data-mission-reward-label]')!.textContent = rewardLabel;

@@ -84,6 +84,19 @@ test('live bonus round: validated pickups, airborne recovery, reconnect, cash-ou
   assert.equal((await cashout()).status,200);assert.equal(profiles.getOrCreate(identity.pilotId,'Pilot').credits,initial+completed.coinHunt.collected);
   assert.equal(db.prepare('SELECT count(*) AS n FROM wallet_transactions WHERE idempotency_key=? AND pilot_id=?').get(`journey:${mission.id}`,identity.pilotId)!.n,1);
   assert.equal(store.get(offline.pilotId,offlineAttempt.attemptId)!.status,'COMPLETED');assert.equal(store.get(offline.pilotId,offlineAttempt.attemptId)!.firstClearCredits,0);
+  const base=`http://127.0.0.1:${port}`,headers={'Content-Type':'application/json',Origin:base,Cookie:`airport_chaos_session=${identity.cookie}`};
+  const bonuses=async()=>((await (await fetch(base+'/api/journey/dallas',{headers})).json()) as any).bonusRounds;
+  let bonusProgress=await bonuses();assert.equal(bonusProgress[mission.id].completed,true);
+  for(let i=2;i<=5;i++)assert.equal(bonusProgress[`journey-dallas-coin-hunt-0${i}`].completed,false);
+  const launchBonus=(slot:string)=>fetch(base+'/api/journey/dallas/mission-coin-hunt-01/launch',{method:'POST',headers,body:JSON.stringify({bonusSlotId:slot})});
+  assert.equal((await launchBonus('journey-dallas-01')).status,400,'non-bonus slot is rejected');
+  assert.equal((await launchBonus('journey-dallas-coin-hunt-02')).status,403,'chapter one cannot unlock chapter two bonus');
+  for(let i=1;i<=5;i++)db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(identity.pilotId,`journey-dallas-sharpshooter-0${i}`,`target-clear-${i}`,Date.now(),1000);
+  const launched=await launchBonus('journey-dallas-coin-hunt-02');assert.equal(launched.status,201,await launched.clone().text());
+  const second=(await launched.json() as any).attempt;assert.equal(second.missionId,mission.id);assert.equal(second.bonusSlotId,'journey-dallas-coin-hunt-02');
+  const ended=await fetch(base+'/api/journey/dallas/mission-coin-hunt-01/abandon',{method:'POST',headers,body:JSON.stringify({attemptId:second.attemptId})});assert.equal(ended.status,200);
+  bonusProgress=await bonuses();assert.equal(bonusProgress[mission.id].firstAttemptId,attempt.attemptId);assert.equal(bonusProgress['journey-dallas-coin-hunt-02'].firstAttemptId,second.attemptId);
+  for(let i=3;i<=5;i++)assert.equal(bonusProgress[`journey-dallas-coin-hunt-0${i}`].completed,false);
   console.log(`Live M12: ${completed.coinHunt.collected} accepted coins, exact cash-out, safe recovery/reconnect; offline zero-coin expiry completed.`);
  }finally{
   socket?.terminate();server.kill('SIGTERM');if(server.exitCode===null)await new Promise<void>(r=>server.once('exit',()=>r()));
