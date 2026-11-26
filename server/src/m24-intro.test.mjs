@@ -35,7 +35,7 @@ test('M24 exact captions, seven scene boundaries and unsped authored motions',()
  for(let t=.4;t<7;t+=.01){const a=m24GaitTimes(t),b=m24GaitTimes(t+.001);assert((b.walk-a.walk)/.001<=1.001);assert((b.run-a.run)/.001<=1.001);assert(b.run>=a.run-1e-9);}
  assert(m24IntroMotion(5.5).lookUp>.9);assert.equal(m24IntroMotion(24).key,'idle');assert.equal(timing.duration,28);
 });
-test('M24 uses a real collision-checked Dallas walk/roar/shoot, stays grounded, and releases one harmless hand-origin six-fireball volley',async()=>{
+test('M24 uses a real collision-checked Dallas walk/roar/shoot, stays grounded, and releases one harmless hand-origin twelve-fireball volley',async()=>{
  const view=create();await view.ready;const actor=view.creature,origin=actor.root.position.clone(),yaw=actor.root.rotation.y;
  let roars=0,shots=0,steps=0,punches=0,casts=0;const impacts=[];view.onCasting=()=>casts++;view.onWarning=()=>punches++;view.onRoar=()=>roars++;view.onProjectile=()=>shots++;view.onFootfall=()=>{steps++;impacts.push(view.introTime);};
  view.prepareHuntingIntro(buildings,false,true,true);const intro=actor.strikingIntro,start=actor.root.position.clone();assert(start.distanceTo(origin)>250);
@@ -48,7 +48,7 @@ test('M24 uses a real collision-checked Dallas walk/roar/shoot, stays grounded, 
    let low=Infinity;const p=new THREE.Vector3();for(const v of model.support){actor.mesh.getVertexPosition(v.index,p);actor.mesh.localToWorld(p);low=Math.min(low,p.y-ground(p.x,p.z));}assert(Math.abs(low)<.01,'feet remain grounded on actual terrain');
    assert(actor.actions.get(model.clips[motion.key].name).enabled);
    if(t<timing.release)assert.equal(shots,0);
-   if(view.pool[0].group.visible){sawShot=true;assert.equal(view.pool[0].id,null);assert(view.pool[0].direction.dot(new THREE.Vector3(0,0,1).applyQuaternion(actor.root.quaternion))>.9);assert.equal(view.pool.filter(shot=>shot.group.visible).length,6);assert(view.pool[0].group.position.y>=view.introShotOrigin.y);}
+   if(view.pool[0].group.visible){sawShot=true;assert.equal(view.pool[0].id,null);assert(view.pool[0].direction.dot(new THREE.Vector3(0,0,1).applyQuaternion(actor.root.quaternion))>.9);assert.equal(view.pool.filter(shot=>shot.group.visible).length,12);assert(view.pool[0].group.position.y>=view.introShotOrigin.y);}
    assert.equal(actor.frame,null);assert.equal(view.damagedDowntown,false);
  }
  assert.deepEqual([...clips].sort(),['idle','walk','roar','shoot'].sort());assert.equal(roars,1);assert.equal(punches,0);assert.equal(casts,1);assert.equal(impacts.filter(t=>t>=7).length,0);assert.equal(shots,1);assert(sawShot);assert(steps>0);
@@ -58,12 +58,12 @@ test('M24 uses a real collision-checked Dallas walk/roar/shoot, stays grounded, 
  for(const t of [2,5,6.5]){view.setIntroTime(t);view.update(.025);path.sample(t*1000,position,target,new THREE.Vector3(),new THREE.Vector3());camera.position.copy(position);camera.lookAt(target);camera.updateMatrixWorld();const box=new THREE.Box3().setFromObject(actor.root,true);for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const screen=new THREE.Vector3(x,y,z).project(camera);assert(Math.abs(screen.x)<1&&Math.abs(screen.y)<1,'full walking monster stays framed');}}
  player.children[0].geometry.dispose();player.children[0].material.dispose();
  assert.equal(actor.actions.get(model.clips.defeat.name).enabled,false);view.setIntroTime(null);assert.deepEqual(actor.root.position,origin);assert.equal(actor.root.rotation.y,yaw);assert.equal(actor.strikingIntro,undefined);
- assert(!view.mouthFire.visible);assert(!view.castingHand.visible);assert(view.pool.slice(0,6).every(shot=>!shot.group.visible));view.dispose();assert.equal(view.scene.children.length,0);
+ assert(!view.mouthFire.visible);assert(!view.castingHand.visible);assert(view.pool.slice(0,12).every(shot=>!shot.group.visible));view.dispose();assert.equal(view.scene.children.length,0);
 });
 test('M24 skip at every scene, retry, disposal and obstruction restore the authoritative transform',async()=>{
  for(const t of [0,2,5,9,13,18,23,25,29,31.9]){
    const view=create();await view.ready;const origin=view.creature.root.position.clone(),yaw=view.creature.root.rotation.y;
-   view.prepareHuntingIntro(buildings,false,true,true);view.setIntroTime(t);view.update(.025);view.setIntroTime(null);assert.deepEqual(view.creature.root.position,origin);assert.equal(view.creature.root.rotation.y,yaw);assert(view.pool.slice(0,6).every(shot=>!shot.group.visible));
+   view.prepareHuntingIntro(buildings,false,true,true);view.setIntroTime(t);view.update(.025);view.setIntroTime(null);assert.deepEqual(view.creature.root.position,origin);assert.equal(view.creature.root.rotation.y,yaw);assert(view.pool.slice(0,12).every(shot=>!shot.group.visible));
    view.prepareHuntingIntro(buildings,false,true,true);view.setIntroTime(0);view.update(.025);assert(view.creature.root.position.distanceTo(origin)>250);view.dispose();assert.equal(view.scene.children.length,0);
  }
  const view=create();await view.ready;const saved=view.creature.root.position.clone();assert.throws(()=>view.prepareHuntingIntro([{x:saved.x,z:saved.z,halfX:10000,halfZ:10000,height:10000}],false,true,true),/obstructed/);assert.deepEqual(view.creature.root.position,saved);view.dispose();
@@ -84,7 +84,7 @@ test('M24 remains HARD with its own nine motions, Love Field selection, and exis
  assert(spawn.includes('journeyDallas19.id'));assert.equal(journeyMissionSlot(journeyDallas19.id),24);assert.equal(journeyMissionSlot(journeyDallas25.id),19);assert(main.includes('const arrivalIntro=journeyAttempt.missionId===journeyDallas25.id'));assert(main.includes('const huntingTiming=missionCombatIntroPath?.finalIntro?M24_INTRO:M21_INTRO'));
 });
 
-test('M24 six-fireball demonstration follows its visible hand and stays in frame',async()=>{
+test('M24 twelve-fireball demonstration follows its visible hand and stays in frame',async()=>{
  for(const yaw of [0,.7,2,-2]){
   const view=create();await view.ready;const actor=view.creature;actor.root.rotation.y=yaw;
   view.prepareHuntingIntro(buildings,false,true,true);
@@ -93,8 +93,8 @@ test('M24 six-fireball demonstration follows its visible hand and stays in frame
   try{
    view.setIntroTime(timing.release-.01);view.update(.01);assert(view.pool.every(shot=>!shot.group.visible));
    view.setIntroTime(timing.release);view.update(.01);
-   const rounds=view.pool.slice(0,6),origin=view.introShotOrigin.clone(),hand=new THREE.Vector3();actor.handPosition('right',hand);
-   assert(origin.distanceTo(hand)<.001);assert.equal(view.pool.filter(shot=>shot.group.visible).length,6);
+   const rounds=view.pool.slice(0,12),origin=view.introShotOrigin.clone(),hand=new THREE.Vector3();actor.handPosition('right',hand);
+   assert(origin.distanceTo(hand)<.001);assert.equal(view.pool.filter(shot=>shot.group.visible).length,12);
    const directions=rounds.map(shot=>shot.direction.clone()),forward=new THREE.Vector3(0,0,1).applyQuaternion(actor.root.quaternion);
    for(const shot of rounds){assert.equal(shot.id,null);assert(shot.direction.dot(forward)>.9);assert(shot.group.position.distanceTo(origin)<.001);}
    for(const age of [.2,.6,.9]){
