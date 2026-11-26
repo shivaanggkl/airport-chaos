@@ -7,6 +7,7 @@ const page = mountAdvertiseExperience(root, {
   route: route(), sponsorId: sponsorId(),
   onNavigate: (next, id) => { window.history.pushState({ airportChaosBusiness: next, sponsorId: id }, '', next === 'details' ? `/sponsors/${id}` : `/${next}`); page.setRoute(next, id); },
   onClose: () => { if (route() === 'details' && window.history.state?.airportChaosBusiness !== 'details') window.location.assign('/sponsors');
+    else if (route() === 'sponsors' && !window.history.state?.airportChaosBusiness) window.location.assign('/advertise');
     else if (route() !== 'advertise') window.history.back(); else window.location.assign('/'); },
 });
 window.addEventListener('popstate', () => page.setRoute(route(), sponsorId()));

@@ -1,0 +1,21 @@
+/* Shared non-flight surfaces and actions, also used by public business pages. */
+:root {
+  --menu-background: #305389 url('/media/menu/airport-runway.jpg') center center / cover no-repeat;
+  --menu-card-surface: linear-gradient(145deg, #ffffff 0%, #f4fbff 55%, #dceffc 100%);
+  --menu-card-ink: #071d49;
+  --menu-card-accent: var(--ui-bright-gold);
+  --menu-panel-surface: linear-gradient(135deg, #fff 5%, #f5fcff 55%, #dcefff);
+  --menu-panel-shadow: inset 0 0 0 2px #fffbe3, 0 13px 38px rgb(3 22 51 / 35%), 0 0 16px rgb(var(--ui-bright-gold-rgb) / 45%);
+  --menu-panel-radius: 15px;
+  --menu-panel-divider: #ccdbe3;
+  --menu-panel-muted: #36536f;
+  --menu-item-title-size: clamp(24px, 3vw, 34px);
+  --menu-label-size: clamp(12px, 1.5vw, 17px);
+  --menu-section-title-size: clamp(19px, 2.4vw, 28px);
+  --menu-stat-value-size: clamp(28px, 3.1vw, 38px);
+  --menu-action-label-size: clamp(17px, 2vw, 24px);
+  --menu-gold-border: var(--ui-bright-gold);
+  --menu-gold-fill: linear-gradient(var(--ui-bright-gold), var(--ui-bright-gold) 45%);
+  --menu-gold-shadow: inset 0 1px #fffde3, 0 2px 5px rgb(101 59 9 / 28%);
+  --menu-gold-ink: #3c2200;
+}

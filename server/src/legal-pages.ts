@@ -14,11 +14,12 @@ const sections: Record<PolicyKey, { title: string; updated: string; content: str
       <h2>Questions</h2><p>For support, contact ${support}.</p>`,
   },
   privacy: {
-    title: 'Privacy Notice', updated: 'October 5, 2026',
+    title: 'Privacy Notice', updated: 'November 25, 2026',
     content: `<h2>Information used by the game</h2><p>Airport Chaos processes an anonymous pilot identifier, a live session identifier, gameplay and progression statistics, first-party analytics events, and an authentication cookie used to reconnect you to your player profile. Normal game accounts do not use or store raw passwords.</p>
       <h2>Trial-abuse prevention</h2><p>To limit repeated free-aircraft trials, Airport Chaos may derive a temporary security identifier from your network address using a server-secret keyed hash. The raw IP address is not stored for this purpose. The derived identifier expires after the limited 24-hour anti-abuse period.</p>
       <h2>Purchases and support</h2><p>For purchases and support, we may store a purchase reference, provider, product, amount and currency, Sky Token wallet transactions, refund status, recovery information, and entitlement status. Payment card details are handled by the applicable payment provider; Airport Chaos does not store your card number.</p>
       <h2>Analytics and advertising</h2><p>Current analytics are first-party and raw analytics records are retained for approximately 180 days. Airport Chaos currently has no advertising tracking SDK. ${legalConfig.legalEntityName} does not sell personal information.</p>
+      <h2>Advertising waitlist</h2><p>If you join the advertising waitlist, we store your email address, the package you selected (if any), and a record of your signup agreement and its time. We use this information to contact you about advertising package availability, not unrelated marketing. Access to these records is limited to authorized operators. For questions or requests about your waitlist information, contact ${support}.</p>
       <h2>Operator, storage, and choices</h2><p>${legalConfig.productName} is operated by ${legalConfig.legalEntityName}. ${legalConfig.publicBrand} is a product/brand operated by ${legalConfig.legalEntityName}. Live Session Score is temporary and resets when the session ends. Persistent profile data includes Credits, Sky Tokens, aircraft unlocks, City Level and Mastery, missions, gameplay statistics, discoveries, and entitlements. Weekly leaderboard category records may be stored separately, and Best Score may be saved locally in your browser. The session authentication cookie is necessary to associate this browser with that profile. For support, contact ${support}.</p>`,
   },
   refund: {

@@ -14,7 +14,7 @@ if (!['list', 'view', 'status'].includes(command ?? '') ||
   try {
     if (command === 'list') {
       const limit = Math.max(1, Math.min(100, Number(id) || 25));
-      console.table(store.list(limit).map(({ id, companyName, interest, createdAt, status }) => ({ id, companyName, interest, createdAt, status })));
+      console.table(store.list(limit).map(({ id, companyName, interest, requestKind, packageId, consentedAt, createdAt, status }) => ({ id, companyName, interest, requestKind, packageId, consentedAt, createdAt, status })));
     } else if (command === 'view') {
       const inquiry = store.get(id!);
       if (!inquiry) { console.error('Inquiry not found.'); process.exitCode = 1; }
