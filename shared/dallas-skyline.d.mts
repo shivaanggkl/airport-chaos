@@ -1,5 +1,6 @@
 export declare const dallasFacadePalette:number[];
 export declare const dallasFacadePatterns:string[];
+export declare const dallasDowntownCenter:Readonly<{x:number;z:number}>;
 export declare const inDallasCore:(x:number,z:number)=>boolean;
 type Airport={x:number;z:number;heading:number;runwayWidth:number;runwayLength:number};
 export declare function skylineAirportExcluded(x:number,z:number,padding:number,airports:ReadonlyArray<Airport>):boolean;
