@@ -120,11 +120,11 @@ test('M1 stays inside the invisible 24 km downtown area, brakes naturally, and r
  }
 });
 
-test('M1 updates on the runway from mission start, while pause, countdown and M2 runway gating stay intact',()=>{
+test('M1 and M2 fight on the runway from mission start; pause, countdown and other missions retain their gates',()=>{
  const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
  const fn=source.slice(source.indexOf('function updateMonsterEncounters('),source.indexOf('function applyTransportHit('));
  const code=ts.transpileModule(fn,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
- for(const [mission,status,paused,expected] of [[missions.journeyDallas23,'RACING',false,1],[missions.journeyDallas23,'APPROACH',false,0],[missions.journeyDallas23,'RACING',true,0],[missions.journeyDallas19,'RACING',false,0]]){
+ for(const [mission,status,paused,expected] of [[missions.journeyDallas23,'RACING',false,1],[missions.journeyDallas23,'APPROACH',false,0],[missions.journeyDallas23,'RACING',true,0],[missions.journeyDallas19,'RACING',false,1],[missions.journeyDallas19,'APPROACH',false,0],[missions.journeyDallas19,'RACING',true,0],[missions.journeyDallas21,'RACING',false,0]]){
   let steps=0;const encounter={attemptId:'a',playerId:'pilot',projectileIds:new Set(),events:[],lastBroadcastAt:1000};
   const context=vm.createContext({...missions,monsterEncounters:new Map([['a',encounter]]),pausedJourneyAttempts:new Set(paused?['a']:[]),players:new Map([['pilot',{pilotId:'p',position:{x:0,y:0,z:0},velocity:zero,aircraftType:'trainer'}]]),journeyStore:{activeSnapshot:()=>({missionId:mission.id,status,deadlineAt:2000})},playerJourneyRunwayPrep:new Set(['pilot']),aircraftHitRadii:{trainer:10},stepM19:()=>steps++});
   vm.runInContext(code+';updateMonsterEncounters(1000)',context);assert.equal(steps,expected);

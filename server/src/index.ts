@@ -6690,7 +6690,7 @@ function updateMonsterEncounters(now:number):void {
   if(pausedJourneyAttempts.has(encounter.attemptId))continue;
   const pilot=players.get(encounter.playerId),attempt=pilot&&journeyStore.activeSnapshot(pilot.pilotId,encounter.attemptId);
   if(!pilot||((attempt?.missionId!==journeyDallas19.id&&attempt?.missionId!==journeyDallas25.id&&attempt?.missionId!==journeyDallas21.id&&attempt?.missionId!==journeyDallas22.id&&attempt?.missionId!==journeyDallas23.id)&&attempt?.missionId!==journeyDallas20.id)||attempt.status!=='RACING'||attempt.deadlineAt===null||now>=attempt.deadlineAt)continue;
-  if((attempt.missionId===journeyDallas21.id||attempt.missionId===journeyDallas22.id||attempt.missionId===journeyDallas19.id)&&playerJourneyRunwayPrep.has(encounter.playerId))continue;
+  if((attempt.missionId===journeyDallas21.id||attempt.missionId===journeyDallas22.id)&&playerJourneyRunwayPrep.has(encounter.playerId))continue;
   const threats=[];
   for(const id of encounter.projectileIds){const shot=projectiles.get(id);if(shot&&threats.length<32)threats.push({id:shot.projectileId,encounterId:encounter.attemptId,position:shot.position,velocity:{x:shot.direction.x*shot.speed,y:shot.direction.y*shot.speed,z:shot.direction.z*shot.speed},radius:1});}
   stepM19(encounter,pilot.position,pilot.velocity,aircraftHitRadii[pilot.aircraftType],now,threats);
