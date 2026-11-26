@@ -1,6 +1,6 @@
+import {CinematicImpactBlast,cinematicImpactTexture} from './cinematic-impact';
 import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
 import {M19_DOWNTOWN} from './m19-intro';
-import {titanProjectileDirection} from '../../shared/titan-projectiles.mjs';
 import {M24_INTRO} from './m24-intro';
 import {M23_INTRO} from './m23-intro';
 import {M22_INTRO} from './m22-intro';
@@ -145,6 +145,8 @@ export class MonsterArrivalView {
   private introLanded=false;
   private introRoared=false;
   private introReleased=false;
+  private readonly introBlasts:{position:THREE.Vector3;distance:number;blast:CinematicImpactBlast;played:boolean}[]=[];
+  private introBlastTextures?:{fire:THREE.Texture;smoke:THREE.Texture};
   private readonly introShotDestination=new THREE.Vector3();
   private readonly introShotOrigin=new THREE.Vector3();
   private readonly introFistWorld=new THREE.Vector3();
@@ -160,10 +162,16 @@ export class MonsterArrivalView {
     (this.creature as AshenWarlordModel).prepareHuntingIntro(obstacles,showdown,pursuit,final);
     this.finalIntroEnabled=final;
     if(pursuit&&!final){
-      let roof=this.targetGroundY;
-      for(const obstacle of obstacles)if(Math.hypot(obstacle.x-M19_DOWNTOWN.x,obstacle.z-M19_DOWNTOWN.z)<6000)roof=Math.max(roof,obstacle.height+(obstacle.baseY??0));
-      const distance=Math.hypot((this.creature as AshenWarlordModel).root.position.x-M19_DOWNTOWN.x,(this.creature as AshenWarlordModel).root.position.z-M19_DOWNTOWN.z);
-      this.introShotDestination.set(M19_DOWNTOWN.x,roof+600+distance*Math.tan(pursuitWarlord.fireball.spread),M19_DOWNTOWN.z);
+      // Strike the outskirts, leaving the real skyline and mission state intact.
+      const root=(this.creature as AshenWarlordModel).root.position;
+      const toward=new THREE.Vector3(M19_DOWNTOWN.x-root.x,0,M19_DOWNTOWN.z-root.z).normalize();
+      const x=M19_DOWNTOWN.x-toward.x*3500,z=M19_DOWNTOWN.z-toward.z*3500;
+      this.introShotDestination.set(x,this.creature.groundAt?.(x,z)??this.targetGroundY,z);
+      this.introBlastTextures??={fire:cinematicImpactTexture(true),smoke:cinematicImpactTexture(false)};
+      for(let i=0;i<6;i++){
+        const blast=new CinematicImpactBlast(3,this.introBlastTextures,false);blast.root.name='m1-downtown-outskirts-intro-blast';this.scene.add(blast.root);
+        this.introBlasts.push({position:new THREE.Vector3(),distance:0,blast,played:false});
+      }
     }
     this.pursuitIntroEnabled=pursuit;this.introFootstepTime=-Infinity;
     this.showdownIntroEnabled=showdown;this.introPunchImpact=false;this.introCastingSound=false;
@@ -178,6 +186,8 @@ export class MonsterArrivalView {
       (shot.group.children[0] as THREE.Mesh).material=coreMaterial;
     }
     this.particles.clear();
+    for(const impact of this.introBlasts)impact.blast.dispose();this.introBlasts.length=0;
+    this.introBlastTextures?.fire.dispose();this.introBlastTextures?.smoke.dispose();this.introBlastTextures=undefined;
   }
   private updateStrikingIntro():void {
     const timing=this.finalIntroEnabled?M24_INTRO:this.pursuitIntroEnabled?M23_INTRO:this.showdownIntroEnabled?M22_INTRO:this.huntingIntroEnabled?M21_INTRO:M20_INTRO;
@@ -202,10 +212,14 @@ export class MonsterArrivalView {
       for(let i=0;i<shotCount;i++){
         const visual=this.pool[i]!;
         visual.id=null;visual.spawnPending=false;
-        // M1 uses its shared combat spread; other monster demonstrations stay unchanged.
+        // Aim M1’s cinematic volley at nearby ground strikes; other intros stay unchanged.
         if(cluster){
-          const direction=titanProjectileDirection(shot.direction,i,shotCount,pursuitWarlord.fireball.spread,'cluster');
-          visual.direction.set(direction.x,direction.y,direction.z);
+          const impact=this.introBlasts[i]!,angle=(i-1)*Math.PI*2/5;
+          const ring=i===0?0:1800;
+          impact.position.set(this.introShotDestination.x+Math.cos(angle)*ring,0,this.introShotDestination.z+Math.sin(angle)*ring);
+          impact.position.y=this.creature.groundAt?.(impact.position.x,impact.position.z)??this.targetGroundY;
+          impact.distance=impact.position.distanceTo(this.introShotOrigin);
+          visual.direction.copy(impact.position).sub(this.introShotOrigin).normalize();
         }else if(i>0){
           const angle=i===1?-.03:.03,c=Math.cos(angle),s=Math.sin(angle),d=shot.direction;
           visual.direction.set(d.x*c+d.z*s,d.y,d.z*c-d.x*s);
@@ -219,7 +233,14 @@ export class MonsterArrivalView {
     const age=t-timing.release;
     for(let i=0;i<shotCount;i++){
       const visual=this.pool[i]!;
-      visual.group.visible=this.introReleased&&age>=0&&age<(cluster?timing.runway-timing.release:1.2);
+      const impact=cluster?this.introBlasts[i]:undefined,impactAge=impact?age-impact.distance/pursuitWarlord.fireball.speed:-1;
+      visual.group.visible=this.introReleased&&age>=0&&(cluster?impactAge<0&&t<timing.runway:age<1.2);
+      if(impact&&this.introReleased){
+        // Let smoke billow through the hero reveal, without extending the intro.
+        impact.blast.update(impactAge*.65,impact.position);
+        if(impactAge>=0&&!impact.played){impact.played=true;this.onDestruction?.();}
+        if(impactAge>=0)visual.group.position.copy(impact.position);
+      }
       if(visual.group.visible){visual.group.position.copy(this.introShotOrigin).addScaledVector(visual.direction,age*(cluster?pursuitWarlord.fireball.speed:ashenWarlordHeight*.9));visual.group.scale.setScalar(cluster?pursuitWarlord.fireball.scale:1-THREE.MathUtils.smoothstep(age,1,1.2));}
     }
   }
@@ -292,7 +313,7 @@ export class MonsterArrivalView {
   onRoar?:()=>void;onFootfall?:()=>void;onWarning?:()=>void;onProjectile?:()=>void;onHit?:()=>void;onDestruction?:()=>void;
 
   constructor(scene:THREE.Scene,terrainY:number,targetGroundY:number,camera?:THREE.Camera,
-    source?:Promise<GLTF>,groundAt?:(x:number,z:number)=>number,pixelHeight=()=>720,binding?:TitanModelBinding,private readonly stationary=false,private readonly striking=false,private readonly hunting=false,private readonly pursuit=false,originalCombat=false) {
+    source?:Promise<GLTF>,groundAt?:(x:number,z:number)=>number,pixelHeight=()=>720,binding?:TitanModelBinding,private readonly stationary=false,private readonly striking=false,private readonly hunting=false,private readonly pursuit=false,originalCombat=false,private readonly downtownDefender=false) {
     this.crimsonCore=Boolean(binding?.url.includes('ashen-warlord'));this.particles=new MonsterParticles(this.crimsonCore?384:96);this.pool=Array.from({length:this.crimsonCore?32:8},()=>createFireball());this.creature=this.crimsonCore?new AshenWarlordModel(source,this.stationary,this.striking,this.hunting,this.pursuit,originalCombat):new MonsterArrivalModel(source,binding);this.environmentDamage=!this.stationary&&!this.striking&&(!binding||!binding.url.includes('armored-apex'));this.ready=this.creature.ready;
     this.scene=scene;this.camera=camera;this.targetGroundY=targetGroundY;this.pixelHeight=pixelHeight;
     this.creature.groundAt=groundAt;
@@ -327,7 +348,7 @@ export class MonsterArrivalView {
       state.gaitPhase??0,state.aimYaw??0,state.aimPitch??0);
     if(state.hitSequence>Math.max(this.lastHitSequence,this.queuedHitSequence)) {
       this.onHit?.();this.hitPulse=.28;this.lastHitSequence=state.hitSequence;this.creature.hit();
-      const p=state.hitPosition;this.particles.emit(p?.x??state.x,p?.y??state.y+300,p?.z??state.z,false,5,this.crimsonCore?28:7);
+      const p=state.hitPosition;this.particles.emit(p?.x??state.x,p?.y??state.y+300,p?.z??state.z,false,5,(this.crimsonCore?28:7)*(this.downtownDefender?pursuitWarlord.hitSmokeScale:1));
     }
     if(state.phase==='windup' && oldPhase!=='windup'){if(this.crimsonCore&&state.titan?.ability?.id==='roaring-shockwave')this.onRoar?.();else this.onWarning?.();if(!state.titan)this.creature.windup();}
     const ability=state.titan?.ability;
@@ -408,8 +429,9 @@ export class MonsterArrivalView {
     this.lastHitSequence=hit.sequence;this.hitPulse=.28;this.creature.hit();this.onHit?.();
     if (!emitParticles) return;
     const p = hit.position;
-    this.particles.emit(p.x,p.y,p.z,false,8,28);
-    this.particles.emit(p.x,p.y,p.z,true,8,100,.18);
+    const scale=this.downtownDefender?pursuitWarlord.hitSmokeScale:1;
+    this.particles.emit(p.x,p.y,p.z,false,8,28*scale);
+    this.particles.emit(p.x,p.y,p.z,true,8,100*scale,.18);
   }
   private introOrigin?: {position: THREE.Vector3; yaw: number};
   private introTime: number | null = null;

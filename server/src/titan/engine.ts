@@ -30,6 +30,8 @@ export type Environment = {
     authoredPose?:boolean;
     /** Trusted host policy: scenery cannot confine city-roaming encounters. Combat occlusion remains separate. */
     navigation?: 'city-bounds';
+    /** Optional encounter-owned circular movement area; never sent to the renderer. */
+    roamBoundary?:{x:number;z:number;radius:number};
     bounds: {
         minX: number;
         maxX: number;
@@ -320,6 +322,8 @@ export class TitanEncounter {
     #valid(from: Vec, to: Vec, flightLift?: number) {
         const b=this.#env.bounds,r=this.species.radius,g=this.#env.ground(to.x,to.z);
         if(!Number.isFinite(g)||!Number.isFinite(to.x)||!Number.isFinite(to.z)||to.x<b.minX+r||to.x>b.maxX-r||to.z<b.minZ+r||to.z>b.maxZ-r)return false;
+        const area=this.#env.roamBoundary;
+        if(area&&Math.hypot(to.x-area.x,to.z-area.z)>area.radius-r)return false;
         if(this.#env.navigation==='city-bounds')return true;
         if((flightLift===undefined&&Math.abs(g-this.#env.ground(from.x,from.z))>this.species.movement.stepHeight+Math.hypot(to.x-from.x,to.z-from.z)*this.species.arena.maxSlope)||
             !this.#env.traversable(from,to,r,this.species.height))return false;
@@ -781,7 +785,18 @@ export class TitanEncounter {
         return this.#boundedGoal({x:t.position.x+t.velocity.x*lead-(range>1?dx/range:Math.sin(this.#yaw))*spacing,
             y:this.#position.y,z:t.position.z+t.velocity.z*lead-(range>1?dz/range:Math.cos(this.#yaw))*spacing});
     }
-    #boundedGoal(goal: Vec): Vec { const b = this.#env.bounds, r = this.species.radius + 100; return { x: clamp(goal.x, b.minX + r, b.maxX - r), y: this.#position.y, z: clamp(goal.z, b.minZ + r, b.maxZ - r) }; }
+    #boundedGoal(goal: Vec): Vec {
+        const b=this.#env.bounds,r=this.species.radius+100;
+        let x=clamp(goal.x,b.minX+r,b.maxX-r),z=clamp(goal.z,b.minZ+r,b.maxZ-r);
+        const area=this.#env.roamBoundary;
+        if(area){
+            // Choose an interior destination with room to brake and turn, rather than clipping motion at a wall.
+            const margin=Math.max(2000,r+this.species.movement.run**2/(2*this.species.movement.deceleration));
+            const limit=Math.max(r,area.radius-margin),span=Math.hypot(x-area.x,z-area.z);
+            if(span>limit){x=area.x+(x-area.x)*limit/span;z=area.z+(z-area.z)*limit/span;}
+        }
+        return {x,y:this.#position.y,z};
+    }
     #routeTo(goal: Vec): Vec[] | null {
         const clear = (a: Vec, b: Vec) => { const count = Math.min(24, Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / Math.max(200, this.species.radius)))); let from = a; for (let i = 1; i <= count; i++) {
             const to = { x: a.x + (b.x - a.x) * i / count, y: a.y, z: a.z + (b.z - a.z) * i / count };

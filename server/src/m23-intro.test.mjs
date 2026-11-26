@@ -26,9 +26,9 @@ const ground=(wx,wz)=>{
 };
 const buildings=[];loadMonsterDistrictBuildings().query(-8500*DALLAS_WORLD_SCALE,-2500*DALLAS_WORLD_SCALE,-5000*DALLAS_WORLD_SCALE,500*DALLAS_WORLD_SCALE,b=>{buildings.push({x:(b.minX+b.maxX)/2,z:(b.minZ+b.maxZ)/2,halfX:(b.maxX-b.minX)/2,halfZ:(b.maxZ-b.minZ)/2,height:b.top});return false;});
 
-const create=()=>new MonsterArrivalView(new THREE.Scene(),ground(journeyDallas23.monster.x,journeyDallas23.monster.z),0,undefined,source,ground,()=>390,model,false,true,true,true);
+const create=(defender=false)=>new MonsterArrivalView(new THREE.Scene(),ground(journeyDallas23.monster.x,journeyDallas23.monster.z),0,undefined,source,ground,()=>390,model,false,true,true,true,false,defender);
 test('M23 short captions and walk/roar/shoot scene boundaries and unsped authored motions',()=>{
- for(const [t,text] of [[0,'Dr. Boss marches toward downtown.'],[8,'His roar shakes Dallas.'],[12,'Fireballs race toward the city!'],[21,'They miss. Dallas still stands.'],[24,'Dallas needs a hero.'],[26.5,'Pilot, defeat Dr. Boss. Save Dallas!'],[28,'']])assert.equal(m23IntroText(t),text);
+ for(const [t,text] of [[0,'Dr. Boss marches toward downtown.'],[8,'His roar shakes Dallas.'],[12,'Fireballs race toward the city!'],[19,'Downtown is next. Stop him!'],[24,'Dallas needs a hero.'],[26.5,'Pilot, defeat Dr. Boss. Save Dallas!'],[28,'']])assert.equal(m23IntroText(t),text);
  for(const [start,end,key] of [[8,8+model.clips.roar.duration,'roar'],[timing.shoot,timing.shoot+model.clips.shoot.duration,'shoot']])for(const t of [start+.01,(start+end)/2,end-.01]){
    assert.equal(m23IntroMotion(t).key,key);assert(Math.abs(m23IntroMotion(t).time-(t-start))<1e-9);
  }
@@ -49,7 +49,7 @@ test('M23 uses a real collision-checked Dallas walk/roar/shoot, stays grounded, 
    let low=Infinity;const p=new THREE.Vector3();for(const v of model.support){actor.mesh.getVertexPosition(v.index,p);actor.mesh.localToWorld(p);low=Math.min(low,p.y-ground(p.x,p.z));}assert(Math.abs(low)<.01,'feet remain grounded on actual terrain');
    assert(actor.actions.get(model.clips[motion.key].name).enabled);
    if(t<timing.release)assert.equal(shots,0);
-   if(view.pool[0].group.visible){sawShot=true;assert.equal(view.pool[0].id,null);assert(view.pool[0].direction.dot(new THREE.Vector3(0,0,1).applyQuaternion(actor.root.quaternion))>.85);assert.equal(view.pool.filter(shot=>shot.group.visible).length,6);assert(view.pool[0].group.position.y>=view.introShotOrigin.y);}
+   if(view.pool[0].group.visible){sawShot=true;assert.equal(view.pool[0].id,null);assert(view.pool[0].direction.dot(new THREE.Vector3(0,0,1).applyQuaternion(actor.root.quaternion))>.85);assert(view.pool.filter(shot=>shot.group.visible).length>=1);}
    assert.equal(actor.frame,null);assert.equal(view.damagedDowntown,false);
  }
  assert.deepEqual([...clips].sort(),['idle','walk','roar','shoot'].sort());assert.equal(roars,1);assert.equal(punches,0);assert.equal(casts,1);assert.equal(impacts.filter(t=>t>=7).length,0);assert.equal(shots,1);assert(sawShot);assert(steps>0);
@@ -97,14 +97,13 @@ test('M23 six-fireball demonstration follows its visible hand and stays in frame
    const rounds=view.pool.slice(0,6),origin=view.introShotOrigin.clone(),hand=new THREE.Vector3();actor.handPosition('right',hand);
    assert(origin.distanceTo(hand)<.001);assert.equal(view.pool.filter(shot=>shot.group.visible).length,6);
    const directions=rounds.map(shot=>shot.direction.clone());
-   for(const shot of rounds){assert.equal(shot.id,null);assert(shot.direction.dot(rounds[0].direction)>=Math.cos(.24)-1e-9);assert.equal(shot.group.scale.x,6);assert(shot.group.position.distanceTo(origin)<.001);}
-   let roof=0;for(const building of buildings)if(Math.hypot(building.x-M19_DOWNTOWN.x,building.z-M19_DOWNTOWN.z)<6000)roof=Math.max(roof,building.height);
-   const cityDirection=new THREE.Vector3(M19_DOWNTOWN.x-origin.x,0,M19_DOWNTOWN.z-origin.z).normalize();
-   assert(cityDirection.dot(new THREE.Vector3(0,0,1).applyQuaternion(actor.root.quaternion))>.85,'walk and firing pose face toward downtown');
-   for(const shot of rounds){
-    const dir=shot.direction,distance=((M19_DOWNTOWN.x-origin.x)*cityDirection.x+(M19_DOWNTOWN.z-origin.z)*cityDirection.z)/(dir.x*cityDirection.x+dir.z*cityDirection.z);
-    assert(distance>0&&distance/1800<timing.runway-timing.release,'all six rounds pass downtown before the hero reveal');
-    assert(origin.y+dir.y*distance>roof+144,'all six oversized fireballs clear downtown roofs');
+   for(const shot of rounds){assert.equal(shot.id,null);assert(shot.direction.dot(rounds[0].direction)>.9);assert.equal(shot.group.scale.x,6);assert(shot.group.position.distanceTo(origin)<.001);}
+   const impactData=view.introBlasts;
+   assert.equal(impactData.length,6);
+   for(const impact of impactData){
+    assert(impact.distance/1800<timing.runway-timing.release,'all strikes land before the hero reveal');
+    assert(Math.hypot(impact.position.x-M19_DOWNTOWN.x,impact.position.z-M19_DOWNTOWN.z)>=1700,'strikes hit the outskirts, not the skyline');
+    assert(Math.abs(impact.position.y-ground(impact.position.x,impact.position.z))<.001);
    }
    for(const age of [.2,.6,.9,5,9]){
     view.setIntroTime(timing.release+age);view.update(.025);
@@ -112,12 +111,15 @@ test('M23 six-fireball demonstration follows its visible hand and stays in frame
     for(const aspect of [1280/589,16/9]){
      const camera=new THREE.PerspectiveCamera(48,aspect,1,20000);camera.position.copy(position);camera.lookAt(target);camera.updateMatrixWorld();
      for(const [index,shot] of rounds.entries()){
-      assert(shot.group.visible);assert(shot.group.position.distanceTo(origin.clone().addScaledVector(directions[index],age*1800))<.001);
+      const impact=impactData[index],landed=age>=impact.distance/1800;
+      assert.equal(shot.group.visible,!landed);
+      if(!landed)assert(shot.group.position.distanceTo(origin.clone().addScaledVector(directions[index],age*1800))<.001);
+      else assert.equal(impact.blast.root.visible,(age-impact.distance/1800)*.65<5.8,'landed fireballs become explosions');
       const screen=shot.group.position.clone().project(camera);assert(Math.abs(screen.x)<1&&Math.abs(screen.y)<1&&screen.z<1);
      }
     }
-    assert(rounds[1].group.position.distanceTo(rounds[2].group.position)>age*30);
    }
+   assert(impactData.every(impact=>impact.played));assert.equal(view.damagedDowntown,false);
    assert.equal(releases,1);view.setIntroTime(null);assert(rounds.every(shot=>!shot.group.visible&&shot.group.scale.x===1));
   }finally{view.dispose();}
  }
@@ -139,4 +141,14 @@ test('M2 retains its running intro and original power-up and fireball demonstrat
   view.setIntroTime(M24_INTRO.release);view.update(.01);
   assert.equal(view.pool.filter(shot=>shot.group.visible).length,3);
  }finally{view.dispose();}
+});
+
+test('M1 bullet impacts use sixfold smoke size; M2 keeps its existing impact and the pool stays bounded',async()=>{
+ for(const defender of [false,true]){
+  const view=create(defender);await view.ready;const calls=[];view.particles.emit=(...args)=>calls.push(args);
+  view.showBulletImpact({position:{x:1,y:2,z:3},sequence:1});
+  assert.equal(calls[0][5],28*(defender?6:1));assert.equal(calls[1][5],100*(defender?6:1));
+  assert.equal(view.particles.particles.length,384);
+  view.showBulletImpact({position:{x:1,y:2,z:3},sequence:1});assert.equal(calls.length,2,'duplicate hit does not replay smoke');view.dispose();
+ }
 });

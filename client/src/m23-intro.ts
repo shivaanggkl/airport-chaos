@@ -4,7 +4,7 @@ import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
 
 export const M23_INTRO=Object.freeze({...M22_INTRO,run:4,runEnd:7,turn:8,turnEnd:9.4,punch:9.5,roar:8,cast:12,shoot:12,release:12+pursuitWarlord.releaseSeconds});
 export function m23IntroText(t:number):string {
-  return t<8?'Dr. Boss marches toward downtown.':t<12?'His roar shakes Dallas.':t<21?'Fireballs race toward the city!':t<24?'They miss. Dallas still stands.':t<26.5?'Dallas needs a hero.':t<28?'Pilot, defeat Dr. Boss. Save Dallas!':'';
+  return t<8?'Dr. Boss marches toward downtown.':t<12?'His roar shakes Dallas.':t<19?'Fireballs race toward the city!':t<24?'Downtown is next. Stop him!':t<26.5?'Dallas needs a hero.':t<28?'Pilot, defeat Dr. Boss. Save Dallas!':'';
 }
 const clamp=(x:number)=>Math.max(0,Math.min(1,x));
 const smooth=(x:number)=>{x=clamp(x);return x*x*(3-2*x);};
