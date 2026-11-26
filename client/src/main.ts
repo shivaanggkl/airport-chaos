@@ -14212,22 +14212,28 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     const monsterImpact = message.monsterImpact;
     if (monsterImpact && monsterImpact.attemptId === journeyAttempt?.attemptId && isMonsterJourneyMission(journeyAttempt?.missionId)) {
       const view = monsterView;
-      if (view && journeyAttempt?.missionId === journeyDallas25.id) {
-        if (!view.queueBulletImpact(monsterImpact.sequence)) return;
+      if (view) {
+        if (!view.queueBulletImpact(monsterImpact.sequence)) {
+          removeClientProjectile(message.projectileId);
+          return;
+        }
+        const stationaryImpact = journeyAttempt?.missionId === journeyDallas25.id;
         const contact = view.bulletImpactPosition(monsterImpact);
         const onImpact = () => {
           if (monsterView !== view) return;
-          playProjectileHit(contact, 0, false, true, view.introRoot, true);
-          view.showBulletImpact({ position: contact, sequence: monsterImpact.sequence }, false);
+          const surface = view.bulletImpactPosition(monsterImpact);
+          if (projectile) {
+            projectile.mesh.position.copy(surface);
+            projectile.mesh.children[0]!.position.set(0, 0, 0);
+          }
+          if (stationaryImpact) playProjectileHit(surface, 0, false, true, view.introRoot, true);
+          view.showBulletImpact({ position: surface, sequence: monsterImpact.sequence }, !stationaryImpact);
         };
         if (projectile) {
           finishMonsterProjectileAtImpact(projectile, contact);
           projectile.onImpact = onImpact;
         } else onImpact();
-      } else if (projectile) {
-        finishProjectileAtImpact(projectile, monsterImpact.position);
-        projectile.onImpact = () => view?.showBulletImpact(monsterImpact);
-      } else view?.showBulletImpact(monsterImpact);
+      } else removeClientProjectile(message.projectileId);
     } else if (message.impactPosition && (journeyAttempt && journeySharpshooterMission(journeyAttempt.missionId))) {
       const onImpact=()=>playProjectileHit(message.impactPosition,25,true,false);
       if(projectile){finishProjectileAtImpact(projectile,message.impactPosition);projectile.onImpact=onImpact;}else onImpact();
