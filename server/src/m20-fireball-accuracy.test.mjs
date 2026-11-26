@@ -81,7 +81,7 @@ test('M20 release predicts a newly changed aircraft velocity and launches from t
 test('M20 tuning preserves warnings, cooldown, three-shot volleys, and other monster fireball speeds',()=>{
  const shot=s=>s.abilities.find(a=>a.id==='fireball-barrage'),fireball=shot(strikingWarlordSpecies);
  assert.equal(fireball.damage,25);assert.equal(fireball.projectileSpeed,6000);assert.equal(fireball.cooldown,8);assert.equal(fireball.count,3);assert.equal(fireball.simultaneous,true);assert(fireball.warning+fireball.windup>6);
- for(const [species,damage,speed] of [[huntingWarlordSpecies,25,1400],[showdownWarlordSpecies,25,1400],[pursuitWarlordSpecies,25,1800],[finalWarlordSpecies,25,1600]]){
+ for(const [species,damage,speed] of [[huntingWarlordSpecies,25,1400],[showdownWarlordSpecies,25,1400],[pursuitWarlordSpecies,25,1800],[finalWarlordSpecies,25,1800]]){
   assert.equal(shot(species).damage,damage);assert.equal(shot(species).projectileSpeed,speed);
  }
 });

@@ -1,3 +1,4 @@
+import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
 import {ashenWarlordSpecies} from './ashen-warlord.js';
 import {createAshenPose} from './ashen-warlord-pose.js';
 import {createM19Encounter,type DistrictBuildings} from './m19-titan.js';
@@ -12,7 +13,7 @@ export const finalWarlordSpecies=new SpeciesRegistry().register({
  ...structuredClone(ashenWarlordSpecies),id:'final-warlord',level:'LEGENDARY',
  health:journeyDallas19.bossHealth,contactDamage:25,
  director:{...ashenWarlordSpecies.director!,combatDistance:9600,maintainCombatDistance:true},
- abilities:ashenWarlordSpecies.abilities.map(a=>a.id==='fireball-barrage'?{...a,damage:25,count:12,burstSize:3}:structuredClone(a)),
+ abilities:ashenWarlordSpecies.abilities.map(a=>a.id==='fireball-barrage'?{...a,damage:25,count:6,burstSize:undefined,simultaneous:true,spreadPattern:'cluster',spread:pursuitWarlord.fireball.spread,radius:pursuitWarlord.fireball.radius,projectileSpeed:pursuitWarlord.fireball.speed,groundClearanceAim:true}:structuredClone(a)),
 });
 export function createFinalWarlordEncounter(id:string,playerId:string,started:number,ground:(x:number,z:number)=>number,buildings:DistrictBuildings,health:number=journeyDallas19.bossHealth){
  const halfSize=Number(cityRegistry.dallas.worldSize)/2;
