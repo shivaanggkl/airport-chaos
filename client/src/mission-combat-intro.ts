@@ -132,11 +132,23 @@ export class CombatMissionIntroPath {
     }
     if(t>=timing.release&&this.introShot){
       // Follow the harmless volley across downtown, widening for its expanding ring.
-      const age=t-timing.release,radius=Math.max(h*1.6,age*pursuitWarlord.fireball.speed*Math.tan(pursuitWarlord.fireball.spread)*3.8);
+      // Ease the travelling shot to a stop, then continue the same composition for the final roar.
+      let age=t-timing.release;
+      if(this.finalIntro){
+        const end=M24_INTRO.secondRoar,x=THREE.MathUtils.clamp((t-(end-2))/2,0,1);
+        age=Math.min(t,end)-timing.release-2*(x*x*x-.5*x*x*x*x);
+      }
+      const radius=Math.max(h*1.6,age*pursuitWarlord.fireball.speed*Math.tan(pursuitWarlord.fireball.spread)*3.8);
       this.offset.copy(this.downtown).sub(root.position);this.offset.y=0;this.offset.normalize();
       position.copy(this.introShot);position.x+=(-this.offset.x+this.offset.z*.4)*radius;
       position.z+=(-this.offset.z-this.offset.x*.4)*radius;position.y+=radius*.45;
-      target.copy(this.introShot);return;
+      target.copy(this.introShot);
+      if(this.finalIntro&&t>=M24_INTRO.secondRoar){
+        const settle=THREE.MathUtils.smoothstep(t,M24_INTRO.secondRoar,M24_INTRO.secondRoar+3);
+        this.shotTarget.copy(root.position);this.shotTarget.y+=h*.65;
+        target.lerp(this.shotTarget,settle*.6);
+      }
+      return;
     }
     // Over-shoulder approach keeps downtown ahead; the roar gets a closer front view.
     const roar=t>=timing.roar&&t<(this.finalIntro?M24_INTRO.run:timing.shoot);
@@ -239,6 +251,7 @@ export class CombatMissionIntroPath {
   streamingPosition(elapsed: number): THREE.Vector3 {
     if(this.missionNumber===20)return elapsed<3000||elapsed>=5000&&elapsed<8000?this.opponent.position:this.player.position;
     if(this.missionNumber===15)return elapsed<2500?this.opponent.position:elapsed<5500?this.secondOpponent!.position:this.player.position;
+    if(this.finalIntro&&elapsed>=M24_INTRO.secondRoar*1000&&elapsed<M24_INTRO.runway*1000)return this.opponent.position;
     if(this.pursuitIntro){const timing=this.finalIntro?M24_INTRO:M23_INTRO;return elapsed<timing.release*1000?this.opponent.position:elapsed<timing.runway*1000?(this.introShot??this.downtown):this.player.position;}
     if(this.finalIntro)return elapsed<M24_INTRO.runway*1000?this.opponent.position:this.player.position;
     if(this.huntingIntro)return elapsed<24000?this.opponent.position:this.player.position;

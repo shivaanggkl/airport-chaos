@@ -144,6 +144,7 @@ export class MonsterArrivalView {
   private introCastingSound=false;
   private introLanded=false;
   private introRoared=false;
+  private introFinalRoared=false;
   private introReleased=false;
   private readonly introBlasts:{position:THREE.Vector3;distance:number;blast:CinematicImpactBlast;played:boolean}[]=[];
   private introBlastTextures?:{fire:THREE.Texture;smoke:THREE.Texture};
@@ -154,7 +155,7 @@ export class MonsterArrivalView {
   get introProjectilePosition():THREE.Vector3{return this.pool[0]!.group.position;}
   prepareStrikingIntro():void {
     if(!this.striking||this.hunting||this.state)return;
-    this.strikingIntroEnabled=true;this.introLanded=false;this.introRoared=false;this.introReleased=false;
+    this.strikingIntroEnabled=true;this.introLanded=false;this.introRoared=false;this.introFinalRoared=false;this.introReleased=false;
     (this.creature as AshenWarlordModel).prepareStrikingIntro();
   }
   prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false,pursuit=false,final=false):void {
@@ -166,7 +167,8 @@ export class MonsterArrivalView {
       const root=(this.creature as AshenWarlordModel).root.position;
       const city=final?M2_TIMEOUT.downtown:M19_DOWNTOWN;
       const toward=new THREE.Vector3(city.x-root.x,0,city.z-root.z).normalize();
-      const x=city.x-toward.x*3500,z=city.z-toward.z*3500;
+      const distance=final?M24_INTRO.outskirtsDistance:3500;
+      const x=city.x-toward.x*distance,z=city.z-toward.z*distance;
       this.introShotDestination.set(x,this.creature.groundAt?.(x,z)??this.targetGroundY,z);
       this.introBlastTextures??={fire:cinematicImpactTexture(true),smoke:cinematicImpactTexture(false)};
       const count=final?pursuitWarlord.fireball.finalCount:6;
@@ -177,7 +179,7 @@ export class MonsterArrivalView {
     }
     this.pursuitIntroEnabled=pursuit;this.introFootstepTime=-Infinity;
     this.showdownIntroEnabled=showdown;this.introPunchImpact=false;this.introCastingSound=false;
-    this.strikingIntroEnabled=true;this.huntingIntroEnabled=true;this.introPunchWarned=false;this.introLanded=false;this.introRoared=false;this.introReleased=false;
+    this.strikingIntroEnabled=true;this.huntingIntroEnabled=true;this.introPunchWarned=false;this.introLanded=false;this.introRoared=false;this.introFinalRoared=false;this.introReleased=false;
   }
   private clearStrikingIntro():void {
     if(!this.strikingIntroEnabled)return;
@@ -199,6 +201,7 @@ export class MonsterArrivalView {
     if(this.huntingIntroEnabled&&!this.pursuitIntroEnabled&&t>=timing.punch&&!this.introPunchWarned){this.introPunchWarned=true;this.onWarning?.();}
     if(this.showdownIntroEnabled&&t>=timing.punch+.55&&!this.introPunchImpact){this.introPunchImpact=true;this.onFootfall?.();}
     if(t>=timing.roar&&!this.introRoared){this.introRoared=true;this.onRoar?.();}
+    if(this.finalIntroEnabled&&t>=M24_INTRO.secondRoar&&t<M24_INTRO.runway&&!this.introFinalRoared){this.introFinalRoared=true;this.onRoar?.();}
     if((this.showdownIntroEnabled||this.pursuitIntroEnabled)&&t>=timing.cast&&!this.introCastingSound){this.introCastingSound=true;this.onCasting?.();}
     const casting=t>=timing.cast&&t<timing.release;
     this.mouthFire.visible=(!this.huntingIntroEnabled&&t<2)||casting;
