@@ -381,15 +381,17 @@ async function openAdvertisePage(trigger: HTMLElement, restoredRoute?: BusinessR
     advertiseController?.setRoute(route, id);
   };
   advertiseController = mountAdvertiseExperience(advertiseOverlay, {
-    route: restoredRoute ?? 'advertise', sponsorId, detailIntentSource, onNavigate: openRoute, onClose: () => window.history.back(),
+    route: restoredRoute ?? 'advertise', sponsorId, detailIntentSource, embeddedHeader: true,
+    onRouteChange: route => { if (advertiseOverlay) advertiseOverlay.dataset.businessRoute = route; showAppHeader(undefined); },
+    onNavigate: openRoute, onClose: () => window.history.back(),
   });
   if (!restoredRoute || (restoredRoute === 'details' && window.history.state?.airportChaosBusiness !== 'details')) openRoute(restoredRoute ?? 'advertise', sponsorId);
-  advertiseOverlay.querySelector<HTMLElement>('[data-back]')?.focus();
+  appHeader.focusBack();
 }
 registerUiBackLayer({
   id: 'advertise-page', priority: uiBackPriority.blockingModal,
   isActive: () => Boolean(advertiseOverlay),
-  close: () => window.history.back(),
+  close: () => { if (skyTokenStore.isOpen()) skyTokenStore.close(); else window.history.back(); },
 });
 const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-shell-header')!, {
   home: () => { void showHome(); },
@@ -523,7 +525,7 @@ function citySelectionPageTitle(): string {
 }
 
 function showAppHeader(active: AppShellActive): void {
-  if (entryState === 'PILOT_MENU' && !skyTokenStore.isOpen() && hubPilotMenu.isHubSettingsOpen()) {
+  if (!advertiseOverlay && entryState === 'PILOT_MENU' && !skyTokenStore.isOpen() && hubPilotMenu.isHubSettingsOpen()) {
     appHeader.hide();
     return;
   }
@@ -532,6 +534,7 @@ function showAppHeader(active: AppShellActive): void {
     return;
   }
   const pageTitle = skyTokenStore.isOpen() ? 'GET SKY TOKENS'
+    : advertiseOverlay ? (advertiseOverlay.dataset.businessRoute === 'sponsors' ? 'SPONSORS' : advertiseOverlay.dataset.businessRoute === 'details' ? 'SPONSOR DETAILS' : 'ADVERTISE')
     : !citySelector.hidden && citySelector.dataset.view === 'multiplayer' ? 'DALLAS MULTIPLAYER'
     : !citySelector.hidden && citySelector.dataset.view === 'time' ? 'CHOOSE TIME'
     : entryState === 'CITY_SELECTION' ? citySelectionPageTitle()
@@ -1811,6 +1814,7 @@ window.addEventListener('popstate', () => {
       advertiseOverlay.remove();
       advertiseController = undefined;
       advertiseOverlay = undefined;
+      showAppHeader(entryState === 'AIRCRAFT' ? 'GARAGE' : entryState === 'STORE' ? 'STORE' : entryState === 'PILOT_MENU' && hubPilotMenu.isSectionOpen('REWARDS') ? 'REWARDS' : entryState === 'PILOT_MENU' && hubPilotMenu.isSectionOpen('PROFILE') ? 'PROFILE' : undefined);
       advertiseReturnFocus?.focus();
       advertiseReturnFocus = undefined;
     }

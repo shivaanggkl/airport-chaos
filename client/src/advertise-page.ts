@@ -1,10 +1,11 @@
 import './advertise-page.css';
+import {createContextPageTitle} from './context-page-shell';
 import { getSponsorCatalog, sponsorshipApi, type PublicSponsor } from './sponsorship-catalog';
 import { recordSponsorMeasurement, setSponsorMeasurementCatalog } from './sponsorship-measurement';
 
 export type BusinessRoute = 'advertise' | 'sponsors' | 'details';
 type Interest = 'HUB' | 'DALLAS' | 'CITY_PARTNER' | 'UNSURE';
-type Options = { route: BusinessRoute; sponsorId?: string; detailIntentSource?: 'HUB'; onNavigate: (route: BusinessRoute, sponsorId?: string) => void; onClose: () => void };
+type Options = { route: BusinessRoute; sponsorId?: string; detailIntentSource?: 'HUB'; onNavigate: (route: BusinessRoute, sponsorId?: string) => void; onClose: () => void; embeddedHeader?: boolean; onRouteChange?: (route: BusinessRoute) => void };
 const email = 'support@vadensoftware.com';
 const apiBase = import.meta.env.DEV ? 'http://localhost:8091' :
   (window.location.protocol === 'capacitor:' || window.location.protocol === 'file:')
@@ -16,43 +17,62 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
   const originalTitle = document.title;
   root.classList.add('advertise-app');
   root.innerHTML = `
-    <header class="adp-topbar">
-      <button class="adp-back" type="button" data-back aria-label="Go back">‹ <span>BACK</span></button>
-      <a class="adp-brand" href="/" aria-label="Airport Chaos home"><span class="adp-wings">◆</span> AIRPORT CHAOS</a>
-      <a class="adp-top-contact" href="mailto:${email}?subject=Airport%20Chaos%20Sponsorship">CONTACT US</a>
+    <header class="adp-topbar" ${options.embeddedHeader ? 'hidden' : ''}>
+      <button class="adp-back" type="button" data-back aria-label="Go back"></button>
+      <div data-page-title></div>
+      <a class="adp-brand" href="/" aria-label="Airport Chaos home">AIRPORT CHAOS</a>
     </header>
     <main class="adp-main" data-advertise-view>
-      <section class="adp-hero" aria-labelledby="adp-title">
-        <div class="adp-hero-copy"><span class="adp-eyebrow">PARTNER WITH AIRPORT CHAOS</span><h1 id="adp-title">ADVERTISE <em>IN OUR SKIES</em></h1>
-          <p>Put your brand where players fly, explore and discover.</p>
-          <div class="adp-actions"><button class="adp-button adp-button-gold" type="button" data-to-form>REQUEST SPONSORSHIP</button><a class="adp-button adp-button-outline" href="#opportunities">EXPLORE OPPORTUNITIES</a></div>
-        </div><div class="adp-hero-frame"><img src="/media/advertise/dfw-terminal.jpg" alt="Airport Chaos Dallas flight near DFW terminal" /><span>REAL GAME VIEW · DALLAS</span></div>
+      <section class="adp-hero adp-panel" aria-labelledby="adp-title">
+        <div class="adp-hero-copy"><h1 id="adp-title">ADVERTISE IN AIRPORT CHAOS</h1>
+          <p>Put your brand where players fly.</p>
+          <button class="adp-button context-action context-action--gold" type="button" data-to-form>REQUEST SPONSORSHIP</button>
+        </div><img class="adp-hero-image" src="/media/advertise/dfw-terminal.jpg" alt="Real Airport Chaos gameplay near Dallas DFW Airport" width="1280" height="720" fetchpriority="high" />
       </section>
-      <section id="opportunities" class="adp-section" aria-labelledby="adp-opportunities-title"><div class="adp-section-heading"><span class="adp-eyebrow">WHERE YOUR BRAND COULD APPEAR</span><h2 id="adp-opportunities-title">ADVERTISING OPPORTUNITIES</h2></div>
+      <section id="opportunities" class="adp-section" aria-labelledby="adp-opportunities-title">
+        <h2 id="adp-opportunities-title">ADVERTISING OPPORTUNITIES</h2>
+        <p class="adp-availability">Inquiry opportunities only. Placements are subject to review and availability.</p>
         <div class="adp-cards">
-          <article class="adp-card"><img src="/media/advertise/hub.jpg" alt="Existing Pilot Hub sponsor banner" loading="lazy" /><div><h3>HUB SPOTLIGHT</h3><p>Showcase your brand on the Airport Chaos Pilot Hub.</p><small>Subject to review and availability.</small><button type="button" data-interest="HUB" aria-label="Inquire about Hub Spotlight">INQUIRE <span aria-hidden="true">→</span></button></div></article>
-          <article class="adp-card"><img src="/media/advertise/dfw-terminal.jpg" alt="Qualified Dallas airport sign in the game" loading="lazy" /><div><h3>DALLAS SKYLINE</h3><p>Bring your brand into selected Dallas airport and city advertising locations.</p><small>Selected locations only; subject to review.</small><button type="button" data-interest="DALLAS" aria-label="Inquire about Dallas Skyline">INQUIRE <span aria-hidden="true">→</span></button></div></article>
-          <article class="adp-card"><div class="adp-combo"><img src="/media/advertise/hub.jpg" alt="Pilot Hub" loading="lazy" /><img src="/media/advertise/love-field.jpg" alt="Dallas flight near Love Field" loading="lazy" /></div><div><h3>CITY PARTNER</h3><p>Explore a customized partnership combining Hub and in-world visibility.</p><small>Options depend on verified inventory.</small><button type="button" data-interest="CITY_PARTNER" aria-label="Inquire about City Partner">INQUIRE <span aria-hidden="true">→</span></button></div></article>
+          <article class="adp-card adp-panel"><img src="/media/advertise/hub.jpg" alt="The Airport Chaos Pilot Hub" loading="lazy" width="1280" height="720" /><div><h3>HUB SPOTLIGHT</h3><p>Show your brand on the Airport Chaos Pilot Hub.</p><button class="adp-button context-action context-action--gold" type="button" data-interest="HUB" aria-label="Inquire about Hub Spotlight">INQUIRE</button></div></article>
+          <article class="adp-card adp-panel"><img src="/media/advertise/love-field.jpg" alt="Real Dallas gameplay near Love Field" loading="lazy" width="1280" height="720" /><div><h3>DALLAS ADVERTISING</h3><p>Feature your brand at selected locations in Dallas.</p><button class="adp-button context-action context-action--gold" type="button" data-interest="DALLAS" aria-label="Inquire about Dallas Advertising">INQUIRE</button></div></article>
+          <article class="adp-card adp-panel"><div class="adp-combo"><img src="/media/advertise/hub.jpg" alt="Pilot Hub partnership opportunity" loading="lazy" width="1280" height="720" /><img src="/media/advertise/dfw-terminal.jpg" alt="Dallas city partnership opportunity" loading="lazy" width="1280" height="720" /></div><div><h3>CITY PARTNER</h3><p>Explore a custom partnership across the Hub and city.</p><button class="adp-button context-action context-action--gold" type="button" data-interest="CITY_PARTNER" aria-label="Inquire about City Partner">INQUIRE</button></div></article>
         </div>
       </section>
-      <section class="adp-section" aria-labelledby="adp-gallery-title"><div class="adp-section-heading"><span class="adp-eyebrow">ACTUAL GAME IMAGERY</span><h2 id="adp-gallery-title">SEE IT IN THE GAME</h2></div>
-        <div class="adp-gallery"><figure><img src="/media/advertise/hub.jpg" alt="Pilot Hub sponsorship banner beneath play cards" loading="lazy" /><figcaption>PILOT HUB · SPONSORSHIP BANNER</figcaption></figure><figure><img src="/media/advertise/dfw-terminal.jpg" alt="DFW terminal signage in Dallas gameplay" loading="lazy" /><figcaption>DALLAS · DFW TERMINAL</figcaption></figure><figure><img src="/media/advertise/love-field.jpg" alt="Love Field signage in Dallas gameplay" loading="lazy" /><figcaption>DALLAS · LOVE FIELD</figcaption></figure></div>
+      <section class="adp-section" aria-labelledby="adp-how-title"><h2 id="adp-how-title">HOW IT WORKS</h2>
+        <ol class="adp-steps">
+          <li class="adp-panel"><h3>CHOOSE</h3><p>Select an advertising option.</p></li>
+          <li class="adp-panel"><h3>CONTACT</h3><p>Send your business details.</p></li>
+          <li class="adp-panel"><h3>REVIEW</h3><p>We review your request and available placements.</p></li>
+          <li class="adp-panel"><h3>LAUNCH</h3><p>Your advertisement goes live after agreement and approval.</p></li>
+        </ol>
       </section>
-      <section class="adp-section adp-benefits" aria-labelledby="adp-benefits-title"><div class="adp-section-heading"><span class="adp-eyebrow">A THOUGHTFUL PARTNERSHIP</span><h2 id="adp-benefits-title">WHY PARTNER WITH AIRPORT CHAOS?</h2></div>
-        <div class="adp-benefit-grid"><div><span>01</span><h3>IN-GAME PRESENCE</h3><p>Your brand can appear naturally within an interactive flying experience.</p></div><div><span>02</span><h3>MANAGED CREATIVE QUALITY</h3><p>Sponsorship artwork and placements are reviewed before activation.</p></div><div><span>03</span><h3>ROOM TO GROW</h3><p>Airport Chaos is being developed for additional cities and mobile platforms.</p></div></div>
+      <section id="request-sponsorship" class="adp-section adp-inquiry adp-panel" aria-labelledby="adp-inquiry-title">
+        <h2 id="adp-inquiry-title" tabindex="-1">REQUEST SPONSORSHIP</h2>
+        <p>Tell us about your business and the advertising opportunities you’re interested in.</p>
+        <form data-form novalidate><div class="adp-form-grid">
+          <label>Company Name <span aria-hidden="true">*</span><input name="companyName" autocomplete="organization" required minlength="2" maxlength="100" /></label>
+          <label>Contact Name <small>Optional</small><input name="contactName" autocomplete="name" maxlength="100" /></label>
+          <label>Work Email <span aria-hidden="true">*</span><input name="workEmail" type="email" autocomplete="email" required maxlength="254" /></label>
+          <label>Website <small>Optional · HTTPS only</small><input name="website" type="url" inputmode="url" maxlength="300" placeholder="https://example.com" /></label>
+          <label class="adp-wide">Advertising Interest <span aria-hidden="true">*</span><select name="interest" required><option value="HUB">Hub Spotlight</option><option value="DALLAS">Dallas Advertising</option><option value="CITY_PARTNER">City Partner</option><option value="UNSURE" selected>Not Sure Yet</option></select></label>
+          <label class="adp-wide">Message <span aria-hidden="true">*</span><textarea name="message" required minlength="10" maxlength="1000" rows="4" placeholder="Tell us about your business and what you have in mind."></textarea></label></div>
+          <p class="adp-privacy-note">We use your business details to review and respond to this inquiry. <a href="/privacy">Privacy Notice</a></p>
+          <p class="adp-form-status" role="status" aria-live="polite" data-status>Checking online inquiry availability…</p>
+          <button class="adp-button context-action context-action--gold adp-submit" type="submit" disabled data-submit>REQUEST SPONSORSHIP</button><button class="adp-retry" type="button" data-retry hidden>TRY AGAIN</button>
+        </form>
+        <div class="adp-fallback"><a class="adp-button context-action context-action--gold" href="mailto:${email}?subject=Airport%20Chaos%20Sponsorship">EMAIL US</a><button type="button" data-copy>COPY EMAIL</button></div>
+        <aside class="adp-sponsors-teaser" aria-labelledby="adp-sponsors-title" data-approved-sponsors hidden><h3 id="adp-sponsors-title">SPONSORS</h3><div data-approved-list></div><button class="adp-button context-action context-action--gold" type="button" data-sponsors>VIEW OUR SPONSORS</button></aside>
       </section>
-      <section class="adp-sponsors-teaser" aria-labelledby="adp-sponsors-title"><div><span class="adp-eyebrow">PARTNER DIRECTORY</span><h2 id="adp-sponsors-title">OUR SPONSORS</h2><p>Sponsors will appear here soon.</p></div><button class="adp-button adp-button-outline" type="button" data-sponsors>VIEW OUR SPONSORS</button></section>
-      <section id="request-sponsorship" class="adp-section adp-inquiry" aria-labelledby="adp-inquiry-title"><div class="adp-inquiry-intro"><span class="adp-eyebrow">START A CONVERSATION</span><h2 id="adp-inquiry-title" tabindex="-1">REQUEST SPONSORSHIP</h2><p>Tell us about your business and the advertising opportunities you’re interested in.</p><p class="adp-privacy-note">We’ll use the business contact information you provide to review and respond to your sponsorship inquiry. <a href="/privacy">Privacy Notice</a></p></div>
-        <div class="adp-form-panel"><form data-form novalidate><div class="adp-form-grid"><label>Company name <span aria-hidden="true">*</span><input name="companyName" autocomplete="organization" required minlength="2" maxlength="100" /></label><label>Contact name <small>Optional</small><input name="contactName" autocomplete="name" maxlength="100" /></label><label>Work email <span aria-hidden="true">*</span><input name="workEmail" type="email" autocomplete="email" required maxlength="254" /></label><label>Website <small>Optional · HTTPS only</small><input name="website" type="url" inputmode="url" maxlength="300" placeholder="https://example.com" /></label><label class="adp-wide">Advertising interest <span aria-hidden="true">*</span><select name="interest" required><option value="HUB">Hub Spotlight</option><option value="DALLAS">Dallas Skyline</option><option value="CITY_PARTNER">City Partner</option><option value="UNSURE" selected>Not Sure Yet</option></select></label><label class="adp-wide">Message <span aria-hidden="true">*</span><textarea name="message" required minlength="10" maxlength="1000" rows="4" placeholder="Tell us about your business and what you have in mind."></textarea></label></div>
-          <p class="adp-form-status" role="status" aria-live="polite" data-status>Checking online inquiry availability…</p><button class="adp-button adp-button-gold adp-submit" type="submit" disabled data-submit>REQUEST SPONSORSHIP</button><button class="adp-retry" type="button" data-retry hidden>TRY AGAIN</button></form>
-          <div class="adp-fallback"><a href="mailto:${email}?subject=Airport%20Chaos%20Sponsorship">EMAIL US</a><button type="button" data-copy>COPY EMAIL</button></div>
-        </div>
-      </section>
-      <footer class="adp-footer"><p>All sponsorships are subject to review and availability.</p><nav aria-label="Business page links"><a href="/privacy">PRIVACY NOTICE</a><a href="/terms">TERMS</a><a href="mailto:${email}?subject=Airport%20Chaos%20Sponsorship">CONTACT US</a><button type="button" data-copy>COPY EMAIL</button></nav><small>© Airport Chaos · Vaden Software</small></footer>
+      <footer class="adp-footer"><nav aria-label="Business page links"><a href="/privacy">Privacy Notice</a><a href="/terms">Terms</a><a href="mailto:${email}?subject=Airport%20Chaos%20Sponsorship">Contact Us</a></nav><small>© Airport Chaos · Vaden Software</small></footer>
     </main>
-    <main class="adp-directory" data-sponsors-view hidden><section class="adp-directory-panel"><span class="adp-eyebrow">AIRPORT CHAOS PARTNERS</span><h1>OUR SPONSORS</h1><div data-sponsor-list><p>Sponsors will appear here soon.</p></div><button class="adp-button adp-button-gold" type="button" data-become>BECOME A SPONSOR</button></section></main>
-    <main class="adp-directory" data-details-view hidden><section class="adp-directory-panel adp-sponsor-details"><span class="adp-eyebrow">SPONSORED</span><img data-detail-logo alt="" hidden /><h1 data-detail-name>Checking sponsor…</h1><p data-detail-description></p><a class="adp-button adp-button-outline" data-detail-website hidden target="_blank" rel="noopener noreferrer">VISIT WEBSITE</a><button class="adp-button adp-button-outline" type="button" data-report-toggle hidden>REPORT SPONSOR AD</button><form data-report-form hidden><label>Reason<select name="reason" required><option value="INAPPROPRIATE">Inappropriate content</option><option value="MISLEADING">Misleading advertisement</option><option value="OFFENSIVE">Offensive content</option><option value="SUSPICIOUS_WEBSITE">Broken or suspicious website</option><option value="OTHER">Other concern</option></select></label><label>Optional details<textarea name="description" maxlength="300" rows="3"></textarea></label><button class="adp-button adp-button-gold" type="submit">SEND REPORT</button><p data-report-status role="status" aria-live="polite"></p></form><button class="adp-button adp-button-outline" type="button" data-detail-back>CLOSE DETAILS</button></section></main>`;
+    <main class="adp-directory" data-sponsors-view hidden><section class="adp-directory-panel"><span class="adp-eyebrow">AIRPORT CHAOS PARTNERS</span><h1>OUR SPONSORS</h1><div data-sponsor-list><p>Sponsors will appear here soon.</p></div><button class="adp-button context-action context-action--gold" type="button" data-become>BECOME A SPONSOR</button></section></main>
+    <main class="adp-directory" data-details-view hidden><section class="adp-directory-panel adp-sponsor-details"><span class="adp-eyebrow">SPONSORED</span><img data-detail-logo alt="" hidden /><h1 data-detail-name>Checking sponsor…</h1><p data-detail-description></p><a class="adp-button context-action context-action--blue" data-detail-website hidden target="_blank" rel="noopener noreferrer">VISIT WEBSITE</a><button class="adp-button context-action context-action--blue" type="button" data-report-toggle hidden>REPORT SPONSOR AD</button><form data-report-form hidden><label>Reason<select name="reason" required><option value="INAPPROPRIATE">Inappropriate content</option><option value="MISLEADING">Misleading advertisement</option><option value="OFFENSIVE">Offensive content</option><option value="SUSPICIOUS_WEBSITE">Broken or suspicious website</option><option value="OTHER">Other concern</option></select></label><label>Optional details<textarea name="description" maxlength="300" rows="3"></textarea></label><button class="adp-button context-action context-action--gold" type="submit">SEND REPORT</button><p data-report-status role="status" aria-live="polite"></p></form><button class="adp-button context-action context-action--blue" type="button" data-detail-back>CLOSE DETAILS</button></section></main>`;
 
+  root.dataset.header = options.embeddedHeader ? 'shared' : 'public';
+  const pageTitle = createContextPageTitle('ADVERTISE', 2);
+  root.querySelector('[data-page-title]')!.append(pageTitle);
+  const approvedSponsors = root.querySelector<HTMLElement>('[data-approved-sponsors]')!;
+  const approvedList = root.querySelector<HTMLElement>('[data-approved-list]')!;
   const advertiseView = root.querySelector<HTMLElement>('[data-advertise-view]')!;
   const sponsorsView = root.querySelector<HTMLElement>('[data-sponsors-view]')!;
   const detailsView = root.querySelector<HTMLElement>('[data-details-view]')!;
@@ -85,6 +105,22 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
     root.querySelector('#request-sponsorship')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     root.querySelector<HTMLElement>('#adp-inquiry-title')?.focus({ preventScroll: true });
   };
+  const showApprovedSponsors = async (generation: number) => {
+    approvedSponsors.hidden = true;
+    approvedList.replaceChildren();
+    const catalog = await getSponsorCatalog(true);
+    if (generation !== routeGeneration || route !== 'advertise') return;
+    setSponsorMeasurementCatalog(catalog);
+    if (!catalog.sponsors.length) return;
+    for (const sponsor of catalog.sponsors) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.textContent = sponsor.name;
+      button.addEventListener('click', () => { pendingDetailIntent = 'DIRECTORY'; options.onNavigate('details', sponsor.advertiserId); });
+      approvedList.append(button);
+    }
+    approvedSponsors.hidden = false;
+    validityTimer = setTimeout(() => { approvedSponsors.hidden = true; approvedList.replaceChildren(); }, catalog.maxAgeMs);
+  };
   const showDirectory = async (generation: number) => {
     const catalog = await getSponsorCatalog(true);
     if (generation !== routeGeneration || route !== 'sponsors') return;
@@ -99,7 +135,7 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
       const label = document.createElement('small'); label.textContent = 'SPONSORED';
       const name = document.createElement('h2'); name.textContent = sponsor.name;
       const description = document.createElement('p'); description.textContent = sponsor.description;
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'adp-button adp-button-outline'; button.textContent = 'VIEW DETAILS';
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'adp-button context-action context-action--blue'; button.textContent = 'VIEW DETAILS';
       button.dataset.sponsorId = sponsor.advertiserId;
       button.addEventListener('click', () => { detailReturnSponsorId = sponsor.advertiserId; pendingDetailIntent = 'DIRECTORY'; options.onNavigate('details', sponsor.advertiserId); });
       body.append(label, name, description, button); card.append(image, body); list.append(card);
@@ -143,9 +179,12 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
     advertiseView.hidden = next !== 'advertise';
     sponsorsView.hidden = next !== 'sponsors';
     detailsView.hidden = next !== 'details';
+    pageTitle.textContent = next === 'sponsors' ? 'SPONSORS' : next === 'details' ? 'SPONSOR DETAILS' : 'ADVERTISE';
+    options.onRouteChange?.(next);
     document.title = next === 'sponsors' ? 'Our Sponsors — Airport Chaos' : next === 'details' ? 'Sponsor Details — Airport Chaos' : 'Advertise in Airport Chaos';
     root.scrollTop = 0;
     window.scrollTo(0, 0);
+    if (next === 'advertise') void showApprovedSponsors(generation);
     if (next === 'sponsors') void showDirectory(generation);
     if (next === 'details') void showDetails(sponsorId, generation);
   };
@@ -176,7 +215,12 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
     finally { button.disabled = false; }
   });
   root.querySelector<HTMLElement>('[data-back]')!.addEventListener('click', () => options.onClose());
-  const onForeground = () => { if (!document.hidden && route !== 'advertise') setRoute(route, activeSponsorId); };
+  const onForeground = () => {
+    if (document.hidden) return;
+    if (route !== 'advertise') { setRoute(route, activeSponsorId); return; }
+    if (validityTimer) clearTimeout(validityTimer);
+    void showApprovedSponsors(++routeGeneration);
+  };
   document.addEventListener('visibilitychange', onForeground);
   retry.addEventListener('click', () => form.requestSubmit());
   root.querySelector<HTMLAnchorElement>('.adp-brand')!.addEventListener('click', event => {
@@ -224,5 +268,5 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
     .then(enabled => { available = enabled; submit.disabled = !enabled; setStatus(enabled ? 'All fields marked * are required.' : 'Online submissions are temporarily unavailable. Please email us.', enabled ? 'ready' : 'error'); })
     .catch(() => setStatus('Online submissions are temporarily unavailable. Please email us.', 'error'));
   setRoute(route, options.sponsorId);
-  return { setRoute, destroy: () => { if (validityTimer) clearTimeout(validityTimer); document.removeEventListener('visibilitychange', onForeground); document.title = originalTitle; root.replaceChildren(); root.classList.remove('advertise-app'); } };
+  return { setRoute, destroy: () => { if (validityTimer) clearTimeout(validityTimer); document.removeEventListener('visibilitychange', onForeground); routeGeneration += 1; document.title = originalTitle; root.replaceChildren(); delete root.dataset.header; root.classList.remove('advertise-app'); } };
 }

@@ -1,4 +1,5 @@
 @import './ui-colors.css';
+@import './menu-theme.css';
 @import './button-feedback.css';
 
 * {
@@ -50,10 +51,6 @@
   --ui-back-button-fill: linear-gradient(145deg, #245b98, #062d62);
   --ui-navigation-button-border: var(--ui-bright-gold);
   --ui-navigation-button-shadow: inset 0 1px rgb(255 255 255 / 32%), 0 2px 8px rgb(5 32 68 / 45%);
-  --menu-gold-border: var(--ui-bright-gold);
-  --menu-gold-fill: linear-gradient(var(--ui-bright-gold), var(--ui-bright-gold) 45%);
-  --menu-gold-shadow: inset 0 1px #fffde3, 0 2px 5px rgb(101 59 9 / 28%);
-  --menu-gold-ink: #3c2200;
   --font-display: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --text-primary: #f4f8ff;
@@ -4736,22 +4733,7 @@ body:has(.app-shell-header.is-page:not([hidden])) :is(
 }
 
 /* Shared non-flight presentation. One cached artwork; live-game overlays are excluded. */
-:root {
-  --menu-background: #305389 url('/media/menu/airport-runway.jpg') center center / cover no-repeat;
-  --menu-card-surface: linear-gradient(145deg, #ffffff 0%, #f4fbff 55%, #dceffc 100%);
-  --menu-card-ink: #071d49;
-  --menu-card-accent: var(--ui-bright-gold);
-  --menu-panel-surface: linear-gradient(135deg, #fff 5%, #f5fcff 55%, #dcefff);
-  --menu-panel-shadow: inset 0 0 0 2px #fffbe3, 0 13px 38px rgb(3 22 51 / 35%), 0 0 16px rgb(var(--ui-bright-gold-rgb) / 45%);
-  --menu-panel-radius: 15px;
-  --menu-panel-divider: #ccdbe3;
-  --menu-panel-muted: #36536f;
-  --menu-item-title-size: clamp(24px, 3vw, 34px);
-  --menu-label-size: clamp(12px, 1.5vw, 17px);
-  --menu-section-title-size: clamp(19px, 2.4vw, 28px);
-  --menu-stat-value-size: clamp(28px, 3.1vw, 38px);
-  --menu-action-label-size: clamp(17px, 2vw, 24px);
-}
+
 :is(.home-hangar, .city-selector, .mission-journey) { background: var(--menu-background); }
 body:has(#game-root[hidden]),
 body:has(.app-shell-header:not([hidden])) { background: var(--menu-background); }
