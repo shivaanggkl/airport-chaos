@@ -157,11 +157,11 @@ test('M2 intro uses only Run, Roar, Shoot and brief Idle transitions with M1-siz
  }finally{view.dispose();}
 });
 
-test('M1 bullet impacts use sixfold smoke size; M2 keeps its existing impact and the pool stays bounded',async()=>{
+test('both Dr. Boss missions use body-sized hit smoke and the pool stays bounded',async()=>{
  for(const defender of [false,true]){
   const view=create(defender);await view.ready;const calls=[];view.particles.emit=(...args)=>calls.push(args);
   view.showBulletImpact({position:{x:1,y:2,z:3},sequence:1});
-  assert.equal(calls[0][5],28*(defender?6:1));assert.equal(calls[1][5],100*(defender?6:1));
+  assert.equal(calls[0][5],28*(defender?6:12));assert.equal(calls[1][5],100*(defender?6:12));
   assert.equal(view.particles.particles.length,384);
   view.showBulletImpact({position:{x:1,y:2,z:3},sequence:1});assert.equal(calls.length,2,'duplicate hit does not replay smoke');view.dispose();
  }

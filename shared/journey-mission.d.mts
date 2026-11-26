@@ -142,7 +142,7 @@ export const journeyDallas18: Readonly<{
 }>;
 export const journeyDallas19: Readonly<{
   id: 'journey-dallas-19'; cityId: 'dallas'; name: 'FINAL MONSTER BATTLE'; chapter: 'LEGENDARY SKIES';
-  firstClearCredits: 4000; startAirportId:'love'; runwayStart:true; prepareMs: 0; timeLimitMs: 360000; bossHealth: 3000;
+  firstClearCredits: 4000; startAirportId:'love'; runwayStart:true; prepareMs: 0; timeLimitMs: 360000; bossHealth: 6000;
   monster: Readonly<{ x: number; z: number; height: number }>;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
 }>;
