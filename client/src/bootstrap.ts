@@ -1,5 +1,5 @@
 import {journeyCategorySlot} from '../../shared/journey-categories.mjs';
-import { journeyMissionOrder, journeyMissionSlot } from '../../shared/journey-mission.mjs';
+import { journeyDallas19, journeyMissionOrder, journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { createMenuCarouselCard, createMenuCarouselArtwork, setMenuCarouselArtwork, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
 import { missionTimePreset } from './mission-time-presets';
 import './style.css';
@@ -28,7 +28,7 @@ import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 import { SkyTokenStore, type SkyTokenOffer } from './sky-token-store';
 import { PLAYER_STORAGE_KEY } from './player-storage';
-import { takeJourneyRewardReceipt } from './journey-reward-receipt';
+import { takeJourneyCompletionReceipt } from './journey-reward-receipt';
 import { setFlightLaunchAircraft } from './flight-launch-aircraft';
 import { cityCapabilities } from '../../shared/city-registry.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
@@ -2585,11 +2585,15 @@ async function start(): Promise<void> {
     await showHome();
     showMissionJourney(false, false);
     const progress = await refreshJourneyProgress();
-    const earnedCredits = journeyReceipt ? takeJourneyRewardReceipt(journeyReceipt, garageIdentity.pilotId) : 0;
+    const completionReceipt = journeyReceipt ? takeJourneyCompletionReceipt(journeyReceipt, garageIdentity.pilotId) : undefined;
     if (journeyReceipt && progress) {
       const completed = missionJourneyStages.find(slot => slot.implementation === 'playable' &&
-        missionProgress(progress, slot.id)?.completed && missionProgress(progress, slot.id)?.firstAttemptId === journeyReceipt);
-      if (completed) pendingJourneyCelebration = { mission: completed.number, credits: earnedCredits };
+        missionProgress(progress, slot.id)?.completed && missionProgress(progress, slot.id)?.firstAttemptId === journeyReceipt)
+        ?? (completionReceipt?.missionId===journeyDallas19.id
+          ? missionJourneyStages.find(slot=>slot.missionId===journeyDallas19.id&&missionProgress(progress,slot.id)?.completed)
+          : undefined);
+      if (completed) pendingJourneyCelebration = { mission: completed.number,
+        credits: missionProgress(progress,completed.id)?.firstAttemptId===journeyReceipt ? completionReceipt?.credits ?? 0 : 0 };
     }
   } else if (directMultiplayerEntry) {
     // Returning from Sky Duel must stop at the mode cards. Opening its city

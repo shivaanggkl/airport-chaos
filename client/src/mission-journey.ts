@@ -1,3 +1,5 @@
+import {showDallasJourneyCelebration} from './dallas-journey-celebration';
+import {journeyDallas19} from '../../shared/journey-mission.mjs';
 import { bonusRibbonMarkup } from './bonus-badge';
 import { observeMissionCopyFit } from './fit-mission-copy';
 import './mission-journey.css';
@@ -59,6 +61,7 @@ export class MissionJourney {
   } | null = null;
   private suppressTap = false;
   private celebrationTimer = 0;
+  private stopDallasCelebration:(()=>void)|undefined;
   constructor(private readonly element: HTMLElement, onPlayMission: () => void, _onPanelOpen: () => void, _onPanelClose: () => void) {
     element.classList.add('mission-journey');
     element.setAttribute('aria-label', 'Dallas Mission Journey');
@@ -293,6 +296,7 @@ export class MissionJourney {
   }
   show(_panelOpen = false): void { this.element.hidden = false; this.renderProgress(); this.revealMission(this.selectedStage, false); }
   hide(): void {
+    this.stopDallasCelebration?.();this.stopDallasCelebration=undefined;
     this.element.hidden = true;
     if (this.celebrationTimer) window.clearTimeout(this.celebrationTimer);
     this.celebrationTimer = 0;
@@ -315,6 +319,10 @@ export class MissionJourney {
       window.clearTimeout(this.celebrationTimer);
     this.celebrationTimer = window.setTimeout(() => {
       button.classList.remove('is-newly-completed');
+      if(stage.missionId===journeyDallas19.id){
+        this.stopDallasCelebration?.();
+        this.stopDallasCelebration=showDallasJourneyCelebration();
+      }
       const next = missionJourneyStages.find(next => next.categoryId === stage.categoryId &&
         next.categoryNumber > stage.categoryNumber && this.progress[next.id]?.eligible && next.implementation === 'playable');
       if (next) {

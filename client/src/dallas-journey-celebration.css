@@ -1,0 +1,10 @@
+.dallas-journey-celebration { position:fixed;inset:0;z-index:9000;overflow:hidden;pointer-events:none;animation:dallas-journey-fade 5.5s ease both; }
+.dallas-journey-celebration__message { position:absolute;top:42%;left:max(16px,env(safe-area-inset-left));right:max(16px,env(safe-area-inset-right));padding:22px 12px;text-align:center;background:linear-gradient(90deg,transparent,#071c48ed 20%,#071c48ed 80%,transparent);text-shadow:0 3px 8px #071632; }
+.dallas-journey-celebration__message strong { color:#ffe36c;font:900 clamp(26px,5vw,64px)/1.15 var(--font-display);letter-spacing:.06em; }
+.dallas-journey-celebration__message p { margin:10px 0 0;color:#fff4cb;font:700 clamp(16px,2.4vw,26px)/1.3 var(--font-body); }
+.dallas-journey-celebration__rain { position:absolute;inset:0; }
+.dallas-journey-celebration__rain i { position:absolute;left:var(--x);top:-24px;width:7px;height:14px;background:var(--color);animation:dallas-journey-rain var(--duration) var(--delay) linear infinite; }
+.dallas-journey-celebration__rain .is-star { width:17px;height:17px;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 95%,50% 73%,21% 95%,32% 57%,2% 35%,39% 35%); }
+@keyframes dallas-journey-rain { from { transform:translate3d(0,-24px,0) rotate(0); } to { transform:translate3d(var(--drift),calc(100dvh + 48px),0) rotate(300deg); } }
+@keyframes dallas-journey-fade { 0%,100% { opacity:0; } 10%,85% { opacity:1; } }
+@media (prefers-reduced-motion:reduce) { .dallas-journey-celebration__rain i { animation:none;top:var(--x); }.dallas-journey-celebration { animation-duration:5.5s; } }
