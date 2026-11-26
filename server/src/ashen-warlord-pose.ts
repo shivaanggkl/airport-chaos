@@ -5,9 +5,10 @@ import { readTitanAnimationAsset, titanGaitTime, TitanAnimationSampler, transfor
 import { titanAnchor } from '../../shared/titan-pose.mjs';
 import type { Environment, AuthoredPoseContext } from './titan/engine.js';
 const asset = readTitanAnimationAsset(readFileSync(new URL('../../client/public/assets/models/monsters/ashen-warlord.glb', import.meta.url)));
-const H = model.height, clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
+const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 /** One sampler/transition state per encounter. All bone motion comes from supplied animation tracks. */
-export function createAshenPose(initialHealth = 2500, stationary = false, striking = false, hunting = false, walking = false, flinch = true): Environment['articulate'] {
+export function createAshenPose(initialHealth = 2500, stationary = false, striking = false, hunting = false, walking = false, flinch = true, height = model.height): Environment['articulate'] {
+    const H = height;
     const sampler = new TitanAnimationSampler(asset);
     const coreMatrix = new Float64Array(16);
     let old: AuthoredAnimation | undefined, transition: AuthoredAnimation | undefined, transitionAt = 0, lastTime = 0, gaitPhase = 0, turnTime = 0, lastRoot: {

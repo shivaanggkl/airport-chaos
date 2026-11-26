@@ -27,7 +27,7 @@ const ground=(wx,wz)=>{
 };
 const buildings=[];loadMonsterDistrictBuildings().query(-8500*DALLAS_WORLD_SCALE,-2500*DALLAS_WORLD_SCALE,-5000*DALLAS_WORLD_SCALE,500*DALLAS_WORLD_SCALE,b=>{buildings.push({x:(b.minX+b.maxX)/2,z:(b.minZ+b.maxZ)/2,halfX:(b.maxX-b.minX)/2,halfZ:(b.maxZ-b.minZ)/2,height:b.top});return false;});
 
-const create=(defender=false)=>new MonsterArrivalView(new THREE.Scene(),ground(journeyDallas23.monster.x,journeyDallas23.monster.z),0,undefined,source,ground,()=>390,model,false,true,true,true,false,defender);
+const create=(defender=true)=>new MonsterArrivalView(new THREE.Scene(),ground(journeyDallas23.monster.x,journeyDallas23.monster.z),0,undefined,source,ground,()=>390,model,false,true,true,true,false,defender);
 test('M23 short captions and walk/roar/shoot scene boundaries and unsped authored motions',()=>{
  for(const [t,text] of [[0,'Dr. Boss marches toward downtown.'],[8,'His roar shakes Dallas.'],[12,'Fireballs race toward the city!'],[19,'Downtown is next. Stop him!'],[24,'Dallas needs a hero.'],[26.5,'Pilot, defeat Dr. Boss. Save Dallas!'],[28,'']])assert.equal(m23IntroText(t),text);
  for(const [start,end,key] of [[8,8+model.clips.roar.duration,'roar'],[timing.shoot,timing.shoot+model.clips.shoot.duration,'shoot']])for(const t of [start+.01,(start+end)/2,end-.01]){
@@ -132,12 +132,12 @@ test('M2 intro uses only Run, Roar, Shoot and brief Idle transitions with M1-siz
  assert.equal(M24_INTRO.shoot,12);
  for(let t=0;t<28;t+=.05)assert(['idle','run','roar','shoot'].includes(m24IntroMotion(t).key));
  assert.equal(M24_INTRO.release,M24_INTRO.shoot+1.3);
- const view=create();await view.ready;
+ const view=create(false);await view.ready;
  try{
   view.prepareHuntingIntro(buildings,false,true,true);
   for(const t of [2,5,6.5]){
    view.setIntroTime(t);view.update(.025);const intro=view.creature.strikingIntro;
-   const remaining=intro.walk.distance-m24Travel(t,intro.walk.startTime);
+   const remaining=intro.walk.distance-2*m24Travel(t,intro.walk.startTime);
    assert(Math.abs(view.creature.root.position.x-(intro.position.x-Math.sin(intro.walk.yaw)*remaining))<.001);
   }
   view.setIntroTime(M24_INTRO.release);view.update(.01);
@@ -146,7 +146,8 @@ test('M2 intro uses only Run, Roar, Shoot and brief Idle transitions with M1-siz
   for(const round of rounds)assert.equal(round.group.scale.x,6);
   view.setIntroTime(M24_INTRO.release+.5);view.update(.01);
   for(const round of rounds)assert(Math.abs(round.group.position.distanceTo(origin)-900)<.001);
-  assert(rounds[1].group.position.distanceTo(rounds[2].group.position)>100,'spread stays clearly separated');
+  assert(rounds[1].direction.distanceTo(rounds[2].direction)>0,'fireballs follow separate paths');
+  assert(view.introBlasts[1].position.distanceTo(view.introBlasts[2].position)>500,'impact spread stays clearly separated');
   assert.equal(view.introBlasts.length,12);
   assert(view.introBlasts.every(impact=>Math.hypot(impact.position.x-M19_DOWNTOWN.x,impact.position.z-M19_DOWNTOWN.z)>=1700&&Math.hypot(impact.position.x-M19_DOWNTOWN.x,impact.position.z-M19_DOWNTOWN.z)<=5500));
   view.setIntroTime(23);view.update(.05);
@@ -221,7 +222,7 @@ test('Both Dr. Boss failures frame their huge blasts, keep the release camera co
 });
 
 test('M2 failure uses twelve city-scale impacts at the actual downtown, clear fog and a stable skyline view',async()=>{
- const view=create();await view.ready;view.finish('timeout');
+ const view=create(false);await view.ready;view.finish('timeout');
  const downtown=new THREE.Vector3(-2191*DALLAS_WORLD_SCALE,view.targetGroundY+30,-1201*DALLAS_WORLD_SCALE);
  assert(view.endingDestination.equals(downtown),'failure targets the world-scaled city, not raw map coordinates');
  const camera=new THREE.PerspectiveCamera(48,1280/589,1,1000),fog=new THREE.Fog(0x8899aa,7000,15000);
@@ -247,8 +248,8 @@ test('M2 failure uses twelve city-scale impacts at the actual downtown, clear fo
 });
 
 test('M2 approved intro motions stay grounded, frame the running monster, and hand off cleanly at 28 seconds',async()=>{
- const view=create();await view.ready;view.prepareHuntingIntro(buildings,false,true,true);
- const actor=view.creature,origin=actor.strikingIntro.position.clone(),yaw=actor.strikingIntro.yaw,player=new THREE.Group();
+ const view=create(false);await view.ready;view.prepareHuntingIntro(buildings,false,true,true);
+ const actor=view.creature,origin=(actor.strikingIntro.returnPosition??actor.strikingIntro.position).clone(),yaw=actor.strikingIntro.yaw,player=new THREE.Group();
  player.position.set(7000,450,-38000);player.add(new THREE.Mesh(new THREE.BoxGeometry(20,6,25)));
  const path=new CombatMissionIntroPath(actor.root,player,19,false,false,view.introFistPosition,view.introProjectilePosition,true,false,true,()=>view.introFootstepTime,true);
  const camera=new THREE.PerspectiveCamera(48,16/9,1,20000),position=new THREE.Vector3(),target=new THREE.Vector3(),chase=new THREE.Vector3(7000,455,-37980),look=new THREE.Vector3(7000,451,-38000);

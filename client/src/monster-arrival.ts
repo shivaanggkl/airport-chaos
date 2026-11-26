@@ -12,7 +12,6 @@ import {MONSTER_VICTORY_SECONDS} from './monster-victory';
 import {MonsterCityBlast,M19_TIMEOUT,M1_TIMEOUT,M2_TIMEOUT,M19_CITY_BLAST_SCALE} from './monster-timeout';
 import{AshenWarlordModel,mixAshenClipTime}from'./ashen-warlord-model';
 import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
-const ashenWarlordHeight=ashenWarlordModel.height;
 import {monsterDamageSites as worldMonsterDamageSites,monsterDebrisOffsets} from '../../shared/m19-environment.mjs';
 import type {TitanPresentation} from '../../shared/titan-pose.mjs';
 import * as THREE from 'three';
@@ -122,6 +121,7 @@ function createFireball(): Fireball {
 }
 
 export class MonsterArrivalView {
+  private get ashenHeight():number{return ashenWarlordModel.height*(this.pursuit&&!this.downtownDefender?pursuitWarlord.finalSizeScale:1);}
   private readonly creature: MonsterArrivalModel|AshenWarlordModel;
   private readonly environmentDamage:boolean;
   readonly ready: Promise<void>;
@@ -242,7 +242,7 @@ export class MonsterArrivalView {
         if(impactAge>=0&&!impact.played){impact.played=true;this.onDestruction?.();}
         if(impactAge>=0)visual.group.position.copy(impact.position);
       }
-      if(visual.group.visible){visual.group.position.copy(this.introShotOrigin).addScaledVector(visual.direction,age*(cluster?pursuitWarlord.fireball.speed:ashenWarlordHeight*.9));visual.group.scale.setScalar(cluster?pursuitWarlord.fireball.scale:1-THREE.MathUtils.smoothstep(age,1,1.2));}
+      if(visual.group.visible){visual.group.position.copy(this.introShotOrigin).addScaledVector(visual.direction,age*(cluster?pursuitWarlord.fireball.speed:this.ashenHeight*.9));visual.group.scale.setScalar(cluster?pursuitWarlord.fireball.scale:1-THREE.MathUtils.smoothstep(age,1,1.2));}
     }
   }
   private readonly scene: THREE.Scene;
@@ -292,11 +292,11 @@ export class MonsterArrivalView {
     if((this.stationary||this.striking)&&this.ending==='defeat'){
       const root=this.creature.root;
       // The supplied model faces local +Z; keep the close shot in front at any combat yaw.
-      camera.position.set(0,ashenWarlordHeight*.62,ashenWarlordHeight*.85).applyQuaternion(root.quaternion).add(root.position);
-      camera.lookAt(root.position.x,root.position.y+ashenWarlordHeight*.55,root.position.z);return;
+      camera.position.set(0,this.ashenHeight*.62,this.ashenHeight*.85).applyQuaternion(root.quaternion).add(root.position);
+      camera.lookAt(root.position.x,root.position.y+this.ashenHeight*.55,root.position.z);return;
     }
     if(!this.crimsonCore||this.ending!=='timeout')return;
-    const root=this.creature.root,height=ashenWarlordHeight;
+    const root=this.creature.root,height=this.ashenHeight;
     if(this.pursuit&&!this.downtownDefender){
       // Stay near the real, world-scaled downtown instead of framing smoke from 200 km away.
       const reveal=THREE.MathUtils.smoothstep(this.endingElapsed,.8,M19_TIMEOUT.impactAt-.4);
@@ -351,7 +351,7 @@ export class MonsterArrivalView {
 
   constructor(scene:THREE.Scene,terrainY:number,targetGroundY:number,camera?:THREE.Camera,
     source?:Promise<GLTF>,groundAt?:(x:number,z:number)=>number,pixelHeight=()=>720,binding?:TitanModelBinding,private readonly stationary=false,private readonly striking=false,private readonly hunting=false,private readonly pursuit=false,originalCombat=false,private readonly downtownDefender=false) {
-    this.crimsonCore=Boolean(binding?.url.includes('ashen-warlord'));this.particles=new MonsterParticles(this.crimsonCore?384:96);this.pool=Array.from({length:this.crimsonCore?32:8},()=>createFireball());this.creature=this.crimsonCore?new AshenWarlordModel(source,this.stationary,this.striking,this.hunting,this.pursuit,originalCombat):new MonsterArrivalModel(source,binding);this.environmentDamage=!this.stationary&&!this.striking&&(!binding||!binding.url.includes('armored-apex'));this.ready=this.creature.ready;
+    this.crimsonCore=Boolean(binding?.url.includes('ashen-warlord'));this.particles=new MonsterParticles(this.crimsonCore?384:96);this.pool=Array.from({length:this.crimsonCore?32:8},()=>createFireball());this.creature=this.crimsonCore?new AshenWarlordModel(source,this.stationary,this.striking,this.hunting,this.pursuit,originalCombat,this.ashenHeight):new MonsterArrivalModel(source,binding);this.environmentDamage=!this.stationary&&!this.striking&&(!binding||!binding.url.includes('armored-apex'));this.ready=this.creature.ready;
     this.scene=scene;this.camera=camera;this.targetGroundY=targetGroundY;this.pixelHeight=pixelHeight;
     this.creature.groundAt=groundAt;
     if(this.crimsonCore){this.beamMaterial.color.set(0xff2340);this.waveMaterial.color.set(0xff3b35);this.warningMaterial.color.set(0xff1735);this.warningMaterial.opacity=.4;}
@@ -523,7 +523,7 @@ export class MonsterArrivalView {
       this.timeoutShot=this.pool[0];this.timeoutShot!.group.visible=!this.crimsonCore;
       this.timeoutShot!.group.children.forEach((part,index)=>{part.visible=index<2;});
       if(this.crimsonCore){this.timeoutBlast=new MonsterCityBlast();this.scene.add(this.timeoutBlast.root);}
-      this.endingOrigin.copy(this.creature.root.position).add(new THREE.Vector3(0,this.crimsonCore?ashenWarlordHeight*.6:journeyDallas19.monster.height*.82,0));
+      this.endingOrigin.copy(this.creature.root.position).add(new THREE.Vector3(0,this.crimsonCore?this.ashenHeight*.6:journeyDallas19.monster.height*.82,0));
       const site=monsterDamageSites[0]!;this.endingDestination.set(site.x,this.targetGroundY+30,site.z);
       if(this.pursuit&&!this.downtownDefender)this.endingDestination.set(M19_DOWNTOWN.x,this.targetGroundY+30,M19_DOWNTOWN.z);
       if(this.crimsonCore)this.creature.root.rotation.y=Math.atan2(this.endingDestination.x-this.creature.root.position.x,this.endingDestination.z-this.creature.root.position.z);
