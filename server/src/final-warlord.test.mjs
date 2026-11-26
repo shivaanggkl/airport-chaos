@@ -113,10 +113,11 @@ test('M24 restores the original running director and all three attacks without c
  assert.equal(finalWarlordSpecies.level,'LEGENDARY');
  assert.equal(finalWarlordSpecies.health,journeyDallas19.bossHealth);
  assert.deepEqual(finalWarlordSpecies.director,{...ashenWarlordSpecies.director,combatDistance:9600,maintainCombatDistance:true});
- assert.deepEqual(finalWarlordSpecies.movement,ashenWarlordSpecies.movement);
+ assert.equal(finalWarlordSpecies.movement.run,ashenWarlordSpecies.movement.run);
+ assert.equal(finalWarlordSpecies.movement.turnRate,pursuitWarlordSpecies.movement.turnRate);
  assert.equal(finalWarlordSpecies.hunting,undefined);
  assert(finalWarlordSpecies.movement.runOnly);
- assert.deepEqual(finalWarlordSpecies.abilities.map(a=>a.id),['fireball-barrage','hand-strike','charging-rampage']);
+ assert.deepEqual(finalWarlordSpecies.abilities.map(a=>a.id),['fireball-barrage']);
  const shot=finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile');
  const m1=pursuitWarlordSpecies.abilities.find(a=>a.mechanism==='projectile');
  for(const key of ['projectileSpeed','radius','spread','spreadPattern','simultaneous','groundClearanceAim'])assert.equal(shot[key],m1[key],`M2 matches M1 ${key}`);
@@ -135,7 +136,7 @@ test('M24 runs continuously beyond the retired 6 km leash and shoots at a recedi
   const f=e.frame;
   if(f.locomotion==='run')running++;
   for(const shot of f.projectiles)shots.add(shot.id);
-  assert(Math.hypot(f.position.x-previous.x,f.position.z-previous.z)<=finalWarlordSpecies.movement.chargeSpeed*.05+.01);
+  assert(Math.hypot(f.position.x-previous.x,f.position.z-previous.z)<=finalWarlordSpecies.movement.run*.05+.01);
   assert(Math.abs(f.position.x)<=half&&Math.abs(f.position.z)<=half);
   assert.equal(f.position.y,135);previous={...f.position};
  }
@@ -157,7 +158,7 @@ test('M24 accepted pressure triggers committed retreat and re-engagement without
  for(let i=1;i<=700;i++){
   if(i===70){const p=e.snapshot().limbs.body;for(let sequence=1;sequence<=6;sequence++)e.damage({encounterId:'director',source:'p',sequence,from:{x:p.x+5000,y:p.y,z:p.z},to:p,amount:25,radius:1,delta:0});}
   const f=e.step(.05,[target],[]);retreat||=f.tactic==='retreat';if(retreat&&f.tactic==='reengage')reentry=true;
-  assert(Math.hypot(f.position.x-previous.position.x,f.position.z-previous.position.z)<=cfg.movement.chargeSpeed*.05+.01);previous=f;
+  assert(Math.hypot(f.position.x-previous.position.x,f.position.z-previous.position.z)<=cfg.movement.run*.05+.01);previous=f;
  }
  assert(retreat&&reentry);e.dispose();
 });
@@ -247,7 +248,7 @@ test('M24 restores space when a pilot approaches, without changing close attacks
  for(let i=0;i<1800;i++)e.step(.05,[target],[]);
  const f=e.snapshot(),range=Math.hypot(f.position.x-target.position.x,f.position.z-target.position.z);
  assert(range>=9000&&range<=10500,`must restore fighting space, got ${range}`);
- for(const kind of ['sweep','charge'])assert.deepEqual(finalWarlordSpecies.abilities.find(a=>a.mechanism===kind),ashenWarlordSpecies.abilities.find(a=>a.mechanism===kind));
+ for(const kind of ['sweep','charge'])assert.equal(finalWarlordSpecies.abilities.find(a=>a.mechanism===kind),undefined);
  e.dispose();
 });
 

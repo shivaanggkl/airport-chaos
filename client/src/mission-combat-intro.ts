@@ -40,7 +40,7 @@ export class CombatMissionIntroPath {
   get durationMs():number{if(this.missionNumber===26)return 12000;if(this.missionNumber===20)return 10000;if(this.missionNumber===15)return 10000;if(this.finalIntro)return M24_INTRO.duration*1000;if(this.huntingIntro)return M21_INTRO.duration*1000;if(this.strikingIntro)return M20_INTRO.duration*1000;if(this.arrivalIntro)return M19_INTRO.duration*1000;return this.missionNumber===19?12000:MISSION_COMBAT_INTRO_DURATION_MS;}
   wipe(elapsed: number): number {
     if(this.missionNumber===26||this.missionNumber===15||this.missionNumber===20)return 0;
-    if(this.finalIntro){for(const cut of [24000,28000])if(Math.abs(elapsed-cut)<200)return 1-Math.abs(elapsed-cut)/200;return 0;}
+    if(this.finalIntro){for(const cut of [M24_INTRO.monsterEnd*1000,M24_INTRO.runway*1000])if(Math.abs(elapsed-cut)<200)return 1-Math.abs(elapsed-cut)/200;return 0;}
     if(this.huntingIntro){if((this.showdownIntro||this.pursuitIntro)&&Math.abs(elapsed-20000)<150)return 1-Math.abs(elapsed-20000)/150;return Math.max(0,1-Math.abs(elapsed-24000)/250);}
     if(this.strikingIntro)return Math.max(0,1-Math.abs(elapsed-23000)/250);
     if(this.arrivalIntro){for(const cut of [4000,14000])if(Math.abs(elapsed-cut)<250)return 1-Math.abs(elapsed-cut)/250;return 0;}
@@ -151,16 +151,16 @@ export class CombatMissionIntroPath {
       const blend=THREE.MathUtils.smoothstep(t,timing.handoff,timing.duration);
       position.lerpVectors(this.shotPosition,chasePosition,blend);target.lerpVectors(this.shotTarget,chaseTarget,blend);return;
     }
-    if(this.finalIntro&&t>=24){
-      const radius=THREE.MathUtils.lerp(1.8,2.2,THREE.MathUtils.smoothstep(t,24,28));
+    if(this.finalIntro&&t>=M24_INTRO.monsterEnd){
+      const radius=THREE.MathUtils.lerp(1.8,2.2,THREE.MathUtils.smoothstep(t,M24_INTRO.monsterEnd,M24_INTRO.runway));
       this.offset.copy(root.position).sub(this.downtown);this.offset.y=0;this.offset.normalize().multiplyScalar(h*radius);this.offset.y=h*.7;
       position.copy(root.position).add(this.offset);target.copy(root.position);target.y+=h*.65;return;
     }
     const search=THREE.MathUtils.smoothstep(t,4,7.5),roar=THREE.MathUtils.smoothstep(t,timing.roar-.3,timing.roar+1)*(1-THREE.MathUtils.smoothstep(t,timing.roar+3.8,timing.roar+4.4)),cast=THREE.MathUtils.smoothstep(t,timing.cast,this.showdownIntro||this.pursuitIntro?timing.shoot:21.4);
     let radius=THREE.MathUtils.lerp(1.65,1.2,search);radius=THREE.MathUtils.lerp(radius,.95,roar);radius=THREE.MathUtils.lerp(radius,1.05,cast);
-    const punch=(this.showdownIntro||this.pursuitIntro&&this.finalIntro)&&t>=8&&t<12;
+    const punch=this.showdownIntro&&t>=8&&t<12;
     if(this.showdownIntro||this.pursuitIntro){radius=punch?1.25:t>=20?.85:t>=12?THREE.MathUtils.lerp(.95,1.4,THREE.MathUtils.smoothstep(t,timing.release-.3,timing.release)):radius;}
-    if(this.pursuitIntro&&t>=timing.cast&&t<(this.finalIntro?24:20))radius=THREE.MathUtils.lerp(THREE.MathUtils.lerp(1.25,.95,cast),1.4,THREE.MathUtils.smoothstep(t,timing.release-.3,timing.release));
+    if(this.pursuitIntro&&t>=timing.cast&&t<(this.finalIntro?M24_INTRO.monsterEnd:20))radius=THREE.MathUtils.lerp(THREE.MathUtils.lerp(1.25,.95,cast),1.4,THREE.MathUtils.smoothstep(t,timing.release-.3,timing.release));
     if(this.finalIntro&&t>=12&&t<16)radius=.85;
     const angle=punch?.65:THREE.MathUtils.lerp(.8,.1,search);
     this.offset.set(Math.sin(angle)*h*radius,h*(punch?.32:THREE.MathUtils.lerp(.4,.78,Math.max(search,roar))),Math.cos(angle)*h*radius).applyAxisAngle(THREE.Object3D.DEFAULT_UP,root.rotation.y);
@@ -173,7 +173,7 @@ export class CombatMissionIntroPath {
     }
     if((!this.pursuitIntro||this.finalIntro)&&t>=timing.punch&&t<timing.punch+4&&this.introFist)target.lerp(this.introFist,.35*Math.sin(Math.PI*(t-timing.punch)/4));
     if(t>=timing.roar&&t<timing.roar+3.625){const weight=Math.sin(Math.PI*(t-timing.roar)/3.625);position.x+=Math.sin(t*31)*h*.0018*weight;position.y+=Math.sin(t*37)*h*.001*weight;}
-    if(t>=timing.release&&(!(this.showdownIntro||this.pursuitIntro)||t<(this.finalIntro?24:20))&&this.introShot){const weight=THREE.MathUtils.smoothstep(t,timing.release,timing.release+.4);target.lerp(this.introShot,weight);this.shotPosition.copy(this.introShot).add(this.offset);position.lerp(this.shotPosition,weight*.7);}
+    if(t>=timing.release&&(!(this.showdownIntro||this.pursuitIntro)||t<(this.finalIntro?M24_INTRO.monsterEnd:20))&&this.introShot){const weight=THREE.MathUtils.smoothstep(t,timing.release,timing.release+.4);target.lerp(this.introShot,weight);this.shotPosition.copy(this.introShot).add(this.offset);position.lerp(this.shotPosition,weight*.7);}
   }
   private sampleStriking(elapsed:number,position:THREE.Vector3,target:THREE.Vector3,chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {
     const t=elapsed/1000,h=this.opponentHeight,root=this.opponent;
@@ -235,7 +235,7 @@ export class CombatMissionIntroPath {
     if(this.missionNumber===20)return elapsed<3000||elapsed>=5000&&elapsed<8000?this.opponent.position:this.player.position;
     if(this.missionNumber===15)return elapsed<2500?this.opponent.position:elapsed<5500?this.secondOpponent!.position:this.player.position;
     if(this.pursuitIntro&&!this.finalIntro)return elapsed<M23_INTRO.release*1000?this.opponent.position:elapsed<M23_INTRO.runway*1000?(this.introShot??this.downtown):this.player.position;
-    if(this.finalIntro)return elapsed<28000?this.opponent.position:this.player.position;
+    if(this.finalIntro)return elapsed<M24_INTRO.runway*1000?this.opponent.position:this.player.position;
     if(this.huntingIntro)return elapsed<24000?this.opponent.position:this.player.position;
     if(this.strikingIntro)return elapsed<23000?this.opponent.position:this.player.position;
     if(this.arrivalIntro)return elapsed<M19_INTRO.reveal*1000?this.downtown:elapsed<M19_INTRO.monsterEnd*1000?this.opponent.position:this.player.position;

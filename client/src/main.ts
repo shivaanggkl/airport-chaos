@@ -5951,7 +5951,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
       }
     }
     if((missionCombatIntroPath?.arrivalIntro||missionCombatIntroPath?.strikingIntro||missionCombatIntroPath?.huntingIntro)&&!skipped){
-      const cut=missionCombatIntroPath.huntingIntro?(elapsed>=(missionCombatIntroPath.finalIntro?28000:24000)&&m19IntroSceneryCut<(missionCombatIntroPath.finalIntro?28000:24000)?(missionCombatIntroPath.finalIntro?28000:24000):0):missionCombatIntroPath.strikingIntro?(elapsed>=23000&&m19IntroSceneryCut<23000?23000:0):elapsed>=14000&&m19IntroSceneryCut<14000?14000:elapsed>=4000&&m19IntroSceneryCut<4000?4000:0;
+      const cut=missionCombatIntroPath.huntingIntro?(elapsed>=(missionCombatIntroPath.finalIntro?M24_INTRO.runway*1000:24000)&&m19IntroSceneryCut<(missionCombatIntroPath.finalIntro?M24_INTRO.runway*1000:24000)?(missionCombatIntroPath.finalIntro?M24_INTRO.runway*1000:24000):0):missionCombatIntroPath.strikingIntro?(elapsed>=23000&&m19IntroSceneryCut<23000?23000:0):elapsed>=14000&&m19IntroSceneryCut<14000?14000:elapsed>=4000&&m19IntroSceneryCut<4000?4000:0;
       if(cut){
         if(!m19IntroSceneryReady(missionCombatIntroPath.streamingPosition(cut),now)){
           if(flightLaunchState!=='active')return true;
