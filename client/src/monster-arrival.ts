@@ -1,4 +1,3 @@
-import {titanProjectileDirection} from '../../shared/titan-projectiles.mjs';
 import {CinematicImpactBlast,cinematicImpactTexture} from './cinematic-impact';
 import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
 import {M19_DOWNTOWN} from './m19-intro';
@@ -162,15 +161,16 @@ export class MonsterArrivalView {
     if(!this.hunting||this.pursuit!==pursuit||this.state)return;
     (this.creature as AshenWarlordModel).prepareHuntingIntro(obstacles,showdown,pursuit,final);
     this.finalIntroEnabled=final;
-    if(pursuit&&!final){
+    if(pursuit){
       // Strike the outskirts, leaving the real skyline and mission state intact.
       const root=(this.creature as AshenWarlordModel).root.position;
       const toward=new THREE.Vector3(M19_DOWNTOWN.x-root.x,0,M19_DOWNTOWN.z-root.z).normalize();
       const x=M19_DOWNTOWN.x-toward.x*3500,z=M19_DOWNTOWN.z-toward.z*3500;
       this.introShotDestination.set(x,this.creature.groundAt?.(x,z)??this.targetGroundY,z);
       this.introBlastTextures??={fire:cinematicImpactTexture(true),smoke:cinematicImpactTexture(false)};
-      for(let i=0;i<6;i++){
-        const blast=new CinematicImpactBlast(3,this.introBlastTextures,false);blast.root.name='m1-downtown-outskirts-intro-blast';this.scene.add(blast.root);
+      const count=final?pursuitWarlord.fireball.finalCount:6;
+      for(let i=0;i<count;i++){
+        const blast=new CinematicImpactBlast(3,this.introBlastTextures,false);blast.root.name=final?'m2-downtown-outskirts-intro-blast':'m1-downtown-outskirts-intro-blast';this.scene.add(blast.root);
         this.introBlasts.push({position:new THREE.Vector3(),distance:0,blast,played:false});
       }
     }
@@ -192,7 +192,7 @@ export class MonsterArrivalView {
   }
   private updateStrikingIntro():void {
     const timing=this.finalIntroEnabled?M24_INTRO:this.pursuitIntroEnabled?M23_INTRO:this.showdownIntroEnabled?M22_INTRO:this.huntingIntroEnabled?M21_INTRO:M20_INTRO;
-    const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!,cluster=this.pursuitIntroEnabled&&!this.finalIntroEnabled,spread=this.pursuitIntroEnabled,shotCount=this.finalIntroEnabled?pursuitWarlord.fireball.finalCount:spread?6:3;
+    const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!,cluster=this.pursuitIntroEnabled,shotCount=this.finalIntroEnabled?pursuitWarlord.fireball.finalCount:cluster?6:3;
     actor.handPosition('left',this.introFistWorld);
     if(!this.huntingIntroEnabled&&t>=M20_INTRO.land&&!this.introLanded){this.introLanded=true;this.particles.emit(actor.root.position.x,actor.root.position.y,actor.root.position.z,true,14,95,1.5);this.onFootfall?.();}
     if(this.huntingIntroEnabled&&!this.pursuitIntroEnabled&&t>=timing.punch&&!this.introPunchWarned){this.introPunchWarned=true;this.onWarning?.();}
@@ -213,17 +213,14 @@ export class MonsterArrivalView {
       for(let i=0;i<shotCount;i++){
         const visual=this.pool[i]!;
         visual.id=null;visual.spawnPending=false;
-        // Aim M1’s cinematic volley at nearby ground strikes; other intros stay unchanged.
+        // Both Dr. Boss intros strike the outskirts with their own volley count.
         if(cluster){
-          const impact=this.introBlasts[i]!,angle=(i-1)*Math.PI*2/5;
+          const impact=this.introBlasts[i]!,angle=(i-1)*Math.PI*2/(shotCount-1);
           const ring=i===0?0:1800;
           impact.position.set(this.introShotDestination.x+Math.cos(angle)*ring,0,this.introShotDestination.z+Math.sin(angle)*ring);
           impact.position.y=this.creature.groundAt?.(impact.position.x,impact.position.z)??this.targetGroundY;
           impact.distance=impact.position.distanceTo(this.introShotOrigin);
           visual.direction.copy(impact.position).sub(this.introShotOrigin).normalize();
-        }else if(spread){
-          const direction=titanProjectileDirection(shot.direction,i,shotCount,pursuitWarlord.fireball.spread,'cluster');
-          visual.direction.set(direction.x,direction.y,direction.z);
         }else if(i>0){
           const angle=i===1?-.03:.03,c=Math.cos(angle),s=Math.sin(angle),d=shot.direction;
           visual.direction.set(d.x*c+d.z*s,d.y,d.z*c-d.x*s);
@@ -245,7 +242,7 @@ export class MonsterArrivalView {
         if(impactAge>=0&&!impact.played){impact.played=true;this.onDestruction?.();}
         if(impactAge>=0)visual.group.position.copy(impact.position);
       }
-      if(visual.group.visible){visual.group.position.copy(this.introShotOrigin).addScaledVector(visual.direction,age*(spread?pursuitWarlord.fireball.speed:ashenWarlordHeight*.9));visual.group.scale.setScalar(cluster?pursuitWarlord.fireball.scale:(spread?pursuitWarlord.fireball.scale:1)*(1-THREE.MathUtils.smoothstep(age,1,1.2)));}
+      if(visual.group.visible){visual.group.position.copy(this.introShotOrigin).addScaledVector(visual.direction,age*(cluster?pursuitWarlord.fireball.speed:ashenWarlordHeight*.9));visual.group.scale.setScalar(cluster?pursuitWarlord.fireball.scale:1-THREE.MathUtils.smoothstep(age,1,1.2));}
     }
   }
   private readonly scene: THREE.Scene;

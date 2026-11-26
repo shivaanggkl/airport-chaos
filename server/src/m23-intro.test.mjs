@@ -127,10 +127,10 @@ test('M23 six-fireball demonstration follows its visible hand and stays in frame
 });
 
 
-test('M2 intro uses only Walk, Roar, Shoot and brief Idle transitions with M1-sized spread fireballs',async()=>{
- assert.equal(m24IntroMotion(2).key,'walk');assert.equal(m24IntroMotion(5).key,'walk');assert.equal(m24IntroMotion(8).key,'roar');assert.equal(m24IntroMotion(12).key,'shoot');
+test('M2 intro uses only Run, Roar, Shoot and brief Idle transitions with M1-sized spread fireballs',async()=>{
+ assert.equal(m24IntroMotion(2).key,'run');assert.equal(m24IntroMotion(5).key,'run');assert.equal(m24IntroMotion(8).key,'roar');assert.equal(m24IntroMotion(12).key,'shoot');
  assert.equal(M24_INTRO.shoot,12);
- for(let t=0;t<28;t+=.05)assert(['idle','walk','roar','shoot'].includes(m24IntroMotion(t).key));
+ for(let t=0;t<28;t+=.05)assert(['idle','run','roar','shoot'].includes(m24IntroMotion(t).key));
  assert.equal(M24_INTRO.release,M24_INTRO.shoot+1.3);
  const view=create();await view.ready;
  try{
@@ -147,6 +147,11 @@ test('M2 intro uses only Walk, Roar, Shoot and brief Idle transitions with M1-si
   view.setIntroTime(M24_INTRO.release+.5);view.update(.01);
   for(const round of rounds)assert(Math.abs(round.group.position.distanceTo(origin)-900)<.001);
   assert(rounds[1].group.position.distanceTo(rounds[2].group.position)>100,'spread stays clearly separated');
+  assert.equal(view.introBlasts.length,12);
+  assert(view.introBlasts.every(impact=>Math.hypot(impact.position.x-M19_DOWNTOWN.x,impact.position.z-M19_DOWNTOWN.z)>=1700&&Math.hypot(impact.position.x-M19_DOWNTOWN.x,impact.position.z-M19_DOWNTOWN.z)<=5500));
+  view.setIntroTime(23);view.update(.05);
+  assert(view.introBlasts.every(impact=>impact.played),'all twelve fireballs create impacts near downtown');
+  assert.equal(view.damagedDowntown,false,'the intro does not destroy the actual mission city');
   view.setIntroTime(null);assert(rounds.every(round=>!round.group.visible&&round.group.scale.x===1));
  }finally{view.dispose();}
 });
@@ -224,14 +229,14 @@ test('M2 failure uses twelve M1-sized fireballs while retaining its existing exp
  assert(sawVolley&&sawImpacts);view.dispose();assert.equal(view.scene.children.length,0);
 });
 
-test('M2 approved intro motions stay grounded, frame the walking monster, and hand off cleanly at 28 seconds',async()=>{
+test('M2 approved intro motions stay grounded, frame the running monster, and hand off cleanly at 28 seconds',async()=>{
  const view=create();await view.ready;view.prepareHuntingIntro(buildings,false,true,true);
  const actor=view.creature,origin=actor.strikingIntro.position.clone(),yaw=actor.strikingIntro.yaw,player=new THREE.Group();
  player.position.set(7000,450,-38000);player.add(new THREE.Mesh(new THREE.BoxGeometry(20,6,25)));
  const path=new CombatMissionIntroPath(actor.root,player,19,false,false,view.introFistPosition,view.introProjectilePosition,true,false,true,()=>view.introFootstepTime,true);
  const camera=new THREE.PerspectiveCamera(48,16/9,1,20000),position=new THREE.Vector3(),target=new THREE.Vector3(),chase=new THREE.Vector3(7000,455,-37980),look=new THREE.Vector3(7000,451,-38000);
  let punchSounds=0,roars=0;view.onWarning=()=>punchSounds++;view.onRoar=()=>roars++;
- const allowed=new Set(['idle','walk','roar','shoot'].map(key=>model.clips[key].name));
+ const allowed=new Set(['idle','run','roar','shoot'].map(key=>model.clips[key].name));
  try{
   for(let i=0;i<=560;i++){
    const t=i*.05;view.setIntroTime(t);view.update(.05);
@@ -241,7 +246,7 @@ test('M2 approved intro motions stay grounded, frame the walking monster, and ha
    if([2,5,6.5].includes(t)){
     path.sample(t*1000,position,target,chase,look);camera.position.copy(position);camera.lookAt(target);camera.updateMatrixWorld();
     const box=new THREE.Box3().setFromObject(actor.root,true);
-    for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const point=new THREE.Vector3(x,y,z).project(camera);assert(Math.abs(point.x)<1&&Math.abs(point.y)<1,'walking monster remains framed');}
+    for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const point=new THREE.Vector3(x,y,z).project(camera);assert(Math.abs(point.x)<1&&Math.abs(point.y)<1,'running monster remains framed');}
    }
   }
   assert.equal(punchSounds,0);assert.equal(roars,1);assert.equal(path.durationMs,28000);assert.equal(path.streamingPosition(24000),player.position);
