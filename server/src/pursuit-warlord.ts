@@ -15,7 +15,7 @@ export const pursuitWarlordSpecies=new SpeciesRegistry().register({...base,
  regions:base.regions.map(r=>({...r,multiplier:1})),
  abilities:base.abilities.filter(a=>a.mechanism==='projectile').map(a=>
   ({...a,animation:'shoot',requires:['hand-right'],interruptible:false,moving:true,count:6,simultaneous:true,damage:25,cooldown:9/6,projectileSpeed:pursuitWarlord.fireball.speed,radius:pursuitWarlord.fireball.radius,maxRange:60000,
-   warning:a.warning/6,windup:a.windup/6,active:a.active/6,recovery:a.recovery/6,cone:.8,spread:pursuitWarlord.fireball.spread,spreadPattern:'cluster'}))
+   warning:a.warning/6,windup:a.windup/6,active:a.active/6,recovery:a.recovery/6,cone:.8,spread:pursuitWarlord.fireball.spread,spreadPattern:'cluster',groundClearanceAim:true}))
 });
 export function createPursuitWarlordEncounter(id:string,playerId:string,started:number,ground:(x:number,z:number)=>number,buildings:DistrictBuildings,health:number=journeyDallas23.bossHealth){
  const halfSize=Number(cityRegistry.dallas.worldSize)/2;

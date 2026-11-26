@@ -1,3 +1,4 @@
+import {M19_TIMEOUT,M19_CITY_BLAST_SCALE} from '../../client/src/monster-timeout.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -151,4 +152,27 @@ test('M1 bullet impacts use sixfold smoke size; M2 keeps its existing impact and
   assert.equal(view.particles.particles.length,384);
   view.showBulletImpact({position:{x:1,y:2,z:3},sequence:1});assert.equal(calls.length,2,'duplicate hit does not replay smoke');view.dispose();
  }
+});
+
+test('M1 failure fires six real visual rounds, gives every impact a sixfold downtown blast, frames them and cleans up',async()=>{
+ const view=create(true);await view.ready;let releases=0,impacts=0,completed=0;
+ view.onProjectile=()=>releases++;view.onDestruction=()=>impacts++;view.onEndingComplete=()=>completed++;
+ view.finish('timeout');assert.equal(view.timeoutVolley.length,6);
+ const camera=new THREE.PerspectiveCamera(48,16/9,1,1000);
+ let sawVolley=false,sawBlasts=false;
+ for(let i=0;i<195;i++){
+  view.update(.05);view.updateTimeoutCamera(camera);
+  const t=view.endingElapsed;
+  if(t>M19_TIMEOUT.releaseAt+.05&&t<M19_TIMEOUT.impactAt-.05){
+   sawVolley=true;assert.equal(view.pool.filter(shot=>shot.group.visible).length,6);
+   for(const round of view.timeoutVolley){assert.equal(round.shot.id,null);assert.equal(round.shot.group.scale.x,6);assert(round.shot.group.position.distanceTo(view.endingOrigin)>0);}
+  }
+  if(t>M19_TIMEOUT.impactAt+.1&&t<M19_TIMEOUT.impactAt+.5){
+   sawBlasts=true;assert(view.timeoutVolley.every(round=>round.blast.root.visible&&!round.shot.group.visible));
+   for(const round of view.timeoutVolley){assert.equal(round.blast.scale,M19_CITY_BLAST_SCALE*6);assert(round.blast.root.position.equals(round.impact));}
+  }
+  assert(camera.position.toArray().every(Number.isFinite));
+ }
+ assert(sawVolley&&sawBlasts);assert.equal(releases,1);assert.equal(impacts,1);assert.equal(completed,1);
+ assert.equal(view.timeoutBlackoutOpacity,1);assert(view.damagedDowntown);view.dispose();assert.equal(view.scene.children.length,0);
 });

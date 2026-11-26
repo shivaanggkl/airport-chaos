@@ -1168,6 +1168,11 @@ export class TitanEncounter {
                 if (def.debris && !debris)
                     break;
                 const from = origin, speed = def.projectileSpeed!, point = visible?.id === a.targetId ? intercept(from, visible.position, this.#shotVelocity(visible), speed, def.maxRange / speed) : a.aim;
+                if(point&&def.groundClearanceAim&&visible?.id===a.targetId){
+                    const floor=this.#env.ground(point.x,point.z);
+                    // The sphere's lower edge must clear the runway. The raised aim still intersects the aircraft sphere.
+                    if(point.y-floor<def.radius+visible.radius)point.y=Math.max(point.y,floor+def.radius+visible.radius*.25);
+                }
                 if (point && !(def.horizontalCone?Math.abs(wrap(Math.atan2(point.x-this.#position.x,point.z-this.#position.z)-this.#yaw))<=def.cone:this.#withinCone(from, point, def.cone)))
                     break;
                 if (!point || this.#shots.filter(v => v.live).length >= 32)

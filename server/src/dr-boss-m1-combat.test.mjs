@@ -9,7 +9,7 @@ import {pursuitWarlordSpecies as species,createPursuitWarlordEncounter as create
 import {finalWarlordSpecies} from './final-warlord.js';
 import {createAshenPose} from './ashen-warlord-pose.js';
 import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
-import {createM19Encounter,stepM19,disposeM19} from './m19-titan.js';
+import {createM19Encounter,stepM19,disposeM19,permittedM19Damage} from './m19-titan.js';
 import {SpeciesRegistry} from './titan/definitions.js';
 import {ashenWarlordGeometry as geometry} from '../../shared/ashen-warlord-geometry.mjs';
 import {journeyDallas23} from '../../shared/journey-mission.mjs';
@@ -129,4 +129,19 @@ test('M1 updates on the runway from mission start, while pause, countdown and M2
   const context=vm.createContext({...missions,monsterEncounters:new Map([['a',encounter]]),pausedJourneyAttempts:new Set(paused?['a']:[]),players:new Map([['pilot',{pilotId:'p',position:{x:0,y:0,z:0},velocity:zero,aircraftType:'trainer'}]]),journeyStore:{activeSnapshot:()=>({missionId:mission.id,status,deadlineAt:2000})},playerJourneyRunwayPrep:new Set(['pilot']),aircraftHitRadii:{trainer:10},stepM19:()=>steps++});
   vm.runInContext(code+';updateMonsterEncounters(1000)',context);assert.equal(steps,expected);
  }
+});
+
+test('M1 central fireball damages a stationary runway aircraft on its first volley instead of hitting terrain first',()=>{
+ for(const height of [0,5,15,100,300]){
+  const e=create(`runway-hit-${height}`,'pilot',0,()=>135,[]),root=e.frame.position;
+  const target={x:root.x+2500,y:135+height,z:root.z};let damage=0,firstHit=Infinity;
+  try{
+   for(let ms=50;ms<=4000;ms+=50){
+    stepM19(e,target,zero,2.8,ms);
+    for(const event of e.events)if(event.type==='projectile'&&event.kind==='damage'){firstHit=Math.min(firstHit,ms);damage+=permittedM19Damage(e,event,ms);}
+   }
+   assert(firstHit<=3500,'first aimed fireball reaches the runway aircraft');assert(damage>=25);
+  }finally{disposeM19(e);}
+ }
+ assert.equal(finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile').groundClearanceAim,undefined,'M2 targeting stays unchanged');
 });
