@@ -151,7 +151,7 @@ test('M2 runs, turns and roars with M1 shooting, never rushes, punches or flinch
  assert.deepEqual(m2.animations,['idle','run','turn','roar','shoot','defeat']);
  assert.equal(m2.movement.chargeSpeed,0);assert(m2.movement.runOnly);
  assert.equal(m2.movement.turnRate,species.movement.turnRate);assert.equal(m2.movement.turnAcceleration,species.movement.turnAcceleration);
- assert.deepEqual(m2.abilities,species.abilities);assert.equal(m2.director.roarDuration,species.director.roarDuration);
+ assert.deepEqual(m2.abilities,species.abilities.map(a=>({...a,count:12})));assert.equal(m2.director.roarDuration,species.director.roarDuration);
  const e=createFinal('m2-six-motions','pilot',0,()=>135,[]),origin={...e.frame.position};
  let roars=0,releases=0,running=0,damaged=0;
  try{

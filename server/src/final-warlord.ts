@@ -1,3 +1,4 @@
+import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
 import {pursuitWarlordSpecies} from './pursuit-warlord.js';
 import {ashenWarlordSpecies} from './ashen-warlord.js';
 import {createAshenPose} from './ashen-warlord-pose.js';
@@ -15,7 +16,7 @@ export const finalWarlordSpecies=new SpeciesRegistry().register({
  movement:{...ashenWarlordSpecies.movement,chargeSpeed:0,turnRate:pursuitWarlordSpecies.movement.turnRate,turnAcceleration:pursuitWarlordSpecies.movement.turnAcceleration},
  director:{...ashenWarlordSpecies.director!,combatDistance:9600,maintainCombatDistance:true,
   attackSpacing:pursuitWarlordSpecies.director!.attackSpacing,roarInterval:pursuitWarlordSpecies.director!.roarInterval,roarDuration:pursuitWarlordSpecies.director!.roarDuration},
- abilities:structuredClone(pursuitWarlordSpecies.abilities),
+ abilities:pursuitWarlordSpecies.abilities.map(a=>({...structuredClone(a),count:pursuitWarlord.fireball.finalCount})),
 });
 export function createFinalWarlordEncounter(id:string,playerId:string,started:number,ground:(x:number,z:number)=>number,buildings:DistrictBuildings,health:number=journeyDallas19.bossHealth){
  const halfSize=Number(cityRegistry.dallas.worldSize)/2;

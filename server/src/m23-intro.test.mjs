@@ -141,12 +141,12 @@ test('M2 intro uses only Walk, Roar, Shoot and brief Idle transitions with M1-si
    assert(Math.abs(view.creature.root.position.x-(intro.position.x-Math.sin(intro.walk.yaw)*remaining))<.001);
   }
   view.setIntroTime(M24_INTRO.release);view.update(.01);
-  assert.equal(view.pool.filter(shot=>shot.group.visible).length,6);
-  const rounds=view.pool.slice(0,6),origin=view.introShotOrigin.clone();
+  assert.equal(view.pool.filter(shot=>shot.group.visible).length,12);
+  const rounds=view.pool.slice(0,12),origin=view.introShotOrigin.clone();
   for(const round of rounds)assert.equal(round.group.scale.x,6);
   view.setIntroTime(M24_INTRO.release+.5);view.update(.01);
   for(const round of rounds)assert(Math.abs(round.group.position.distanceTo(origin)-900)<.001);
-  assert(rounds[1].group.position.distanceTo(rounds[2].group.position)>200,'spread stays clearly separated');
+  assert(rounds[1].group.position.distanceTo(rounds[2].group.position)>100,'spread stays clearly separated');
   view.setIntroTime(null);assert(rounds.every(round=>!round.group.visible&&round.group.scale.x===1));
  }finally{view.dispose();}
 });
@@ -213,13 +213,13 @@ test('M1 failure has a continuous release camera, separate strikes, a framed smo
  assert.equal(view.timeoutBlackoutOpacity,1);view.dispose();assert.equal(view.scene.children.length,0);
 });
 
-test('M2 failure uses six M1-sized fireballs while retaining its existing explosion scale',async()=>{
+test('M2 failure uses twelve M1-sized fireballs while retaining its existing explosion scale',async()=>{
  const view=create();await view.ready;view.finish('timeout');
  let sawVolley=false,sawImpacts=false;
- for(let i=0;i<100;i++){
+ for(let i=0;i<120;i++){
   view.update(.05);const t=view.endingElapsed;
-  if(t>2&&t<3){sawVolley=true;assert.equal(view.pool.filter(shot=>shot.group.visible).length,6);assert(view.timeoutVolley.every(round=>round.shot.group.scale.x===6));}
-  if(t>4.5){sawImpacts=true;assert(view.timeoutVolley.every(round=>round.blast.root.visible&&round.blast.scale===M19_CITY_BLAST_SCALE&&!round.shot.group.visible));}
+  if(t>2&&t<3){sawVolley=true;assert.equal(view.pool.filter(shot=>shot.group.visible).length,12);assert(view.timeoutVolley.every(round=>round.shot.group.scale.x===6));}
+  if(t>5.1){sawImpacts=true;assert(view.timeoutVolley.every(round=>round.blast.root.visible&&round.blast.scale===M19_CITY_BLAST_SCALE&&!round.shot.group.visible));}
  }
  assert(sawVolley&&sawImpacts);view.dispose();assert.equal(view.scene.children.length,0);
 });

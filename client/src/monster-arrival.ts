@@ -180,7 +180,7 @@ export class MonsterArrivalView {
   }
   private clearStrikingIntro():void {
     if(!this.strikingIntroEnabled)return;
-    const shotCount=this.pursuitIntroEnabled?6:3;
+    const shotCount=this.finalIntroEnabled?pursuitWarlord.fireball.finalCount:this.pursuitIntroEnabled?6:3;
     this.strikingIntroEnabled=false;this.huntingIntroEnabled=false;this.showdownIntroEnabled=false;this.pursuitIntroEnabled=false;this.finalIntroEnabled=false;this.introFootstepTime=-Infinity;this.mouthFire.visible=false;if(this.castingHand)this.castingHand.visible=false;
     for(let i=0;i<shotCount;i++){
       const shot=this.pool[i]!;shot.group.visible=false;shot.group.scale.setScalar(1);
@@ -192,7 +192,7 @@ export class MonsterArrivalView {
   }
   private updateStrikingIntro():void {
     const timing=this.finalIntroEnabled?M24_INTRO:this.pursuitIntroEnabled?M23_INTRO:this.showdownIntroEnabled?M22_INTRO:this.huntingIntroEnabled?M21_INTRO:M20_INTRO;
-    const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!,cluster=this.pursuitIntroEnabled&&!this.finalIntroEnabled,spread=this.pursuitIntroEnabled,shotCount=spread?6:3;
+    const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!,cluster=this.pursuitIntroEnabled&&!this.finalIntroEnabled,spread=this.pursuitIntroEnabled,shotCount=this.finalIntroEnabled?pursuitWarlord.fireball.finalCount:spread?6:3;
     actor.handPosition('left',this.introFistWorld);
     if(!this.huntingIntroEnabled&&t>=M20_INTRO.land&&!this.introLanded){this.introLanded=true;this.particles.emit(actor.root.position.x,actor.root.position.y,actor.root.position.z,true,14,95,1.5);this.onFootfall?.();}
     if(this.huntingIntroEnabled&&!this.pursuitIntroEnabled&&t>=timing.punch&&!this.introPunchWarned){this.introPunchWarned=true;this.onWarning?.();}
@@ -516,8 +516,9 @@ export class MonsterArrivalView {
       if(this.pursuit){
         this.timeoutShot=undefined;this.timeoutBlast?.dispose();this.timeoutBlast=undefined;
         this.timeoutTextures={fire:cinematicImpactTexture(true),smoke:cinematicImpactTexture(false)};
-        for(let i=0;i<6;i++){
-          const angle=(i-1)*Math.PI*2/5,ring=i===0?0:3000;
+        const count=this.downtownDefender?6:pursuitWarlord.fireball.finalCount;
+        for(let i=0;i<count;i++){
+          const angle=(i-1)*Math.PI*2/(count-1),ring=i===0?0:3000;
           const x=this.endingDestination.x+Math.cos(angle)*ring,z=this.endingDestination.z+Math.sin(angle)*ring;
           const impact=new THREE.Vector3(x,this.creature.groundAt?.(x,z)??this.targetGroundY,z);
           const blast=new CinematicImpactBlast(M19_CITY_BLAST_SCALE*(this.downtownDefender?pursuitWarlord.timeoutBlastScale:1),this.timeoutTextures,false);
