@@ -1,5 +1,5 @@
 import './advertise-page.css';
-import {advertisingPackages, advertisingWaitlistConsent, type AdvertisingPackageId} from '../../shared/advertising-packages.mjs';
+import {advertisingPackages, advertisingEmailWaitlistConsent, type AdvertisingPackageId} from '../../shared/advertising-packages.mjs';
 import {createContextPageTitle} from './context-page-shell';
 import { getSponsorCatalog, sponsorshipApi, type PublicSponsor } from './sponsorship-catalog';
 import { recordSponsorMeasurement, setSponsorMeasurementCatalog } from './sponsorship-measurement';
@@ -58,16 +58,10 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
       </section>
       <section id="request-sponsorship" class="adp-section adp-inquiry adp-panel" aria-labelledby="adp-inquiry-title">
         <h2 id="adp-inquiry-title" tabindex="-1">JOIN ADVERTISING WAITLIST</h2>
-        <p>Join the free waitlist for your selected package. Joining does not reserve a placement or guarantee acceptance.</p>
-        <form data-form novalidate><div class="adp-form-grid">
-          <label class="adp-wide">Advertising Package <span aria-hidden="true">*</span><select name="packageId" required><option value="" disabled selected>Select a package</option>${advertisingPackages.map(item => `<option value="${item.id}">${item.name}</option>`).join('')}</select></label>
-          <label>Company Name <span aria-hidden="true">*</span><input name="companyName" autocomplete="organization" required minlength="2" maxlength="100" /></label>
-          <label>Work Email <span aria-hidden="true">*</span><input name="workEmail" type="email" autocomplete="email" required maxlength="254" /></label>
-          <label>Contact Name <small>Optional</small><input name="contactName" autocomplete="name" maxlength="100" /></label>
-          <label>Website <small>Optional · HTTPS only</small><input name="website" type="url" inputmode="url" maxlength="300" placeholder="https://example.com" /></label>
-          <label class="adp-wide">Message <small>Optional</small><textarea name="message" maxlength="1000" rows="4" placeholder="Anything you’d like us to know?"></textarea></label></div>
-          <label class="adp-consent"><input type="checkbox" name="emailConsent" required /><span>${advertisingWaitlistConsent}</span></label>
-          <p class="adp-privacy-note">Consent is only for availability updates about your selected package. <a href="/privacy">Privacy Notice</a></p>
+        <p data-package-context>Leave your email. We’ll notify you when advertising packages are available.</p>
+        <form data-form novalidate><input type="hidden" name="packageId" value="" />
+          <label class="adp-email-label">Email <span class="adp-required" aria-hidden="true">*</span><input name="workEmail" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com" /></label>
+          <p class="adp-privacy-note">${advertisingEmailWaitlistConsent} <a href="/privacy">Privacy Notice</a></p>
           <p class="adp-form-status" role="status" aria-live="polite" data-status>Checking waitlist availability…</p>
           <button class="adp-button context-action context-action--gold adp-submit" type="submit" disabled data-submit>JOIN WAITLIST</button><button class="adp-retry" type="button" data-retry hidden>TRY AGAIN</button>
         </form>
@@ -99,8 +93,8 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
   const status = root.querySelector<HTMLElement>('[data-status]')!;
   const submit = root.querySelector<HTMLButtonElement>('[data-submit]')!;
   const retry = root.querySelector<HTMLButtonElement>('[data-retry]')!;
-  const packageSelect = form.elements.namedItem('packageId') as HTMLSelectElement;
-  const emailConsent = form.elements.namedItem('emailConsent') as HTMLInputElement;
+  const packageSelect = form.elements.namedItem('packageId') as HTMLInputElement;
+  const packageContext = root.querySelector<HTMLElement>('[data-package-context]')!;
   let route = options.route;
   let selectedSponsor: PublicSponsor | undefined;
   let detailReturnSponsorId: string | undefined;
@@ -113,7 +107,10 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
   const setStatus = (message: string, state = 'ready') => { status.textContent = message; status.dataset.state = state; retry.hidden = state !== 'error' || !available; };
   const toForm = (selected?: AdvertisingPackageId) => {
     if (route !== 'advertise') { options.onNavigate('advertise'); route = 'advertise'; setRoute('advertise'); }
-    if (selected) packageSelect.value = selected;
+    if (selected) {
+      packageSelect.value = selected;
+      packageContext.textContent = `Leave your email. We’ll notify you when ${advertisingPackages.find(item=>item.id===selected)!.name} is available.`;
+    }
     root.querySelector('#request-sponsorship')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     root.querySelector<HTMLElement>('#adp-inquiry-title')?.focus({ preventScroll: true });
   };
@@ -254,19 +251,19 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
     event.preventDefault();
     if (sending || !available) return;
     const fields = new FormData(form);
-    const website = String(fields.get('website') ?? '').trim();
-    if (!form.checkValidity() || (website && !website.startsWith('https://'))) {
-      setStatus('Please check the required fields and use an HTTPS website address.', 'error');
+    if (!form.checkValidity()) {
+      setStatus('Please enter a valid email address.', 'error');
       form.reportValidity(); return;
     }
     sending = true; submit.disabled = true; submit.textContent = 'SENDING…'; setStatus('Joining the waitlist…', 'submitting');
-    const body = JSON.stringify({...Object.fromEntries(fields.entries()), requestKind:'WAITLIST', emailConsent:emailConsent.checked});
+    const body = JSON.stringify({workEmail:fields.get('workEmail'), packageId:packageSelect.value||null, requestKind:'WAITLIST', emailOnly:true, emailConsent:true});
     try {
-      const response = await fetch(api('/api/sponsorship/inquiries'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(12_000) });
+      const response = await fetch(api('/api/sponsorship/waitlist'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(12_000) });
       if (response.status === 201) {
         const result = await response.json() as { requestId?: string; status?: string };
         if (result.status !== 'RECEIVED' || !result.requestId) throw new Error('Unconfirmed inquiry response');
         setStatus('You’re on the waitlist. We’ll contact you when advertising opens.', 'success'); form.reset();
+        packageContext.textContent = 'Leave your email. We’ll notify you when advertising packages are available.';
       }
       else if (response.status === 429) setStatus('Too many requests right now. Please try later or email us.', 'rate-limited');
       else if (response.status === 503) { available = false; setStatus('Online waitlist signup is currently unavailable. Please email us.', 'error'); }
@@ -275,9 +272,9 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
     finally { sending = false; submit.disabled = !available; submit.textContent = 'JOIN WAITLIST'; }
   });
 
-  void fetch(api('/api/sponsorship/inquiries'), { credentials: 'include' })
+  void fetch(api('/api/sponsorship/waitlist'), { credentials: 'include' })
     .then(async response => response.ok ? (await response.json() as { available?: boolean }).available === true : false)
-    .then(enabled => { available = enabled; submit.disabled = !enabled; setStatus(enabled ? 'All fields marked * are required.' : 'Online waitlist signup is currently unavailable. Please email us.', enabled ? 'ready' : 'error'); })
+    .then(enabled => { available = enabled; submit.disabled = !enabled; setStatus(enabled ? 'Enter your email to join the free waitlist.' : 'Online waitlist signup is currently unavailable. Please email us.', enabled ? 'ready' : 'error'); })
     .catch(() => setStatus('Online waitlist signup is currently unavailable. Please email us.', 'error'));
   setRoute(route, options.sponsorId);
   return { setRoute, destroy: () => { if (validityTimer) clearTimeout(validityTimer); document.removeEventListener('visibilitychange', onForeground); routeGeneration += 1; document.title = originalTitle; root.replaceChildren(); delete root.dataset.header; root.classList.remove('advertise-app'); } };

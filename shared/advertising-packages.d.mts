@@ -3,3 +3,5 @@ export type AdvertisingPackage = Readonly<{id:AdvertisingPackageId;interest:'HUB
 export const advertisingPackages: readonly AdvertisingPackage[];
 export function advertisingPackage(id: unknown): AdvertisingPackage | undefined;
 export const advertisingWaitlistConsent: string;
+
+export const advertisingEmailWaitlistConsent: string;

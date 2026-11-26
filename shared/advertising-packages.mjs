@@ -5,3 +5,5 @@ export const advertisingPackages = Object.freeze([
 ]);
 export function advertisingPackage(id) { return advertisingPackages.find(item => item.id === id); }
 export const advertisingWaitlistConsent = 'I agree to receive emails about the availability of my selected advertising package.';
+
+export const advertisingEmailWaitlistConsent = 'By joining, you agree to receive email about the availability of Airport Chaos advertising packages.';

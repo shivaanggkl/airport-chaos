@@ -1391,12 +1391,15 @@ const httpServer = createServer(async (request, response) => {
   if (rejectsApiRequestOrigin(request, requestUrl.pathname, configuredWebOrigin)) {
     jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
   }
-  if (requestUrl.pathname === '/api/sponsorship/inquiries') {
+  // Email-only interest signup is independent of commercial/business inquiries.
+  // This route rejects the business form payload, even while its gate is closed.
+  const emailWaitlistRequest = requestUrl.pathname === '/api/sponsorship/waitlist';
+  if (emailWaitlistRequest || requestUrl.pathname === '/api/sponsorship/inquiries') {
     if (request.method === 'GET') {
-      jsonResponse(response, 200, { available: sponsorshipInquiriesEnabled }); return;
+      jsonResponse(response, 200, { available: emailWaitlistRequest || sponsorshipInquiriesEnabled }); return;
     }
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'GET, POST' }); response.end(); return; }
-    if (!sponsorshipInquiriesEnabled) { jsonResponse(response, 503, { error: 'Online inquiries are temporarily unavailable.' }); return; }
+    if (!emailWaitlistRequest && !sponsorshipInquiriesEnabled) { jsonResponse(response, 503, { error: 'Online inquiries are temporarily unavailable.' }); return; }
     const inquiryOrigin = String(request.headers.origin ?? '');
     const inquiryHost = String(request.headers.host ?? '').toLowerCase();
     let sameSite = false;
@@ -1418,7 +1421,7 @@ const httpServer = createServer(async (request, response) => {
     let parsed: unknown;
     try { parsed = JSON.parse(raw.toString('utf8')); } catch { jsonResponse(response, 400, { error: 'Invalid inquiry.' }); return; }
     const inquiry = validateSponsorshipInquiry(parsed);
-    if (!inquiry) { jsonResponse(response, 400, { error: 'Invalid inquiry.' }); return; }
+    if (!inquiry || emailWaitlistRequest && !(inquiry.requestKind === 'WAITLIST' && inquiry.emailOnly === true)) { jsonResponse(response, 400, { error: 'Invalid inquiry.' }); return; }
     const ipLimit = limitedBy('sponsorship-inquiry-ip', trustedClientIp(request), securityLimits.sponsorshipInquiryIp);
     if (ipLimit.limited) { rateLimited(response, ipLimit.retryAfterMs); return; }
     try {

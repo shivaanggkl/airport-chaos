@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { SponsorshipInquiryStore, validateSponsorshipInquiry } from './sponsorship-inquiries.js';
-import {advertisingWaitlistConsent} from '../../shared/advertising-packages.mjs';
+import {advertisingWaitlistConsent,advertisingEmailWaitlistConsent} from '../../shared/advertising-packages.mjs';
 
 const valid = {
   companyName: 'Example Flight Co', contactName: 'Test Operator', workEmail: 'pilot@example.com',
@@ -208,5 +208,43 @@ test('waitlist API keeps the collection gate, validation and rate limits and con
     const broken=new DatabaseSync(db);broken.exec("CREATE TRIGGER waitlist_write_fail BEFORE INSERT ON sponsorship_inquiries BEGIN SELECT RAISE(FAIL,'storage unavailable'); END;");broken.close();
     await runServer(db,true,async origin=>{assert.equal((await post(origin,{...waitlist,workEmail:'failure@example.com'})).status,503);});
     const store=new SponsorshipInquiryStore(db);assert.equal(store.list().length,2);store.close();
+  } finally {rmSync(dir,{recursive:true,force:true});}
+});
+
+const emailSignup = {requestKind:'WAITLIST',emailOnly:true,workEmail:' Interested@Example.com ',emailConsent:true};
+
+test('email-only signup accepts general and selected package interest without business fields',()=>{
+  const value=validateSponsorshipInquiry(emailSignup)!;
+  assert.equal(value.workEmail,'interested@example.com');assert.equal(value.companyName,'');assert.equal(value.packageId,null);assert.equal(value.interest,'UNSURE');
+  assert.equal(validateSponsorshipInquiry({...emailSignup,packageId:'DALLAS_NETWORK'})?.interest,'DALLAS');
+  for(const patch of [{workEmail:'bad'},{emailConsent:false},{packageId:'CITY_PARTNER'},{companyName:'Do not collect'},
+    {contactName:'Do not collect'},{website:'https://example.com'},{message:'Do not collect'},{price:199},{emailOnly:'true'}])
+    assert.equal(validateSponsorshipInquiry({...emailSignup,...patch}),undefined,JSON.stringify(patch));
+});
+
+test('email-only endpoint stores consent and remains separate from disabled business inquiries',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'airport-email-waitlist-')),db=join(dir,'test.sqlite');
+  try {
+    await runServer(db,false,async origin=>{
+      const send=(body:unknown,headers={})=>fetch(origin+'/api/sponsorship/waitlist',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',...headers},body:JSON.stringify(body)});
+      assert.deepEqual(await (await fetch(origin+'/api/sponsorship/waitlist')).json(),{available:true});
+      assert.equal((await post(origin,valid)).status,503);
+      assert.equal((await send(valid)).status,400);assert.equal((await send(waitlist)).status,400);
+      assert.equal((await send({...emailSignup,emailConsent:false})).status,400);
+      assert.equal((await send(emailSignup,{Origin:'https://evil.example'})).status,403);
+      const before=new Date().toISOString(),response=await send(emailSignup);assert.equal(response.status,201);
+      const result=await response.json() as {requestId:string;status:string};assert.equal(result.status,'RECEIVED');
+      const store=new SponsorshipInquiryStore(db),record=store.get(result.requestId)!;
+      assert.equal(record.workEmail,'interested@example.com');assert.equal(record.packageId,null);assert.equal(record.companyName,'');assert.equal(record.contactName,null);assert.equal(record.website,null);assert.equal(record.message,'');
+      assert.equal(record.emailConsent,true);assert.ok(record.consentedAt!>=before);assert.equal(record.consentText,advertisingEmailWaitlistConsent);store.close();
+      assert.equal((await send(emailSignup)).status,429);
+      assert.equal((await send({...emailSignup,workEmail:'package@example.com',packageId:'HUB_SPOTLIGHT'})).status,201);
+      assert.equal((await send({...emailSignup,workEmail:'third@example.com'})).status,429);
+    });
+    const store=new SponsorshipInquiryStore(db);assert.equal(store.list().length,2);store.close();
+    const broken=new DatabaseSync(db);broken.exec("CREATE TRIGGER email_waitlist_write_fail BEFORE INSERT ON sponsorship_inquiries BEGIN SELECT RAISE(FAIL,'storage unavailable'); END;");broken.close();
+    await runServer(db,false,async origin=>{
+      const response=await fetch(origin+'/api/sponsorship/waitlist',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({...emailSignup,workEmail:'failure@example.com'})});assert.equal(response.status,503);
+    });
   } finally {rmSync(dir,{recursive:true,force:true});}
 });

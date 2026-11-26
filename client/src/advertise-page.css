@@ -57,6 +57,7 @@ body:has(> #advertise-root) { margin: 0; }
 .adp-inquiry > p { margin: 0 0 20px; color: var(--menu-panel-muted); }
 .adp-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
 .adp-form-grid label,.adp-sponsor-details label { display: block; min-width: 0; color: var(--menu-card-ink); font-size: 15px; font-weight: 800; }
+.advertise-app .adp-required { color: #c52632; font-weight: 900; }
 .adp-form-grid label small { font-size: 12px; font-weight: 500; color: var(--menu-panel-muted); }
 .adp-wide { grid-column: 1/-1; }
 .advertise-app :is(input,select,textarea) { display: block; width: 100%; min-width: 0; min-height: 48px; margin-top: 6px; padding: 11px 12px; border: 1px solid #aacbdc; border-radius: 9px; background: linear-gradient(#fff,#f0f8fc); color: var(--menu-card-ink); box-shadow: inset 0 1px 2px rgb(9 42 80 / 8%); font-size: 16px; font-weight: 500; }
@@ -145,6 +146,6 @@ body:has(.advertise-overlay):not(:has(.sky-token-overlay:not([hidden]))) .app-sh
 .adp-formats strong { font-size: 15px; }
 .adp-formats span,.adp-network-note { color: var(--menu-panel-muted); font-size: 13px; }
 .adp-network-note { margin: 16px 0 0; }
-.adp-consent { display: flex; align-items: flex-start; gap: 12px; min-height: 44px; margin-top: 20px; font-size: 15px; cursor: pointer; }
-.adp-consent input { width: 22px; height: 22px; min-height: 22px; flex: 0 0 22px; margin: 2px 0 0; padding: 0; box-shadow: none; accent-color: #075e97; }
 @media (max-width: 700px) { .adp-cards,.adp-network-content { grid-template-columns: minmax(0,1fr); } }
+
+.adp-email-label { display: block; color: var(--menu-card-ink); font-size: 15px; font-weight: 800; }

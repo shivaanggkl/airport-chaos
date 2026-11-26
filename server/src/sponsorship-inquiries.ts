@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import {advertisingPackage, advertisingWaitlistConsent, type AdvertisingPackageId} from '../../shared/advertising-packages.mjs';
+import {advertisingPackage, advertisingWaitlistConsent, advertisingEmailWaitlistConsent, type AdvertisingPackageId} from '../../shared/advertising-packages.mjs';
 
 export const sponsorshipInterests = ['HUB', 'DALLAS', 'CITY_PARTNER', 'UNSURE'] as const;
 export type SponsorshipInterest = typeof sponsorshipInterests[number];
@@ -16,7 +16,7 @@ export type SponsorshipInquiry = {
   emailConsent: boolean | null; consentedAt: string | null; consentText: string | null;
 };
 export type ValidInquiry = Omit<SponsorshipInquiry, 'id' | 'createdAt' | 'status' | 'requestKind' | 'packageId' | 'emailConsent' | 'consentedAt' | 'consentText'> &
-  ({requestKind?: 'INQUIRY'; packageId?: never; emailConsent?: never} | {requestKind: 'WAITLIST'; packageId: AdvertisingPackageId; emailConsent: true});
+  ({requestKind?: 'INQUIRY'; packageId?: never; emailConsent?: never} | {requestKind: 'WAITLIST'; packageId: AdvertisingPackageId; emailConsent: true; emailOnly?: never} | {requestKind:'WAITLIST';packageId:AdvertisingPackageId|null;emailConsent:true;emailOnly:true});
 
 export function validWebsite(value: string): string | undefined {
   if (value.length > 300 || /[\u0000-\u001f\u007f]/.test(value)) return;
@@ -35,6 +35,17 @@ export function validateSponsorshipInquiry(input: unknown): ValidInquiry | undef
   if (!input || typeof input !== 'object' || Array.isArray(input)) return;
   const value = input as Record<string, unknown>;
   const waitlist = value.requestKind === 'WAITLIST';
+  if (waitlist && value.emailOnly === true) {
+    if (Object.keys(value).some(field => !['requestKind','emailOnly','workEmail','packageId','emailConsent'].includes(field)) ||
+      value.emailConsent !== true || typeof value.workEmail !== 'string') return;
+    const workEmail=value.workEmail.trim().toLowerCase();
+    if (workEmail.length>254 || /[\u0000-\u001f\u007f]/.test(workEmail) || !/^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i.test(workEmail)) return;
+    const selectedPackage=advertisingPackage(value.packageId);
+    if (value.packageId != null && !selectedPackage) return;
+    return {requestKind:'WAITLIST',emailOnly:true,packageId:selectedPackage?.id??null,emailConsent:true,
+      companyName:'',contactName:null,website:null,message:'',workEmail,interest:selectedPackage?.interest??'UNSURE'};
+  }
+
   const allowed = waitlist
     ? ['requestKind','packageId','emailConsent','companyName','contactName','workEmail','website','message']
     : ['companyName','contactName','workEmail','website','interest','message'];
@@ -96,7 +107,7 @@ export class SponsorshipInquiryStore {
   create(input: ValidInquiry, now = new Date()): { id: string; received: true } | { limited: true; retryAfterMs: number } {
     const waitlist = input.requestKind === 'WAITLIST';
     const selectedPackage = waitlist ? advertisingPackage(input.packageId) : undefined;
-    if (waitlist && (!selectedPackage || input.emailConsent !== true)) throw new Error('Invalid waitlist consent or package');
+    if (waitlist && ((!selectedPackage && !(input.emailOnly === true && input.packageId === null)) || input.emailConsent !== true)) throw new Error('Invalid waitlist consent or package');
     const cutoff = new Date(now.getTime() - 60 * 60_000).toISOString();
     this.db.exec('BEGIN IMMEDIATE');
     try {
@@ -111,7 +122,7 @@ export class SponsorshipInquiryStore {
         (id,company_name,contact_name,work_email,website,interest,message,created_at,status,request_kind,package_id,email_consent,consented_at,consent_text)
         VALUES (?,?,?,?,?,?,?,?,'NEW',?,?,?,?,?)`).run(id, input.companyName, input.contactName,
         input.workEmail, input.website, selectedPackage?.interest ?? input.interest, input.message, now.toISOString(),
-        waitlist ? 'WAITLIST' : 'INQUIRY', selectedPackage?.id ?? null, waitlist ? 1 : null, waitlist ? now.toISOString() : null, waitlist ? advertisingWaitlistConsent : null);
+        waitlist ? 'WAITLIST' : 'INQUIRY', selectedPackage?.id ?? null, waitlist ? 1 : null, waitlist ? now.toISOString() : null, waitlist ? (input.emailOnly === true ? advertisingEmailWaitlistConsent : advertisingWaitlistConsent) : null);
       this.db.exec('COMMIT');
       return { id, received: true };
     } catch (error) {
