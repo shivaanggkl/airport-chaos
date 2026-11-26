@@ -189,8 +189,9 @@ test('M1 failure fires six real visual rounds, gives every impact a sixfold down
  assert.equal(view.timeoutBlackoutOpacity,1);assert(view.damagedDowntown);view.dispose();assert.equal(view.scene.children.length,0);
 });
 
-test('M1 failure has a continuous release camera, separate strikes, a framed smoke aftermath, then a complete fade',async()=>{
- const view=create(true);await view.ready;const camera=new THREE.PerspectiveCamera(48,16/9,1,1000),strikeTimes=[];
+test('Both Dr. Boss failures frame their huge blasts, keep the release camera continuous and finish with a complete fade',async()=>{
+ for(const defender of [true,false]){
+ const view=create(defender);await view.ready;const camera=new THREE.PerspectiveCamera(48,16/9,1,1000),strikeTimes=[];
  view.onDestruction=()=>strikeTimes.push(view.endingElapsed);view.finish('timeout');
  let previous,releaseStep=0;
  for(let i=0;i<190;i++){
@@ -214,17 +215,18 @@ test('M1 failure has a continuous release camera, separate strikes, a framed smo
   }
  }
  assert(releaseStep<200,'capturing the firing hand must not jolt the camera');
- assert.equal(strikeTimes.length,6);for(let i=1;i<6;i++)assert(strikeTimes[i]-strikeTimes[i-1]>=.099,'impacts are readable individual beats');
+ assert.equal(strikeTimes.length,defender?6:12);for(let i=1;i<strikeTimes.length;i++)assert(strikeTimes[i]-strikeTimes[i-1]>=.099,'impacts are readable individual beats');
  assert.equal(view.timeoutBlackoutOpacity,1);view.dispose();assert.equal(view.scene.children.length,0);
+ }
 });
 
-test('M2 failure uses twelve M1-sized fireballs while retaining its existing explosion scale',async()=>{
+test('M2 failure uses twelve fireballs and twelve huge M1-sized downtown blasts',async()=>{
  const view=create();await view.ready;view.finish('timeout');
  let sawVolley=false,sawImpacts=false;
  for(let i=0;i<120;i++){
   view.update(.05);const t=view.endingElapsed;
   if(t>2&&t<3){sawVolley=true;assert.equal(view.pool.filter(shot=>shot.group.visible).length,12);assert(view.timeoutVolley.every(round=>round.shot.group.scale.x===6));}
-  if(t>5.1){sawImpacts=true;assert(view.timeoutVolley.every(round=>round.blast.root.visible&&round.blast.scale===M19_CITY_BLAST_SCALE&&!round.shot.group.visible));}
+  if(t>5.1){sawImpacts=true;assert(view.timeoutVolley.every(round=>round.blast.root.visible&&round.blast.scale===M19_CITY_BLAST_SCALE*6&&!round.shot.group.visible));}
  }
  assert(sawVolley&&sawImpacts);view.dispose();assert.equal(view.scene.children.length,0);
 });

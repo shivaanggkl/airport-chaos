@@ -298,7 +298,7 @@ export class MonsterArrivalView {
     if(!this.crimsonCore||this.ending!=='timeout')return;
     const root=this.creature.root,height=ashenWarlordHeight;
     if(this.pursuit){
-      const t=this.endingElapsed,scale=this.downtownDefender?pursuitWarlord.timeoutBlastScale:1;
+      const t=this.endingElapsed,scale=pursuitWarlord.timeoutBlastScale;
       const flight=THREE.MathUtils.smoothstep(t,M1_TIMEOUT.releaseAt,M1_TIMEOUT.impactAt);
       this.endingLook.copy(root.position);this.endingLook.y+=height*.6;this.endingLook.lerp(this.endingDestination,flight);
       const aftermath=THREE.MathUtils.smoothstep(t,M1_TIMEOUT.impactAt,M1_TIMEOUT.impactAt+2);
@@ -518,7 +518,7 @@ export class MonsterArrivalView {
           const angle=(i-1)*Math.PI*2/(count-1),ring=i===0?0:3000;
           const x=this.endingDestination.x+Math.cos(angle)*ring,z=this.endingDestination.z+Math.sin(angle)*ring;
           const impact=new THREE.Vector3(x,this.creature.groundAt?.(x,z)??this.targetGroundY,z);
-          const blast=new CinematicImpactBlast(M19_CITY_BLAST_SCALE*(this.downtownDefender?pursuitWarlord.timeoutBlastScale:1),this.timeoutTextures,false);
+          const blast=new CinematicImpactBlast(M19_CITY_BLAST_SCALE*pursuitWarlord.timeoutBlastScale,this.timeoutTextures,false);
           blast.root.name=this.downtownDefender?'m1-downtown-failure-blast':'m19-downtown-timeout-blast';blast.root.rotation.y=i*.41;this.scene.add(blast.root);
           const shot=this.pool[i]!;shot.group.scale.setScalar(pursuitWarlord.fireball.scale);
           shot.group.children.forEach((part,index)=>{part.visible=index<2;});
