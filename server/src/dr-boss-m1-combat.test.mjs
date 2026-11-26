@@ -12,12 +12,12 @@ import {titanAnchor} from '../../shared/titan-pose.mjs';
 const zero={x:0,y:0,z:0};
 const cycle=a=>a.warning+a.windup+a.active+a.recovery+a.cooldown;
 
-test('M1 walks and turns six times faster, shoots six times more often, and fires three times faster without punches',()=>{
+test('M1 walks and turns six times faster, shoots six times more often, with larger, slower, wider fireballs without punches',()=>{
  const oldWalk=model.height*model.clips.walk.stride/model.clips.walk.duration*.32;
  assert.equal(species.movement.walk,oldWalk*6);assert.equal(species.movement.run,oldWalk*6);
  assert.equal(species.movement.acceleration,oldWalk*6/1.5);assert.equal(species.movement.turnRate,.45*6);assert.equal(species.movement.turnAcceleration,.6*6);
  const shot=species.abilities.find(a=>a.mechanism==='projectile');assert(Math.abs(cycle(shot)-(0.9+0.4+1+0.8+9)/6)<1e-9);
- assert.equal(shot.projectileSpeed,3600);assert.equal(shot.count,6);assert.equal(shot.damage,25);assert.equal(shot.cooldown,1.5);
+ assert.equal(shot.radius,144);assert.equal(shot.spread,.24);assert.equal(shot.projectileSpeed,1800);assert.equal(shot.count,6);assert.equal(shot.damage,25);assert.equal(shot.cooldown,1.5);
  assert.equal(species.movement.chargeSpeed,0);assert(species.abilities.every(a=>a.mechanism==='projectile'));
  assert.deepEqual(species.animations,['idle','walk','turn','roar','shoot','defeat']);assert.equal(shot.spreadPattern,'cluster');assert(species.abilities.every(a=>!a.interruptible));
  assert(finalWarlordSpecies.abilities.some(a=>a.mechanism==='sweep'));
@@ -48,7 +48,7 @@ test('M1 repeatedly releases fast six-ball volleys while moving; hit damage does
     counts.set(event.attackId,(counts.get(event.attackId)??0)+1);
 
    }
-   for(const shot of frame.projectiles)assert(Math.abs(Math.hypot(shot.velocity.x,shot.velocity.y,shot.velocity.z)-3600)<1e-6);
+   for(const shot of frame.projectiles)assert(Math.abs(Math.hypot(shot.velocity.x,shot.velocity.y,shot.velocity.z)-1800)<1e-6);
    if(frame.ability?.stage==='WINDUP'){
     const oldId=frame.ability.eventId,body=frame.limbs.body;
     e.engine.damage({encounterId:e.attemptId,source:'pilot',sequence:i,from:{x:body.x-4000,y:body.y,z:body.z},to:{x:body.x+4000,y:body.y,z:body.z},amount:1,radius:1,delta:0});

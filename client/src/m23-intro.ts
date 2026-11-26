@@ -2,9 +2,9 @@ import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
 import {M22_INTRO,m22IntroMotion} from './m22-intro';
 import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
 
-export const M23_INTRO=Object.freeze({...M22_INTRO,run:4,runEnd:7,turn:8,turnEnd:9.4,punch:9.5,shoot:12,release:12+pursuitWarlord.releaseSeconds});
+export const M23_INTRO=Object.freeze({...M22_INTRO,run:4,runEnd:7,turn:8,turnEnd:9.4,punch:9.5,roar:8,cast:12,shoot:12,release:12+pursuitWarlord.releaseSeconds});
 export function m23IntroText(t:number):string {
-  return t<4?'Dr. Boss is moving again!':t<8?"He's coming closer!":t<12?"And he's ready to attack!":t<20?"He's still got his energy powers!":t<24?"He's coming after you!":t<26.5?'Pilot! Stop Dr. Boss before he gets away!':t<28?'DEFEAT THE MONSTER':'';
+  return t<8?'Dr. Boss marches toward downtown.':t<12?'His roar shakes Dallas.':t<21?'Fireballs race toward the city!':t<24?'They miss. Dallas still stands.':t<26.5?'Dallas needs a hero.':t<28?'Pilot, defeat Dr. Boss. Save Dallas!':'';
 }
 const clamp=(x:number)=>Math.max(0,Math.min(1,x));
 const smooth=(x:number)=>{x=clamp(x);return x*x*(3-2*x);};
@@ -26,16 +26,17 @@ export function m23Travel(t:number,phase=0,running=false):number {
   const gait=m23GaitTimes(t,phase,running);
   return m23GaitDistance('walk',gait.walk)-m23GaitDistance('walk',phase)+m23GaitDistance('run',gait.run);
 }
-/** Planted authored turn followed by the existing shoot/release/roar sequence. */
+/** M1 walks, roars, then fires. The running branch preserves M2’s existing sequence. */
 export function m23IntroMotion(t:number,phase=0,running=false):ReturnType<typeof m22IntroMotion>{
   const motion=m22IntroMotion(t,phase),gait=m23GaitTimes(t,phase,running);
   let key='idle',time=t;
   if(t>=.35&&t<(running?4:7)){key='walk';time=gait.walk;}
   else if(running&&t>=4&&t<7){key='run';time=gait.run;}
-  else if(t>=8&&t<9.4){key='turn';time=t-8;}
-  else if(t>=12&&t<20){key='shoot';time=t-12;}
-  else if(t>=20){key=motion.key;time=motion.time;}
-  const yawOffset=M22_INTRO.turnYaw*Math.max(0,Math.min(1.4,t-8))/model.clips.turn!.duration;
+  else if(running&&t>=8&&t<9.4){key='turn';time=t-8;}
+  else if(!running&&t>=8&&t<8+model.clips.roar!.duration){key='roar';time=t-8;}
+  else if(t>=12&&t<(running?20:12+model.clips.shoot!.duration)){key='shoot';time=t-12;}
+  else if(running&&t>=20){key=motion.key;time=motion.time;}
+  const yawOffset=(running?1:0)*M22_INTRO.turnYaw*Math.max(0,Math.min(1.4,t-8))/model.clips.turn!.duration;
   const lookUp=smooth((t-1)/1.5)*(1-smooth((t-7)/1))+smooth((t-11.5)/.5)*(1-smooth((t-19.6)/.4));
   return {...motion,key,time:time%model.clips[key]!.duration,yawOffset,walkTime:gait.walk,lookUp,lookYaw:0};
 }
