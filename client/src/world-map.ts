@@ -65,6 +65,21 @@ export type WorldMapState = {
   repairs?: readonly MapRepair[];
 };
 
+// Map-only colors keep the light cartography readable without changing the gameplay HUD.
+export const worldMapIdentity = {
+  ...visualLanguage,
+  you: {...visualLanguage.you,color:'#087fc4'},
+  player: {...visualLanguage.player,color:'#cf3548'},
+  ai: {...visualLanguage.ai,color:'#1489b6'},
+  airport: {...visualLanguage.airport,color:'#1375b9'},
+  territory: {...visualLanguage.territory,color:'#5798c8'},
+  waypoint: {...visualLanguage.waypoint,color:'#15994f'},
+  mission: {...visualLanguage.mission,color:'#ce233d'},
+  event: {...visualLanguage.event,color:'#ac760e'},
+  challenge: {...visualLanguage.challenge,color:'#087fa4'},
+  discovery: {...visualLanguage.discovery,color:'#18796c'},
+};
+
 const CLICK_DISTANCE = 18;
 const MIN_SCALE = 0.01;
 const MAX_SCALE = 0.11;
@@ -405,7 +420,7 @@ export class WorldMap {
       y: (z * sourceScale - this.layer.bounds.minZ) / worldHeight * this.geographyCanvas.height,
     });
     for (const polygon of this.staticData.land ?? []) {
-      context.fillStyle = polygon[0] === 1 ? '#17372e' : '#203c32';
+      context.fillStyle = polygon[0] === 1 ? '#e5f0e9' : '#edf4ee';
       context.beginPath();
       for (let i = 1; i < polygon.length; i += 2) {
         const p = toCache(polygon[i], polygon[i + 1]);
@@ -413,7 +428,7 @@ export class WorldMap {
       }
       context.closePath(); context.fill();
     }
-    context.fillStyle = '#176185';
+    context.fillStyle = '#a9d9ef';
     for (const polygon of this.staticData.water ?? []) {
       if (polygon.length < 6) continue;
       context.beginPath();
@@ -440,10 +455,10 @@ export class WorldMap {
     const context = this.staticContext;
     const { width, height } = this.canvas;
     context.clearRect(0, 0, width, height);
-    context.fillStyle = '#101e29';
+    context.fillStyle = '#f7fafc';
     context.fillRect(0, 0, width, height);
     const gridMeters = this.scale > 0.035 ? 2_000 : this.scale > 0.014 ? 5_000 : 10_000;
-    context.strokeStyle = 'rgba(131, 177, 187, 0.045)';
+    context.strokeStyle = 'rgba(132, 163, 180, 0.045)';
     context.lineWidth = 1;
     const min = this.screenToWorld(0, 0);
     const max = this.screenToWorld(width, height);
@@ -474,7 +489,7 @@ export class WorldMap {
       if (classification < 2 && this.scale < 0.08 || classification === 2 && this.scale < 0.045 || classification === 3 && this.scale < 0.02 || classification === 5 && this.scale < 0.065) continue;
       const path = this.roadPaths.get(classification);
       if (!path) continue;
-      context.strokeStyle = classification === 4 ? '#b8ad86' : classification === 3 ? '#6f8692' : '#344d5d';
+      context.strokeStyle = classification === 4 ? '#f1ca58' : classification === 3 ? '#eadb9d' : '#ffffff';
       context.lineWidth = (classification === 4 ? 1.7 : classification === 3 ? 1.1 : 0.7) / this.scale;
       context.stroke(path);
     }
@@ -488,11 +503,11 @@ export class WorldMap {
     const halfLength = airport.runwayLength / 2;
     const a = this.worldToScreen(airport.x - s * halfLength, airport.z + c * halfLength);
     const b = this.worldToScreen(airport.x + s * halfLength, airport.z - c * halfLength);
-    context.strokeStyle = visualLanguage.airport.color;
+    context.strokeStyle = worldMapIdentity.airport.color;
     context.lineWidth = Math.max(2, airport.runwayWidth * this.scale);
     context.beginPath(); context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.stroke();
     const center = this.worldToScreen(airport.x, airport.z);
-    context.fillStyle = visualLanguage.airport.color; context.font = '700 10px ui-monospace, monospace'; context.textAlign = 'center';
+    context.fillStyle = worldMapIdentity.airport.color; context.font = '700 10px ui-monospace, monospace'; context.textAlign = 'center';
     context.fillStyle = '#dff9ff';
     context.fillRect(center.x - 2, center.y - 2, 4, 4);
   }
@@ -508,8 +523,9 @@ export class WorldMap {
     }
     const rect = this.labels[this.labelCount] ?? (this.labels[this.labelCount] = { x: 0, y: 0, w: 0, h: 17 });
     rect.x = x; rect.y = y; rect.w = width; rect.h = 17; this.labelCount++;
-    context.fillStyle = 'rgba(7,18,28,0.85)'; context.fillRect(x - width / 2, y - 12, width, 17);
-    context.textAlign = 'center'; context.fillStyle = color; context.fillText(text, x, y);
+    context.fillStyle = 'rgba(255,255,255,0.96)'; context.strokeStyle = color; context.lineWidth = 1;
+    context.beginPath();context.roundRect(x-width/2,y-12,width,17,4);context.fill();context.stroke();
+    context.textAlign = 'center'; context.fillStyle = '#14334f'; context.fillText(text, x, y);
   }
 
   private draw(): void {
@@ -523,22 +539,22 @@ export class WorldMap {
     this.labelCount = 1;
     for (const territory of this.state.territories ?? []) this.drawTerritory(territory);
     // Legacy contracts are not a second player-facing journey beside Missions.
-    if (this.state.waypoint) this.drawTarget(this.state.waypoint, visualLanguage.waypoint.color, 'WAYPOINT');
+    if (this.state.waypoint) this.drawTarget(this.state.waypoint, worldMapIdentity.waypoint.color, 'WAYPOINT');
     for (const challenge of this.state.challenges ?? []) this.drawChallenge(challenge);
     for (const event of this.state.events ?? []) this.drawEvent(event);
     for (const airport of this.airports) {
       const p = this.worldToScreen(airport.x, airport.z);
-      this.label(`${visualLanguage.airport.icon} ${airport.name}`, p.x, p.y - 12, visualLanguage.airport.color, 12);
+      this.label(`${worldMapIdentity.airport.icon} ${airport.name}`, p.x, p.y - 12, worldMapIdentity.airport.color, 12);
     }
     for (const landmark of this.layer.landmarks ?? []) {
       const p = this.worldToScreen(landmark.x, landmark.z);
-      this.label(landmark.label, p.x, p.y - 7, '#c7d8df', 12);
+      this.label(landmark.label, p.x, p.y - 7, '#84a6bb', 12);
     }
     for (const repair of this.state.repairs ?? []) this.drawRepair(repair);
     if (this.scale >= 0.035) for (const discovery of this.state.discoveries ?? []) this.drawDiscovery(discovery);
     for (const player of this.state.players) {
       const point = this.worldToScreen(player.x, player.z);
-      this.context.fillStyle = visualLanguage[player.isBot ? 'ai' : 'player'].color;
+      this.context.fillStyle = worldMapIdentity[player.isBot ? 'ai' : 'player'].color;
       this.context.beginPath();
       if (player.isBot) {
         this.context.moveTo(point.x, point.y - 5); this.context.lineTo(point.x + 5, point.y); this.context.lineTo(point.x, point.y + 5); this.context.lineTo(point.x - 5, point.y);
@@ -548,10 +564,10 @@ export class WorldMap {
       this.context.fill();
       this.context.strokeStyle = '#0b1823'; this.context.lineWidth = 1.5; this.context.stroke();
       if (player.missionTarget) {
-        this.context.strokeStyle = visualLanguage.mission.color;
+        this.context.strokeStyle = worldMapIdentity.mission.color;
         this.context.lineWidth = 2.5;
         this.context.beginPath(); this.context.arc(point.x, point.y, 11, 0, Math.PI * 2); this.context.stroke();
-        this.label(`${visualLanguage.mission.icon} TARGET: HUNTER`, point.x, point.y - 14, visualLanguage.mission.color);
+        this.label(`${worldMapIdentity.mission.icon} TARGET: HUNTER`, point.x, point.y - 14, worldMapIdentity.mission.color);
       }
       if (player.ownershipAccent) {
         this.context.strokeStyle = '#081722'; this.context.lineWidth = 5;
@@ -559,23 +575,23 @@ export class WorldMap {
         this.context.strokeStyle = player.ownershipAccent; this.context.lineWidth = 3; this.context.stroke();
       }
       if ((player.heatLevel ?? 0) >= 4) {
-        this.context.fillStyle = visualLanguage.heat.color; this.context.font = '11px sans-serif'; this.context.fillText(visualLanguage.heat.icon, point.x + 7, point.y);
+        this.context.fillStyle = worldMapIdentity.heat.color; this.context.font = '11px sans-serif'; this.context.fillText(worldMapIdentity.heat.icon, point.x + 7, point.y);
       }
       if (player.king) { this.context.fillStyle = '#ffd96d'; this.context.font = '700 11px ui-monospace, monospace'; this.context.textAlign = 'center'; this.context.fillText('♛', point.x, point.y - 7); }
     }
     const rotation = Math.atan2(this.state.forward.x, -this.state.forward.z);
     const pulse = 0.42 + Math.sin(performance.now() * 0.006) * 0.18;
     this.context.save();
-    this.context.strokeStyle = visualLanguage.you.color; this.context.globalAlpha = pulse; this.context.lineWidth = 2;
+    this.context.strokeStyle = worldMapIdentity.you.color; this.context.globalAlpha = pulse; this.context.lineWidth = 2;
     this.context.beginPath(); this.context.arc(point.x, point.y, 17, 0, Math.PI * 2); this.context.stroke();
     this.context.translate(point.x, point.y); this.context.rotate(rotation);
     this.context.globalAlpha = 1;
     this.context.fillStyle = 'rgba(236, 251, 255, 0.2)'; this.context.beginPath(); this.context.moveTo(0, -31); this.context.lineTo(-11, -4); this.context.lineTo(11, -4); this.context.closePath(); this.context.fill();
-    this.context.fillStyle = visualLanguage.you.color; this.context.strokeStyle = '#17697d'; this.context.lineWidth = 1.5;
+    this.context.fillStyle = '#ffffff'; this.context.strokeStyle = worldMapIdentity.you.color; this.context.lineWidth = 2;
     this.context.beginPath(); this.context.moveTo(0, -13); this.context.lineTo(-8, 9); this.context.lineTo(0, 5); this.context.lineTo(8, 9); this.context.closePath(); this.context.fill(); this.context.stroke();
     this.context.restore();
     this.context.fillStyle = '#07121c'; this.context.fillRect(point.x - 20, point.y + 18, 40, 17);
-    this.context.fillStyle = visualLanguage.you.color; this.context.font = '900 12px ui-sans-serif, system-ui, sans-serif'; this.context.textAlign = 'center'; this.context.fillText('YOU', point.x, point.y + 31);
+    this.context.fillStyle = '#ffffff'; this.context.font = '900 12px ui-sans-serif, system-ui, sans-serif'; this.context.textAlign = 'center'; this.context.fillText('YOU', point.x, point.y + 31);
     if (this.state.king) { this.context.fillStyle = '#ffd96d'; this.context.font = '700 11px ui-monospace, monospace'; this.context.textAlign = 'center'; this.context.fillText('♛', point.x, point.y - 21); }
     if (this.state.discoveryProgress) this.drawDiscoveryProgress(this.state.discoveryProgress);
   }
@@ -585,7 +601,7 @@ export class WorldMap {
     const b = this.worldToScreen(territory.bounds.maxX, territory.bounds.maxZ);
     const width = b.x - a.x;
     const height = b.y - a.y;
-    const color = territory.color ?? territoryOwnershipColors.neutral;
+    const color = !territory.color || territory.color===territoryOwnershipColors.neutral ? worldMapIdentity.territory.color : territory.color;
     this.context.save();
     this.context.fillStyle = `${color}${territory.missionTarget ? '24' : '14'}`;
     this.context.fillRect(a.x, a.y, width, height);
@@ -595,14 +611,14 @@ export class WorldMap {
     const centerX = a.x + width / 2;
     const centerY = a.y + height / 2;
     if (territory.missionTarget) {
-      this.context.strokeStyle = visualLanguage.mission.color;
+      this.context.strokeStyle = worldMapIdentity.mission.color;
       this.context.lineWidth = 2;
       this.context.strokeRect(a.x - 4, a.y - 4, width + 8, height + 8);
     }
-    this.context.fillStyle = territory.contested ? territoryOwnershipColors.contested : '#c5e4eb';
+    this.context.fillStyle = territory.contested ? territoryOwnershipColors.contested : '#254c68';
     this.context.font = '700 9px ui-monospace, monospace';
     this.context.textAlign = 'center';
-    this.label(`${territory.missionTarget ? visualLanguage.mission.icon + ' ' : ''}${territory.label}`, centerX, centerY - 12, territory.missionTarget ? visualLanguage.mission.color : color);
+    this.label(`${territory.missionTarget ? worldMapIdentity.mission.icon + ' ' : ''}${territory.label}`, centerX, centerY - 12, territory.missionTarget ? worldMapIdentity.mission.color : color);
     if (territory.contested) {
       this.context.setLineDash([6, 4]);
       this.context.strokeStyle = territoryOwnershipColors.contested;
@@ -612,7 +628,7 @@ export class WorldMap {
       if (this.scale > 0.035) this.label('CONTESTED', centerX, centerY + 12, territoryOwnershipColors.contested);
     } else if (territory.controllerName) {
       this.context.font = '600 8px ui-monospace, monospace';
-      if (this.scale > 0.035) this.label(`Owned by ${territory.controllerName}`, centerX, centerY + 12, '#c5e4eb');
+      if (this.scale > 0.035) this.label(`Owned by ${territory.controllerName}`, centerX, centerY + 12, '#577d96');
     } else if (territory.captureProgress > 0) {
       this.context.font = '600 8px ui-monospace, monospace';
       this.context.fillText(`CAPTURE ${Math.round(territory.captureProgress)}%`, centerX, centerY + 12);
@@ -668,7 +684,7 @@ export class WorldMap {
       const name = document.createElement('span');
       const status = document.createElement('strong');
       dot.className = 'territory-color-dot';
-      dot.style.backgroundColor = territory.color ?? territoryOwnershipColors.neutral;
+      dot.style.backgroundColor = !territory.color || territory.color===territoryOwnershipColors.neutral ? worldMapIdentity.territory.color : territory.color;
       name.textContent = territory.label;
       status.textContent = territory.status;
       identity.append(dot, name);
@@ -679,9 +695,9 @@ export class WorldMap {
 
   private drawDiscoveryProgress(progress: MapDiscoveryProgress): void {
     const label = `${progress.cityName.toUpperCase()} DISCOVERY: ${progress.discovered} / ${progress.total} — ${progress.percent}%`;
-    this.context.fillStyle = 'rgba(4, 14, 21, 0.76)';
+    this.context.fillStyle = 'rgba(255, 255, 255, 0.92)';
     this.context.fillRect(10, this.canvas.height - 28, Math.min(this.canvas.width - 20, 250), 18);
-    this.context.fillStyle = '#b9e5df';
+    this.context.fillStyle = '#315571';
     this.context.font = '700 10px ui-monospace, monospace';
     this.context.textAlign = 'left';
     this.context.fillText(label, 16, this.canvas.height - 15);
@@ -706,7 +722,7 @@ export class WorldMap {
     this.context.fillStyle = discovery.secret ? '#ebcfff' : '#a9f1e9';
     this.context.font = '700 9px ui-monospace, monospace';
     this.context.textAlign = 'center';
-    this.label(discovery.label, point.x, point.y - 8, visualLanguage.discovery.color);
+    this.label(discovery.label, point.x, point.y - 8, worldMapIdentity.discovery.color);
   }
 
   private drawTarget(target: MapTarget, color: string, label: string): void {
@@ -714,12 +730,12 @@ export class WorldMap {
     this.context.strokeStyle = color; this.context.lineWidth = 2;
     this.context.beginPath(); this.context.arc(point.x, point.y, 8, 0, Math.PI * 2); this.context.stroke();
     this.context.fillStyle = color; this.context.font = '700 10px ui-monospace, monospace'; this.context.textAlign = 'center';
-    this.label(`${label === 'WAYPOINT' ? visualLanguage.waypoint.icon + ' ' : ''}${target.label ?? label}`, point.x, point.y - 14, color, 12);
+    this.label(`${label === 'WAYPOINT' ? worldMapIdentity.waypoint.icon + ' ' : ''}${target.label ?? label}`, point.x, point.y - 14, color, 12);
   }
 
   private drawChallenge(challenge: MapChallenge): void {
     const point = this.worldToScreen(challenge.x, challenge.z);
-    const color = visualLanguage.challenge.color;
+    const color = worldMapIdentity.challenge.color;
     this.context.strokeStyle = color;
     this.context.lineWidth = challenge.active ? 2.5 : 1.5;
     this.context.beginPath();
@@ -734,14 +750,14 @@ export class WorldMap {
   private drawEvent(event: MapEvent): void {
     if (event.lifecycle !== 'available' && event.lifecycle !== 'active') return;
     const point = this.worldToScreen(event.x, event.z);
-    const color = event.missionTarget ? visualLanguage.mission.color : visualLanguage[event.mostWanted ? 'wanted' : 'event'].color;
+    const color = event.missionTarget ? worldMapIdentity.mission.color : worldMapIdentity[event.mostWanted ? 'wanted' : 'event'].color;
     this.context.strokeStyle = color;
     this.context.lineWidth = 2;
     this.context.beginPath(); this.context.arc(point.x, point.y, 8, 0, Math.PI * 2); this.context.stroke();
     this.context.fillStyle = color;
     this.context.font = '700 9px ui-monospace, monospace';
     this.context.textAlign = 'center';
-    this.label(`${event.missionTarget ? visualLanguage.mission.icon : visualLanguage[event.mostWanted ? 'wanted' : 'event'].icon} ${event.label}`, point.x, point.y - 12, color);
+    this.label(`${event.missionTarget ? worldMapIdentity.mission.icon : worldMapIdentity[event.mostWanted ? 'wanted' : 'event'].icon} ${event.label}`, point.x, point.y - 12, color);
   }
 
   private drawRepair(repair: MapRepair): void {
@@ -750,7 +766,7 @@ export class WorldMap {
       const remaining = Math.max(0, (repair.cooldownUntil ?? 0) - Date.now());
       const waypointed = this.state?.waypoint?.x === repair.x && this.state?.waypoint?.z === repair.z;
       if (remaining > 0 && !waypointed) return;
-      const color = remaining > 0 ? '#a88b92' : visualLanguage.repairHeart.color;
+      const color = remaining > 0 ? '#a88b92' : worldMapIdentity.repairHeart.color;
       this.context.fillStyle = color;
       this.context.font = 'bold 19px sans-serif';
       this.context.textAlign = 'center';
@@ -762,13 +778,13 @@ export class WorldMap {
     this.context.save();
     this.context.translate(point.x, point.y);
     this.context.rotate(Math.PI / 4);
-    this.context.strokeStyle = visualLanguage.repair.color;
+    this.context.strokeStyle = worldMapIdentity.repair.color;
     this.context.lineWidth = 2;
     this.context.strokeRect(-4, -4, 8, 8);
     this.context.restore();
-    this.context.fillStyle = visualLanguage.repair.color;
+    this.context.fillStyle = worldMapIdentity.repair.color;
     this.context.font = '700 8px ui-monospace, monospace';
     this.context.textAlign = 'center';
-    if (this.scale > 0.04) this.label(identityText('repair'), point.x, point.y - 8, visualLanguage.repair.color);
+    if (this.scale > 0.04) this.label(identityText('repair'), point.x, point.y - 8, worldMapIdentity.repair.color);
   }
 }
