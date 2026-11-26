@@ -5817,7 +5817,7 @@ function fortressLockSolution(ownerId: string, owner: PlayerState, now: number, 
 }
 
 // Displayed M19–M24. Acquiring a target never mutates Titan health.
-function monsterLockSolution(ownerId:string,owner:PlayerState,now:number){
+function monsterLockSolution(ownerId:string,owner:PlayerState,now:number,transform:Transform=owner){
   const attemptId=playerJourneyAttempts.get(ownerId),encounter=attemptId?monsterEncounters.get(attemptId):undefined;
   if(!encounter || encounter.playerId!==ownerId || owner.cityId!=='dallas' || owner.lifeState!=='alive' ||
       now-owner.lastStateAt>combatTransformFreshMs || runwayCombatProtected(ownerId,owner))return undefined;
@@ -5827,16 +5827,16 @@ function monsterLockSolution(ownerId:string,owner:PlayerState,now:number){
   let best: {position:Vector3;local:Vector3}|undefined,score=Infinity;
   for(const region of encounter.engine.species.regions){
     const position=encounter.frame.limbs[region.joint];if(!position)continue;
-    const local=targetInAircraftSpace(owner,{position}),distance=Math.hypot(local.x,local.y,local.z);
+    const local=targetInAircraftSpace(transform,{position}),distance=Math.hypot(local.x,local.y,local.z);
     const angle=Math.atan2(Math.hypot(local.x,local.y),-local.z);
     if(local.z>=0 || distance>COMBAT_RANGE || angle>AIM_ENVELOPE)continue;
     const rank=aimTargetScore(angle,distance);
     if(rank<score){best={position,local};score=rank;}
   }
   if(!best)return undefined;
-  const origin=muzzleTransform(owner).position,impact=encounter.engine.hitTest(origin,best.position);
+  const origin=muzzleTransform(transform).position,impact=encounter.engine.hitTest(origin,best.position);
   if(!impact)return undefined;
-  return {id:`monster:${attemptId}`,local:best.local,position:impact};
+  return {id:`monster:${attemptId}`,local:best.local,position:impact,origin,end:best.position};
 }
 function sharpshooterLockSolution(ownerId:string,owner:PlayerState,now:number,targetId?:string,transform:Transform=owner){
   const id=playerJourneyAttempts.get(ownerId),attempt=id?journeyStore.activeSnapshot(owner.pilotId,id):undefined;
@@ -6553,6 +6553,26 @@ function createFortressAssistedShot(playerId: string, player: PlayerState, targe
   return true;
 }
 
+// Dr. Boss uses the same authoritative locked-hit contract as aircraft and giant planes.
+function createMonsterAssistedShot(playerId:string,player:PlayerState,targetId:string,clientShotId:string|undefined,
+    fireTransform:Transform|undefined,shotAim:{x:number;y:number}):boolean {
+  const now=Date.now(),attemptId=playerJourneyAttempts.get(playerId);
+  const attempt=attemptId?journeyStore.activeSnapshot(player.pilotId,attemptId):undefined;
+  if(attempt?.missionId!==journeyDallas23.id&&attempt?.missionId!==journeyDallas19.id)return false;
+  if(player.lockedTargetId!==targetId||player.assistedAim?.targetId!==targetId||
+      now-player.assistedAim.updatedAt>500||!canFire(player,now,playerId))return false;
+  const target=monsterLockSolution(playerId,player,now,fireTransform??player);
+  if(!target||target.id!==targetId||!insideDynamicLock(target.local.x,target.local.y,target.local.z,shotAim))return false;
+  const shotId=randomUUID();
+  const hit=applyMonsterHit(playerId,player.cityId,target.origin,target.end,now,projectileDamageForAircraft(player.aircraftType),0,monsterImpact=>{
+    // Send the confirmed contact before mission/monster state so feedback waits for this tracer.
+    sendToPlayer(playerId,{type:'assistedShot',shotId,ownerId:playerId,targetId,origin:target.origin,
+      targetPosition:monsterImpact.position,speed:assistedTracerSpeed(player.velocity,target.origin,monsterImpact.position),clientShotId,monsterImpact});
+  });
+  if(hit)player.lastFireAt=now;
+  return hit;
+}
+
 function createSharpshooterAssistedShot(playerId:string,player:PlayerState,targetId:string,clientShotId:string|undefined,
     fireTransform:Transform|undefined,shotAim:{x:number;y:number}):boolean {
   const now=Date.now();
@@ -6580,6 +6600,7 @@ function createAssistedShot(
   fireTransform: Transform | undefined,
   shotAim: { x: number; y: number },
 ): boolean {
+  if (targetId.startsWith('monster:')) return createMonsterAssistedShot(playerId,player,targetId,clientShotId,fireTransform,shotAim);
   if (targetId.startsWith('bullseye:')) return createSharpshooterAssistedShot(playerId,player,targetId,clientShotId,fireTransform,shotAim);
   if (targetId.startsWith('transport:')) return createFortressAssistedShot(playerId,player,targetId,clientShotId,fireTransform,shotAim);
   const now = Date.now();

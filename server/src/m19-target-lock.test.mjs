@@ -46,7 +46,7 @@ function fixture(type='trainer',variant=variants[0]){
  const buildings=[],encounter=variant.create('attempt','pilot',0,()=>135,buildings);
  const gem=encounter.frame.limbs.gem;
  assert(gem);
- const owner={pilotId:'profile',cityId:'dallas',aircraftType:type,lifeState:'alive',lastStateAt:1000,position:{x:gem.x,y:gem.y,z:gem.z+2000},rotation:{x:0,y:0,z:0}};
+ const owner={pilotId:'profile',cityId:'dallas',aircraftType:type,velocity:{x:0,y:0,z:0},lifeState:'alive',lastStateAt:1000,position:{x:gem.x,y:gem.y,z:gem.z+2000},rotation:{x:0,y:0,z:0}};
  stepM19(encounter,owner.position,{x:0,y:0,z:0},18,1000);
  const attempt={missionId:variant.mission.id,status:'RACING',pausedAt:null,deadlineAt:100000,monsterHealth:variant.mission.bossHealth};
  const rotate=(p,r)=>new THREE.Vector3(p.x,p.y,p.z).applyEuler(new THREE.Euler(r.x,r.y,r.z,'YXZ'));
@@ -54,7 +54,7 @@ function fixture(type='trainer',variant=variants[0]){
   playerJourneyAttempts:new Map([['pilot','attempt']]),monsterEncounters:new Map([['attempt',encounter]]),transportEncounters:new Map(),
   journeyStore:{get:()=>attempt,activeSnapshot:()=>attempt},combatTransformFreshMs:500,runwayCombatProtected:()=>false,
   normalize:v=>new THREE.Vector3(v.x,v.y,v.z).normalize(),rotateLocalYxz:rotate,forwardDirection:t=>rotate({x:0,y:0,z:-1},t.rotation),dot:(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,
-  closestLockTarget:()=>undefined,setServerLock:(_id,p,id)=>{p.lockedTargetId=id;},
+  sharpshooterLockSolution:()=>undefined,closestLockTarget:()=>undefined,setServerLock:(_id,p,id)=>{p.lockedTargetId=id;},
  });
  vm.runInContext(functions(ast,['targetInAircraftSpace','muzzleTransform','monsterLockSolution','validMonsterLock','updateAssistedAim']),ctx);
  return {ctx,owner,attempt,encounter,buildings,close:()=>disposeM19(encounter)};
@@ -62,7 +62,7 @@ function fixture(type='trainer',variant=variants[0]){
 for(const variant of variants)for(const type of ['trainer','cargo','privateJet','fighter'])test(`${variant.mission.name} ${type}: lock uses real body geometry without dealing damage`,()=>{
  const f=fixture(type,variant);try{
   const before=f.encounter.engine.snapshot();
-  for(let frame=0;frame<20;frame++)vm.runInContext("updateAssistedAim('pilot',owner,1000,0,0)",f.ctx);
+  for(let frame=0;frame<20;frame++)f.ctx.updateAssistedAim('pilot',f.owner,(frame+1)*50,0,0);
   assert.equal(f.owner.lockedTargetId,'monster:attempt');assert(vm.runInContext("validMonsterLock('pilot',owner,1000)",f.ctx));
   assert.equal(f.encounter.engine.snapshot().health,before.health,'acquisition cannot damage the monster');
   const solution=f.ctx.monsterLockSolution('pilot',f.owner,1000);assert(solution);assert(solution.local.z<0);
@@ -116,4 +116,44 @@ for(const variant of variants)test(`${variant.mission.name} waits for a fresh se
   const ctx=vm.createContext({...missions,journeyAttempt:{missionId:variant.mission.id,status:'RACING',attemptId:'attempt',monsterHealth:variant.mission.bossHealth},monsterView:{},candidate:null,componentTarget:null,transportAimTarget:null,freshAim,serverAimTargetId:confirmed?'monster:attempt':null});
   vm.runInContext(select+'\nselected=monsterSelected;',ctx);assert.equal(ctx.selected,freshAim&&confirmed);
  }
+});
+
+for(const variant of variants.slice(-2))test(`${variant.mission.name}: confirmed locked shots use the current monster surface and damage once`,()=>{
+ const f=fixture('fighter',variant),packets=[];
+ try{
+  Object.assign(f.ctx,{Date:{now:()=>1000},randomUUID:()=> 'confirmed-shot',players:new Map([['pilot',f.owner]]),
+   sendToPlayer:(_id,packet)=>packets.push(packet),sendJourneyState:()=>packets.push({type:'state'}),
+   canFire:()=>f.owner.lastFireAt!==1000});
+  f.ctx.journeyStore.hitMonster=(_pilot,_id,_now,amount)=>{
+   f.attempt.monsterHealth-=amount;return {...f.attempt};
+  };
+  vm.runInContext(functions(ast,['createMonsterAssistedShot','assistedTracerSpeed','applyMonsterHit']),f.ctx);
+  for(let i=0;i<20;i++)f.ctx.updateAssistedAim('pilot',f.owner,(i+1)*50,0,0);
+  const health=f.encounter.frame.health;
+  const fire=()=>f.ctx.createMonsterAssistedShot('pilot',f.owner,'monster:attempt','client-round',undefined,f.owner.assistedAim);
+  assert.equal(fire(),true);
+  const remaining=f.encounter.engine.snapshot().health;
+  assert(remaining<health);assert.equal(f.attempt.monsterHealth,remaining,'existing hit-region multipliers remain authoritative');
+  assert.equal(packets[0].type,'assistedShot','contact precedes state so effects wait for the tracer');
+  assert.equal(packets[0].clientShotId,'client-round');assert.equal(packets[0].monsterImpact.sequence,1);
+  assert.equal(packets[0].monsterImpact.attemptId,'attempt');assert(packets[0].speed>0);
+  assert.equal(fire(),false,'fire cooldown rejects repeat damage');assert.equal(packets.length,2);
+ }finally{f.close();}
+});
+
+for(const kind of ['staleAim','stalePose','paused','far','behind','wrongTarget','blocked'])test(`locked Dr. Boss shot rejects ${kind}`,()=>{
+ const f=fixture('fighter',variants.at(-1));try{
+  Object.assign(f.ctx,{Date:{now:()=>1000},randomUUID:()=> 'shot',canFire:()=>true,
+   sendToPlayer:()=>assert.fail('invalid shot must not be confirmed'),applyMonsterHit:()=>assert.fail('invalid shot must not damage')});
+  vm.runInContext(functions(ast,['createMonsterAssistedShot','assistedTracerSpeed']),f.ctx);
+  for(let i=0;i<20;i++)f.ctx.updateAssistedAim('pilot',f.owner,(i+1)*50,0,0);
+  if(kind==='staleAim')f.owner.assistedAim.updatedAt=0;
+  if(kind==='stalePose')f.owner.lastStateAt=0;
+  if(kind==='paused')f.attempt.pausedAt=900;
+  if(kind==='far')f.owner.position.z+=rules.COMBAT_RANGE*2;
+  if(kind==='behind')f.owner.rotation.y=Math.PI;
+  if(kind==='wrongTarget')f.owner.lockedTargetId='monster:someone-else';
+  if(kind==='blocked')f.encounter.engine.hitTest=()=>null;
+  assert.equal(f.ctx.createMonsterAssistedShot('pilot',f.owner,'monster:attempt','round',undefined,f.owner.assistedAim),false);
+ }finally{f.close();}
 });

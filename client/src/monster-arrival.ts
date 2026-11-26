@@ -451,14 +451,28 @@ export class MonsterArrivalView {
     return true;
   }
 
-  bulletImpactPosition(hit: { position: THREE.Vector3Like; bodyPosition: THREE.Vector3Like; yaw: number }): THREE.Vector3 {
+  private readonly bulletImpactRay=new THREE.Raycaster();
+  private readonly bulletImpactHits:THREE.Intersection[]=[];
+  bulletImpactPosition(hit: { position: THREE.Vector3Like; bodyPosition: THREE.Vector3Like; yaw: number },origin?:THREE.Vector3Like): THREE.Vector3 {
     const root = this.creature.root;
     const x = hit.position.x - hit.bodyPosition.x;
     const z = hit.position.z - hit.bodyPosition.z;
     const rotation = root.rotation.y - hit.yaw;
     const cos = Math.cos(rotation), sin = Math.sin(rotation);
-    return new THREE.Vector3(root.position.x + x * cos + z * sin,
+    const contact=new THREE.Vector3(root.position.x + x * cos + z * sin,
       root.position.y + hit.position.y - hit.bodyPosition.y, root.position.z + z * cos - x * sin);
+    if(origin){
+      // Place the confirmed effect on the current animated mesh, rather than inside its hit volume.
+      root.updateWorldMatrix(true,true);
+      this.bulletImpactRay.ray.origin.copy(origin);
+      this.bulletImpactRay.ray.direction.copy(contact).sub(origin).normalize();
+      this.bulletImpactRay.far=this.bulletImpactRay.ray.origin.distanceTo(contact)+this.ashenHeight;
+      this.bulletImpactHits.length=0;
+      this.bulletImpactRay.intersectObject(root,true,this.bulletImpactHits);
+      if(this.bulletImpactHits[0])contact.copy(this.bulletImpactHits[0].point);
+      this.bulletImpactHits.length=0;
+    }
+    return contact;
   }
 
   showBulletImpact(hit:{position:{x:number;y:number;z:number};sequence:number}, emitParticles = true):void {
@@ -466,7 +480,7 @@ export class MonsterArrivalView {
     this.lastHitSequence=hit.sequence;this.hitPulse=.28;this.creature.hit();this.onHit?.();
     if (!emitParticles) return;
     const p = hit.position;
-    const scale=this.downtownDefender?pursuitWarlord.hitSmokeScale:1;
+    const scale=this.pursuit?pursuitWarlord.hitSmokeScale*this.ashenHeight/ashenWarlordModel.height:1;
     this.particles.emit(p.x,p.y,p.z,false,8,28*scale);
     this.particles.emit(p.x,p.y,p.z,true,8,100*scale,.18);
   }

@@ -6330,6 +6330,7 @@ type ServerMessage =
       targetPosition: NetworkVector;
       speed?: number;
       clientShotId?: string;
+      monsterImpact?: {attemptId:string;position:NetworkVector;bodyPosition:NetworkVector;yaw:number;sequence:number};
     }
   | { type: 'lockState'; targetId?: string; candidateId?: string; aimX: number; aimY: number; aimId: number }
   | { type: 'combatThreat'; attackerId: string; locked: boolean }
@@ -9317,6 +9318,19 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
     shotId: message.shotId, mesh, predictedProjectile, speed, origin, direction,
     ownerId: message.ownerId, bank, elapsed, duration: Math.max(elapsed, distance / speed),
   });
+}
+
+function attachMonsterAssistedImpact(message:Extract<ServerMessage,{type:'assistedShot'}>):void {
+  const hit=message.monsterImpact,view=monsterView,shot=pendingAssistedHit(message.shotId);
+  if(!hit||!view||message.ownerId!==localPlayerId||hit.attemptId!==journeyAttempt?.attemptId)return;
+  if(!view.queueBulletImpact(hit.sequence))return;
+  const contact=view.bulletImpactPosition(hit,message.origin);
+  if(!shot){view.showBulletImpact({position:contact,sequence:hit.sequence});return;}
+  setAssistedImpact(shot,view.introRoot,undefined,view.introRoot.worldToLocal(contact));
+  shot.onImpact=position=>{
+    if(monsterView!==view)return;
+    view.showBulletImpact({position:position??view.bulletImpactPosition(hit,message.origin),sequence:hit.sequence});
+  };
 }
 
 function placeAircraftImpactFlash(point: THREE.Vector3, aircraft: THREE.Object3D, radius: number): void {
@@ -13119,7 +13133,11 @@ function sendFireIntent(): boolean {
     transportLockParts(componentAttempt.missionId).some(side=>serverLockedTargetId===`transport:${componentAttempt.attemptId}:${side}`);
   const bullseyeLock=(componentAttempt && journeySharpshooterMission(componentAttempt.missionId))&&combatLockState==='LOCKED'&&
     serverLockedTargetId===serverAimTargetId&&performance.now()-serverAimReceivedAt<=500&&serverLockedTargetId?.startsWith(`bullseye:${componentAttempt.attemptId}:`);
-  const targetId = selectedCombatTarget?.locked ? selectedCombatTarget.remote.playerId : componentLock||bullseyeLock ? serverLockedTargetId ?? undefined : undefined;
+  const monsterLock=componentAttempt&&isMonsterJourneyMission(componentAttempt.missionId)&&
+    (componentAttempt.missionId===journeyDallas23.id||componentAttempt.missionId===journeyDallas19.id)&&
+    componentAttempt.status==='RACING'&&combatLockState==='LOCKED'&&performance.now()-serverAimReceivedAt<=500&&
+    serverLockedTargetId===serverAimTargetId&&serverLockedTargetId===`monster:${componentAttempt.attemptId}`;
+  const targetId = selectedCombatTarget?.locked ? selectedCombatTarget.remote.playerId : componentLock||bullseyeLock||monsterLock ? serverLockedTargetId ?? undefined : undefined;
   const clientShotId = createClientShotId();
   if (combatQaElement) combatQaDetail = `shot: ${targetId ? `assisted → ${targetId.slice(0, 8)}` : 'ballistic'}`;
   try {
@@ -14121,6 +14139,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
   } else if (message.type === 'assistedShot') {
     for (const ending of aircraftVictoryCandidates) ending.recordAssistedShot(message);
     addAssistedShot(message);
+    attachMonsterAssistedImpact(message);
     if(message.ownerId===localPlayerId&&message.targetId.startsWith(`bullseye:${journeyAttempt?.attemptId}:`)){
       const view=sharpshooterViews.get(Number(message.targetId.split(':').at(-1))),shot=pendingAssistedHit(message.shotId);
       if(view&&shot){

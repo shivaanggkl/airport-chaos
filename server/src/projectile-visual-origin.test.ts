@@ -862,3 +862,47 @@ test('confirmed monster hits clear visual offsets, follow the visible hull, and 
     assert.equal(clientProjectiles.size, 0, 'an already-presented hit still removes its confirmed bullet');
   }
 });
+
+test('confirmed Dr. Boss assisted tracers stop on the moving hull and show one impact, including late acknowledgements',()=>{
+ for(const missionId of ['journey-dallas-23','journey-dallas-19']){
+  const root=new THREE.Group(),scene=new THREE.Scene();scene.add(root);
+  const mesh=new THREE.Group();mesh.add(createProjectileCore());mesh.position.set(0,0,0);
+  const shot={shotId:'confirmed',mesh,speed:10000,direction:new THREE.Vector3(0,0,-1)};
+  let accepted=true;const hits:THREE.Vector3[]=[];
+  const view={introRoot:root,queueBulletImpact:()=>{const was=accepted;accepted=false;return was;},
+   bulletImpactPosition:()=>new THREE.Vector3(10,0,-1500),showBulletImpact:(hit:{position:THREE.Vector3})=>hits.push(hit.position.clone())};
+  const runtime:any={THREE,monsterView:view,localPlayerId:'self',journeyAttempt:{attemptId:'a',missionId},shot,
+   pendingAssistedHit:()=>shot,assistedAircraftMaxApproachTime:.2,projectileRoundDiameter:()=>1,
+   message:{type:'assistedShot',ownerId:'self',shotId:'confirmed',origin:{x:0,y:0,z:0},
+    monsterImpact:{attemptId:'a',position:{x:10,y:0,z:-1500},bodyPosition:{x:0,y:0,z:0},yaw:0,sequence:1}}};
+  const script=[code('setAssistedImpact'),code('attachMonsterAssistedImpact'),code('advanceAssistedImpact')].join('\n');
+  runInNewContext(script+'\nattachMonsterAssistedImpact(message);advanceAssistedImpact(shot,.1);',runtime);
+  assert.equal(hits.length,0,'no premature smoke');
+  root.position.x=40;root.updateMatrixWorld(true);
+  runInNewContext(script+'\nadvanceAssistedImpact(shot,.1);',runtime);
+  assert.equal(hits.length,1);assert.equal(hits[0].x,50,'contact follows the rendered monster');
+  assert(mesh.position.equals(hits[0]),'round ends exactly at the smoke contact');
+  assert.equal(runInNewContext(script+'\nadvanceAssistedImpact(shot,.1);',runtime),true,'tracer is retired after its contact frame');
+  runInNewContext(script+'\nattachMonsterAssistedImpact(message);',runtime);assert.equal(hits.length,1,'duplicate confirmation has no extra effect');
+  accepted=true;runtime.pendingAssistedHit=()=>undefined;
+  runInNewContext(script+'\nattachMonsterAssistedImpact(message);',runtime);assert.equal(hits.length,2,'late confirmed hit still gets feedback without a tracer');
+ }
+});
+
+test('M1 and M2 fire intents carry a fresh confirmed monster lock instead of silently firing ballistic shots',()=>{
+ for(const missionId of ['journey-dallas-23','journey-dallas-19'])for(const state of ['locked','stale','wrongAttempt']){
+  const messages:any[]=[];
+  const runtime={THREE,journeyAttempt:{missionId,attemptId:'a',status:'RACING'},
+   journeyDallas23:{id:'journey-dallas-23'},journeyDallas19:{id:'journey-dallas-19'},journeyDallas25:{id:'journey-dallas-25'},
+   localPlayerId:'self',localLifeState:'alive',connectionReady:()=>true,transportView:undefined,soloExploreMode:false,
+   projectileOrigin:new THREE.Vector3(),projectileDirection:new THREE.Vector3(),transportReticleOrigin:new THREE.Vector3(),combatAimForward:new THREE.Vector3(0,0,-1),
+   transportLockParts:()=>[],journeySharpshooterMission:()=>undefined,isMonsterJourneyMission:()=>true,
+   combatLockState:'LOCKED',serverAimReceivedAt:state==='stale'?0:1000,performance:{now:()=>1000},
+   serverLockedTargetId:state==='wrongAttempt'?'monster:other':'monster:a',serverAimTargetId:state==='wrongAttempt'?'monster:other':'monster:a',
+   selectedCombatTarget:null,createClientShotId:()=> 'round',combatQaElement:null,visualAimToId:0,
+   socket:{send:(message:string)=>messages.push(JSON.parse(message))},airplane:new THREE.Group(),aircraftType:'fighter',
+   spawnMuzzleFeedback(){},playFireSound(){}};
+  assert.equal(runInNewContext(code('sendFireIntent')+'\nsendFireIntent();',runtime),true);
+  assert.equal(messages[0].targetId,state==='locked'?'monster:a':undefined);
+ }
+});
