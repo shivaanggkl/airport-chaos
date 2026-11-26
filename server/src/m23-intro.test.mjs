@@ -9,7 +9,7 @@ import {CombatMissionIntroPath} from '../../client/src/mission-combat-intro.js';
 import {M23_INTRO as timing,m23IntroText,m23IntroMotion,m23Travel,m23GaitTimes} from '../../client/src/m23-intro.js';
 import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
 import {M19_DOWNTOWN} from '../../client/src/m19-intro.js';
-import {M24_INTRO,m24IntroMotion} from '../../client/src/m24-intro.js';
+import {M24_INTRO,m24IntroMotion,m24Travel} from '../../client/src/m24-intro.js';
 import {DALLAS_WORLD_SCALE} from '../../shared/dallas-world-scale.mjs';
 import {journeyDallas23} from '../../shared/journey-mission.mjs';
 import {pursuitWarlordSpecies as huntingWarlordSpecies} from './pursuit-warlord.js';
@@ -127,16 +127,17 @@ test('M23 six-fireball demonstration follows its visible hand and stays in frame
 });
 
 
-test('M2 keeps its running intro and power-up, then demonstrates M1-sized spread fireballs',async()=>{
- assert.equal(m24IntroMotion(5).key,'run');assert.equal(m24IntroMotion(17).key,'charge');
- assert.equal(M24_INTRO.shoot,16+model.clips.charge.duration);
+test('M2 intro uses only Run, Turn, Roar, Shoot and Idle with M1-sized spread fireballs',async()=>{
+ assert.equal(m24IntroMotion(2).key,'run');assert.equal(m24IntroMotion(5).key,'run');assert.equal(m24IntroMotion(17).key,'shoot');
+ assert.equal(M24_INTRO.shoot,16);
+ for(let t=0;t<28;t+=.05)assert(['idle','run','turn','roar','shoot'].includes(m24IntroMotion(t).key));
  assert.equal(M24_INTRO.release,M24_INTRO.shoot+1.3);
  const view=create();await view.ready;
  try{
   view.prepareHuntingIntro(buildings,false,true,true);
   for(const t of [2,5,6.5]){
    view.setIntroTime(t);view.update(.025);const intro=view.creature.strikingIntro;
-   const remaining=intro.walk.distance-m23Travel(t,intro.walk.startTime,true);
+   const remaining=intro.walk.distance-m24Travel(t,intro.walk.startTime);
    assert(Math.abs(view.creature.root.position.x-(intro.position.x-Math.sin(intro.walk.yaw)*remaining))<.001);
   }
   view.setIntroTime(M24_INTRO.release);view.update(.01);
@@ -221,4 +222,30 @@ test('M2 failure uses six M1-sized fireballs while retaining its existing explos
   if(t>4.5){sawImpacts=true;assert(view.timeoutVolley.every(round=>round.blast.root.visible&&round.blast.scale===M19_CITY_BLAST_SCALE&&!round.shot.group.visible));}
  }
  assert(sawVolley&&sawImpacts);view.dispose();assert.equal(view.scene.children.length,0);
+});
+
+test('M2 approved intro motions stay grounded, frame the running monster, and hand off cleanly at 28 seconds',async()=>{
+ const view=create();await view.ready;view.prepareHuntingIntro(buildings,false,true,true);
+ const actor=view.creature,origin=actor.strikingIntro.position.clone(),yaw=actor.strikingIntro.yaw,player=new THREE.Group();
+ player.position.set(7000,450,-38000);player.add(new THREE.Mesh(new THREE.BoxGeometry(20,6,25)));
+ const path=new CombatMissionIntroPath(actor.root,player,19,false,false,view.introFistPosition,view.introProjectilePosition,true,false,true,()=>view.introFootstepTime,true);
+ const camera=new THREE.PerspectiveCamera(48,16/9,1,20000),position=new THREE.Vector3(),target=new THREE.Vector3(),chase=new THREE.Vector3(7000,455,-37980),look=new THREE.Vector3(7000,451,-38000);
+ let punchSounds=0,roars=0;view.onWarning=()=>punchSounds++;view.onRoar=()=>roars++;
+ const allowed=new Set(['idle','run','turn','roar','shoot'].map(key=>model.clips[key].name));
+ try{
+  for(let i=0;i<=560;i++){
+   const t=i*.05;view.setIntroTime(t);view.update(.05);
+   const clip=actor.actions.get(model.clips[m24IntroMotion(t,actor.strikingIntro.walk.startTime).key].name);
+   assert(allowed.has(clip.getClip().name));assert(clip.enabled);
+   let low=Infinity;const p=new THREE.Vector3();for(const v of model.support){actor.mesh.getVertexPosition(v.index,p);actor.mesh.localToWorld(p);low=Math.min(low,p.y-ground(p.x,p.z));}assert(Math.abs(low)<.01);
+   if([2,5,6.5].includes(t)){
+    path.sample(t*1000,position,target,chase,look);camera.position.copy(position);camera.lookAt(target);camera.updateMatrixWorld();
+    const box=new THREE.Box3().setFromObject(actor.root,true);
+    for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const point=new THREE.Vector3(x,y,z).project(camera);assert(Math.abs(point.x)<1&&Math.abs(point.y)<1,'running monster remains framed');}
+   }
+  }
+  assert.equal(punchSounds,0);assert.equal(roars,1);assert.equal(path.durationMs,28000);assert.equal(path.streamingPosition(24000),player.position);
+  path.sample(28000,position,target,chase,look);assert.deepEqual(position,chase);assert.deepEqual(target,look);
+  view.setIntroTime(null);assert.deepEqual(actor.root.position,origin);assert.equal(actor.root.rotation.y,yaw);assert(view.pool.every(shot=>!shot.group.visible));
+ }finally{player.children[0].geometry.dispose();player.children[0].material.dispose();view.dispose();}
 });

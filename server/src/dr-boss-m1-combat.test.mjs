@@ -6,7 +6,7 @@ import * as missions from '../../shared/journey-mission.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pursuitWarlordSpecies as species,createPursuitWarlordEncounter as create} from './pursuit-warlord.js';
-import {finalWarlordSpecies} from './final-warlord.js';
+import {finalWarlordSpecies,createFinalWarlordEncounter as createFinal} from './final-warlord.js';
 import {createAshenPose} from './ashen-warlord-pose.js';
 import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
 import {createM19Encounter,stepM19,disposeM19,permittedM19Damage} from './m19-titan.js';
@@ -25,7 +25,7 @@ test('M1 walks and turns six times faster, shoots six times more often, with lar
  assert.equal(shot.radius,144);assert.equal(shot.spread,.24);assert.equal(shot.projectileSpeed,1800);assert.equal(shot.count,6);assert.equal(shot.damage,25);assert.equal(shot.cooldown,1.5);
  assert.equal(species.movement.chargeSpeed,0);assert(species.abilities.every(a=>a.mechanism==='projectile'));
  assert.deepEqual(species.animations,['idle','walk','turn','roar','shoot','defeat']);assert.equal(shot.spreadPattern,'cluster');assert(species.abilities.every(a=>!a.interruptible));
- assert(finalWarlordSpecies.abilities.some(a=>a.mechanism==='sweep'));
+ assert(finalWarlordSpecies.abilities.every(a=>a.mechanism==='projectile'));
  assert.equal(finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile').projectileSpeed,1800);
 });
 
@@ -97,7 +97,7 @@ test('M1 roars during gameplay, stays still through the roar, and resumes shooti
    if(f.animation.clip===model.clips.roar.name){roarFrames++;assert.equal(f.ability,null);assert(Math.hypot(f.velocity.x,f.velocity.z)<.5);}
   }
   assert(roars>=2);assert(roarFrames>50);assert(shotsAfterRoar>=6);
-  assert(finalWarlordSpecies.director.roarInterval===undefined);
+  assert.equal(finalWarlordSpecies.director.roarInterval,species.director.roarInterval);
  }finally{disposeM19(e);}
 });
 
@@ -144,4 +144,27 @@ test('M1 central fireball damages a stationary runway aircraft on its first voll
   }finally{disposeM19(e);}
  }
  assert.equal(finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile').groundClearanceAim,true,'both missions clear the runway with their large fireballs');
+});
+
+test('M2 runs, turns and roars with M1 shooting, never rushes, punches or flinches even under fire',()=>{
+ const m2=finalWarlordSpecies;
+ assert.deepEqual(m2.animations,['idle','run','turn','roar','shoot','defeat']);
+ assert.equal(m2.movement.chargeSpeed,0);assert(m2.movement.runOnly);
+ assert.equal(m2.movement.turnRate,species.movement.turnRate);assert.equal(m2.movement.turnAcceleration,species.movement.turnAcceleration);
+ assert.deepEqual(m2.abilities,species.abilities);assert.equal(m2.director.roarDuration,species.director.roarDuration);
+ const e=createFinal('m2-six-motions','pilot',0,()=>135,[]),origin={...e.frame.position};
+ let roars=0,releases=0,running=0,damaged=0;
+ try{
+  for(let ms=50;ms<=65000;ms+=50){
+   const target={x:origin.x+14000,y:2500,z:origin.z+Math.sin(ms/15000)*3000};
+   if(ms%3000===0){const p=e.frame.limbs.body;damaged+=e.engine.damage({encounterId:e.attemptId,source:'pilot',sequence:ms,from:{x:p.x-4000,y:p.y,z:p.z},to:{x:p.x+4000,y:p.y,z:p.z},amount:25,radius:1,delta:0});}
+   const before={...e.frame.position};stepM19(e,target,zero,20,ms);const f=e.frame;
+   assert(['idle','run','turn','roar','shoot'].some(key=>model.clips[key].name===f.animation.clip));
+   assert(Math.hypot(f.position.x-before.x,f.position.z-before.z)<=m2.movement.run*.051);
+   if(f.animation.clip===model.clips.run.name)running++;
+   for(const event of e.events){if(event.type==='roar')roars++;if(event.type==='release')releases++;}
+   if(f.animation.clip===model.clips.roar.name)assert(Math.hypot(f.velocity.x,f.velocity.z)<.5);
+  }
+  assert(damaged>0);assert(running>50);assert(roars>=2);assert(releases>=12);
+ }finally{disposeM19(e);}
 });
