@@ -79,7 +79,7 @@ test('M24 requires 60 confirmed Bluejay hits, rejects replays and foreign hits, 
  const timeout=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model,false,true,true,true,true);await timeout.ready;
  let released=0,impacts=0;timeout.onProjectile=()=>released++;timeout.onDestruction=()=>impacts++;
  timeout.onEndingComplete=()=>ended++;timeout.finish('timeout');for(let i=0;i<100;i++)timeout.update(.05);
- assert.equal(released,1);assert.equal(impacts,1);assert.equal(ended,1,'failure waits for the city destruction');assert(timeout.timeoutCinematicActive);assert(scene.getObjectByName('m19-downtown-timeout-blast'));
+ assert.equal(released,1);assert.equal(impacts,6);assert.equal(ended,1,'failure waits for the city destruction');assert(timeout.timeoutCinematicActive);assert(scene.getObjectByName('m19-downtown-timeout-blast'));
  for(let i=0;i<95;i++)timeout.update(.05);assert.equal(timeout.timeoutBlackoutOpacity,1);
  assert.equal(ended,2);timeout.dispose();assert.equal(scene.children.length,0);
 });
@@ -118,7 +118,9 @@ test('M24 restores the original running director and all three attacks without c
  assert(finalWarlordSpecies.movement.runOnly);
  assert.deepEqual(finalWarlordSpecies.abilities.map(a=>a.id),['fireball-barrage','hand-strike','charging-rampage']);
  const shot=finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile');
- assert.equal(shot.damage,25);assert.equal(shot.count,12);assert.equal(shot.burstSize,3);assert.equal(shot.moving,true);
+ const m1=pursuitWarlordSpecies.abilities.find(a=>a.mechanism==='projectile');
+ for(const key of ['projectileSpeed','radius','spread','spreadPattern','simultaneous','groundClearanceAim'])assert.equal(shot[key],m1[key],`M2 matches M1 ${key}`);
+ assert.equal(shot.damage,25);assert.equal(shot.count,6);assert.equal(shot.burstSize,undefined);assert.equal(shot.moving,true);
  assert.equal(ashenWarlordSpecies.level,'HARD');assert.equal(ashenWarlordSpecies.health,2500);
  assert.equal(huntingWarlordSpecies.hunting.runSeconds,undefined);
  assert.equal(journeyMissionSlot(journeyDallas19.id),24);
@@ -215,7 +217,7 @@ test('M24 remains grounded on actual scaled Dallas terrain with compact building
 });
 
 
-test('M24 releases four three-ball waves and keeps ranged pursuit at fighting distance',()=>{
+test('M24 releases one six-ball spread volley and keeps ranged pursuit at fighting distance',()=>{
  const cfg=structuredClone(finalWarlordSpecies);cfg.id='m24-spacing';
  cfg.abilities=cfg.abilities.filter(a=>a.mechanism==='projectile');
  const e=new TitanEncounter('spacing',new SpeciesRegistry().register(cfg),{x:0,y:0,z:0},
@@ -224,12 +226,12 @@ test('M24 releases four three-ball waves and keeps ranged pursuit at fighting di
  const releases=new Map();let minimum=Infinity;
  for(let i=1;i<=800;i++){
   const f=e.step(.05,[target],[]);
-  for(const p of f.projectiles){const attack=p.id.split(':shot:')[1].split(':')[0];if(!releases.has(attack))releases.set(attack,new Map());const wave=releases.get(attack);if(!wave.has(p.id))wave.set(p.id,i*.05);}
+  for(const p of f.projectiles){assert.equal(p.radius,144);assert(Math.abs(Math.hypot(p.velocity.x,p.velocity.y,p.velocity.z)-1800)<1e-6);const attack=p.id.split(':shot:')[1].split(':')[0];if(!releases.has(attack))releases.set(attack,new Map());const wave=releases.get(attack);if(!wave.has(p.id))wave.set(p.id,i*.05);}
   minimum=Math.min(minimum,Math.hypot(f.position.x-target.position.x,f.position.z-target.position.z));
  }
- const first=[...releases.values()][0];assert.equal(first.size,12);
- const waves=[...new Set(first.values())];assert.equal(waves.length,4);
- for(let i=0;i<waves.length;i++){assert.equal([...first.values()].filter(t=>t===waves[i]).length,3);if(i)assert(waves[i]-waves[i-1]>=.25-1e-8);}
+ const first=[...releases.values()][0];assert.equal(first.size,6);
+ const waves=[...new Set(first.values())];assert.equal(waves.length,1);
+ for(let i=0;i<waves.length;i++){assert.equal([...first.values()].filter(t=>t===waves[i]).length,6);if(i)assert(waves[i]-waves[i-1]>=.25-1e-8);}
  assert(minimum>=9000,'ranged pursuit must brake before entering the 9 km separation');
  assert(minimum<=10500,'monster must still pursue to the configured fighting distance');
  assert.equal(ashenWarlordSpecies.abilities.find(a=>a.mechanism==='projectile').count,3);

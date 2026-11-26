@@ -1,4 +1,4 @@
-import {M19_TIMEOUT,M19_CITY_BLAST_SCALE} from '../../client/src/monster-timeout.ts';
+import {M19_TIMEOUT,M1_TIMEOUT,M19_CITY_BLAST_SCALE} from '../../client/src/monster-timeout.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -127,7 +127,7 @@ test('M23 six-fireball demonstration follows its visible hand and stays in frame
 });
 
 
-test('M2 retains its running intro and original power-up and fireball demonstration',async()=>{
+test('M2 keeps its running intro and power-up, then demonstrates M1-sized spread fireballs',async()=>{
  assert.equal(m24IntroMotion(5).key,'run');assert.equal(m24IntroMotion(17).key,'charge');
  assert.equal(M24_INTRO.shoot,16+model.clips.charge.duration);
  assert.equal(M24_INTRO.release,M24_INTRO.shoot+1.3);
@@ -140,7 +140,13 @@ test('M2 retains its running intro and original power-up and fireball demonstrat
    assert(Math.abs(view.creature.root.position.x-(intro.position.x-Math.sin(intro.walk.yaw)*remaining))<.001);
   }
   view.setIntroTime(M24_INTRO.release);view.update(.01);
-  assert.equal(view.pool.filter(shot=>shot.group.visible).length,3);
+  assert.equal(view.pool.filter(shot=>shot.group.visible).length,6);
+  const rounds=view.pool.slice(0,6),origin=view.introShotOrigin.clone();
+  for(const round of rounds)assert.equal(round.group.scale.x,6);
+  view.setIntroTime(M24_INTRO.release+.5);view.update(.01);
+  for(const round of rounds)assert(Math.abs(round.group.position.distanceTo(origin)-900)<.001);
+  assert(rounds[1].group.position.distanceTo(rounds[2].group.position)>200,'spread stays clearly separated');
+  view.setIntroTime(null);assert(rounds.every(round=>!round.group.visible&&round.group.scale.x===1));
  }finally{view.dispose();}
 });
 
@@ -167,12 +173,52 @@ test('M1 failure fires six real visual rounds, gives every impact a sixfold down
    sawVolley=true;assert.equal(view.pool.filter(shot=>shot.group.visible).length,6);
    for(const round of view.timeoutVolley){assert.equal(round.shot.id,null);assert.equal(round.shot.group.scale.x,6);assert(round.shot.group.position.distanceTo(view.endingOrigin)>0);}
   }
-  if(t>M19_TIMEOUT.impactAt+.1&&t<M19_TIMEOUT.impactAt+.5){
+  if(t>M19_TIMEOUT.impactAt+5*M1_TIMEOUT.impactSpacing+.1&&t<M19_TIMEOUT.impactAt+1){
    sawBlasts=true;assert(view.timeoutVolley.every(round=>round.blast.root.visible&&!round.shot.group.visible));
    for(const round of view.timeoutVolley){assert.equal(round.blast.scale,M19_CITY_BLAST_SCALE*6);assert(round.blast.root.position.equals(round.impact));}
   }
   assert(camera.position.toArray().every(Number.isFinite));
  }
- assert(sawVolley&&sawBlasts);assert.equal(releases,1);assert.equal(impacts,1);assert.equal(completed,1);
+ assert(sawVolley&&sawBlasts);assert.equal(releases,1);assert.equal(impacts,6);assert.equal(completed,1);
  assert.equal(view.timeoutBlackoutOpacity,1);assert(view.damagedDowntown);view.dispose();assert.equal(view.scene.children.length,0);
+});
+
+test('M1 failure has a continuous release camera, separate strikes, a framed smoke aftermath, then a complete fade',async()=>{
+ const view=create(true);await view.ready;const camera=new THREE.PerspectiveCamera(48,16/9,1,1000),strikeTimes=[];
+ view.onDestruction=()=>strikeTimes.push(view.endingElapsed);view.finish('timeout');
+ let previous,releaseStep=0;
+ for(let i=0;i<190;i++){
+  view.update(.05);view.updateTimeoutCamera(camera);camera.updateMatrixWorld();const t=view.endingElapsed;
+  if(t>M1_TIMEOUT.releaseAt-.1&&t<M1_TIMEOUT.releaseAt+.1&&previous)releaseStep=Math.max(releaseStep,camera.position.distanceTo(previous));
+  previous=camera.position.clone();
+  if(t>=5.8&&t<=M1_TIMEOUT.fadeAt){
+   assert.equal(view.timeoutBlackoutOpacity,0,'smoke and city remain visible until the aftermath finishes');
+   for(const round of view.timeoutVolley){
+    round.blast.root.updateMatrixWorld(true);
+    const up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+    const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+    for(const sprite of round.blast.root.children.slice(1,19)){
+     const center=sprite.getWorldPosition(new THREE.Vector3());
+     for(const x of [-1,1])for(const y of [-1,1]){
+      const point=center.clone().addScaledVector(up,y*sprite.scale.y/2).addScaledVector(right,x*sprite.scale.x/2).project(camera);
+      assert(Math.abs(point.x)<1&&Math.abs(point.y)<1&&point.z<1,`smoke billow is framed at ${t.toFixed(2)}s: ${point.toArray()}`);
+     }
+    }
+   }
+  }
+ }
+ assert(releaseStep<200,'capturing the firing hand must not jolt the camera');
+ assert.equal(strikeTimes.length,6);for(let i=1;i<6;i++)assert(strikeTimes[i]-strikeTimes[i-1]>=.099,'impacts are readable individual beats');
+ assert.equal(view.timeoutBlackoutOpacity,1);view.dispose();assert.equal(view.scene.children.length,0);
+});
+
+test('M2 failure uses six M1-sized fireballs while retaining its existing explosion scale',async()=>{
+ const view=create();await view.ready;view.finish('timeout');
+ let sawVolley=false,sawImpacts=false;
+ for(let i=0;i<100;i++){
+  view.update(.05);const t=view.endingElapsed;
+  if(t>2&&t<3){sawVolley=true;assert.equal(view.pool.filter(shot=>shot.group.visible).length,6);assert(view.timeoutVolley.every(round=>round.shot.group.scale.x===6));}
+  if(t>4.5){sawImpacts=true;assert(view.timeoutVolley.every(round=>round.blast.root.visible&&round.blast.scale===M19_CITY_BLAST_SCALE&&!round.shot.group.visible));}
+ }
+ assert(sawVolley&&sawImpacts);view.dispose();assert.equal(view.scene.children.length,0);
 });

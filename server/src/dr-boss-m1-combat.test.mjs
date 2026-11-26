@@ -26,7 +26,7 @@ test('M1 walks and turns six times faster, shoots six times more often, with lar
  assert.equal(species.movement.chargeSpeed,0);assert(species.abilities.every(a=>a.mechanism==='projectile'));
  assert.deepEqual(species.animations,['idle','walk','turn','roar','shoot','defeat']);assert.equal(shot.spreadPattern,'cluster');assert(species.abilities.every(a=>!a.interruptible));
  assert(finalWarlordSpecies.abilities.some(a=>a.mechanism==='sweep'));
- assert.equal(finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile').projectileSpeed,1600);
+ assert.equal(finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile').projectileSpeed,1800);
 });
 
 test('M1 damage never selects a flinch animation; other monsters retain their damage reaction',()=>{
@@ -143,5 +143,5 @@ test('M1 central fireball damages a stationary runway aircraft on its first voll
    assert(firstHit<=3500,'first aimed fireball reaches the runway aircraft');assert(damage>=25);
   }finally{disposeM19(e);}
  }
- assert.equal(finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile').groundClearanceAim,undefined,'M2 targeting stays unchanged');
+ assert.equal(finalWarlordSpecies.abilities.find(a=>a.mechanism==='projectile').groundClearanceAim,true,'both missions clear the runway with their large fireballs');
 });
