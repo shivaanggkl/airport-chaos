@@ -60,8 +60,8 @@ test('remaining monster encounters retain their definitions at M29/M30 and all c
  const {dir,path}=temporary();const profiles=new PlayerProfileStore(path);profiles.getOrCreate('qa','Pilot');const store=new JourneyAttemptStore(path,true);
  try{
   assert.equal(journeyMissionSlot('journey-dallas-23'),29);assert.equal(journeyMissionSlot('journey-dallas-19'),30);
-  assert.equal(store.launch('qa','trainer',1000,'journey-dallas-23').monsterHealth,1000);
-  assert.equal(store.launch('qa','trainer',2000,'journey-dallas-19').monsterHealth,1500);
+  assert.equal(store.launch('qa','trainer',1000,'journey-dallas-23').monsterHealth,2000);
+  assert.equal(store.launch('qa','trainer',2000,'journey-dallas-19').monsterHealth,3000);
   const db=new DatabaseSync(path),now=Date.now();
   for(const id of journeyMissionOrder) db.prepare('INSERT INTO journey_completions VALUES(?,?,?,?,?,?)').run('qa',id,`clear-${id}`,now-1000,1000,1);
   db.prepare('INSERT INTO journey_completions VALUES(?,?,?,?,?,?)').run('qa','journey-dallas-25','retired',now-2000,1000,1);

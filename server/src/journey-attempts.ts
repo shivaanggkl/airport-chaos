@@ -643,7 +643,7 @@ export class JourneyAttemptStore {
           .run(mission.coreHealth, mission.turretHealth, mission.turretHealth, missionId === journeyDallas12.id ? 'ESCORTS' : null, attemptId);
       }
       if (missionId === journeyDallas23.id||missionId === journeyDallas22.id||missionId === journeyDallas21.id||missionId === journeyDallas20.id||(missionId===journeyDallas19.id||missionId===journeyDallas25.id) || missionId === journeyDallas07.id || missionId === journeyDallas08.id || missionId === journeyDallas09.id || missionId === journeyDallas10.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
-        .run(missionId === journeyDallas23.id?1000:missionId===journeyDallas22.id?1100:missionId===journeyDallas21.id?900:missionId===journeyDallas25.id?500:missionId === journeyDallas20.id?journeyDallas20.bossHealth:missionId===journeyDallas19.id ? journeyDallas19.bossHealth : missionId === journeyDallas10.id ? journeyDallas10.bossHealth : missionId === journeyDallas09.id ? journeyDallas09.bossHealth : missionId === journeyDallas08.id ? journeyDallas08.bossHealth : journeyDallas07.bossHealth, attemptId);
+        .run(missionId === journeyDallas23.id?journeyDallas23.bossHealth:missionId===journeyDallas22.id?1100:missionId===journeyDallas21.id?900:missionId===journeyDallas25.id?500:missionId === journeyDallas20.id?journeyDallas20.bossHealth:missionId===journeyDallas19.id ? journeyDallas19.bossHealth : missionId === journeyDallas10.id ? journeyDallas10.bossHealth : missionId === journeyDallas09.id ? journeyDallas09.bossHealth : missionId === journeyDallas08.id ? journeyDallas08.bossHealth : journeyDallas07.bossHealth, attemptId);
       return this.get(pilotId, attemptId)!;
     });
   }

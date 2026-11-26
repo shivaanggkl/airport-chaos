@@ -31,11 +31,13 @@ const source=loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOff
 const zero={x:0,y:0,z:0};
 const encounter=()=>createFinalWarlordEncounter('m24','p',100000,()=>135,[]);
 test('M24 victory, timeout, replay, mission migration, and first-clear credits remain transactional', () => {
+    assert.equal(journeyDallas19.bossHealth,3000);assert.equal(finalWarlordSpecies.health,3000);
+    const monster=encounter();assert.equal(monster.frame.health,3000);disposeM19(monster);
     const dir = mkdtempSync(join(tmpdir(), 'apex-ledger-')), path = join(dir, 'profiles.sqlite'), db = new DatabaseSync(path);
     db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('p',0,0)");
     db.close();
     try {
-        const store = new JourneyAttemptStore(path, true), win = now => { let a = store.launch('p', 'trainer', now, journeyDallas19.id); store.approach('p', a.attemptId, now + 1); assert.equal(store.startTimedGateClock('p', a.attemptId, now + 2), undefined); a = store.startMonsterArrival('p', a.attemptId, now + 3); assert.equal(a.deadlineAt, now + 3 + journeyDallas19.timeLimitMs); assert.equal(store.acceptGate('p', a.attemptId, 0, now + 4), undefined); for (let i = 0; i < 60; i++)
+        const store = new JourneyAttemptStore(path, true), win = now => { let a = store.launch('p', 'trainer', now, journeyDallas19.id); store.approach('p', a.attemptId, now + 1); assert.equal(store.startTimedGateClock('p', a.attemptId, now + 2), undefined); a = store.startMonsterArrival('p', a.attemptId, now + 3); assert.equal(a.deadlineAt, now + 3 + journeyDallas19.timeLimitMs); assert.equal(store.acceptGate('p', a.attemptId, 0, now + 4), undefined); for (let i = 0; i < journeyDallas19.bossHealth / 25; i++)
             a = store.hitMonster('p', a.attemptId, now + 200 + i * 250, 25); assert.equal(a.status, 'COMPLETED'); assert.equal(a.monsterHealth, 0); assert.equal(store.hitMonster('p', a.attemptId, now + 31000, 25), undefined); return a; };
         assert.equal(new JourneyAttemptStore(path, false).canAccessMission('p', 'journey-dallas-24'), false);
         assert.equal(win(1000).firstClearCredits, 4000);
@@ -101,7 +103,7 @@ test('visible M24 retains legacy identity and historical clears without duplicat
   const started=reopened.startMonsterArrival('p',a.attemptId,60002);
   assert.equal(started.deadlineAt,60002+journeyDallas19.timeLimitMs);reopened.pause('p',a.attemptId,60003);
   const resumed=reopened.resume('p',a.attemptId,61003);assert.equal(resumed.attempt.deadlineAt,started.deadlineAt+1000);
-  const result=reopened.hitMonster('p',a.attemptId,61004,1500);assert.equal(result.status,'COMPLETED');assert.equal(result.firstClearCredits,0);
+  const result=reopened.hitMonster('p',a.attemptId,61004,journeyDallas19.bossHealth);assert.equal(result.status,'COMPLETED');assert.equal(result.firstClearCredits,0);
   assert.equal(db.prepare("SELECT credits FROM player_profiles WHERE pilot_id='p'").get().credits,2550);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
 });

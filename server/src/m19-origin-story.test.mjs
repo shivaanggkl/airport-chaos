@@ -1,5 +1,6 @@
 import vm from 'node:vm';
 import * as journeyMissions from '../../shared/journey-mission.mjs';
+import {journeyDisplayGroups} from '../../shared/journey-categories.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,statSync} from 'node:fs';
@@ -61,12 +62,13 @@ test('first/upcoming decode failures bypass safely; cancellation releases pendin
  reset();StoryImage.blocked=true;const cancelled=new ImageStorySequence(parent,scenes),pending=cancelled.prepare();cancelled.dispose();assert.equal(await pending,false);assert.equal(cancelled.pending.size,0);assert.equal(parent.children.length,0);
  reset();const retry=new ImageStorySequence(parent,scenes);assert(await retry.prepare());assert(retry.update(0));assert.equal(retry.caption.textContent,narration[0]);retry.dispose();
 });
-test('story is M19-only, shares the existing launch clock, keeps skip/countdown cleanup, and preserves complete compositions on mobile',()=>{
+test('story precedes the first Dr. Boss mission, shares the launch clock, keeps skip/countdown cleanup, and preserves mobile compositions',()=>{
  const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
  const prepare=main.slice(main.indexOf('async function prepareMonsterMissionIntro'),main.indexOf('function beginFlightLaunchCinematic'));
- assert(prepare.includes('const arrivalIntro=journeyAttempt.missionId===journeyDallas25.id'));assert(prepare.indexOf('if(arrivalIntro){')<prepare.indexOf('new ImageStorySequence'));assert(prepare.includes('if(!ready){story.dispose();missionImageStory=undefined;}'));
+ assert(prepare.includes('const arrivalIntro=journeyAttempt.missionId===journeyDallas25.id'));assert(prepare.includes('if(arrivalIntro||pursuitIntro){'));assert(prepare.includes('if(!ready){story.dispose();missionImageStory=undefined;}'));
  const render=main.slice(main.indexOf('function applyFlightLaunchCamera'),main.indexOf('function applyFlightLaunchCamera')+7500);
  assert(render.includes('elapsed=Math.max(0,elapsed-m19StoryOffsetMs)'));assert(render.includes('missionImageStory.fadeOut()'));assert(render.includes('missionImageStory.failed'));assert(render.includes('flightLaunchStartedAt=now-m19StoryOffsetMs-cut'));
+ assert(render.includes('if(missionImageStory&&!skipped){'),'current Mission 1 must play its prepared story without the obsolete arrival-only gate');
  assert(!render.includes('beginFlightLaunchCinematic()'),'image-to-3D handoff does not restart the cinematic');
  const cleanup=main.slice(main.indexOf('function clearFlightLaunchPresentation'),main.indexOf('function applyFlightLaunchCamera'));
  assert(cleanup.includes('missionImageStory?.dispose();missionImageStory=undefined;m19StoryOffsetMs=0'));assert(cleanup.includes('beginMissionStartCountdown()'));assert(main.includes('flightLaunchSkipStartedAt = now'));assert(main.includes("matchMedia('(prefers-reduced-motion: reduce)')"));
@@ -74,7 +76,26 @@ test('story is M19-only, shares the existing launch clock, keeps skip/countdown 
  assert(css.includes('aspect-ratio: 16 / 9'));assert(css.includes('object-fit: contain'));assert(css.includes('scale(.975)'));assert(css.includes('scale(1)'));assert(css.includes('transition: opacity 250ms'));assert(css.includes('.image-story-caption'));assert(css.includes('color: #fff'));assert(css.includes('prefers-reduced-motion: reduce'));
 });
 
-test('restarting visible M19 launches its own internal mission and resets the complete intro; M24 stays separate',()=>{
+test('current Dr. Boss Mission 1 prepares all story images before its pursuit cinematic; Mission 2 stays separate',async()=>{
+ const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+ const prepare=main.slice(main.indexOf('async function prepareMonsterMissionIntro'),main.indexOf('function renderMissionIntroSummary'))
+   .replace('(attemptId:string):Promise<void>','(attemptId)').replace('new Promise<void>','new Promise');
+ const missions=journeyDisplayGroups.find(group=>group.id==='dr-boss').missionIds;
+ assert.equal(missions[0],journeyMissions.journeyDallas23.id);
+ for(const [index,missionId] of missions.entries()){
+   reset();const parent=new Element(),cameraCalls=[];
+   const view={ready:Promise.resolve(),introRoot:{position:{}},prepareHuntingIntro:(...args)=>cameraCalls.push(args),prepareStationaryIntro:()=>assert.fail('current missions must retain their hunting camera'),setIntroTime(){}};
+   let launches=0;
+   const context=vm.createContext({...journeyMissions,monsterView:view,journeyAttempt:{attemptId:'test',missionId,status:'APPROACH'},flightLaunchState:'pending',airplane:{userData:{assetReady:Promise.resolve()}},obstacleBounds:[],flightGameRoot:parent,ImageStorySequence,M19_ORIGIN_STORY:scenes,missionImageStory:undefined,cityWorld:{},audioManager:{playTone(){}},CombatMissionIntroPath:class{constructor(...args){this.args=args;}},beginFlightLaunchCinematic(){launches++;}});
+   await vm.runInContext(prepare+'\nprepareMonsterMissionIntro("test")',context);
+   assert.equal(launches,1);assert.equal(cameraCalls.length,1);
+   assert.equal(context.missionCombatIntroPath.args[3],false,'story must not change the camera to the old arrival intro');
+   assert.equal(context.missionImageStory?.durationMs,index===0?27000:undefined);
+   if(index===0){assert(context.missionImageStory.update(0));assert.equal(context.missionImageStory.caption.textContent,narration[0]);context.missionImageStory.dispose();}
+ }
+});
+
+test('restarting Dr. Boss launches the same internal mission and resets the complete intro',()=>{
  const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
  const retry=main.slice(main.indexOf('async function retryJourneyMission'),main.indexOf("window.addEventListener('airport-chaos-city-exit'"));
  const start=retry.indexOf('apiUrl(')+7,end=retry.indexOf('), {',start),urlExpression=retry.slice(start,end);
@@ -83,9 +104,9 @@ test('restarting visible M19 launches its own internal mission and resets the co
    const actual=vm.runInNewContext(urlExpression,{...journeyMissions,journeyAttempt:{missionId:id}});
    assert.equal(actual,`/api/journey/dallas/mission-${id.slice(-2)}/launch`,`${id} retries a different mission`);
  }
- assert.equal(journeyMissions.journeyMissionSlot(journeyMissions.journeyDallas25.id),19);
- assert.equal(journeyMissions.journeyMissionSlot(journeyMissions.journeyDallas19.id),24);
- assert(retry.includes('if(journeyAttempt.missionId===journeyDallas25.id)clearFlightLaunchPresentation()'));
+ assert.equal(journeyMissions.journeyMissionSlot(journeyMissions.journeyDallas25.id),0);
+ assert.deepEqual(journeyDisplayGroups.find(group=>group.id==='dr-boss').missionIds,[journeyMissions.journeyDallas23.id,journeyMissions.journeyDallas19.id]);
+ assert(retry.includes('clearFlightLaunchPresentation();'));
  assert(retry.indexOf('clearFlightLaunchPresentation()')<retry.indexOf('monsterView?.dispose()'));
  assert(retry.includes('flightLaunchWelcomeHandled = false'));assert(retry.includes("flightLaunchState = 'pending'"));
  assert(retry.includes('missionStartCountdownPending = true'));

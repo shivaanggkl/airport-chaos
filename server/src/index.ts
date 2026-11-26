@@ -3287,7 +3287,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
     monsterFocusedPlayers.add(playerId);
   else monsterFocusedPlayers.delete(playerId);
   if (((attempt.missionId===journeyDallas19.id||attempt.missionId===journeyDallas25.id||attempt.missionId===journeyDallas21.id||attempt.missionId===journeyDallas22.id||attempt.missionId===journeyDallas23.id)||attempt.missionId===journeyDallas20.id) && attempt.status === 'RACING' && attempt.startedAt !== null) {
-    const encounter = monsterEncounters.get(attempt.attemptId) ?? (attempt.missionId===journeyDallas23.id?createPursuitWarlordEncounter:attempt.missionId===journeyDallas22.id?createShowdownWarlordEncounter:attempt.missionId===journeyDallas21.id?createHuntingWarlordEncounter:attempt.missionId===journeyDallas25.id?createStationaryWarlordEncounter:attempt.missionId===journeyDallas20.id?createStrikingWarlordEncounter:createFinalWarlordEncounter)(attempt.attemptId,playerId,attempt.startedAt,(x,z)=>dallasTerrain.elevationAt(x,z),monsterDistrictBuildings,attempt.monsterHealth??(attempt.missionId===journeyDallas23.id?1000:attempt.missionId===journeyDallas22.id?1100:attempt.missionId===journeyDallas21.id?900:attempt.missionId===journeyDallas25.id?500:attempt.missionId===journeyDallas20.id?700:1500));
+    const encounter = monsterEncounters.get(attempt.attemptId) ?? (attempt.missionId===journeyDallas23.id?createPursuitWarlordEncounter:attempt.missionId===journeyDallas22.id?createShowdownWarlordEncounter:attempt.missionId===journeyDallas21.id?createHuntingWarlordEncounter:attempt.missionId===journeyDallas25.id?createStationaryWarlordEncounter:attempt.missionId===journeyDallas20.id?createStrikingWarlordEncounter:createFinalWarlordEncounter)(attempt.attemptId,playerId,attempt.startedAt,(x,z)=>dallasTerrain.elevationAt(x,z),monsterDistrictBuildings,attempt.monsterHealth??(attempt.missionId===journeyDallas23.id?journeyDallas23.bossHealth:attempt.missionId===journeyDallas22.id?1100:attempt.missionId===journeyDallas21.id?900:attempt.missionId===journeyDallas25.id?500:attempt.missionId===journeyDallas20.id?700:journeyDallas19.bossHealth));
     encounter.playerId = playerId;
     encounter.pilotId=players.get(playerId)?.pilotId??encounter.pilotId;
     monsterEncounters.set(attempt.attemptId, encounter);
@@ -8371,7 +8371,7 @@ function resetHumanToSafeRunway(playerId: string, player: PlayerState, profile: 
 
 function journeyUsesReverseRunway(missionId?: string): boolean {
   const slot = missionId ? journeyCategorySlot(missionId) : undefined;
-  return missionId === journeyDallas19.id || (slot?.categoryId === 'plane-battles' || slot?.categoryId === 'territory-missions') && slot.kind === 'main';
+  return missionId === journeyDallas19.id || missionId === journeyDallas23.id || (slot?.categoryId === 'plane-battles' || slot?.categoryId === 'territory-missions') && slot.kind === 'main';
 }
 
 function expectedInitialTransform(cityId: CityId, spawnSlot: number, generic: Vector3, airportId = 'dfw', reverseRunway = false): Vector3 {
