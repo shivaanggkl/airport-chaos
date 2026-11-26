@@ -49,7 +49,7 @@ export class AshenWarlordModel {
     private fallback = 'idle';
     private clock = 0;
     private introTime: number | null = null;
-    private strikingIntro?:{position:THREE.Vector3;yaw:number;walk?:{startTime:number;distance:number;yaw:number;showdown:boolean;pursuit:boolean;final:boolean};last?:AuthoredAnimation;previous?:AuthoredAnimation;transitionAt:number};
+    private strikingIntro?:{returnPosition?:THREE.Vector3;position:THREE.Vector3;yaw:number;walk?:{startTime:number;distance:number;yaw:number;showdown:boolean;pursuit:boolean;final:boolean};last?:AuthoredAnimation;previous?:AuthoredAnimation;transitionAt:number};
     prepareStrikingIntro():void {
         if(!this.striking||this.hunting||this.frame||this.strikingIntro)return;
         this.strikingIntro={position:this.root.position.clone(),yaw:this.root.rotation.y,transitionAt:0};
@@ -58,9 +58,14 @@ export class AshenWarlordModel {
     prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false,pursuit=false,final=false):void {
         if(!this.hunting||this.pursuit!==pursuit||this.frame||this.strikingIntro)return;
         const position=this.root.position.clone(),yaw=this.root.rotation.y,clip=model.clips.walk!;
-        const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<model.height*(pursuit?6:2)+Math.hypot(o.halfX,o.halfZ));
-        for(const phase of [0,.5,.75]){
-            this.strikingIntro={position,yaw,walk:{startTime:clip.duration*phase,distance:pursuit?(final?m24Travel(7,clip.duration*phase):m23Travel(7,clip.duration*phase)):m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase),yaw:Math.PI/2,showdown,pursuit,final},transitionAt:0};
+        const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<this.height*(pursuit?6:2)+Math.hypot(o.halfX,o.halfZ));
+        const directions=this.height>model.height?[Math.PI/2,0,Math.PI,-Math.PI/2,Math.PI/4,-Math.PI/4]:[Math.PI/2];
+        // A larger body needs a wider clear approach; cinematic placement never moves the server actor.
+        const endpoints=[position];
+        if(this.height>model.height)for(const distance of [4000,8000])for(const angle of directions)
+            endpoints.push(new THREE.Vector3(position.x+Math.sin(angle)*distance,position.y,position.z+Math.cos(angle)*distance));
+        for(const endpoint of endpoints)for(const direction of directions)for(const phase of [0,.5,.75]){
+            this.strikingIntro={position:endpoint,returnPosition:position,yaw,walk:{startTime:clip.duration*phase,distance:this.height/model.height*(pursuit?(final?m24Travel(7,clip.duration*phase):m23Travel(7,clip.duration*phase)):m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase)),yaw:direction,showdown,pursuit,final},transitionAt:0};
             let clear=true;
             for(let step=0;step<=(final?192:128)&&clear;step++){this.applyStrikingIntro(step/8);if(this.introPoseObstructed(nearby))clear=false;}
             if(clear){this.strikingIntro.last=undefined;this.strikingIntro.previous=undefined;this.strikingIntro.transitionAt=0;this.introTime=0;this.applyStrikingIntro(0);this.grounded=[false,false];return;}
@@ -85,7 +90,7 @@ export class AshenWarlordModel {
         this.root.rotation.y=intro.yaw+motion.yawOffset;
         if(intro.walk){
             const walkMotion=motion as ReturnType<typeof m21IntroMotion>;
-            const remaining=intro.walk.distance-(intro.walk.pursuit?(intro.walk.final?m24Travel(seconds,intro.walk.startTime):m23Travel(seconds,intro.walk.startTime)):m19WalkDistance(walkMotion.walkTime)-m19WalkDistance(intro.walk.startTime));
+            const remaining=intro.walk.distance-this.height/model.height*(intro.walk.pursuit?(intro.walk.final?m24Travel(seconds,intro.walk.startTime):m23Travel(seconds,intro.walk.startTime)):m19WalkDistance(walkMotion.walkTime)-m19WalkDistance(intro.walk.startTime));
             this.root.position.set(intro.position.x-Math.sin(intro.walk.yaw)*remaining,intro.position.y,intro.position.z-Math.cos(intro.walk.yaw)*remaining);
             this.root.position.y=this.groundAt?.(this.root.position.x,this.root.position.z)??intro.position.y;
             this.root.rotation.y=intro.walk.yaw+motion.yawOffset;
@@ -103,7 +108,7 @@ export class AshenWarlordModel {
         this.introTime=seconds;
         if(seconds===null&&this.strikingIntro){
             const saved=this.strikingIntro;this.strikingIntro=undefined;
-            this.root.position.copy(saved.position);this.root.rotation.y=saved.yaw;
+            this.root.position.copy(saved.returnPosition??saved.position);this.root.rotation.y=saved.yaw;
             this.apply({clip:model.clips.idle!.name,time:0,blend:1,offsetY:0});this.groundIntroPose();
         }
         if(seconds===null&&this.arrivalIntro){
@@ -120,7 +125,7 @@ export class AshenWarlordModel {
         const position=this.root.position.clone(),yaw=this.root.rotation.y,clip=model.clips.walk!;
         // Approach east along the existing open west-Trinity corridor into downtown.
         const walkYaw=Math.PI/2;
-        const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<model.height*2+Math.hypot(o.halfX,o.halfZ));
+        const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<this.height*2+Math.hypot(o.halfX,o.halfZ));
         // Prefer a slow full step; shorten to its final planted portion if scenery requires it.
         for(const phase of [0,.5,.75]){
             this.arrivalIntro={position,yaw,walkYaw,startTime:clip.duration*phase,distance:m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase)};
@@ -161,8 +166,8 @@ export class AshenWarlordModel {
     private footAt = [-10, -10];
     private temp = new THREE.Vector3();
     private core = new THREE.Vector3();
-    constructor(source?: Promise<GLTF>,private readonly stationary=false,private readonly striking=false,private readonly hunting=false,private readonly pursuit=false,originalCombat=false) { this.ready = (source ?? load()).then(g => { if (this.disposed)
-        return; const object = cloneSkeleton(g.scene) as THREE.Group; object.name = 'ashen-warlord-supplied-mixamo'; object.scale.setScalar(model.height); this.instance = object; this.root.add(object); object.traverse(o => { if (o instanceof THREE.SkinnedMesh) {
+    constructor(source?: Promise<GLTF>,private readonly stationary=false,private readonly striking=false,private readonly hunting=false,private readonly pursuit=false,originalCombat=false,readonly height=model.height) { this.ready = (source ?? load()).then(g => { if (this.disposed)
+        return; const object = cloneSkeleton(g.scene) as THREE.Group; object.name = 'ashen-warlord-supplied-mixamo'; object.scale.setScalar(this.height); this.instance = object; this.root.add(object); object.traverse(o => { if (o instanceof THREE.SkinnedMesh) {
         this.mesh = o;
         o.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, .55, 0), 1.8);
         const clone = (m: THREE.Material) => { const copy = (m as THREE.MeshStandardMaterial).clone(); this.materials.push(copy); return copy; };
@@ -250,7 +255,7 @@ export class AshenWarlordModel {
     if(a.locomotion){const lower=this.actions.get(a.locomotion.clip+'#lower');if(lower){lower.enabled=true;lower.time=a.locomotion.time;lower.setEffectiveWeight(1);}}
     this.mixer.update(0);
     for(const b of this.aimBones){b.base.copy(b.bone.quaternion);const aim=a.aim?.find(x=>x.node===b.node);if(aim){b.bone.quaternion.toArray(this.aimInput);applyTitanJointAim(this.aimInput,aim.yaw,aim.pitch,this.aimOutput);b.bone.quaternion.fromArray(this.aimOutput);}}
-    this.instance.position.y = a.offsetY * model.height; this.root.updateMatrixWorld(true); this.mesh?.skeleton.update(); }
+    this.instance.position.y = a.offsetY * this.height; this.root.updateMatrixWorld(true); this.mesh?.skeleton.update(); }
     update(dt: number, _distance: number, _hitPulse: number): void {
         if (!this.instance || this.disposed)
             return;
@@ -313,7 +318,7 @@ export class AshenWarlordModel {
         if(this.introTime!==null&&this.instance&&((this.arrivalIntro&&this.introTime>=M19_INTRO.reveal&&this.introTime<M19_INTRO.walkEnd)||(this.strikingIntro?.walk&&this.introTime>=M21_INTRO.walkStart&&this.introTime<(this.strikingIntro.walk.pursuit?7:4))))
             for(const [i,key] of ['foot-left','foot-right'].entries()){
                 this.instance.getObjectByName(model.bones[key]!)!.getWorldPosition(this.temp);
-                const low=this.temp.y-(this.groundAt?.(this.temp.x,this.temp.z)??this.root.position.y)<model.height*.09;
+                const low=this.temp.y-(this.groundAt?.(this.temp.x,this.temp.z)??this.root.position.y)<this.height*.09;
                 if(low&&!this.grounded[i]&&this.clock-this.footAt[i]!>.3){this.footAt[i]=this.clock;this.onFootContact?.(this.temp);}
                 this.grounded[i]=low;
             }

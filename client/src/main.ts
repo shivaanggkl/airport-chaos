@@ -26,6 +26,7 @@ import {M19_ORIGIN_STORY} from './m19-origin-story';
 import {M2_DR_BOSS_STORY} from './m2-dr-boss-story';
 import {M19_INTRO,M19_DOWNTOWN,m19IntroText} from './m19-intro';
 import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
+import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
 import { CombatMissionIntroPath } from './mission-combat-intro';
 import { HunterMotionBuffer } from '../../shared/hunter-motion.mjs';
 import { journeyMissionSlot, journeyCatalog, isMonsterJourneyMission } from '../../shared/journey-mission.mjs';
@@ -13217,7 +13218,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       else if(message.titan?.ability&&['WARNING','WINDUP'].includes(message.titan.ability.stage)&&journeyHudObjective){const names:Record<string,string>={'energy-beam':'CRIMSON CORE BEAM','fireball-barrage':'ENERGY BOLT BARRAGE','hand-strike':'METEOR PUNCH','ground-smash':'GROUND BREAKER','charging-rampage':'TITAN CHARGE','roaring-shockwave':'GORILLA ROAR','two-hand-clap':'TITAN CLAP'};journeyHudObjective.textContent=`DODGE · ${(journeyAttempt.missionId===journeyDallas20.id||journeyAttempt.missionId===journeyDallas21.id||journeyAttempt.missionId===journeyDallas22.id||journeyAttempt.missionId===journeyDallas23.id||journeyAttempt.missionId===journeyDallas19.id)?(message.titan.ability.id==='fireball-barrage'?'ENERGY SHOT':message.titan.ability.id==='charging-rampage'?'TITAN CHARGE':'PUNCH'):names[message.titan.ability.id]??message.titan.ability.id.toUpperCase()}`;}
       else if(journeyHudObjective)journeyHudObjective.textContent=(journeyAttempt.missionId===journeyDallas20.id||journeyAttempt.missionId===journeyDallas21.id||journeyAttempt.missionId===journeyDallas22.id||journeyAttempt.missionId===journeyDallas23.id||journeyAttempt.missionId===journeyDallas19.id)?'DEFEAT THE MONSTER':'DESTROY THE MONSTER';
       if (missionObjective?.id === `${message.attemptId}:monster`)
-        missionObjective.position.set(message.x, message.y + ((journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id||journeyAttempt?.missionId===journeyDallas20.id)?ashenWarlordModel.height:journeyDallas19.monster.height) * .6, message.z);
+        missionObjective.position.set(message.x, message.y + ((journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id||journeyAttempt?.missionId===journeyDallas20.id)?ashenWarlordModel.height*(journeyAttempt?.missionId===journeyDallas19.id?pursuitWarlord.finalSizeScale:1):journeyDallas19.monster.height) * .6, message.z);
     }
     return;
   }
@@ -13547,7 +13548,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       : ((message.attempt.missionId===journeyDallas19.id||message.attempt.missionId===journeyDallas25.id||message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id)||message.attempt.missionId===journeyDallas20.id) && (message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING')
         ? { id: `${message.attempt.attemptId}:monster`, label: 'MONSTER', dock: monsterBossHud,
             position: new THREE.Vector3(journeyDallas19.monster.x,
-              getTerrainHeight(journeyDallas19.monster.x, journeyDallas19.monster.z) + ((journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id||journeyAttempt?.missionId===journeyDallas20.id)?ashenWarlordModel.height:journeyDallas19.monster.height) * .6,
+              getTerrainHeight(journeyDallas19.monster.x, journeyDallas19.monster.z) + ((journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id||journeyAttempt?.missionId===journeyDallas20.id)?ashenWarlordModel.height*(journeyAttempt?.missionId===journeyDallas19.id?pursuitWarlord.finalSizeScale:1):journeyDallas19.monster.height) * .6,
               journeyDallas19.monster.z), radius: 180 }
       : message.attempt.missionId === journeyDallas04.id
         ? (() => { const gate = confirmedGateObjective(message.attempt, journeyDallas04.gates, getTerrainHeight);
