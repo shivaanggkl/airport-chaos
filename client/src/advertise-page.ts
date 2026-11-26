@@ -27,14 +27,14 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
         <div class="adp-hero-copy"><h1 id="adp-title">ADVERTISE IN AIRPORT CHAOS</h1>
           <p>Put your brand where players fly.</p>
           <button class="adp-button context-action context-action--gold" type="button" data-to-form>JOIN WAITLIST</button>
-        </div><img class="adp-hero-image" src="/media/advertise/dfw-terminal.jpg" alt="Real Airport Chaos gameplay near Dallas DFW Airport" width="1280" height="720" fetchpriority="high" />
+        </div><img class="adp-hero-image" src="/media/advertise/firehawk-airport.jpg" alt="Firehawk flying past the real DFW airport advertising banner in Airport Chaos" width="1280" height="720" fetchpriority="high" />
       </section>
       <section id="opportunities" class="adp-section" aria-labelledby="adp-opportunities-title">
         <h2 id="adp-opportunities-title">ADVERTISING PACKAGES</h2>
         <p class="adp-availability">Planned introductory prices, subject to change before launch. Packages cannot be purchased or reserved yet.</p>
         <div class="adp-cards">
           ${advertisingPackages.map((item, index) => `<article class="adp-card adp-panel">
-            <img src="/media/advertise/${index === 0 ? 'hub' : 'love-field'}.jpg" alt="${index === 0 ? 'The real Airport Chaos Pilot Hub' : 'Real Dallas advertising near Love Field'}" loading="lazy" width="1280" height="720" />
+            <img src="/media/advertise/${index === 0 ? 'hub-current' : 'firehawk-highway'}.jpg" alt="${index === 0 ? 'The real Airport Chaos Pilot Hub' : 'Firehawk approaching an existing Dallas highway billboard'}" loading="lazy" width="1280" height="720" />
             <div><span class="adp-package-status">COMING SOON</span><h3>${item.name.toUpperCase()}</h3>
               <p class="adp-package-price"><strong>$${item.plannedUsd}</strong> / ${item.durationDays} days <small>Planned introductory price</small></p>
               <p>${index === 0 ? 'Show your brand in the Airport Chaos Pilot Hub.' : 'Get your brand seen across selected advertising locations in Dallas.'}</p>
@@ -43,7 +43,9 @@ export function mountAdvertiseExperience(root: HTMLElement, options: Options): {
             </div></article>`).join('')}
         </div>
         <div class="adp-network adp-panel" aria-labelledby="adp-network-title"><h3 id="adp-network-title">WHERE YOUR BRAND COULD APPEAR</h3>
-          <div class="adp-network-content"><figure><img src="/media/advertise/dallas-highway.png" alt="Existing Airport Chaos highway billboard near the DFW north arrival route" loading="lazy" width="1280" height="720" /><figcaption>Real game view · Dallas highway billboard</figcaption></figure>
+          <div class="adp-network-content">
+            <figure><img src="/media/advertise/firehawk-rooftop.jpg" alt="Firehawk beside an existing downtown Dallas rooftop billboard" loading="lazy" width="1600" height="900" /><figcaption>Real game view · Downtown rooftop billboard</figcaption></figure>
+            <figure><img src="/media/advertise/firehawk-blimp.jpg" alt="Firehawk flying beside an existing Dallas advertising blimp and sky banners" loading="lazy" width="1600" height="900" /><figcaption>Real game view · Advertising blimp and sky banners</figcaption></figure>
             <ul class="adp-formats"><li><strong>Airport signs</strong><span>Airport-area signage.</span></li><li><strong>Highway billboards</strong><span>Signs along city roads.</span></li><li><strong>Rooftop billboards</strong><span>Signs above buildings.</span></li><li><strong>Building advertisements</strong><span>Advertising on building surfaces.</span></li><li><strong>Floating sky banners</strong><span>Airborne advertising displays.</span></li><li><strong>Advertising blimps</strong><span>Advertising on city blimps.</span></li></ul>
           </div><p class="adp-network-note">Potential future opportunities only. Final coverage requires location-specific QA and approval. No Dallas placements have commercial authorization.</p>
         </div>
