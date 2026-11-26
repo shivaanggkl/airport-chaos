@@ -3765,7 +3765,14 @@ function presentMonsterResult(result:JourneyAttemptState):void {
   clearHeldActions();mobileInput.reset();boostActive=false;runStarted=false;
   cinematicDirector.clearPresentation();journeyResultElement.classList.add('hidden');
   try{
-    dallasFinale=new DallasFinale(renderer,flightGameRoot,type=>createAirplane(type),disposeAirplaneMaterials,()=>{
+    const downtown=new THREE.Vector3(M19_DOWNTOWN.x,getTerrainHeight(M19_DOWNTOWN.x,M19_DOWNTOWN.z),M19_DOWNTOWN.z);
+    const still=new THREE.Vector3();
+    dallasFinale=new DallasFinale(renderer,scene,downtown,(finaleCamera,delta)=>{
+      if(cityWorld.updateWorldStreaming)cityWorld.updateWorldStreaming(downtown,still);
+      else updateOsmCityChunks(downtown);
+      cityWorld.updateWorldVisuals?.(delta,downtown);
+      skyDome.position.copy(finaleCamera.position);
+    },flightGameRoot,type=>createAirplane(type),disposeAirplaneMaterials,()=>{
       dallasFinale=undefined;dallasFinaleAttemptId=null;dallasFinaleFinishedAttemptId=result.attemptId;
       if(journeyAttempt?.attemptId===result.attemptId&&journeyAttempt.status==='COMPLETED')showJourneyResult(result);
     });
@@ -13009,7 +13016,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
     url.searchParams.set('entry', 'journey');
     if (journeyAttempt?.status === 'COMPLETED') {
       url.searchParams.set('journeyReceipt', journeyAttemptId);
-      storeJourneyRewardReceipt(journeyAttemptId, persistedPlayer.pilotId, journeyAttempt.firstClearCredits);
+      storeJourneyRewardReceipt(journeyAttemptId, persistedPlayer.pilotId, journeyAttempt.firstClearCredits, journeyAttempt.missionId===journeyDallas19.id?journeyAttempt.missionId:undefined);
     }
   } else if (skyDuelMode) url.searchParams.set('entry', 'multiplayer');
   missionObjectiveGuidance?.dispose();

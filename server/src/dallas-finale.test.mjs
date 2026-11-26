@@ -21,9 +21,12 @@ function fixture(reduced=false){
  const context=vm.createContext({THREE,exports:{},DALLAS_FINALE,createFinaleFlights,finalePhase,cinematicImpactTexture,document,HTMLElement:Element,
   window:{matchMedia:()=>({matches:reduced}),addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)}});
  vm.runInContext(compiled,context);const planes=[],disposed=[];let completions=0,renders=0;
- const renderer={getSize:v=>v.set(1280,589),render(){renders++;}},host=new Element();
- const finale=new context.exports.DallasFinale(renderer,host,type=>{planes.push(type);const plane=new THREE.Group();plane.add(new THREE.Mesh(new THREE.BoxGeometry(12,3,17),new THREE.MeshBasicMaterial()));return plane;},plane=>disposed.push(plane),()=>completions++);
- return {finale,document,listeners,planes,disposed,host,get completions(){return completions;},get renders(){return renders;}};
+ const scene=new THREE.Scene(),city=new THREE.Mesh(new THREE.BoxGeometry(),new THREE.MeshBasicMaterial());scene.add(city);
+ let prepared=0;
+ const viewport=new THREE.Vector2(1280,589);
+ const renderer={getSize:v=>v.copy(viewport),render(world){assert.equal(world,scene);renders++;}},host=new Element();
+ const finale=new context.exports.DallasFinale(renderer,scene,new THREE.Vector3(1000,100,2000),()=>prepared++,host,type=>{planes.push(type);const plane=new THREE.Group();plane.add(new THREE.Mesh(new THREE.BoxGeometry(12,3,17),new THREE.MeshBasicMaterial()));return plane;},plane=>disposed.push(plane),()=>completions++);
+ return {finale,document,listeners,planes,disposed,host,scene,city,viewport,get prepared(){return prepared;},get completions(){return completions;},get renders(){return renders;}};
 }
 test('three aircraft write the exact VICTORY strokes on continuous paths with bounded smoke',()=>{
  assert.equal(DALLAS_VICTORY_WORD,'VICTORY');const flights=createFinaleFlights();assert.equal(flights.length,3);
@@ -44,20 +47,40 @@ test('smoke becomes solid crimson then gold, celebration covers the screen, and 
  for(let i=0;i<75;i++)f.finale.update(.05);
  assert.equal(finalePhase(f.finale.age),'achievement');assert(f.finale.achievement.children.some(e=>e.textContent==='DALLAS SAVED'));assert(f.finale.achievement.children.some(e=>e.textContent==='See you in California.'));
  for(let i=0;i<90;i++)f.finale.update(.05);
- assert.equal(f.completions,1);assert.equal(f.finale.active,false);assert.equal(f.disposed.length,3);assert.equal(f.listeners.size,0);assert.equal(f.finale.scene.children.length,0);
+ assert.equal(f.completions,1);assert.equal(f.finale.active,false);assert.equal(f.disposed.length,3);assert.equal(f.listeners.size,0);assert.deepEqual(f.scene.children,[f.city]);assert.equal(f.prepared,f.renders);
  f.finale.update(.05);f.finale.dispose();assert.equal(f.completions,1);
+});
+test('the existing Dallas scene stays intact, planes are larger, and downtown stays below the skywriting',async()=>{
+ const f=fixture();await Promise.resolve();
+ assert.equal(f.finale.formation.parent,f.scene);
+ for(const pilot of f.finale.pilots){
+  pilot.root.updateWorldMatrix(true,true);
+  const size=new THREE.Box3().setFromObject(pilot.aircraft).getSize(new THREE.Vector3());
+  assert(Math.abs(Math.max(size.x,size.y,size.z)-1500)<1e-6);
+ }
+ for(const [width,height] of [[1280,589],[390,844],[844,390],[1024,768]]){
+  f.viewport.set(width,height);f.finale.update(.05);const camera=f.finale.camera;camera.updateMatrixWorld();
+  const ground=new THREE.Vector3(1000,100,2000).project(camera);
+  const word=f.finale.formation.localToWorld(new THREE.Vector3(0,12,0)).project(camera);
+  assert(ground.y> -1&&ground.y<word.y,'downtown must remain in frame below the writing');
+  for(const point of [new THREE.Vector3(-196,12,0),new THREE.Vector3(196,77,0)]){
+   const projected=f.finale.formation.localToWorld(point).project(camera);
+   assert(Math.abs(projected.x)<1&&Math.abs(projected.y)<1,'the full word must fit the viewport');
+  }
+ }
+ f.finale.dispose();assert.deepEqual(f.scene.children,[f.city]);assert.equal(f.city.geometry.attributes.position.count,24);
 });
 test('backgrounding pauses the finale, reduced motion keeps a stable camera, and Skip completes safely',async()=>{
  const f=fixture(true);await Promise.resolve();f.document.hidden=true;f.finale.update(.05);assert.equal(f.finale.age,0);assert.equal(f.renders,0);
- f.document.hidden=false;f.finale.update(.05);assert.equal(f.finale.camera.position.x,0);
+ f.document.hidden=false;f.finale.update(.05);assert.equal(f.finale.camera.position.x,1000);
  f.listeners.get('keydown')({code:'Escape',stopImmediatePropagation(){},preventDefault(){}});assert.equal(f.completions,1);assert.equal(f.finale.active,false);
 });
 const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8'),mainTree=ts.createSourceFile('main.ts',main,ts.ScriptTarget.Latest,true);
 const flow=ts.transpileModule(mainTree.statements.filter(n=>ts.isFunctionDeclaration(n)&&['presentMonsterResult','clearDallasFinale'].includes(n.name?.text)).map(n=>n.getText(mainTree)).join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 function resultFixture(missionId='journey-dallas-19',status='COMPLETED'){
  const shown=[],instances=[],result={attemptId:'a',missionId,status};
- class FakeFinale{active=true;constructor(_renderer,_host,_create,_dispose,complete){this.finish=complete;instances.push(this);}dispose(){this.active=false;}}
- const ctx=vm.createContext({journeyAttempt:result,journeyDallas19:{id:'journey-dallas-19'},DallasFinale:FakeFinale,dallasFinale:undefined,dallasFinaleAttemptId:null,dallasFinaleFinishedAttemptId:null,renderer:{},flightGameRoot:{},
+ class FakeFinale{active=true;constructor(_renderer,_scene,_anchor,_prepare,_host,_create,_dispose,complete){this.finish=complete;instances.push(this);}dispose(){this.active=false;}}
+ const ctx=vm.createContext({journeyAttempt:result,journeyDallas19:{id:'journey-dallas-19'},DallasFinale:FakeFinale,dallasFinale:undefined,dallasFinaleAttemptId:null,dallasFinaleFinishedAttemptId:null,renderer:{},scene:{},M19_DOWNTOWN:{x:0,z:0},THREE,getTerrainHeight:()=>0,flightGameRoot:{},
   disposeAirplaneMaterials(){},createAirplane:()=>new THREE.Group(),clearHeldActions(){},mobileInput:{reset(){}},cinematicDirector:{clearPresentation(){}},journeyResultElement:{classList:{add(){}}},showJourneyResult:r=>shown.push(r),audioManager:{playOnce(){}},console});
  vm.runInContext(flow,ctx);return {ctx,result,shown,instances};
 }
