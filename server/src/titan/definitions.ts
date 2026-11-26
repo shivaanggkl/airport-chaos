@@ -34,6 +34,7 @@ export type Ability = TitanTiming & {
     /** Number of projectiles released together in each staggered wave. */
     burstSize?: number;
     spread?: number;
+    spreadPattern?: 'fan' | 'cluster';
     tracking?: number;
     directional?: boolean;
     horizontalCone?: boolean;
@@ -71,7 +72,7 @@ export type Species = {
     stationary?: {roarDuration:number;roarInterval:number;firstRoarAfter?:number;idlePunchDuration?:number;actionRestSeconds?:number};
     hunting?: {roarInterval:number;roarSeconds:number;combatDistance:number;roamRadius:number;decisionInterval?:number;restSeconds?:number;restVariation?:number;flankDistance?:number;repositionSeconds?:number;runSeconds?:number;runCooldown?:number;runDistance?:number;approachBeforeShot?:boolean};
     anchored?: {jumpInterval:number;jumpBend:number;jumpSeconds:number;landSeconds:number;jumpHeight:number;roarInterval:number;roarSeconds:number};
-    director?: { combatDistance?: number; maintainCombatDistance?: boolean; commitment: number; retreatMin: number; retreatMax: number; retreatDuration: number; reengageDuration: number; attackSpacing: number; pressureThreshold: number; facing: number };
+    director?: { roarInterval?: number; roarDuration?: number; combatDistance?: number; maintainCombatDistance?: boolean; commitment: number; retreatMin: number; retreatMax: number; retreatDuration: number; reengageDuration: number; attackSpacing: number; pressureThreshold: number; facing: number };
     animations: readonly string[];
     movement: {
         walk: number;
@@ -146,6 +147,7 @@ export class SpeciesRegistry {
         if ([s.movement.runStride, s.movement.reverseStride, s.movement.lateralStride, s.movement.turnStrideRadius, s.movement.repositionDistance, s.movement.intentDuration, s.movement.idleBetweenActions].some(n => n !== undefined && (!finite(n) || n <= 0)))
             throw Error('Invalid gait limits');
         if(s.director&&(!Object.entries(s.director).every(([key,n])=>key==='maintainCombatDistance'?typeof n==='boolean':finite(n as number)&&(n as number)>0)||s.director.retreatMax<s.director.retreatMin||s.director.facing>Math.PI))throw Error('Invalid combat director');
+        if(s.director&&(s.director.roarInterval!==undefined||s.director.roarDuration!==undefined)&&(!s.director.roarInterval||!s.director.roarDuration||s.director.roarInterval<s.director.roarDuration))throw Error('Invalid director roar timing');
         if (!s.joints.body)
             throw Error('Missing root body joint');
         if (!['aggressive', 'defensive', 'balanced'].includes(s.personality) || [s.movement.jumpSpeed, s.movement.chargeSpeed, s.movement.stepHeight, s.arena.maxSlope].some(n => !finite(n) || n < 0))
@@ -180,6 +182,7 @@ export class SpeciesRegistry {
                 throw Error('Sweep exceeds registered limb capabilities');
             if (a.mechanism === 'leap' && s.movement.jumpSpeed <= 0 || a.mechanism === 'charge' && s.movement.chargeSpeed <= 0)
                 throw Error('Unsupported locomotion');
+            if(a.spreadPattern!==undefined&&!['fan','cluster'].includes(a.spreadPattern))throw Error('Invalid projectile spread pattern');
             if ([a.spread ?? 0, a.tracking ?? 0].some(n => !finite(n) || n < 0))
                 throw Error('Invalid optional ability value');
             if (a.mechanism === 'beam' && (!finite(a.tracking ?? 0) || (a.tracking ?? 0) < 0))

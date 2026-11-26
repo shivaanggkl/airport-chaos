@@ -1,3 +1,4 @@
+import {titanProjectileDirection} from '../../shared/titan-projectiles.mjs';
 import {M24_INTRO} from './m24-intro';
 import {M23_INTRO} from './m23-intro';
 import {M22_INTRO} from './m22-intro';
@@ -161,7 +162,7 @@ export class MonsterArrivalView {
   }
   private clearStrikingIntro():void {
     if(!this.strikingIntroEnabled)return;
-    const shotCount=3;
+    const shotCount=this.pursuitIntroEnabled&&!this.finalIntroEnabled?6:3;
     this.strikingIntroEnabled=false;this.huntingIntroEnabled=false;this.showdownIntroEnabled=false;this.pursuitIntroEnabled=false;this.finalIntroEnabled=false;this.introFootstepTime=-Infinity;this.mouthFire.visible=false;if(this.castingHand)this.castingHand.visible=false;
     for(let i=0;i<shotCount;i++){
       const shot=this.pool[i]!;shot.group.visible=false;shot.group.scale.setScalar(1);
@@ -171,7 +172,7 @@ export class MonsterArrivalView {
   }
   private updateStrikingIntro():void {
     const timing=this.finalIntroEnabled?M24_INTRO:this.pursuitIntroEnabled?M23_INTRO:this.showdownIntroEnabled?M22_INTRO:this.huntingIntroEnabled?M21_INTRO:M20_INTRO;
-    const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!,shotCount=3;
+    const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!,cluster=this.pursuitIntroEnabled&&!this.finalIntroEnabled,shotCount=cluster?6:3;
     actor.handPosition('left',this.introFistWorld);
     if(!this.huntingIntroEnabled&&t>=M20_INTRO.land&&!this.introLanded){this.introLanded=true;this.particles.emit(actor.root.position.x,actor.root.position.y,actor.root.position.z,true,14,95,1.5);this.onFootfall?.();}
     if(this.huntingIntroEnabled&&(!this.pursuitIntroEnabled||this.finalIntroEnabled)&&t>=timing.punch&&!this.introPunchWarned){this.introPunchWarned=true;this.onWarning?.();}
@@ -193,7 +194,10 @@ export class MonsterArrivalView {
         visual.id=null;visual.spawnPending=false;
         // Keep slot zero centered for the existing camera-follow path. The
         // outer rounds use the same ±0.03-radian spread as M20–M24 combat.
-        if(i>0){
+        if(cluster){
+          const direction=titanProjectileDirection(shot.direction,i,shotCount,.03,'cluster');
+          visual.direction.set(direction.x,direction.y,direction.z);
+        }else if(i>0){
           const angle=i===1?-.03:.03,c=Math.cos(angle),s=Math.sin(angle),d=shot.direction;
           visual.direction.set(d.x*c+d.z*s,d.y,d.z*c-d.x*s);
         }

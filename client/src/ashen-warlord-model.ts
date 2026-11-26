@@ -60,7 +60,7 @@ export class AshenWarlordModel {
         const position=this.root.position.clone(),yaw=this.root.rotation.y,clip=model.clips.walk!;
         const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<model.height*(pursuit?6:2)+Math.hypot(o.halfX,o.halfZ));
         for(const phase of [0,.5,.75]){
-            this.strikingIntro={position,yaw,walk:{startTime:clip.duration*phase,distance:pursuit?m23Travel(7,clip.duration*phase):m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase),yaw:Math.PI/2,showdown,pursuit,final},transitionAt:0};
+            this.strikingIntro={position,yaw,walk:{startTime:clip.duration*phase,distance:pursuit?m23Travel(7,clip.duration*phase,final):m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase),yaw:Math.PI/2,showdown,pursuit,final},transitionAt:0};
             let clear=true;
             for(let step=0;step<=(final?192:128)&&clear;step++){this.applyStrikingIntro(step/8);if(this.introPoseObstructed(nearby))clear=false;}
             if(clear){this.strikingIntro.last=undefined;this.strikingIntro.previous=undefined;this.strikingIntro.transitionAt=0;this.introTime=0;this.applyStrikingIntro(0);this.grounded=[false,false];return;}
@@ -85,7 +85,7 @@ export class AshenWarlordModel {
         this.root.rotation.y=intro.yaw+motion.yawOffset;
         if(intro.walk){
             const walkMotion=motion as ReturnType<typeof m21IntroMotion>;
-            const remaining=intro.walk.distance-(intro.walk.pursuit?m23Travel(seconds,intro.walk.startTime):m19WalkDistance(walkMotion.walkTime)-m19WalkDistance(intro.walk.startTime));
+            const remaining=intro.walk.distance-(intro.walk.pursuit?m23Travel(seconds,intro.walk.startTime,intro.walk.final):m19WalkDistance(walkMotion.walkTime)-m19WalkDistance(intro.walk.startTime));
             this.root.position.set(intro.position.x-Math.sin(intro.walk.yaw)*remaining,intro.position.y,intro.position.z-Math.cos(intro.walk.yaw)*remaining);
             this.root.position.y=this.groundAt?.(this.root.position.x,this.root.position.z)??intro.position.y;
             this.root.rotation.y=intro.walk.yaw+motion.yawOffset;
