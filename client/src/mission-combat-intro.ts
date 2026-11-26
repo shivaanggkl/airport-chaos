@@ -1,5 +1,7 @@
 import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
 import {M24_INTRO} from './m24-intro';
+import {M2_TIMEOUT} from './monster-timeout';
+import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
 import {M23_INTRO} from './m23-intro';
 import {M22_INTRO} from './m22-intro';
 import {M21_INTRO} from './m21-intro';
@@ -24,12 +26,13 @@ export class CombatMissionIntroPath {
   private readonly downtown=new THREE.Vector3(M19_DOWNTOWN.x,0,M19_DOWNTOWN.z);
   private readonly departureDirection = new THREE.Vector3();
   constructor(readonly opponent: THREE.Group, private readonly player: THREE.Group, readonly missionNumber: 7 | 8 | 9 | 10 | 11 | 12 | 15 | 19 | 20 | 26 = 7,readonly arrivalIntro=false,readonly strikingIntro=false,private readonly introFist?:THREE.Vector3,private readonly introShot?:THREE.Vector3,readonly huntingIntro=false,readonly showdownIntro=false,readonly pursuitIntro=false,private readonly introFootstep?:()=>number,readonly finalIntro=false,private readonly secondOpponent?:THREE.Group) {
+    if(finalIntro)this.downtown.set(M2_TIMEOUT.downtown.x,0,M2_TIMEOUT.downtown.z);
     this.opponentOrigin = opponent.position.clone();
     this.strikingCameraYaw=opponent.rotation.y+(strikingIntro?1.5*3.1997298216058336/3.875:0);
     this.departureDirection.set(0, 0, -1).applyAxisAngle(THREE.Object3D.DEFAULT_UP, opponent.rotation.y);
     const size = new THREE.Vector3();
     new THREE.Box3().setFromObject(opponent).getSize(size);
-    this.opponentHeight=size.y;
+    this.opponentHeight=finalIntro?Math.max(size.y,ashenWarlordModel.height*pursuitWarlord.finalSizeScale):size.y;
     this.opponentRadius = Math.max(18, size.x * 1.7, size.z * 1.5);
     new THREE.Box3().setFromObject(player).getSize(size);
     this.playerRadius = Math.max(14, size.x * 1.5, size.z * 1.3);
@@ -136,8 +139,10 @@ export class CombatMissionIntroPath {
       target.copy(this.introShot);return;
     }
     // Over-shoulder approach keeps downtown ahead; the roar gets a closer front view.
-    const roar=t>=timing.roar&&t<timing.shoot,angle=roar?.45:2.65,radius=h*(roar?1.3:2.3);
-    this.offset.set(Math.sin(angle)*radius,h*(roar?.7:1.05),Math.cos(angle)*radius).applyAxisAngle(THREE.Object3D.DEFAULT_UP,root.rotation.y);
+    const roar=t>=timing.roar&&t<(this.finalIntro?M24_INTRO.run:timing.shoot);
+    const orbit=this.finalIntro?THREE.MathUtils.smoothstep(t,M24_INTRO.run-.5,M24_INTRO.run+1):roar?0:1;
+    const angle=THREE.MathUtils.lerp(.45,2.65,orbit),radius=h*THREE.MathUtils.lerp(this.finalIntro?1.75:1.3,2.3,orbit);
+    this.offset.set(Math.sin(angle)*radius,h*THREE.MathUtils.lerp(this.finalIntro?.85:.7,1.05,orbit),Math.cos(angle)*radius).applyAxisAngle(THREE.Object3D.DEFAULT_UP,root.rotation.y);
     position.copy(root.position).add(this.offset);target.copy(root.position);target.y+=h*.6;
   }
   private sampleHunting(elapsed:number,position:THREE.Vector3,target:THREE.Vector3,chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {

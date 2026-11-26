@@ -1,4 +1,4 @@
-import {m24IntroMotion,m24Travel} from './m24-intro';
+import {M24_INTRO,m24IntroMotion,m24Travel} from './m24-intro';
 import {m23IntroMotion,m23Travel} from './m23-intro';
 import {m22IntroMotion} from './m22-intro';
 import {M21_INTRO,m21IntroMotion} from './m21-intro';
@@ -10,7 +10,7 @@ import {huntingWarlord} from '../../shared/hunting-warlord.mjs';
 import {strikingWarlord} from '../../shared/striking-warlord.mjs';
 import {MonsterVictory,MONSTER_VICTORY,MONSTER_VICTORY_SECONDS} from './monster-victory';
 import * as THREE from 'three';
-import {M19_TIMEOUT} from './monster-timeout';
+import {M19_TIMEOUT,M2_TIMEOUT} from './monster-timeout';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { ashenWarlordModel as model } from '../../shared/ashen-warlord-model.mjs';
@@ -57,6 +57,7 @@ export class AshenWarlordModel {
     }
     prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false,pursuit=false,final=false):void {
         if(!this.hunting||this.pursuit!==pursuit||this.frame||this.strikingIntro)return;
+        if(final){this.prepareFinalIntro(obstacles);return;}
         const position=this.root.position.clone(),yaw=this.root.rotation.y,clip=model.clips.walk!;
         const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<this.height*(pursuit?6:2)+Math.hypot(o.halfX,o.halfZ));
         const directions=this.height>model.height?[Math.PI/2,0,Math.PI,-Math.PI/2,Math.PI/4,-Math.PI/4]:[Math.PI/2];
@@ -71,6 +72,22 @@ export class AshenWarlordModel {
             if(clear){this.strikingIntro.last=undefined;this.strikingIntro.previous=undefined;this.strikingIntro.transitionAt=0;this.introTime=0;this.applyStrikingIntro(0);this.grounded=[false,false];return;}
         }
         this.setIntroTime(null);throw Error(`${final?'M24':pursuit?'M23':showdown?'M22':'M21'} cinematic approach is obstructed`);
+    }
+    private prepareFinalIntro(obstacles:readonly ObstacleBounds[]):void {
+        const saved=this.root.position.clone(),yaw=this.root.rotation.y,city=M2_TIMEOUT.downtown;
+        const outward=Math.atan2(saved.x-city.x,saved.z-city.z),clip=model.clips.walk!;
+        // Every candidate approaches the skyline head-on; never choose a clear path away from town.
+        for(const radius of [8500,10500,12500])for(const angle of [0,-.25,.25,-.5,.5,-.8,.8])for(const phase of [0,.5,.75]){
+            const heading=outward+angle,position=new THREE.Vector3(city.x+Math.sin(heading)*radius,saved.y,city.z+Math.cos(heading)*radius);
+            position.y=this.groundAt?.(position.x,position.z)??saved.y;
+            const direction=Math.atan2(city.x-position.x,city.z-position.z);
+            const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<this.height*6+Math.hypot(o.halfX,o.halfZ));
+            this.strikingIntro={position,returnPosition:saved,yaw,walk:{startTime:clip.duration*phase,distance:this.height/model.height*m24Travel(M24_INTRO.runEnd,clip.duration*phase),yaw:direction,showdown:false,pursuit:true,final:true},transitionAt:0};
+            let clear=true;
+            for(let step=0;step<=128&&clear;step++){this.applyStrikingIntro(step/8);if(this.introPoseObstructed(nearby))clear=false;}
+            if(clear){this.strikingIntro.last=undefined;this.strikingIntro.previous=undefined;this.strikingIntro.transitionAt=0;this.introTime=0;this.applyStrikingIntro(0);this.grounded=[false,false];return;}
+        }
+        this.setIntroTime(null);throw Error('M24 downtown approach is obstructed');
     }
     private introPoseObstructed(obstacles:readonly ObstacleBounds[]):boolean {
         const center=this.temp;

@@ -164,8 +164,9 @@ export class MonsterArrivalView {
     if(pursuit){
       // Strike the outskirts, leaving the real skyline and mission state intact.
       const root=(this.creature as AshenWarlordModel).root.position;
-      const toward=new THREE.Vector3(M19_DOWNTOWN.x-root.x,0,M19_DOWNTOWN.z-root.z).normalize();
-      const x=M19_DOWNTOWN.x-toward.x*3500,z=M19_DOWNTOWN.z-toward.z*3500;
+      const city=final?M2_TIMEOUT.downtown:M19_DOWNTOWN;
+      const toward=new THREE.Vector3(city.x-root.x,0,city.z-root.z).normalize();
+      const x=city.x-toward.x*3500,z=city.z-toward.z*3500;
       this.introShotDestination.set(x,this.creature.groundAt?.(x,z)??this.targetGroundY,z);
       this.introBlastTextures??={fire:cinematicImpactTexture(true),smoke:cinematicImpactTexture(false)};
       const count=final?pursuitWarlord.fireball.finalCount:6;
