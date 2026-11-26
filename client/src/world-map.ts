@@ -26,7 +26,9 @@ type MapAirport = {
   runwayLength: number;
 };
 
-type MapPlayer = { id: string; x: number; z: number; king?: boolean; heatLevel?: number; isBot?: boolean; ownershipAccent?: string; missionTarget?: boolean };
+const giantMapOutline = [[-.18,-.25],[-1,.1],[-1,.3],[-.18,.18],[-.18,.65],[-.5,.9],[-.5,1],[0,.8],[.5,1],[.5,.9],[.18,.65],[.18,.18],[1,.3],[1,.1],[.18,-.25]] as const;
+
+export type MapPlayer = { id: string; label?:string; heading?:number; x: number; z: number; king?: boolean; heatLevel?: number; isBot?: boolean; ownershipAccent?: string; missionTarget?: boolean };
 type MapTarget = { x: number; z: number; label?: string };
 export type MapMissionSummary = { name: string; objective: string; progress: string; compactProgress: string; credits: number; score: number };
 export type MapRosterEntry = { id: string; name: string; status: string; isLocal?: boolean };
@@ -46,6 +48,7 @@ export type MapTerritory = {
   captureProgress: number;
   contested: boolean;
 };
+export type MapObjective = {id:string;kind:'target'|'giant'|'monster'|'gate'|'coins'|'airport'|'health';label:string;x:number;z:number;heading?:number};
 type StaticMapData = { roads?: number[]; water?: number[][]; land?: number[][] };
 
 export type WorldMapState = {
@@ -53,6 +56,7 @@ export type WorldMapState = {
   forward: { x: number; z: number };
   king?: boolean;
   players: readonly MapPlayer[];
+  objectives?:readonly MapObjective[];
   roster: readonly MapRosterEntry[];
   mission?: MapMissionSummary;
   waypoint: MapTarget | null;
@@ -69,8 +73,8 @@ export type WorldMapState = {
 export const worldMapIdentity = {
   ...visualLanguage,
   you: {...visualLanguage.you,color:'#087fc4'},
-  player: {...visualLanguage.player,color:'#cf3548'},
-  ai: {...visualLanguage.ai,color:'#1489b6'},
+  player: {...visualLanguage.player,icon:'▲',color:'#cf3548'},
+  ai: {...visualLanguage.ai,icon:'▲',color:'#1489b6'},
   airport: {...visualLanguage.airport,color:'#1375b9'},
   territory: {...visualLanguage.territory,color:'#5798c8'},
   waypoint: {...visualLanguage.waypoint,color:'#15994f'},
@@ -78,7 +82,20 @@ export const worldMapIdentity = {
   event: {...visualLanguage.event,color:'#ac760e'},
   challenge: {...visualLanguage.challenge,color:'#087fa4'},
   discovery: {...visualLanguage.discovery,color:'#18796c'},
+  repair: {...visualLanguage.repair,color:'#1b8e67'},
+  target:{icon:'🎯',color:'#ce233d'}, giant:{icon:'✈',color:'#b62e48'}, monster:{icon:'👹',color:'#9b3268'},
+  gate:{icon:'◎',color:'#a87b08'}, coins:{icon:'🪙',color:'#a87b08'},
+
 };
+
+const mapLegend = [
+  {kind:'you',label:'You'}, {kind:'player',label:'Player'}, {kind:'ai',label:'AI pilot'},
+  {kind:'mission',label:'Mission'}, {kind:'target',label:'Target'}, {kind:'giant',label:'Giant'},
+  {kind:'monster',label:'Monster'}, {kind:'gate',label:'Ring / gate'}, {kind:'coins',label:'Coins'}, {kind:'airport',label:'Airport'}, {kind:'territory',label:'Territory'},
+  {kind:'event',label:'Event'}, {kind:'waypoint',label:'Waypoint'}, {kind:'repairHeart',label:'Health'},
+  {kind:'repair',label:'Repair spot'}, {kind:'challenge',label:'Challenge'}, {kind:'discovery',label:'Discovery'},
+  {kind:'heat',label:'Danger'}, {kind:'credits',label:'Top pilot',icon:'♛'},
+] as const;
 
 const CLICK_DISTANCE = 18;
 const MIN_SCALE = 0.01;
@@ -95,10 +112,11 @@ export class WorldMap {
   private centerX: number;
   private centerZ: number;
   private scale: number;
-  private dragging = false;
   private moved = false;
-  private dragX = 0;
-  private dragY = 0;
+  private readonly pointers = new Map<number,{x:number;y:number}>();
+  private gesture?: {x:number;y:number;distance:number};
+  private pressX = 0;
+  private pressY = 0;
   private state: WorldMapState | undefined;
   private staticData: StaticMapData = {};
   private openState = false;
@@ -106,15 +124,12 @@ export class WorldMap {
   private staticLoading = false;
   private staticLoaded = false;
   private embeddedHost: HTMLElement | undefined;
+  private readonly legendElement:HTMLElement;
+  private legendSignature='';
   private readonly roadPaths = new Map<number, Path2D>();
   private labelCount = 0;
   private readonly labels: Array<{ x: number; y: number; w: number; h: number }> = [];
-  private readonly missionSummary: HTMLElement;
-  private readonly playerCount: HTMLElement;
-  private readonly playerList: HTMLElement;
-  private readonly territoryCount: HTMLElement;
-  private readonly territoryList: HTMLElement;
-  private intelligenceSignature = '';
+
 
   constructor(
     private readonly element: HTMLElement,
@@ -134,13 +149,10 @@ export class WorldMap {
     this.context = canvas.getContext('2d')!;
     this.card = element.querySelector<HTMLElement>('.world-map-card')!;
     this.standaloneParent = this.card.parentElement!;
+    this.legendElement=element.querySelector('.map-symbol-key')!;
+    this.renderLegend();
     this.staticContext = this.staticCanvas.getContext('2d')!;
     this.geographyContext = this.geographyCanvas.getContext('2d')!;
-    this.missionSummary = element.querySelector<HTMLElement>('#map-mission-summary')!;
-    this.playerCount = element.querySelector<HTMLElement>('#map-player-count')!;
-    this.playerList = element.querySelector<HTMLElement>('#map-player-list')!;
-    this.territoryCount = element.querySelector<HTMLElement>('#map-territory-count')!;
-    this.territoryList = element.querySelector<HTMLElement>('#map-territory-list')!;
     this.geographyCanvas.width = 0;
     this.geographyCanvas.height = 0;
     this.centerX = (layer.bounds.minX + layer.bounds.maxX) / 2;
@@ -152,11 +164,12 @@ export class WorldMap {
   }
 
   setCity(layer:WorldMapLayer,airports:readonly MapAirport[]):void {
+    this.resetGesture();
     this.layer=layer;this.airports=airports;this.staticData={};this.roadPaths.clear();
     this.staticLoading=false;this.staticLoaded=false;this.openedBefore=false;
     this.geographyCanvas.width=this.geographyCanvas.height=0;
     this.centerX=(layer.bounds.minX+layer.bounds.maxX)/2;this.centerZ=(layer.bounds.minZ+layer.bounds.maxZ)/2;
-    this.scale=this.defaultScale();this.state=undefined;this.intelligenceSignature='';this.drawStatic();
+    this.scale=this.defaultScale();this.state=undefined;this.drawStatic();
   }
   isOpen(): boolean {
     return this.openState;
@@ -168,6 +181,7 @@ export class WorldMap {
 
   setOpen(open: boolean): void {
     if (open) this.unmountEmbedded();
+    if(!open)this.resetGesture();
     this.openState = open;
     this.element.classList.toggle('hidden', !open);
     if (open) this.present();
@@ -186,13 +200,12 @@ export class WorldMap {
       this.clampCenter();
       this.drawStatic();
       this.draw();
-      this.renderIntelligence();
     });
   }
 
   unmountEmbedded(): void {
     if (!this.embeddedHost) return;
-    this.dragging = false;
+    this.resetGesture();
     this.embeddedHost = undefined;
     this.card.classList.remove('world-map-card-embedded');
     this.standaloneParent.append(this.card);
@@ -212,7 +225,7 @@ export class WorldMap {
     this.clampCenter();
     this.drawStatic();
     this.draw();
-    this.renderIntelligence();
+    this.renderLegend();
     if (this.layer.staticUrl && !this.staticLoading && !this.staticLoaded) void this.loadStaticLayer(this.layer.staticUrl);
   }
 
@@ -220,11 +233,12 @@ export class WorldMap {
     this.state = state;
     if (this.openState || this.embeddedHost) {
       this.draw();
-      this.renderIntelligence();
+      this.renderLegend();
     }
   }
 
   resize(): void {
+    this.resetGesture();
     this.resizeCanvas();
     this.drawStatic();
     if (this.openState || this.embeddedHost) this.draw();
@@ -260,50 +274,96 @@ export class WorldMap {
     if (this.openState || this.embeddedHost) this.draw();
   }
 
+  private renderLegend(): void {
+    const state=this.state,kinds=new Set<string>(['you','airport']);
+    if(state){
+      if(state.players.some(p=>p.isBot))kinds.add('ai');
+      if(state.players.some(p=>!p.isBot))kinds.add('player');
+      if(state.players.some(p=>p.missionTarget))kinds.add('mission');
+      if(state.territories?.length)kinds.add('territory');
+      if(state.waypoint)kinds.add('waypoint');
+      if(state.challenges?.length)kinds.add('challenge');
+      if(state.events?.some(e=>e.lifecycle==='available'||e.lifecycle==='active'))kinds.add('event');
+      if(state.events?.some(e=>e.missionTarget))kinds.add('mission');
+      if(state.discoveries?.length)kinds.add('discovery');
+      if(state.repairs?.some(r=>r.kind==='heart'))kinds.add('repairHeart');
+      if(state.repairs?.some(r=>r.kind!=='heart'))kinds.add('repair');
+      if(state.players.some(p=>(p.heatLevel??0)>=4)||state.events?.some(e=>e.mostWanted))kinds.add('heat');
+      if(state.king||state.players.some(p=>p.king))kinds.add('credits');
+      for(const objective of state.objectives??[])kinds.add(objective.kind==='health'?'repairHeart':objective.kind);
+    }
+    const entries=mapLegend.filter(entry=>kinds.has(entry.kind)),signature=entries.map(entry=>entry.kind).join(',');
+    if(signature===this.legendSignature)return;
+    this.legendSignature=signature;
+    this.legendElement.replaceChildren(...entries.map(entry=>{
+      const item=document.createElement('span'),icon=document.createElement('b');
+      item.setAttribute('role','listitem');icon.setAttribute('aria-hidden','true');
+      icon.textContent='icon' in entry?entry.icon:worldMapIdentity[entry.kind].icon;
+      icon.style.color=worldMapIdentity[entry.kind].color;
+      item.append(icon,document.createTextNode(entry.label));return item;
+    }));
+  }
+
+  private pointerGesture(): {x:number;y:number;distance:number} | undefined {
+    const points=this.pointers.values(),a=points.next().value,b=points.next().value;
+    if(!a)return undefined;
+    return b?{x:(a.x+b.x)/2,y:(a.y+b.y)/2,distance:Math.hypot(b.x-a.x,b.y-a.y)}:{...a,distance:0};
+  }
+
+  private resetGesture(): void {
+    for(const id of this.pointers.keys())if(this.canvas.hasPointerCapture(id))this.canvas.releasePointerCapture(id);
+    this.pointers.clear();this.gesture=undefined;this.moved=false;
+  }
+
+  private transformView(from:{x:number;y:number},to:{x:number;y:number},factor=1): void {
+    const before=this.screenToWorld(from.x,from.y);
+    this.scale=Math.min(MAX_SCALE,Math.max(this.minimumScale(),this.scale*factor));
+    const after=this.screenToWorld(to.x,to.y);
+    this.centerX+=before.x-after.x;this.centerZ+=before.z-after.z;
+    this.clampCenter();this.drawStatic();this.draw();
+  }
+
   private bindEvents(): void {
     this.recenterButton.addEventListener('click', () => this.recenter());
+    for(const button of this.card.querySelectorAll<HTMLButtonElement>('[data-map-zoom]'))button.addEventListener('click',()=>{
+      const center={x:this.canvas.width/2,y:this.canvas.height/2};
+      this.transformView(center,center,button.dataset.mapZoom==='in'?1.5:1/1.5);
+    });
     this.canvas.addEventListener('pointerdown', (event) => {
       if (event.button !== 0) return;
       event.preventDefault();
-      this.dragging = true;
-      this.moved = false;
-      this.dragX = event.clientX;
-      this.dragY = event.clientY;
+      const point=this.eventToCanvas(event);
+      if(!this.pointers.size){this.moved=false;this.pressX=point.x;this.pressY=point.y;}
+      this.pointers.set(event.pointerId,point);
+      if(this.pointers.size>1)this.moved=true;
+      this.gesture=this.pointerGesture();
       this.canvas.setPointerCapture(event.pointerId);
     });
     this.canvas.addEventListener('pointermove', (event) => {
-      if (!this.dragging) return;
+      if(!this.pointers.has(event.pointerId)||!this.gesture)return;
       event.preventDefault();
-      const dx = event.clientX - this.dragX;
-      const dy = event.clientY - this.dragY;
-      if (Math.abs(dx) + Math.abs(dy) > 3) this.moved = true;
-      this.centerX -= dx / this.scale;
-      this.centerZ -= dy / this.scale;
-      this.dragX = event.clientX;
-      this.dragY = event.clientY;
-      this.clampCenter();
-      this.drawStatic();
-      this.draw();
+      const before=this.gesture;
+      this.pointers.set(event.pointerId,this.eventToCanvas(event));
+      const next=this.pointerGesture()!;
+      if(this.pointers.size>1||Math.hypot(next.x-this.pressX,next.y-this.pressY)>5)this.moved=true;
+      this.transformView(before,next,before.distance>0&&next.distance>0?next.distance/before.distance:1);
+      this.gesture=next;
     });
-    this.canvas.addEventListener('pointerup', (event) => {
-      if (!this.dragging) return;
+    const finish=(event:PointerEvent,cancelled=false):void=>{
+      if(!this.pointers.has(event.pointerId))return;
       event.preventDefault();
-      this.dragging = false;
-      if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
-      if (!this.moved) this.click(event);
-    });
-    this.canvas.addEventListener('pointercancel', () => { this.dragging = false; });
+      this.pointers.delete(event.pointerId);this.gesture=this.pointerGesture();
+      if(cancelled)this.moved=true;
+      if(this.canvas.hasPointerCapture(event.pointerId))this.canvas.releasePointerCapture(event.pointerId);
+      if(!this.pointers.size&&!cancelled&&!this.moved)this.click(event);
+    };
+    this.canvas.addEventListener('pointerup',event=>finish(event));
+    this.canvas.addEventListener('pointercancel',event=>finish(event,true));
+    this.canvas.addEventListener('lostpointercapture',event=>finish(event,true));
     this.canvas.addEventListener('wheel', (event) => {
       event.preventDefault();
-      const pointer = this.eventToCanvas(event);
-      const before = this.screenToWorld(pointer.x, pointer.y);
-      this.scale = Math.min(MAX_SCALE, Math.max(this.minimumScale(), this.scale * Math.exp(-event.deltaY * 0.0015)));
-      const after = this.screenToWorld(pointer.x, pointer.y);
-      this.centerX += before.x - after.x;
-      this.centerZ += before.z - after.z;
-      this.clampCenter();
-      this.drawStatic();
-      this.draw();
+      const pointer=this.eventToCanvas(event);
+      this.transformView(pointer,pointer,Math.exp(-event.deltaY*0.0015));
     }, { passive: false });
   }
 
@@ -378,18 +438,12 @@ export class WorldMap {
   }
 
   private clampCenter(): void {
-    const halfWidth = this.canvas.width / this.scale / 2;
-    const halfHeight = this.canvas.height / this.scale / 2;
-    const minCenterX = this.layer.bounds.minX + halfWidth;
-    const maxCenterX = this.layer.bounds.maxX - halfWidth;
-    const minCenterZ = this.layer.bounds.minZ + halfHeight;
-    const maxCenterZ = this.layer.bounds.maxZ - halfHeight;
-    this.centerX = minCenterX <= maxCenterX
-      ? Math.min(maxCenterX, Math.max(minCenterX, this.centerX))
-      : (this.layer.bounds.minX + this.layer.bounds.maxX) / 2;
-    this.centerZ = minCenterZ <= maxCenterZ
-      ? Math.min(maxCenterZ, Math.max(minCenterZ, this.centerZ))
-      : (this.layer.bounds.minZ + this.layer.bounds.maxZ) / 2;
+    // Allow the city edges to reach the center of the view. Requiring the
+    // entire viewport to stay inside the data bounds traps wide mobile maps
+    // near edge airports and can snap a recentered view on its first drag.
+    const { minX, maxX, minZ, maxZ } = this.layer.bounds;
+    this.centerX = Math.min(maxX, Math.max(minX, this.centerX));
+    this.centerZ = Math.min(maxZ, Math.max(minZ, this.centerZ));
   }
 
   private worldToScreen(x: number, z: number): { x: number; y: number } {
@@ -538,6 +592,7 @@ export class WorldMap {
     reserved.x = point.x; reserved.y = point.y + 12; reserved.w = 58; reserved.h = 60;
     this.labelCount = 1;
     for (const territory of this.state.territories ?? []) this.drawTerritory(territory);
+    for(const objective of this.state.objectives??[])this.drawObjective(objective);
     // Legacy contracts are not a second player-facing journey beside Missions.
     if (this.state.waypoint) this.drawTarget(this.state.waypoint, worldMapIdentity.waypoint.color, 'WAYPOINT');
     for (const challenge of this.state.challenges ?? []) this.drawChallenge(challenge);
@@ -554,21 +609,13 @@ export class WorldMap {
     if (this.scale >= 0.035) for (const discovery of this.state.discoveries ?? []) this.drawDiscovery(discovery);
     for (const player of this.state.players) {
       const point = this.worldToScreen(player.x, player.z);
-      this.context.fillStyle = worldMapIdentity[player.isBot ? 'ai' : 'player'].color;
-      this.context.beginPath();
-      if (player.isBot) {
-        this.context.moveTo(point.x, point.y - 5); this.context.lineTo(point.x + 5, point.y); this.context.lineTo(point.x, point.y + 5); this.context.lineTo(point.x - 5, point.y);
-      } else {
-        this.context.arc(point.x, point.y, 5.5, 0, Math.PI * 2);
+      const color=player.missionTarget?worldMapIdentity.mission.color:worldMapIdentity[player.isBot?'ai':'player'].color;
+      this.drawAircraft(point.x,point.y,-(player.heading??0),color);
+      if(player.missionTarget){
+        this.context.strokeStyle=worldMapIdentity.mission.color;this.context.lineWidth=1.5;
+        this.context.beginPath();this.context.arc(point.x,point.y,13,0,Math.PI*2);this.context.stroke();
       }
-      this.context.fill();
-      this.context.strokeStyle = '#0b1823'; this.context.lineWidth = 1.5; this.context.stroke();
-      if (player.missionTarget) {
-        this.context.strokeStyle = worldMapIdentity.mission.color;
-        this.context.lineWidth = 2.5;
-        this.context.beginPath(); this.context.arc(point.x, point.y, 11, 0, Math.PI * 2); this.context.stroke();
-        this.label(`${worldMapIdentity.mission.icon} TARGET: HUNTER`, point.x, point.y - 14, worldMapIdentity.mission.color);
-      }
+      if(player.label)this.label(player.label,point.x,point.y-18,color);
       if (player.ownershipAccent) {
         this.context.strokeStyle = '#081722'; this.context.lineWidth = 5;
         this.context.beginPath(); this.context.arc(point.x, point.y, 10.5, 0, Math.PI * 2); this.context.stroke();
@@ -587,13 +634,38 @@ export class WorldMap {
     this.context.translate(point.x, point.y); this.context.rotate(rotation);
     this.context.globalAlpha = 1;
     this.context.fillStyle = 'rgba(236, 251, 255, 0.2)'; this.context.beginPath(); this.context.moveTo(0, -31); this.context.lineTo(-11, -4); this.context.lineTo(11, -4); this.context.closePath(); this.context.fill();
-    this.context.fillStyle = '#ffffff'; this.context.strokeStyle = worldMapIdentity.you.color; this.context.lineWidth = 2;
-    this.context.beginPath(); this.context.moveTo(0, -13); this.context.lineTo(-8, 9); this.context.lineTo(0, 5); this.context.lineTo(8, 9); this.context.closePath(); this.context.fill(); this.context.stroke();
+    this.drawAircraft(0,0,0,worldMapIdentity.you.color,13);
     this.context.restore();
     this.context.fillStyle = '#07121c'; this.context.fillRect(point.x - 20, point.y + 18, 40, 17);
     this.context.fillStyle = '#ffffff'; this.context.font = '900 12px ui-sans-serif, system-ui, sans-serif'; this.context.textAlign = 'center'; this.context.fillText('YOU', point.x, point.y + 31);
     if (this.state.king) { this.context.fillStyle = '#ffd96d'; this.context.font = '700 11px ui-monospace, monospace'; this.context.textAlign = 'center'; this.context.fillText('♛', point.x, point.y - 21); }
     if (this.state.discoveryProgress) this.drawDiscoveryProgress(this.state.discoveryProgress);
+  }
+
+  private drawAircraft(x:number,y:number,rotation:number,color:string,size=10,giant=false):void {
+    const c=this.context;c.save();c.translate(x,y);c.rotate(rotation);
+    c.fillStyle='#ffffff';c.strokeStyle=color;c.lineWidth=2;c.beginPath();
+    c.moveTo(0,-size);
+    if(giant){
+      for(const [dx,dy]of giantMapOutline)c.lineTo(dx*size,dy*size);
+    }else{c.lineTo(-size*8/13,size*9/13);c.lineTo(0,size*5/13);c.lineTo(size*8/13,size*9/13);}
+    c.closePath();c.fill();c.stroke();c.restore();
+  }
+
+  private drawObjective(objective:MapObjective):void {
+    const point=this.worldToScreen(objective.x,objective.z),c=this.context;
+    const key=objective.kind==='health'?'repairHeart':objective.kind,color=worldMapIdentity[key].color;
+    c.save();c.strokeStyle=color;c.fillStyle='#fff';c.lineWidth=2;
+    if(objective.kind==='giant')this.drawAircraft(point.x,point.y,-(objective.heading??0),color,16,true);
+    else if(objective.kind==='monster'||objective.kind==='health'||objective.kind==='coins'){
+      c.fillStyle=color;c.font='22px sans-serif';c.textAlign='center';c.fillText(worldMapIdentity[key].icon,point.x,point.y+7);
+    }else if(objective.kind==='target'){
+      for(const radius of [9,6,2]){c.beginPath();c.arc(point.x,point.y,radius,0,Math.PI*2);c.fillStyle=radius===6?'#fff':color;c.fill();}
+    }else{
+      c.beginPath();c.arc(point.x,point.y,9,0,Math.PI*2);c.fill();c.stroke();
+      if(objective.kind==='airport'){c.fillStyle=color;c.font='bold 13px sans-serif';c.textAlign='center';c.fillText('✈',point.x,point.y+4);}
+    }
+    c.restore();this.label(objective.label,point.x,point.y-(objective.kind==='giant'?24:18),color,11);
   }
 
   private drawTerritory(territory: MapTerritory): void {
@@ -636,61 +708,6 @@ export class WorldMap {
       this.label('NEUTRAL', centerX, centerY + 12, color);
     }
     this.context.restore();
-  }
-
-  private renderIntelligence(): void {
-    if (!this.state) return;
-    const mission = this.state.mission;
-    const signature = JSON.stringify([
-      mission,
-      this.state.roster.map(({ id, name, status, isLocal }) => [id, name, status, isLocal]),
-      (this.state.territories ?? []).map(({ id, label, color, status }) => [id, label, color, status]),
-    ]);
-    if (signature === this.intelligenceSignature) return;
-    this.intelligenceSignature = signature;
-
-    this.missionSummary.replaceChildren();
-    if (!mission) {
-      this.missionSummary.textContent = 'No active mission';
-    } else {
-      const name = document.createElement('b');
-      const detail = document.createElement('span');
-      const compactDetail = document.createElement('span');
-      name.textContent = mission.name;
-      detail.className = 'map-mission-desktop-detail';
-      detail.textContent = `${mission.progress.replace(/\s*\n\s*/g, ' · ')} · +${mission.credits.toLocaleString()} Credits · +${mission.score.toLocaleString()} Score`;
-      compactDetail.className = 'map-mission-mobile-detail';
-      compactDetail.textContent = `${mission.objective} · ${mission.compactProgress}`;
-      this.missionSummary.append(name, detail, compactDetail);
-    }
-
-    this.playerCount.textContent = String(this.state.roster.length);
-    this.playerList.replaceChildren(...this.state.roster.map((player) => {
-      const row = document.createElement('div');
-      const name = document.createElement('span');
-      const status = document.createElement('strong');
-      name.textContent = `${player.name}${player.isLocal ? ' (You)' : ''}`;
-      status.textContent = player.status;
-      row.append(name, status);
-      return row;
-    }));
-
-    const territories = this.state.territories ?? [];
-    this.territoryCount.textContent = String(territories.length);
-    this.territoryList.replaceChildren(...territories.map((territory) => {
-      const row = document.createElement('div');
-      const identity = document.createElement('span');
-      const dot = document.createElement('i');
-      const name = document.createElement('span');
-      const status = document.createElement('strong');
-      dot.className = 'territory-color-dot';
-      dot.style.backgroundColor = !territory.color || territory.color===territoryOwnershipColors.neutral ? worldMapIdentity.territory.color : territory.color;
-      name.textContent = territory.label;
-      status.textContent = territory.status;
-      identity.append(dot, name);
-      row.append(identity, status);
-      return row;
-    }));
   }
 
   private drawDiscoveryProgress(progress: MapDiscoveryProgress): void {

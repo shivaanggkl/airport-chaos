@@ -186,17 +186,13 @@
     </aside>
     <section id="world-map-overlay" class="world-map-overlay hidden" aria-label="World map">
       <div class="world-map-card">
-        <header><button id="world-map-close" class="context-back" type="button">← GAME</button><strong id="world-map-title">CITY MAP</strong><span>M close · drag to move · scroll to zoom · click to Set Waypoint</span><button id="world-map-recenter" type="button">RECENTER</button></header>
+        <header><button id="world-map-close" class="context-back" type="button">← GAME</button><strong id="world-map-title">CITY MAP</strong><span>M close · drag to move · pinch or scroll to zoom · tap to Set Waypoint</span><button id="world-map-recenter" type="button">RECENTER</button></header>
         <div class="world-map-view">
-          <div id="map-legend" class="map-legend"></div>
+          <div class="world-map-zoom" role="group" aria-label="Map zoom"><button type="button" data-map-zoom="in" aria-label="Zoom in">+</button><button type="button" data-map-zoom="out" aria-label="Zoom out">−</button></div>
           <canvas id="world-map-canvas" aria-label="Interactive world map"></canvas>
           <a id="osm-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
         </div>
-        <section class="map-intelligence" aria-label="Current mission, players, and territories">
-          <article class="map-intelligence-mission"><strong>MISSION:</strong><div id="map-mission-summary">No active mission</div></article>
-          <section class="map-intelligence-panel"><h2>PLAYERS <span id="map-player-count">0</span></h2><div id="map-player-list"></div></section>
-          <section class="map-intelligence-panel"><h2>TERRITORIES <span id="map-territory-count">0</span></h2><div id="map-territory-list"></div></section>
-        </section>
+        <div class="map-symbol-key" role="list" aria-label="Map symbols"></div>
       </div>
     </section>
     <aside id="visual-qa-panel" class="visual-qa-panel" hidden>

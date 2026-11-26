@@ -84,7 +84,8 @@ import { bindGameplayInfoTap, GameplayInfoCard } from './gameplay-info-card';
 import { bindMissionPanelLayout } from './mission-panel-layout';
 import { SkyDuelUi } from './sky-duel-ui';
 import { TrainingSlides } from './training-slides';
-import { WorldMap, worldMapIdentity, type WorldMapLayer } from './world-map';
+import { WorldMap, type WorldMapLayer, type MapPlayer, type MapObjective } from './world-map';
+import {worldMapMissionContext} from './world-map-mission';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
 import { combatAimBlend, combatShotAimSample } from '../../shared/combat-aim.mjs';
 import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, fireIntervalMs, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, localFiringDirection, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
@@ -1586,8 +1587,7 @@ const heatLevelElement = document.querySelector<HTMLSpanElement>('#heat-level')!
 const radarAirportColor = 'rgba(205, 219, 229, 0.62)';
 document.getElementById('radar-legend')!.innerHTML = (['airport', 'ai', 'player'] as const)
   .map(kind => `<span style="color:${kind === 'airport' ? radarAirportColor : visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
-document.getElementById('map-legend')!.innerHTML = (['you', 'player', 'ai', 'mission', 'airport', 'territory', 'event', 'waypoint'] as const)
-  .map(kind => `<span style="color:${worldMapIdentity[kind].color}">${identityText(kind)}</span>`).join('');
+
 const acquisitionCircleElement = document.querySelector<HTMLDivElement>('#acquisition-circle')!;
 const targetFeedbackElement = document.querySelector<HTMLDivElement>('#target-feedback')!;
 const targetNameDistanceElement = document.querySelector<HTMLSpanElement>('#target-name-distance')!;
@@ -1605,7 +1605,6 @@ territoryCaptureElement.hidden = !cityRules.territoriesEnabled || skyDuelMode;
 territoryDefenseAlertElement.hidden = !cityRules.territoriesEnabled || skyDuelMode;
 document.querySelector<HTMLElement>('#practice-mode-label')!.hidden = !cityRules.practiceMode;
 document.querySelector<HTMLElement>('#tutorial-help')!.hidden = !cityRules.tutorialEnabled;
-document.querySelector<HTMLElement>('#map-territory-list')?.closest<HTMLElement>('.map-intelligence-panel')?.toggleAttribute('hidden', !cityRules.territoriesEnabled || skyDuelMode);
 contractPanelElement.classList.add('hidden');
 const contractTypeElement = document.querySelector<HTMLElement>('#contract-type')!;
 const contractDetailElement = document.querySelector<HTMLDivElement>('#contract-detail')!;
@@ -7117,64 +7116,54 @@ function contractMapTarget(): Waypoint | null {
 }
 
 function updateWorldMap(direction: THREE.Vector3): void {
+  const context=worldMapMissionContext(journeyAttempt,journeyMode);
+  const worldActivities=!journeyMode&&!skyDuelMode&&!airAssaultMode&&!trainingRequested&&!soloExploreMode;
+  const worldDiscoveries=!journeyMode&&!skyDuelMode&&!airAssaultMode&&!trainingRequested;
   const eventObjective = cityEvent ? eventObjectiveForLocal(cityEvent) : undefined;
   const activeMission = serverProfile.missions[cityId]?.active;
   const activeMissionDefinition = activeMission && missionForCity(cityId, activeMission.missionId);
-  const activeMissionProgress = activeMissionDefinition && activeMission ? missionProgress(activeMissionDefinition, activeMission) : undefined;
   const missionTerritories = activeMissionDefinition ? missionRequirements(activeMissionDefinition, activeMission) : [];
-  const mapPlayers: Array<{ id: string; x: number; z: number; king: boolean; heatLevel: number; isBot: boolean; ownershipAccent?: string; missionTarget?: boolean }> = [];
-  for (const human of cityHumanRoster.values()) {
-    if (human.playerId === localPlayerId || !humanHasActiveAircraft(human)) continue;
-    const track = humanRadarTracks.get(human.playerId);
-    if (!track) continue;
-    mapPlayers.push({
-      id: human.playerId,
-      x: track.x,
-      z: track.z,
-      king: human.playerId === kingPlayerId,
-      heatLevel: remotePlayers.get(human.playerId)?.heatLevel ?? 0,
-      isBot: false,
-      ownershipAccent: primaryTerritoryColorForPlayer(human.playerId),
-      missionTarget: activeMission?.targetId === human.playerId,
-    });
+  const mapPlayers:MapPlayer[]=[];
+  if(!journeyMode&&!airAssaultMode&&!soloExploreMode&&!trainingRequested)for (const human of cityHumanRoster.values()) {
+    if(human.playerId===localPlayerId||!humanHasActiveAircraft(human)||skyDuelMode&&human.playerId!==skyDuelUi?.opponentEntityId())continue;
+    const track=humanRadarTracks.get(human.playerId);if(!track)continue;
+    const remote=remotePlayers.get(human.playerId);
+    mapPlayers.push({id:human.playerId,x:track.x,z:track.z,label:human.displayName,heading:remote?.plane.rotation.y,
+      king:human.playerId===kingPlayerId,heatLevel:remote?.heatLevel??0,isBot:false,
+      ownershipAccent:worldActivities?primaryTerritoryColorForPlayer(human.playerId):undefined,
+      missionTarget:activeMission?.targetId===human.playerId||skyDuelMode});
   }
-  for (const [id, remote] of remotePlayers) {
-    if (!remote.isBot || (missionFocus?.showAmbientAIMarkers === false && unrelatedFocusedBot(remote.playerId)) || !remoteIdentityVisible(remote)) continue;
-    mapPlayers.push({
-      id,
-      x: remote.plane.position.x,
-      z: remote.plane.position.z,
-      king: false,
-      heatLevel: remote.heatLevel,
-      isBot: true,
-      ownershipAccent: primaryTerritoryColorForPlayer(id),
-      missionTarget: activeMission?.targetId === id,
-    });
+  if(!airAssaultMode&&!skyDuelMode&&!soloExploreMode&&!trainingRequested)for(const [id,remote]of remotePlayers){
+    if(!remote.isBot||remote.cityId!==cityId||remote.entityType!=='player'||remote.lifeState!=='alive'||remote.health<=0||remote.timeSinceUpdate>remoteStateStaleSeconds||transportEscortInactive(remote))continue;
+    if(journeyMode&&remote.plane.userData.rearGuardEscort&&!context.escorts)continue;
+    if(journeyMode&&!(context.opponentIds.includes(id)||context.escorts&&remote.plane.userData.rearGuardEscort))continue;
+    mapPlayers.push({id,x:remote.plane.position.x,z:remote.plane.position.z,label:remote.displayName,heading:remote.plane.rotation.y,
+      king:false,heatLevel:remote.heatLevel,isBot:true,ownershipAccent:primaryTerritoryColorForPlayer(id),missionTarget:journeyMode||activeMission?.targetId===id});
+  }
+  if(airAssaultMode)for(const enemy of airAssaultUi?.activeEnemies()??[])mapPlayers.push({id:enemy.id,x:enemy.position.x,z:enemy.position.z,heading:enemy.rotation.y,label:'OPPONENT',isBot:true,missionTarget:true});
+  const objectives:MapObjective[]=[];
+  if(context.active&&journeyAttempt){
+    const attempt=journeyAttempt;
+    if(journeySharpshooterMission(attempt.missionId))for(const [stage,view]of sharpshooterViews){
+      if(view.root.userData.attemptId!==attempt.attemptId||view.root.userData.pendingHit||!attempt.sharpshooter?.targets.some(target=>target.stage===stage))continue;
+      objectives.push({id:`target-${stage}`,kind:'target',label:`TARGET ${stage+1}`,x:view.root.position.x,z:view.root.position.z});
+    }
+    const gate=journeyGates?.target();
+    if(gate)objectives.push({id:`gate-${gate.index}`,kind:'gate',label:`${attempt.missionId===journeyDallas01.id?'RING':'GATE'} ${gate.index+1}`,x:gate.x,z:gate.z});
+    const hop=airportHopDestination(true);
+    if(hop)objectives.push({id:hop.id,kind:'airport',label:hop.name,x:hop.x,z:hop.z});
+    if(transportView?.hasState&&transportViewAttemptId===attempt.attemptId&&transportMissionHasLiveTarget(attempt))objectives.push({id:'giant',kind:'giant',label:journeyTransportLabel(attempt.missionId),x:transportView.position.x,z:transportView.position.z,heading:transportView.root.rotation.y});
+    if(monsterView&&missionObjective?.id===`${attempt.attemptId}:monster`&&Number(attempt.monsterHealth??attempt.targetHealth)>0){
+      const point=monsterView.combatTargetPosition;objectives.push({id:'monster',kind:'monster',label:'MONSTER',x:point.x,z:point.z});
+    }
+    if(attempt.missionId===journeyDallasCoinHunt01.id&&missionObjective&&attempt.coinHunt&&attempt.coinHunt.collected<journeyDallasCoinHunt01.coinCount)objectives.push({id:'coins',kind:'coins',label:'COIN TRAIL',x:missionObjective.position.x,z:missionObjective.position.z});
+    if(attempt.heartPosition)objectives.push({id:'mission-repair',kind:'health',label:'REPAIR',x:attempt.heartPosition.x,z:attempt.heartPosition.z});
   }
   worldMap.update({
-    position: airplane.position,
-    forward: { x: direction.x, z: direction.z },
-    king: kingPlayerId === localPlayerId,
-    players: mapPlayers,
-    roster: [...cityHumanRoster.values()].sort((left, right) => right.score - left.score || left.displayName.localeCompare(right.displayName)).map((player) => ({
-      id: player.playerId,
-      name: player.displayName,
-      status: player.status === 'flying' ? 'Flying' : player.status === 'onGround' ? 'Ground' : player.status === 'spawnSafe' ? 'Spawn Safe' : player.status === 'respawning' ? 'Respawning' : 'Destroyed',
-      isLocal: player.playerId === localPlayerId,
-    })),
-    mission: activeMissionDefinition && activeMissionProgress ? {
-      name: activeMissionDefinition.displayName,
-      objective: activeMissionDefinition.description,
-      progress: activeMissionProgress.text,
-      compactProgress: missionHudProgress(activeMissionDefinition, activeMissionProgress).text,
-      credits: activeMissionDefinition.creditReward,
-      score: activeMissionDefinition.scoreReward,
-    } : undefined,
-    waypoint,
-    contractTarget: contractMapTarget(),
-    challenges: skyChallenges?.getMapMarkers(),
-    events: [
-      ...(journeyAttempt?.missionId===journeyDallasCoinHunt01.id&&missionObjective?[{id:missionObjective.id,x:missionObjective.position.x,z:missionObjective.position.z,label:'COIN TRAIL',lifecycle:'active' as const,missionTarget:true}]:[]),
+    position:airplane.position,forward:{x:direction.x,z:direction.z},king:worldActivities&&kingPlayerId===localPlayerId,
+    players:mapPlayers,roster:[],objectives,waypoint,contractTarget:contractMapTarget(),
+    challenges:worldActivities?skyChallenges?.getMapMarkers():[],
+    events: worldActivities?[
       ...(cityEvent && eventObjective ? [{
         id: cityEvent.id, x: eventObjective.x, z: eventObjective.z,
         label: activeMissionDefinition?.type === 'event' && activeMissionDefinition.requirements.eventType === cityEvent.eventType
@@ -7190,27 +7179,18 @@ function updateWorldMap(direction: THREE.Vector3): void {
           x: target.x, z: target.z, label: target.label, lifecycle: 'active' as const, missionTarget: true,
         }] : [];
       })() : []),
-    ],
-    discoveries: discoverySystem?.getMapMarkers(),
-    discoveryProgress: (() => {
-      const progress = discoverySystem?.getProgress();
-      return progress ? { cityName: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', ...progress } : undefined;
-    })(),
-    territories: territoryDefinitions.filter(definition => (journeyAttempt && journeyCompetitiveCaptureMission(journeyAttempt.missionId)) ? journeyCompetitiveCaptureMission(journeyAttempt.missionId)!.territoryIds.some(candidate=>candidate===definition.id) : !focusedTerritoryTargetId() || definition.id === focusedTerritoryTargetId()).map((definition) => {
-      const state = displayedTerritoryState(definition.id);
-      return {
-        id: definition.id,
-        label: territoryDisplayName(definition),
-        bounds: definition.bounds,
-        color: state?.controllerId ? state.ownerColor ?? definition.fixedColor : neutralTerritoryColor,
-        missionTarget: missionTerritories.includes(definition.id) || definition.id === focusedTerritoryTargetId(),
-        controllerName: state?.controllerName,
-        status: state?.contested ? 'Contested' : state?.controllerId === localPlayerId ? 'Owned by you' : state?.controllerName ? `Owned by ${state.controllerName}` : 'Neutral',
-        captureProgress: state?.captureProgress ?? 0,
-        contested: state?.contested ?? false,
-      };
+    ]:[],
+    discoveries:worldDiscoveries?discoverySystem?.getMapMarkers():[],
+    discoveryProgress:worldDiscoveries?(()=>{const progress=discoverySystem?.getProgress();return progress?{cityName:cityId==='dallas'?'Dallas':'Milwaukee',...progress}:undefined;})():undefined,
+    territories:!cityRules.territoriesEnabled||skyDuelMode||airAssaultMode||soloExploreMode||trainingRequested?[]:territoryDefinitions.filter(definition=>context.territoryIds===undefined||context.territoryIds.includes(definition.id)).map(definition=>{
+      const state=displayedTerritoryState(definition.id);
+      return {id:definition.id,label:territoryDisplayName(definition),bounds:definition.bounds,
+        color:state?.controllerId?state.ownerColor??definition.fixedColor:neutralTerritoryColor,
+        missionTarget:journeyMode||missionTerritories.includes(definition.id),controllerName:state?.controllerName,
+        status:state?.contested?'Contested':state?.controllerId===localPlayerId?'Owned by you':state?.controllerName?`Owned by ${state.controllerName}`:'Neutral',
+        captureProgress:state?.captureProgress??0,contested:state?.contested??false};
     }),
-    repairs: repairMapMarkers,
+    repairs:skyDuelMode?[]:airAssaultMode?airAssaultRepairBeacons:repairMapMarkers,
   });
 }
 
@@ -7358,20 +7338,15 @@ const tutorialMapCoach=document.createElement('aside');
 tutorialMapCoach.className='tutorial-map-coach';tutorialMapCoach.hidden=true;
 tutorialMapCoach.tabIndex=-1;tutorialMapCoach.setAttribute('role','region');tutorialMapCoach.setAttribute('aria-label','City map training');
 tutorialMapCoach.innerHTML=`<small>NAVIGATION 2 / 4</small><strong>CITY MAP</strong><ul>
-  <li>MISSION shows your goal.</li>
-  <li>PLAYERS shows other pilots.</li>
-  <li>TERRITORIES shows controlled areas in cities such as Dallas.</li>
-  <li>Markers show where to fly.</li>
+  <li>Markers show pilots, airports, and places to fly.</li>
+  <li>Territory borders show controlled areas in Dallas.</li>
+  <li>Choose a marker or tap the map to set a waypoint.</li>
   </ul><button type="button" data-navigation-continue>CONTINUE</button>`;
 worldMapOverlayElement.querySelector('.world-map-card')!.append(tutorialMapCoach);
 function syncTutorialNavigationMap():void{
   const visible=guidedTutorialActive&&tutorialNavigationCoach==='map'&&worldMap.isOpen();
   tutorialMapCoach.hidden=!visible;
   worldMapOverlayElement.classList.toggle('tutorial-navigation-map',visible);
-  const mapTerritoryList=document.querySelector<HTMLElement>('#map-territory-list');
-  const mapTerritoryPanel=mapTerritoryList?.closest<HTMLElement>('.map-intelligence-panel');
-  mapTerritoryPanel?.toggleAttribute('hidden',(!cityRules.territoriesEnabled||skyDuelMode)&&!visible);
-  if(mapTerritoryList)mapTerritoryList.dataset.empty=visible&&!cityRules.territoriesEnabled?'Territories are available in Dallas.':'';
   const panelStage=tutorialNavigationCoach==='players'||tutorialNavigationCoach==='territories';
   const showInfoCard=panelStage||guidedTutorialActive||journeyMode||launchMode==='free-fly'&&!trainingRequested;
   missionStatusLayer.classList.toggle('journey-status-layer',showInfoCard);

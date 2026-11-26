@@ -1,56 +1,33 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import {readFileSync} from 'node:fs';
 import test from 'node:test';
+const html=readFileSync(new URL('../../client/index.html',import.meta.url),'utf8');
+const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+const map=readFileSync(new URL('../../client/src/world-map.ts',import.meta.url),'utf8');
+const menu=readFileSync(new URL('../../client/src/pilot-menu.ts',import.meta.url),'utf8');
+const css=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
 
-const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
-const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
-const map = readFileSync(new URL('../../client/src/world-map.ts', import.meta.url), 'utf8');
-const menu = readFileSync(new URL('../../client/src/pilot-menu.ts', import.meta.url), 'utf8');
-const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
-
-test('Map is the shared mission, player, and territory intelligence view', () => {
-  assert.match(html, /id="world-map-close"[\s\S]*id="world-map-canvas"[\s\S]*id="map-mission-summary"[\s\S]*id="map-player-list"[\s\S]*id="map-territory-list"/);
-  assert.match(main, /worldMap\.update\(\{[\s\S]*roster:[\s\S]*mission:[\s\S]*objective:[\s\S]*compactProgress:[\s\S]*territories:/);
-  assert.match(map, /renderIntelligence\(\)/);
-  assert.doesNotMatch(map, /setInterval|fetch\([^)]*(?:mission|player|territor)/i);
+test('gameplay Map has a compact bottom icon key without the old information panels',()=>{
+ assert.match(html,/id="world-map-close"[\s\S]*id="world-map-canvas"[\s\S]*class="map-symbol-key"/);
+ assert.match(html,/data-map-zoom="in"[\s\S]*data-map-zoom="out"/);
+ assert.doesNotMatch(html,/map-legend|map-intelligence|map-mission-summary|map-player-list|map-territory-list/);
+ assert.doesNotMatch(main,/map-legend|map-intelligence|map-territory-list/);
+ assert.doesNotMatch(map,/renderIntelligence|map-mission-summary|map-player-list|map-territory-list/);
+ assert.doesNotMatch(map,/setInterval|fetch\([^)]*(?:mission|player|territor)/i);
 });
 
-test('OpenStreetMap attribution belongs to the Map view instead of the flight HUD', () => {
-  assert.match(html, /class="world-map-view">[\s\S]*id="osm-attribution"[^>]*href="https:\/\/www\.openstreetmap\.org\/copyright"[\s\S]*<\/div>\s*<section class="map-intelligence"/);
-  assert.equal(html.match(/id="osm-attribution"/g)?.length, 1);
-  assert.match(css, /#osm-attribution\s*\{[^}]*position:\s*absolute;/);
-  assert.doesNotMatch(css, /#osm-attribution\s*\{[^}]*position:\s*fixed;/);
+test('Map keeps the existing header, controls and OpenStreetMap attribution',()=>{
+ assert.match(html,/id="world-map-close"[^>]*>← GAME<\/button>[\s\S]*id="world-map-title"[\s\S]*id="world-map-recenter"[^>]*>RECENTER<\/button>/);
+ assert.match(html,/class="world-map-view">[\s\S]*id="osm-attribution"[^>]*href="https:\/\/www\.openstreetmap\.org\/copyright"/);
+ assert.equal(html.match(/id="osm-attribution"/g)?.length,1);
+ assert.match(css,/#osm-attribution\s*\{[^}]*position:\s*absolute;/);
 });
 
-test('mobile Map keeps the geographic view dominant with always-visible intelligence', () => {
-  assert.match(html, /id="world-map-close"[^>]*>← GAME<\/button>[\s\S]*id="world-map-title"[\s\S]*id="world-map-recenter"[^>]*>RECENTER<\/button>/);
-  assert.match(html, /class="map-intelligence-panel"><h2>PLAYERS[\s\S]*class="map-intelligence-panel"><h2>TERRITORIES/);
-  assert.doesNotMatch(html, /class="map-intelligence-panel"[^>]*details|<summary>PLAYERS|<summary>TERRITORIES/);
-  assert.match(css, /\.world-map-view\s*\{[^}]*position:\s*relative;[^}]*flex:\s*1;[^}]*min-height:\s*0;/);
-  assert.match(css, /\.map-intelligence\s*\{[^}]*display:\s*grid;/);
-  assert.match(css, /@media\(max-width:1000px\) and \(orientation:landscape\),\s*\(any-pointer:coarse\) and \(orientation:landscape\) and \(max-height:520px\)\{[\s\S]*\.map-intelligence\{[^}]*flex:0 0 clamp\(112px,32dvh,135px\);[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\);/);
-  assert.match(css, /body:has\(#world-map-overlay:not\(\.hidden\)\) :is\([^}]*\.unified-flight-hud[^}]*\.tutorial-help[^}]*\)\{display:none!important\}/);
-});
-
-test('short touch landscape Map is bounded by its safe-area container', () => {
-  assert.match(css, /@media \(max-width: 950px\) and \(orientation: landscape\),[\s\S]*?\.world-map-card\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*height:\s*100%;/);
-  assert.match(css, /\.world-map-view,[\s\S]*#world-map-canvas\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/);
-  assert.match(css, /\.map-legend\s*\{[^}]*flex-wrap:\s*wrap;[^}]*white-space:\s*normal;/);
-  assert.match(css, /\.map-intelligence\s*\{[^}]*flex:\s*0 0 clamp\(112px, 32dvh, 138px\);[^}]*width:\s*100%;[^}]*min-width:\s*0;/);
-});
-
-test('mobile Map uses one compact in-map legend and no duplicate territory colors block', () => {
-  assert.match(main, /getElementById\('map-legend'\)[\s\S]*\['you', 'player', 'ai', 'mission', 'airport', 'territory', 'event', 'waypoint'\]/);
-  assert.doesNotMatch(main, /MAP_TERRITORY_LEGEND_KEY|mapTerritoryLegend|TERRITORY COLORS/);
-  assert.doesNotMatch(html, /map-symbol-legend|map-territory-legend/);
-  assert.match(css, /\.map-legend\s*\{[^}]*position:\s*absolute;[^}]*white-space:\s*nowrap;[^}]*pointer-events:\s*none;/);
-});
-
-test('large player and territory rosters scroll internally without growing the Map page', () => {
-  assert.match(map, /this\.playerList\.replaceChildren\(\.\.\.this\.state\.roster\.map/);
-  assert.match(map, /this\.territoryList\.replaceChildren\(\.\.\.territories\.map/);
-  assert.match(css, /\.map-intelligence-panel\s*\{[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\);[^}]*overflow:\s*hidden;/);
-  assert.match(css, /#map-player-list,#map-territory-list\{[^}]*max-height:none;[^}]*overflow-y:auto;[^}]*overscroll-behavior:contain/);
+test('Map fills the remaining card space and stays bounded on short mobile landscape screens',()=>{
+ assert.match(css,/\.world-map-view\s*\{[^}]*position:\s*relative;[^}]*flex:\s*1;[^}]*min-height:\s*0;/);
+ assert.match(css,/@media \(max-width: 950px\) and \(orientation: landscape\),[\s\S]*?\.world-map-card\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*height:\s*100%;/);
+ assert.match(css,/\.world-map-view,[\s\S]*#world-map-canvas\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/);
+ assert.doesNotMatch(css,/map-legend|map-intelligence|map-mission-summary|map-player-list|map-territory-list/);
 });
 
 test('Pilot Menu Map mounts the existing WorldMap directly without a second launcher', () => {
