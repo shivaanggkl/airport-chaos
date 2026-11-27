@@ -1,0 +1,4 @@
+.sky-duel-presence-host { container-type:inline-size; }
+.sky-duel-presence { position:absolute;z-index:3;top:4%;right:3%;display:inline-flex;align-items:center;gap:.4em;padding:.6em .65em;max-width:49%;border:1px solid #f5d250;border-radius:8px;background:#082543eb;box-shadow:0 2px 5px #07163288;color:#fff;white-space:nowrap;font:800 9px/1.1 var(--font-display);font-size:clamp(8px,3cqw,12px);letter-spacing:.015em;pointer-events:none; }
+.sky-duel-presence i { flex:none;width:.55em;height:.55em;border-radius:50%;background:#4be78b;box-shadow:0 0 5px #4be78b88; }
+.sky-duel-presence.is-unavailable i { background:#b5bdc6;box-shadow:none; }

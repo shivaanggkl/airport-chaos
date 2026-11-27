@@ -108,6 +108,7 @@ import { trainingSlideIds } from '../../shared/training-slides.mjs';
 import { AdMobSsvVerifier, RewardedAdStore, type RewardedAdClientEvent } from './rewarded-ads.js';
 import { ReferralFlightTracker } from './referral-flight.js';
 import { SkyDuelStore, type DuelOutcome } from './sky-duel-store.js';
+import {skyDuelOnlineCount} from './sky-duel-presence.js';
 import { closestDuelOpponent, type DuelQueueEntry } from './sky-duel-matchmaking.js';
 import { duelTimeoutWinner, duelScoreWinner } from './sky-duel-rules.js';
 import { competitiveModes } from '../../shared/competitive-modes.mjs';
@@ -358,6 +359,7 @@ type SkyDuelSession = {
 };
 const skyDuelQueue = new Map<string, DuelQueueEntry>();
 const skyDuelSessions = new Map<string, SkyDuelSession>();
+let skyDuelPresenceCache:{online:number;expires:number}|undefined;
 const skyDuelScoredMatches = new Set<string>();
 const skyDuelCombatDeaths = new Set<string>();
 let skyDuelCombatStep = false;
@@ -1390,6 +1392,14 @@ const httpServer = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? '/', 'http://localhost');
   if (rejectsApiRequestOrigin(request, requestUrl.pathname, configuredWebOrigin)) {
     jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
+  }
+  if(requestUrl.pathname==='/api/sky-duel/presence'){
+    if(request.method!=='GET'){response.writeHead(405,{Allow:'GET'});response.end();return;}
+    const now=Date.now();
+    if(!skyDuelPresenceCache||skyDuelPresenceCache.expires<=now){
+      skyDuelPresenceCache={online:skyDuelOnlineCount(skyDuelQueue.values(),skyDuelSessions.values(),players,hasOpenPlayerSocket),expires:now+5000};
+    }
+    jsonResponse(response,200,{online:skyDuelPresenceCache.online});return;
   }
   // Email-only interest signup is independent of commercial/business inquiries.
   // This route rejects the business form payload, even while its gate is closed.
