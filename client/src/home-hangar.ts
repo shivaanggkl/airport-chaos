@@ -1,3 +1,4 @@
+import {SkyDuelPresenceBadge} from './sky-duel-presence';
 import { createMenuCarouselCard, createMenuCarouselArtwork, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
 import { sponsorshipApi, type PublicSponsor } from './sponsorship-catalog';
 import { createLockIcon } from './lock-icon';
@@ -32,6 +33,8 @@ type HomeHangarHandlers = {
 export class HomeHangar {
   readonly stage: HTMLElement;
   private modeIndex = 0;
+  private duelPresence:SkyDuelPresenceBadge|undefined;
+  private duelCard:HTMLElement|undefined;
   private modeClickBlockedUntil = 0;
   private readonly refreshModes: () => void;
   private readonly aircraft: HTMLElement;
@@ -64,6 +67,11 @@ export class HomeHangar {
       card.setAttribute('aria-label', multiplayer ? `${label}, Multiplayer` : label);
       const visual = createMenuCarouselArtwork(image, 'home-hangar-card-image', multiplayer ? 'MULTIPLAYER' : 'SINGLE PLAYER');
       card.append(visual);
+      if(image==='/media/multiplayer/sky-duel-card.png'){
+        visual.classList.add('sky-duel-presence-host');
+        this.duelPresence=new SkyDuelPresenceBadge();this.duelCard=card;
+        visual.append(this.duelPresence.element);card.setAttribute('aria-describedby',this.duelPresence.element.id);
+      }
       if (locked) {
         card.classList.add('is-locked');
         card.setAttribute('aria-disabled', 'true');
@@ -91,6 +99,7 @@ export class HomeHangar {
     this.refreshModes=()=>{
       cards.forEach((card,index)=>{positionMenuCarouselCard(card,index-this.modeIndex);card.tabIndex=Math.abs(index-this.modeIndex)<=1?0:-1;});
       previous.hidden=this.modeIndex===0;next.hidden=this.modeIndex===cards.length-1;
+      this.syncDuelPresence();
     };
     const move=(direction:number)=>{this.modeIndex=Math.max(0,Math.min(cards.length-1,this.modeIndex+direction));this.refreshModes();};
     previous.addEventListener('click',()=>move(-1));next.addEventListener('click',()=>move(1));
@@ -109,7 +118,7 @@ export class HomeHangar {
       this.measureSponsor();
     }, { threshold: [0, 0.5, 1] });
     this.sponsorObserver.observe(this.sponsor);
-    const syncVisibility = (): void => { element.classList.toggle('is-backgrounded', document.hidden); this.measureSponsor(); };
+    const syncVisibility = (): void => { element.classList.toggle('is-backgrounded', document.hidden); this.measureSponsor();this.syncDuelPresence(); };
     document.addEventListener('visibilitychange', syncVisibility);
     syncVisibility();
     this.renderIdentity();
@@ -125,7 +134,7 @@ export class HomeHangar {
     this.measureSponsor();
   }
 
-  hide(): void { this.element.hidden = true; this.measureSponsor(); void flushSponsorMeasurements(); }
+  hide(): void { this.element.hidden = true;this.syncDuelPresence(); this.measureSponsor(); void flushSponsorMeasurements(); }
 
   setSponsor(value: PublicSponsor | null, measurementAllowed = false): void {
     this.measuredSponsor = value;
@@ -156,6 +165,10 @@ export class HomeHangar {
   update(data: HomeHangarData): void {
     this.data = data;
     this.renderIdentity();
+  }
+
+  private syncDuelPresence():void {
+    this.duelPresence?.setVisible(!this.element.hidden&&!document.hidden&&Boolean(this.duelCard&&!this.duelCard.classList.contains('is-hidden')));
   }
 
   private renderIdentity(): void {
